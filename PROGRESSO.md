@@ -28,8 +28,8 @@
 - Filtros dinâmicos (auto-detecta campos, dropdown para poucos valores)
 - Tags de filtro ativo com remoção individual
 - **Persistência de filtros** no localStorage (mantêm ao navegar entre páginas)
+- **Reaplicação automática de filtros** ao atualizar a lista ou retornar de uma conferência
 - **Limpeza automática de filtros** no logout
-- Botão "Limpar tudo" para remover todos os filtros de uma vez
 - Cards compactos com status colorido (azul=pendente, amarelo=andamento, vermelho=recontagem)
 - Duplo clique para abrir conferência
 
@@ -79,12 +79,15 @@
   - Linha de total somando todos os saldos
 - Backend: `GET /api/produtos?q={termo}&limite={n}` e `GET /api/produtos/estoque/{codProd}`
 
-### Alertas sonoros
-- `frontend/src/infrastructure/audio/alertas.ts` com `tocarAlertaErro()`
+### Alertas sonoros e visuais
+- `frontend/src/infrastructure/audio/alertas.ts` com `tocarAlertaErro()` e `tocarAlertaSucesso()`
 - Som sintetizado pela Web Audio API (sem arquivo de áudio): não pesa no
   bundle, dispensa request de rede e funciona offline no coletor
-- Dois bipes descendentes (660 Hz → 440 Hz, ~0,5 s) + `navigator.vibrate` no Android
-- Disparado nos `catch` de `handleBuscarProduto` e `handleConferir`, e não num
+- **Erro:** dois bipes descendentes (660 Hz → 440 Hz, ~0,5 s) + `navigator.vibrate` no Android
+- **Sucesso:** dois bipes ascendentes curtos (880 → 1175 Hz, ~0,19 s) + vibração leve de 60ms
+- **Feedback visual de sucesso:** overlay central com imagem do produto (240x240) + borda verde
+  + selo de check, exibido por 1,2s. `pointer-events: none` para não roubar o foco do scanner
+- Disparado nos `catch`/`try` de `executarConferencia`, e não num
   `useEffect` sobre `error`: se o operador repetir a mesma leitura recusada, a
   string de erro não muda e o efeito não voltaria a disparar
 - Falha em silêncio se a API não existir no dispositivo
@@ -139,14 +142,49 @@
 
 ---
 
+## Otimizações de Performance
+
+### Cache de token OAuth com mutex
+- **Problema:** O token era re-autenticado em **todas** as chamadas ao Sankhya. A margem de
+  expiração (5 min no `Token.isExpired()`) somada à subtração dupla no `authenticate()` fazia
+  o token parecer sempre expirado. Cada bipagem fazia **3 autenticações** desnecessárias.
+- **Correção:** Removida a subtração dupla; a margem do `isExpired()` foi zerada (o retry em
+  401 já é o safety net). Adicionado mutex (`authPromise`) para que chamadas concorrentes
+  reutilizem a mesma autenticação.
+- **Impacto:** De 3 auths por bipagem para 1 auth a cada ~30 min.
+
+### Bipagem com delta em 1 request
+- **Problema:** Cada bipagem fazia 2 requests HTTP ao backend: `POST /conferir-item` + `POST /itens-pedido`.
+- **Correção:** O endpoint `/conferir-item` agora retorna `{ resultado, itens }` — salva o item
+  e busca a lista atualizada internamente. O hook aplica o patch local sem um segundo request.
+- **Impacto:** 50% menos round-trips por bipagem.
+
+### Paralelização no ListarItensPedidoUseCase
+- **Problema:** Dentro do `/conferir-item` (e `/itens-pedido`), as duas consultas ao Sankhya
+  (`DbExplorerSP.executeQuery` para os itens + `ConferenciaSP.listarItensPedido` para divergências)
+  rodavam em série.
+- **Correção:** Substituído por `Promise.all` — as duas chamadas independentes rodam em paralelo.
+- **Impacto:** ~40% menos tempo no uso de caso de listagem (de 2 saltos para 1 salto paralelo).
+
+### Query SQL sem subqueries correlacionadas
+- **Problema:** A query da fila de conferência tinha `SELECT COUNT(DISTINCT CODPROD)` como
+  subquery correlacionada (rodava uma vez por linha do TGFCAB) e `EXISTS` separado em TGFITE.
+- **Correção:** Mergeado em `INNER JOIN` com subquery agrupada — roda uma vez só. Removidos
+  JOINs não utilizados (`TSIUSU`, `TGFORD`). O JOIN de rota foi agrupado com `GROUP BY` para
+  evitar duplicação de linhas.
+- **Impacto:** A ser confirmado pelo `timeQuery` do Sankhya.
+
+---
+
 ## Pendências / Próximos Passos
 
 - [x] Deploy em Docker no servidor Linux — ver **[DEPLOY.md](DEPLOY.md)**
 - [x] Som/vibração no **erro** de conferência
+- [x] Som/vibração + feedback visual no **sucesso** da conferência
 - [x] Ocultação de campos sensíveis no backend (não só visual)
 - [x] Consulta de produtos com saldo de estoque por empresa/local/lote
 - [x] Interface otimizada da tela de conferência (compactação, abas, lote, filtros persistentes)
-- [ ] Som/vibração de confirmação no **sucesso** da conferência
+- [x] Otimização de performance da bipagem (cache de token, delta em 1 request, paralelização)
 - [ ] Testar em ambiente de produção (escrita na TGFCON2)
 - [ ] Leitor de código de barras via câmera (Capacitor plugin)
 - [ ] Tratamento de divergências (tela de recontagem)

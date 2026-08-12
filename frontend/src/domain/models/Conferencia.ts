@@ -44,6 +44,10 @@ export interface ConferenciaIniciada {
   tipMov: string;
   vendedor: string;
   parceiro: string;
+  /** 'S' quando o Sankhya identificou início de recontagem */
+  isRecontagem?: string;
+  /** Tipo de contagem retornado pelo Sankhya */
+  tipoContagem?: string;
   configuracoes: Record<string, string>;
 }
 

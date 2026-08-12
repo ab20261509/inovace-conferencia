@@ -69,8 +69,8 @@ export function ListaConferenciasPage() {
     [pedidosFiltrados, statusSelecionado],
   );
 
-  function handleAbrirConferencia(nunota: number) {
-    navigate(`/conferencias/${nunota}`);
+  function handleAbrirConferencia(nunota: number, statusConferencia?: string) {
+    navigate(`/conferencias/${nunota}`, { state: { statusConferencia } });
   }
 
   function handleFiltroDinamicoChange(novosFiltros: Record<string, string>) {
@@ -164,10 +164,10 @@ export function ListaConferenciasPage() {
               className={`card-conferencia ${pedido.statusConferencia === 'Em andamento' ? 'em-andamento' : ''}`}
             >
               <div
-                onDoubleClick={() => handleAbrirConferencia(pedido.nunota)}
+                onDoubleClick={() => handleAbrirConferencia(pedido.nunota, pedido.statusConferencia)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleAbrirConferencia(pedido.nunota)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAbrirConferencia(pedido.nunota, pedido.statusConferencia)}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="card-header">

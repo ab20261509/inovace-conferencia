@@ -632,6 +632,58 @@ body {
 .badge-pending { background: #eff6ff; color: var(--blue-500); border: 1px solid #bfdbfe; }
 .badge-danger { background: #fff1f2; color: var(--rose-500); border: 1px solid #fecdd3; }
 
+/* Recontagem — badge no header da conferência ativa + alerta + destaque de linha */
+.badge-recontagem-header {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 4px 12px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #fff1f2;
+  color: var(--rose-500);
+  border: 1px solid #fecdd3;
+  border-radius: 24px;
+  vertical-align: middle;
+}
+.alerta-recontagem {
+  padding: 12px 16px;
+  margin: 0;
+  background: #fff1f2;
+  color: #9f1239;
+  border-bottom: 1px solid #fecdd3;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.alerta-recontagem strong { font-weight: 800; }
+.row-recontagem { box-shadow: inset 3px 0 0 var(--rose-500); }
+
+/* Status dentro de recontagem */
+.status-reconferir {
+  color: #9f1239;
+  font-weight: 800;
+  font-size: 0.7rem;
+  background: #ffe4e6;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #fecdd3;
+  display: inline-block;
+}
+.status-reconferir-pendente {
+  color: var(--rose-500);
+  font-weight: 700;
+  font-size: 0.7rem;
+  background: #fff1f2;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #ffe4e6;
+  display: inline-block;
+}
+
 .card-body .parceiro {
   font-weight: 700;
   margin-bottom: 10px;

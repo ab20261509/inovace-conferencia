@@ -46,6 +46,7 @@ SELECT
                   'D','Finalizada Divergente',
                   'F', 'Finalizada OK',
                   'R', 'Aguardando recontagem',
+                  'RR', 'Aguardando recontagem',
                   'AR', 'Recontagem em Andamento',
                   'FR', 'Recontagem Finalizada OK',
                   'Aguardando Conferência')
@@ -87,7 +88,7 @@ WHERE CAB.TIPMOV = 'P'
     AND NOT EXISTS (
         SELECT 1 FROM TGFVAR WHERE NUNOTAORIG = CAB.NUNOTA
     )
-    AND CAB.CODPARC NOT IN (32698, 1502, 37104, 791)
+    
     AND NVL(TOP.NUCCO,0) > 0
     AND CAB.CODVEND NOT IN (43)
     AND NVL(CON.STATUS,'S') IN ('A','R','S')

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useConferenciaAtiva } from '../../application/hooks/useConferenciaAtiva';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
@@ -11,9 +11,15 @@ import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 export function ConferenciaProdutosPage() {
   const { nunota } = useParams<{ nunota: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const nuNotaNum = parseInt(nunota || '0', 10);
   const { user } = useAuth();
   const verCamposSensiveis = podeVerCamposSensiveis(user?.nomeUsu);
+
+  // Status de recontagem pode vir de duas fontes:
+  // 1) navigate state (vindo da lista de conferências, disponível imediatamente)
+  // 2) isRecontagem retornado pelo Sankhya ao iniciar (confirmação)
+  const statusInicial = (location.state as any)?.statusConferencia as string | undefined;
 
   const {
     conferencia,
@@ -42,6 +48,44 @@ export function ConferenciaProdutosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Snapshot da condição de recontagem, capturada UMA vez ao carregar:
+  // 1) status repassado pela lista (navigate state) — disponível imediatamente
+  // 2) isRecontagem retornado pelo Sankhya ao iniciar — confirmação
+  // Não recalcular depois: senão o item que virava "parcial" durante bipagem
+  // normal acabava herdando o badge "Reconferir total" indevidamente.
+  const [isRecontagem, setIsRecontagem] = useState(
+    () => (statusInicial || '').toLowerCase().includes('recontagem'),
+  );
+  const recontagemCapturadaRef = useRef(false);
+
+  useEffect(() => {
+    if (recontagemCapturadaRef.current || !conferencia) return;
+    recontagemCapturadaRef.current = true;
+    if (String(conferencia.isRecontagem || '').toLowerCase() === 'true') {
+      setIsRecontagem(true);
+    }
+  }, [conferencia]);
+
+  // Snapshot do qtdConf de cada item no primeiro carregamento em recontagem.
+  // "Reconferir total" só faz sentido para itens que JÁ tinham alguma
+  // quantidade contada antes — itens a zero não têm o que reconferir.
+  const [snapshotQtdConf, setSnapshotQtdConf] = useState<Record<string, string>>({});
+  const snapshotCapturadoRef = useRef(false);
+
+  useEffect(() => {
+    if (snapshotCapturadoRef.current) return;
+    if (!isRecontagem || itens.length === 0) return;
+    snapshotCapturadoRef.current = true;
+    const snap: Record<string, string> = {};
+    for (const it of itens) snap[it.sequencia] = it.qtdConf;
+    setSnapshotQtdConf(snap);
+  }, [isRecontagem, itens]);
+
+  // Itens cujo qtdConf já foi zerado nesta sessão de recontagem. Na primeira
+  // bipagem de um item "reconferir total" subtraímos o snapshot (qtdConf -
+  // snapshot) para zerar e atribuir de uma vez. Bips seguintes somam normal.
+  const [itensZerados, setItensZerados] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (nuNotaNum) iniciar();
   }, [nuNotaNum, iniciar]);
@@ -68,8 +112,31 @@ export function ConferenciaProdutosPage() {
 
     setConferindo(true);
     try {
-      const qtd = (parseFloat(quantidade) || 1).toFixed(9);
-      const resultado = await conferirItem(codBarra.trim(), qtd);
+      const codBipado = codBarra.trim();
+      const qtdInformada = parseFloat(quantidade) || 1;
+
+      // Reconferir total: na primeira bipagem de um item que tinha qtdConf
+      // anterior, subtrair o snapshot para zerar e atribuir a quantidade nova.
+      // Bips seguintes ao mesmo item somam normalmente.
+      let qtdFinal = qtdInformada;
+      let seqZerada: string | null = null;
+      if (isRecontagem) {
+        const itemMatch = itens.find(
+          (i) => String(i.codBarra) === String(codBipado) || String(i.codProd) === String(codBipado),
+        );
+        const snapshotDoItem = itemMatch ? parseFloat(snapshotQtdConf[itemMatch.sequencia] || '0') : 0;
+        if (itemMatch && snapshotDoItem > 0 && !itensZerados.has(itemMatch.sequencia)) {
+          qtdFinal = qtdInformada - snapshotDoItem;
+          seqZerada = itemMatch.sequencia;
+        }
+      }
+
+      const qtd = qtdFinal.toFixed(9);
+      const resultado = await conferirItem(codBipado, qtd);
+
+      if (seqZerada) {
+        setItensZerados((prev) => new Set(prev).add(seqZerada!));
+      }
       setCodBarra('');
       setQuantidade('1');
       inputRef.current?.focus();
@@ -165,10 +232,15 @@ export function ConferenciaProdutosPage() {
       {/* Header */}
        <header className="page-header">
         <Botao variant="ghost" size="sm" onClick={() => navigate('/conferencias')}>← Voltar</Botao>
-        <div className="header-info">
-          <h1>Conferência #{conferencia?.numConf}</h1>
-          <span className="nota-info">Pedido {conferencia?.numNota} — {conferencia?.parceiro}</span>
-        </div>
+         <div className="header-info">
+           <h1>Conferência #{conferencia?.numConf}</h1>
+           <span className="nota-info">Pedido {conferencia?.numNota} — {conferencia?.parceiro}</span>
+           {isRecontagem && (
+             <span className="badge-recontagem-header" title="Pedido voltou para recontagem — conferir quantidade total novamente">
+               ⚠ Recontagem
+             </span>
+           )}
+         </div>
         <div className="header-cards">
           <Container variant="default" padding="sm" className="resumo-card-inline">
             <Label variant="value">{totalItens}</Label>
@@ -259,6 +331,12 @@ export function ConferenciaProdutosPage() {
         {/* Conteúdo da aba Pendentes */}
         {abaAtiva === 'pendentes' && (
           <Container variant="outlined" padding="none">
+            {isRecontagem && (
+              <div className="alerta-recontagem" role="alert">
+                <strong>⚠ Recontagem em andamento.</strong>
+                <span> Conferir a quantidade total de cada item novamente — ignorar valores conferidos antes da divergência.</span>
+              </div>
+            )}
             {itens.length === 0 && !error ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
                 <DotLottieReact
@@ -282,15 +360,26 @@ export function ConferenciaProdutosPage() {
                 </thead>
                 <tbody>
                   {itens.filter((i) => i.status !== 'completo').sort((a, b) => {
+                    // Em recontagem, itens que já tinham qtdConf inicial sobem
+                    // (são os que precisam de reconferência total). Fora dela,
+                    // só os parciais sobem.
+                    if (isRecontagem) {
+                      const aInit = parseFloat(snapshotQtdConf[a.sequencia] || '0') > 0 ? 0 : 1;
+                      const bInit = parseFloat(snapshotQtdConf[b.sequencia] || '0') > 0 ? 0 : 1;
+                      return aInit - bInit;
+                    }
                     const parcialA = a.status === 'parcial' ? 0 : 1;
                     const parcialB = b.status === 'parcial' ? 0 : 1;
                     return parcialA - parcialB;
                   }).map((item) => {
                     const qtdConf = parseFloat(item.qtdConf);
                     const parcial = item.status === 'parcial';
+                    const tinhaQtdInicial =
+                      isRecontagem && parseFloat(snapshotQtdConf[item.sequencia] || '0') > 0;
+                    const destacar = tinhaQtdInicial || parcial;
 
                     return (
-                      <tr key={item.sequencia} className={parcial ? 'row-parcial' : ''}>
+                      <tr key={item.sequencia} className={`${destacar ? 'row-parcial' : ''} ${tinhaQtdInicial ? 'row-recontagem' : ''}`}>
                         <td>
                           <div className="produto-cell">
                             <img
@@ -314,8 +403,22 @@ export function ConferenciaProdutosPage() {
                         {verCamposSensiveis && <td className="num-cell">{item.qtdPed}</td>}
                         <td className="num-cell">{qtdConf}</td>
                         <td>
-                          {parcial && <span className="status-parcial">Parcial</span>}
-                          {!parcial && <span className="status-pendente">—</span>}
+                          {tinhaQtdInicial && (
+                            <span
+                              className="status-reconferir"
+                              title="Item já tinha quantidade contada — reconferir a quantidade total"
+                            >
+                              ⚠ Reconferir total
+                            </span>
+                          )}
+                          {isRecontagem && !tinhaQtdInicial && parcial && (
+                            <span className="status-parcial">Parcial</span>
+                          )}
+                          {isRecontagem && !tinhaQtdInicial && !parcial && (
+                            <span className="status-pendente">—</span>
+                          )}
+                          {!isRecontagem && parcial && <span className="status-parcial">Parcial</span>}
+                          {!isRecontagem && !parcial && <span className="status-pendente">—</span>}
                         </td>
                       </tr>
                     );

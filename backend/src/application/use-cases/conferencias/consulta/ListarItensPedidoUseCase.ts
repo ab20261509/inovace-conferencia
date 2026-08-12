@@ -74,34 +74,53 @@ export class ListarItensPedidoUseCase {
       divergenciasResult.qtdConfMap.forEach((v, k) => qtdConfMap.set(k, v));
     }
 
-    // 2. Cruzar: distribuir qtdConf por sequência
-    // O Sankhya agrupa por CODPROD, mas temos múltiplas sequências do mesmo produto
-    const itens: ItemPedido[] = todosItens.map((item) => {
-      const qtdConfFromSankhya = qtdConfMap.get(item.codProd);
+    // 2. Cruzar: distribuir qtdConf por sequência (fill-first por codProd)
+    // O Sankhya agrupa por CODPROD, mas temos múltiplas sequências do mesmo produto.
+    // Antes era proporcional (Math.round(totalConf * proporcao)), o que fazia
+    // bipar 1 unidade atribuir qtdConf=1 a TODAS sequências do mesmo CODPROD
+    // quando qtdPed era igual (Math.round(0.5)=1). Agora preenche em ordem
+    // crescente de SEQUENCIA: 1ª sequência até qtdPed, sobra vai para a próxima.
+    const itensOrdenados = [...todosItens].sort(
+      (a, b) => Number(a.sequencia) - Number(b.sequencia),
+    );
 
-      let qtdConf: string;
+    const gruposPorCodProd = new Map<string, typeof todosItens>();
+    for (const it of itensOrdenados) {
+      const arr = gruposPorCodProd.get(it.codProd);
+      if (arr) arr.push(it);
+      else gruposPorCodProd.set(it.codProd, [it]);
+    }
+
+    const qtdConfPorSeq = new Map<string, string>();
+
+    for (const [codProd, grupo] of gruposPorCodProd) {
+      const qtdConfFromSankhya = qtdConfMap.get(codProd);
+
       if (qtdConfFromSankhya !== undefined) {
-        // Item está na lista de divergências
-        // Distribuir qtdConf entre as sequências do mesmo CODPROD proporcionalmente
-        const mesmosProd = todosItens.filter(i => i.codProd === item.codProd);
-        if (mesmosProd.length === 1) {
-          qtdConf = qtdConfFromSankhya;
-        } else {
-          // Proporção baseada na qtdPed de cada sequência
-          const totalPedMesmoProd = mesmosProd.reduce((s, i) => s + parseFloat(i.qtdPed), 0);
-          const totalConf = parseFloat(qtdConfFromSankhya);
-          const proporcao = totalPedMesmoProd > 0 ? parseFloat(item.qtdPed) / totalPedMesmoProd : 0;
-          qtdConf = String(Math.min(parseFloat(item.qtdPed), Math.round(totalConf * proporcao)));
+        // Item está na lista de divergências — distribuir fill-first
+        let resto = parseFloat(qtdConfFromSankhya);
+        for (const it of grupo) {
+          const cap = parseFloat(it.qtdPed);
+          const conf = Math.min(cap, Math.max(0, resto));
+          qtdConfPorSeq.set(it.sequencia, String(conf));
+          resto -= conf;
         }
       } else if (conferenciaIniciada) {
         // Conferência iniciada mas item não está na lista de divergências = totalmente conferido
-        qtdConf = item.qtdPed;
+        for (const it of grupo) {
+          qtdConfPorSeq.set(it.sequencia, it.qtdPed);
+        }
       } else {
-        qtdConf = '0';
+        for (const it of grupo) {
+          qtdConfPorSeq.set(it.sequencia, '0');
+        }
       }
+    }
 
-      return { ...item, qtdConf };
-    });
+    const itens: ItemPedido[] = itensOrdenados.map((item) => ({
+      ...item,
+      qtdConf: qtdConfPorSeq.get(item.sequencia) ?? '0',
+    }));
 
     // 4. Calcular o status no servidor e, se o usuário não for privilegiado,
     //    remover os campos sensíveis da resposta.

@@ -61,8 +61,9 @@ const token = response.data.access_token;
 
 ### Renovação de token
 - Token expira em ~30 minutos (`expires_in`)
-- Renovar antes de expirar (margem de 5 min)
+- Aplicar margem de renovação **uma única vez** (ver seção 15.1)
 - Em caso de 401, renovar e tentar novamente
+- Usar mutex para evitar autenticações concorrentes (ver seção 15.2)
 
 ---
 
@@ -647,12 +648,14 @@ class SankhyaGateway {
     });
 
     this.token = response.data.access_token;
-    this.tokenExpiry = Date.now() + (response.data.expires_in - 300) * 1000;
+    // Ver seção 15.1: margem no isExpired(), não aqui
+    this.tokenExpiry = Date.now() + response.data.expires_in * 1000;
     return this.token!;
   }
 
   private async getToken(): Promise<string> {
-    if (!this.token || Date.now() >= this.tokenExpiry) {
+    // Margem de 5 min aplicada apenas aqui
+    if (!this.token || Date.now() >= this.tokenExpiry - 300_000) {
       return this.authenticate();
     }
     return this.token;
@@ -734,3 +737,147 @@ await gw.serviceCall('ConferenciaSP.salvarCabecalhoConferencia', {
 6. **Token OAuth** é do usuário de integração — conferente é identificado por `CODUSU` separado
 7. **listarItensPedido** retorna apenas divergentes — itens OK somem da resposta
 8. **Paginação** começa em `offsetPage: "0"` — incrementar enquanto `hasMoreResult: "true"`
+
+---
+
+## 15. Performance — Lições aprendidas
+
+### 15.1 Cache de token: margem única, nunca dupla
+
+O `expires_in` retornado pelo Sankhya (ex: `1800` = 30 min) define a vida útil do token.
+Ao implementar o cache, aplique a margem de renovação antecipada **uma única vez**.
+
+```typescript
+// ✅ CORRETO — margem só no isExpired()
+isExpired(): boolean {
+  return Date.now() >= this.expiresAt.getTime() - 300_000; // 5 min
+}
+// expiresAt = Date.now() + expires_in * 1000 (sem subtrair)
+
+// ❌ ERRADO — margem duplicada
+authenticate(): {
+  expiresAt = Date.now() + (expires_in - 300) * 1000; // já descontou 5 min
+}
+isExpired(): {
+  return Date.now() >= this.expiresAt.getTime() - 300_000; // desconta de novo
+}
+// Resultado: token sempre expirado → re-autentica a cada chamada
+```
+
+Se `expires_in` for curto (ex: 600s = 10 min), a margem dupla faz o token expirar
+**imediatamente**. Cada chamada ao Sankhya re-autentica do zero — ~500ms desperdiçados por chamada.
+
+### 15.2 Mutex na autenticação
+
+Quando múltiplas chamadas concorrentes detectam token expirado, todas disparam
+`authenticate()` em paralelo. Use um mutex (Promise compartilhada) para que só uma
+autentique e as demais reutilizem o resultado:
+
+```typescript
+private authPromise: Promise<string> | null = null;
+
+private async getValidToken(): Promise<string> {
+  if (this.token && !this.token.isExpired()) return this.token.value;
+  if (this.authPromise) return this.authPromise; // já autenticando — aguarda
+
+  this.authPromise = this.authenticate();
+  try {
+    return await this.authPromise;
+  } finally {
+    this.authPromise = null;
+  }
+}
+```
+
+### 15.3 Evitar subqueries correlacionadas no DbExplorerSP
+
+O Sankhya roda Oracle. Subqueries correlacionadas (que referenciam a tabela externa)
+executam **uma vez por linha**. Em tabelas grandes como TGFCAB, isso é devastador.
+
+```sql
+-- ❌ LENTO — subquery roda uma vez por linha do TGFCAB
+SELECT CAB.NUNOTA,
+       (SELECT COUNT(DISTINCT CODPROD) FROM TGFITE WHERE NUNOTA = CAB.NUNOTA) AS QTD
+FROM TGFCAB CAB
+
+-- ✅ RÁPIDO — subquery agrupada roda uma vez e faz JOIN
+SELECT CAB.NUNOTA, ITE.QTD
+FROM TGFCAB CAB
+INNER JOIN (
+    SELECT NUNOTA, COUNT(DISTINCT CODPROD) AS QTD
+    FROM TGFITE
+    GROUP BY NUNOTA
+) ITE ON ITE.NUNOTA = CAB.NUNOTA
+```
+
+Também vale para `EXISTS`: se o `EXISTS` é para confirmar que há itens E contar quantos,
+mergeie num só `INNER JOIN` com a subquery agrupada.
+
+### 15.4 Remover JOINs não utilizados
+
+Cada JOIN adicional tem custo. Se a tabela entra no `FROM`/`JOIN` mas nenhum campo
+aparece no `SELECT` nem no `WHERE`, remova-a. No nosso caso, `TSIUSU` e `TGFORD`
+eram JOINs mortos.
+
+### 15.5 Agrupar JOINs que podem duplicar linhas
+
+Se um `LEFT JOIN` pode produzir múltiplas linhas para a mesma chave (ex: parceiro
+com múltiplas rotas em `TGFRTP`), agrupe numa subquery com `GROUP BY` + `MIN()`/`MAX()`
+antes de fazer o JOIN. Isso evita duplicação silenciosa de linhas no resultado.
+
+```sql
+-- Pode duplicar linhas se o parceiro tem 2+ rotas
+LEFT JOIN TGFRTP RTP ON RTP.CODPARC = CAB.CODPARC
+LEFT JOIN TGFROT ROT ON ROT.CODROTA = RTP.CODROTA
+
+-- Sempre 1 linha por parceiro
+LEFT JOIN (
+    SELECT RTP.CODPARC, MIN(ROT.DESCRROTA) AS DESCRROTA
+    FROM TGFRTP RTP
+    INNER JOIN TGFROT ROT ON ROT.CODROTA = RTP.CODROTA
+    GROUP BY RTP.CODPARC
+) ROT ON ROT.CODPARC = CAB.CODPARC
+```
+
+### 15.6 Paralelizar chamadas independentes ao Sankhya
+
+Se um fluxo precisa de 2+ serviços independentes do Sankhya (ex: SQL dos itens +
+divergências do ConferenciaSP), faça em paralelo com `Promise.all` em vez de
+sequencial. Cada chamada ao gateway tem latência própria (~500ms–1s).
+
+```typescript
+// ❌ Sequencial — 2x a latência
+const itens = await this.buscarItens(nuNota);
+const divergencias = await this.buscarDivergencias(nuNota);
+
+// ✅ Paralelo — latência do mais lento
+const [itens, divergencias] = await Promise.all([
+  this.buscarItens(nuNota),
+  this.buscarDivergencias(nuNota),
+]);
+```
+
+### 15.7 Reduzir round-trips HTTP no frontend
+
+Se cada ação do usuário (ex: bipagem) dispara 2 requests ao backend em série
+(save + re-fetch da lista), considere fundir num único endpoint que retorna o
+resultado + os dados atualizados. O frontend aplica o patch localmente.
+
+```
+-- Antes: 2 round-trips por bipagem
+POST /conferir-item → espera → POST /itens-pedido → merge
+
+-- Depois: 1 round-trip por bipagem
+POST /conferir-item → { resultado + itens } → merge local
+```
+
+### 15.8 Monitorar o timeQuery do Sankhya
+
+A resposta do `DbExplorerSP.executeQuery` inclui `timeQuery` — o tempo que o banco
+levou. Se o tempo total do request for muito maior que o `timeQuery`, o gargalo é
+rede/autenticação. Se o `timeQuery` for alto, o gargalo é a query SQL.
+
+```typescript
+const timeQuery = response.responseBody?.timeQuery;
+console.log(`[GetConferenciaSaida] Query Sankhya: ${timeQuery}`);
+```
