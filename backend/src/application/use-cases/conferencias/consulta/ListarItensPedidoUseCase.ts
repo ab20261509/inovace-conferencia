@@ -11,6 +11,7 @@ export interface ItemPedido {
   qtdPed: string;
   qtdConf: string;
   controle: string | null;
+  peso: number;
 }
 
 /**
@@ -139,10 +140,14 @@ export class ListarItensPedidoUseCase {
         return { ...item, status };
       }
 
+      // Regra de itens pesados: se peso >= 7.5 e quantidade pedida > 10,
+      // exibe a quantidade pedida mesmo para usuários não privilegiados.
+      const atendeRegraPesoQtd = item.peso >= 7.5 && pedido > 10;
+
       return {
         ...item,
         status,
-        qtdPed: null,
+        qtdPed: atendeRegraPesoQtd ? item.qtdPed : null,
         codBarra: null,
         referencia: null,
       };
@@ -165,7 +170,8 @@ export class ListarItensPedidoUseCase {
   ): Promise<ItemPedido[]> {
     const sql = `
       SELECT ITE.CODPROD, ITE.SEQUENCIA, ITE.QTDNEG, ITE.CONTROLE,
-             PRO.DESCRPROD, PRO.REFERENCIA, BAR.CODBARRA
+             PRO.DESCRPROD, PRO.REFERENCIA, BAR.CODBARRA,
+             NVL(PRO.PESOBRUTO, NVL(PRO.PESOLIQ, 0)) AS PESO
       FROM TGFITE ITE
       INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
       LEFT JOIN (
@@ -197,6 +203,7 @@ export class ListarItensPedidoUseCase {
         descrProd: row[4] || null,
         referencia: row[5] || null,
         codBarra: row[6] || null,
+        peso: Number(row[7] || 0),
         qtdConf: '0',
       }));
     } catch {

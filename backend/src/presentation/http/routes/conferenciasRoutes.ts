@@ -28,6 +28,7 @@ export function createConferenciasRoutes(controller: ConferenciasController): Ro
   router.post('/itens-conferidos', (req, res) => controller.itensConferidos(req, res));
   router.post('/produto', (req, res) => controller.getProduto(req, res));
   router.post('/conferir-item', (req, res) => controller.conferirItem(req, res));
+  router.post('/excluir-item-conferido', (req, res) => controller.excluirItemConferido(req, res));
   router.post('/divergentes', (req, res) => controller.divergentes(req, res));
   router.post('/volume', (req, res) => controller.salvarVolume(req, res));
   router.post('/finalizar', (req, res) => controller.finalizar(req, res));

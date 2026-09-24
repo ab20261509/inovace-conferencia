@@ -67,6 +67,14 @@
   - `qtdPed`, `codBarra` e `referencia` vêm `null` no JSON
   - impedem DevTools e bundle em cache de exibi-los
 - O **status** do item (`pendente` / `parcial` / `completo`) é **calculado no backend**, permitindo que o frontend organize as listas sem precisar da quantidade pedida
+- **Regra de exibição para itens pesados em conferência cega**: caso o produto tenha peso $\ge$ 7.5 kg (`PESOLIQ >= 7.5` ou `PESOBRUTO >= 7.5`) e a quantidade do item no pedido for maior que 10 (`qtdPed > 10`), a quantidade pedida é enviada e exibida na coluna "Pedido" para auxiliar o operador na conferência e manuseio de carga pesada.
+
+### Estorno de Itens Conferidos
+- **Aba Itens Conferidos com dados reais**: consulta detalhada em `TGFCOI2` (`DetalhesConferencia`) unida com `TGFPRO`.
+- Exibe lote (`CONTROLE`), quantidade conferida (`QTDCONF`), data/hora da alteração (`DHALTER`) e botão de ação.
+- **Botão Estornar**: presente em cada registro conferido.
+- **Modal de confirmação**: solicita confirmação (*"Deseja estornar este item?"*) apresentando o produto, lote e quantidade a estornar.
+- **Integração Sankhya**: executa `DatasetSP.removeRecord` com listener `DetalhesConferenciaCRUDListener`, atualizando automaticamente saldos, divergências e listas na tela.
 
 ### Consulta de Produtos
 - Botão **"Consultar Produto"** ao lado do nome do usuário na lista de conferências
@@ -94,6 +102,7 @@
 
 ### Escrita no Sankhya
 - `DatasetSP.save` para atualizar campos (AD_USUARIOCONF no CabecalhoNota)
+- `DatasetSP.removeRecord` para estornar itens conferidos (`DetalhesConferencia`)
 - `ConferenciaSP.salvarItemConferido` para conferir itens
 - `ConferenciaSP.finalizarConferencia` para finalizar
 - `ConferenciaSP.excluirConferencia` para cancelar
@@ -108,7 +117,8 @@
 | CRUDServiceProvider.loadRecords | Consultas com JOIN |
 | CRUDServiceProvider.loadRecord | Registro único |
 | DbExplorerSP.executeQuery | SQL complexo (SELECT) |
-| DatasetSP.save | UPDATE de campos |
+| DatasetSP.save | Atualizar campos (UPDATE) |
+| DatasetSP.removeRecord | Excluir registros / estornar itens conferidos |
 | MobileLoginSP.login | Autenticação de usuário |
 
 ### Endpoint `/mgecom/` (ConferenciaSP)

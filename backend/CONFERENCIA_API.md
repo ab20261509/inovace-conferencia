@@ -454,6 +454,59 @@ Corta a nota quando existem produtos divergentes.
 
 ---
 
+## 10. DatasetSP.removeRecord (ESTORNO / EXCLUSÃO DE ITEM CONFERIDO)
+
+Exclui um registro de item conferido da tabela `TGFCOI2` (`DetalhesConferencia`).
+Importante: O serviço deve ser chamado no módulo `/mge/` passando o listener `DetalhesConferenciaCRUDListener` para acionar a recomposição automática de saldos e divergências no Sankhya.
+
+**Endpoint:**
+```
+POST /gateway/v1/mge/service.sbr?serviceName=DatasetSP.removeRecord&outputType=json
+```
+
+**Request:**
+```json
+{
+  "serviceName": "DatasetSP.removeRecord",
+  "requestBody": {
+    "entityName": "DetalhesConferencia",
+    "dataSetID": "007",
+    "pks": [
+      {
+        "NUCONF": 24040,
+        "SEQCONF": 1
+      }
+    ],
+    "crudListener": "br.com.sankhya.modelcore.crudlisteners.DetalhesConferenciaCRUDListener",
+    "clientEventList": {
+      "clientEvent": [
+        { "$": "fila.conferencia.client.event.produtos.divergentes" },
+        { "$": "client.event.produtos.escolha.unidade.mov.armazenamento" },
+        { "$": "client.event.escolha.empresa.local.destino" },
+        { "$": "client.event.produtos.excluidos.conferencia" },
+        { "$": "client.event.volumes.produto.recontado" },
+        { "$": "br.com.sankhya.mgecom.busca.identificador.produto" },
+        { "$": "conferencia.lista.produtos.divergentes" },
+        { "$": "client.event.escolha.etiqueta.peso" }
+      ]
+    }
+  }
+}
+```
+
+**Response (sucesso):**
+```json
+{
+  "serviceName": "DatasetSP.removeRecord",
+  "status": "1",
+  "pendingPrinting": "false",
+  "transactionId": "...",
+  "responseBody": {}
+}
+```
+
+---
+
 ## Fluxo típico no frontend
 
 ```typescript

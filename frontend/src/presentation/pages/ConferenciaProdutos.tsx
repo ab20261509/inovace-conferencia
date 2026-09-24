@@ -3,10 +3,25 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useConferenciaAtiva } from '../../application/hooks/useConferenciaAtiva';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
+import { ItemConferidoDetalhe } from '../../domain/models/Conferencia';
 import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infrastructure/audio/alertas';
 import { Botao, Campo, Container, Grid, Label, Painel } from '../components';
 import { Loading } from '../components/Loading/Loading';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+
+function formatarDataHora(val?: string | null): string {
+  if (!val) return '—';
+  try {
+    if (val.includes('/')) return val;
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+  } catch {
+    // fallback
+  }
+  return val;
+}
 
 export function ConferenciaProdutosPage() {
   const { nunota } = useParams<{ nunota: string }>();
@@ -24,6 +39,7 @@ export function ConferenciaProdutosPage() {
   const {
     conferencia,
     itens,
+    itensConferidos,
     produtoAtual,
     ultimoConferido,
     loading,
@@ -31,6 +47,7 @@ export function ConferenciaProdutosPage() {
     iniciar,
     buscarProduto,
     conferirItem,
+    excluirItemConferido,
     finalizar,
     setError,
   } = useConferenciaAtiva(nuNotaNum);
@@ -44,6 +61,8 @@ export function ConferenciaProdutosPage() {
   const [finalizando, setFinalizando] = useState(false);
   const [imagemAmpliada, setImagemAmpliada] = useState<string | null>(null);
   const [abaAtiva, setAbaAtiva] = useState<'pendentes' | 'conferidos'>('pendentes');
+  const [itemParaEstornar, setItemParaEstornar] = useState<ItemConferidoDetalhe | null>(null);
+  const [estornando, setEstornando] = useState(false);
   const [feedbackVisual, setFeedbackVisual] = useState<{ codProd: string; descrProd: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -218,9 +237,24 @@ export function ConferenciaProdutosPage() {
     navigate('/conferencias', { state: { mensagem: `Pedido ${conferencia?.numNota} finalizado como divergente.` } });
   }
 
+  async function handleConfirmarEstorno() {
+    if (!itemParaEstornar) return;
+    try {
+      setEstornando(true);
+      await excluirItemConferido(itemParaEstornar.seqConf);
+      tocarAlertaSucesso();
+      setItemParaEstornar(null);
+      if (inputRef.current) inputRef.current.focus();
+    } catch (err: any) {
+      tocarAlertaErro();
+    } finally {
+      setEstornando(false);
+    }
+  }
+
   const totalItens = itens.length;
-  const itensConferidos = itens.filter((i) => i.status === 'completo').length;
-  const itensPendentes = totalItens - itensConferidos;
+  const qtdItensCompletos = itens.filter((i) => i.status === 'completo').length;
+  const itensPendentes = totalItens - qtdItensCompletos;
 
   if (loading && !conferencia) {
     return <Loading fullscreen mensagem="Iniciando conferência..." />;
@@ -247,7 +281,7 @@ export function ConferenciaProdutosPage() {
             <Label variant="caption">Total</Label>
           </Container>
           <Container variant="default" padding="sm" className="resumo-card-inline conferido">
-            <Label variant="value" className="text-success">{itensConferidos}</Label>
+            <Label variant="value" className="text-success">{qtdItensCompletos}</Label>
             <Label variant="caption">Conferidos</Label>
           </Container>
           <Container variant="default" padding="sm" className="resumo-card-inline pendente">
@@ -324,7 +358,7 @@ export function ConferenciaProdutosPage() {
             className={`tab-button ${abaAtiva === 'conferidos' ? 'tab-active' : ''}`}
             onClick={() => setAbaAtiva('conferidos')}
           >
-            Itens Conferidos <span className="tab-count">{itens.filter(i => parseFloat(i.qtdConf) > 0).length}</span>
+            Itens Conferidos <span className="tab-count">{itensConferidos.length}</span>
           </button>
         </div>
 
@@ -353,7 +387,7 @@ export function ConferenciaProdutosPage() {
                   <tr>
                     <th>Produto</th>
                     <th>Lote</th>
-                    {verCamposSensiveis && <th>Pedido</th>}
+                    <th>Pedido</th>
                     <th>Conferido</th>
                     <th>Status</th>
                   </tr>
@@ -400,7 +434,7 @@ export function ConferenciaProdutosPage() {
                           </div>
                         </td>
                         <td className="num-cell">{item.controle || '-'}</td>
-                        {verCamposSensiveis && <td className="num-cell">{item.qtdPed}</td>}
+                        <td className="num-cell">{item.qtdPed !== null && item.qtdPed !== undefined ? item.qtdPed : '—'}</td>
                         <td className="num-cell">{qtdConf}</td>
                         <td>
                           {tinhaQtdInicial && (
@@ -432,7 +466,7 @@ export function ConferenciaProdutosPage() {
         {/* Conteúdo da aba Conferidos */}
         {abaAtiva === 'conferidos' && (
           <Container variant="outlined" padding="none">
-            {itens.filter(i => parseFloat(i.qtdConf) > 0).length === 0 ? (
+            {itensConferidos.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
                 <p style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--slate-500)' }}>Nenhum item conferido ainda</p>
               </div>
@@ -442,50 +476,58 @@ export function ConferenciaProdutosPage() {
                   <tr>
                     <th>Produto</th>
                     <th>Lote</th>
-                    {verCamposSensiveis && <th>Pedido</th>}
-                    <th>Conferido</th>
-                    <th>Status</th>
+                    <th>Qtd Conferida</th>
+                    <th>Horário</th>
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {itens.filter((i) => parseFloat(i.qtdConf) > 0).sort((a, b) => {
-                    const completoA = a.status === 'completo' ? 1 : 0;
-                    const completoB = b.status === 'completo' ? 1 : 0;
-                    return completoB - completoA;
-                  }).map((item) => {
-                    const qtdConf = parseFloat(item.qtdConf);
-                    const completo = item.status === 'completo';
-
-                    return (
-                      <tr key={item.sequencia} className={completo ? 'row-ok' : 'row-parcial'}>
-                        <td>
-                          <div className="produto-cell">
-                            <img
-                              src={`/api/crud/produto/${item.codProd}/imagem`}
-                              alt={item.descrProd || ''}
-                              className="produto-img"
-                              onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                            />
-                            <div>
-                              <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
-                              <span className="produto-barra">
-                                {verCamposSensiveis
-                                  ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
-                                  : item.codProd}
-                              </span>
-                            </div>
+                  {itensConferidos.map((item) => (
+                    <tr key={`${item.nuConf}-${item.seqConf}`} className="row-ok">
+                      <td>
+                        <div className="produto-cell">
+                          <img
+                            src={`/api/crud/produto/${item.codProd}/imagem`}
+                            alt={item.descrProd || ''}
+                            className="produto-img"
+                            onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                          <div>
+                            <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
+                            <span className="produto-barra">
+                              {verCamposSensiveis
+                                ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
+                                : item.codProd}
+                            </span>
                           </div>
-                        </td>
-                        <td className="num-cell">{item.controle || '-'}</td>
-                        {verCamposSensiveis && <td className="num-cell">{item.qtdPed}</td>}
-                        <td className="num-cell">{qtdConf}</td>
-                        <td>
-                          {completo ? <span className="status-ok">OK</span> : <span className="status-parcial">Parcial</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        </div>
+                      </td>
+                      <td className="num-cell">{item.controle || '-'}</td>
+                      <td className="num-cell" style={{ color: 'var(--emerald-600)', fontWeight: 800 }}>
+                        {item.qtdConf}
+                      </td>
+                      <td style={{ fontSize: '0.8rem', color: 'var(--slate-500)' }}>
+                        {formatarDataHora(item.dhAlter)}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-estornar-item"
+                          title="Estornar este item"
+                          onClick={() => setItemParaEstornar(item)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                          <span>Estornar</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -536,6 +578,64 @@ export function ConferenciaProdutosPage() {
               </Botao>
               <Botao variant="success" size="md" onClick={handleFinalizar} loading={loading}>
                 Confirmar
+              </Botao>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Estorno */}
+      {itemParaEstornar && (
+        <div className="modal-overlay" onClick={() => !estornando && setItemParaEstornar(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h2 className="modal-title" style={{ color: 'var(--danger, #ef4444)' }}>
+                Estornar Item Conferido
+              </h2>
+              <button
+                className="modal-close"
+                onClick={() => !estornando && setItemParaEstornar(null)}
+                disabled={estornando}
+              >
+                ×
+              </button>
+            </div>
+            <p className="modal-message-destaque" style={{ marginBottom: '16px', fontWeight: 600 }}>
+              Deseja estornar este item?
+            </p>
+            <div
+              style={{
+                background: 'var(--slate-50, #f8fafc)',
+                border: '1px solid var(--slate-200, #e2e8f0)',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                fontSize: '0.85rem',
+                lineHeight: '1.6',
+              }}
+            >
+              <div><strong>Produto:</strong> {itemParaEstornar.descrProd} ({itemParaEstornar.codProd})</div>
+              {itemParaEstornar.controle && (
+                <div><strong>Lote:</strong> {itemParaEstornar.controle}</div>
+              )}
+              <div><strong>Qtd Conferida:</strong> {itemParaEstornar.qtdConf}</div>
+            </div>
+            <div className="modal-actions">
+              <Botao
+                variant="secondary"
+                size="md"
+                onClick={() => setItemParaEstornar(null)}
+                disabled={estornando}
+              >
+                Cancelar
+              </Botao>
+              <Botao
+                variant="danger"
+                size="md"
+                onClick={handleConfirmarEstorno}
+                loading={estornando}
+              >
+                Sim, Estornar
               </Botao>
             </div>
           </div>

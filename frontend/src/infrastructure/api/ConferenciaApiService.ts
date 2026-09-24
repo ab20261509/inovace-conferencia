@@ -5,6 +5,8 @@ import {
   ConferenciaIniciada,
   ProdutoConferencia,
   ConferirItemResponse,
+  ItemConferidoDetalhe,
+  ExcluirItemConferidoResponse,
 } from '../../domain/models/Conferencia';
 import { httpClient } from './httpClient';
 
@@ -27,6 +29,14 @@ export class ConferenciaApiService implements IConferenciaService {
     return response.data;
   }
 
+  async listarItensConferidos(nuConf: string | number): Promise<ItemConferidoDetalhe[]> {
+    const response = await httpClient.post<{ itens: ItemConferidoDetalhe[] }>(
+      '/api/conferencias/itens-conferidos',
+      { nuConf },
+    );
+    return response.data.itens;
+  }
+
   async getProduto(nuNota: number, codBarra: string): Promise<ProdutoConferencia> {
     const response = await httpClient.post<{ produto: ProdutoConferencia }>(
       '/api/conferencias/produto',
@@ -43,6 +53,18 @@ export class ConferenciaApiService implements IConferenciaService {
   }): Promise<ConferirItemResponse> {
     const response = await httpClient.post<ConferirItemResponse>(
       '/api/conferencias/conferir-item',
+      params,
+    );
+    return response.data;
+  }
+
+  async excluirItemConferido(params: {
+    nuConf: string;
+    seqConf: string;
+    nuNota: number;
+  }): Promise<ExcluirItemConferidoResponse> {
+    const response = await httpClient.post<ExcluirItemConferidoResponse>(
+      '/api/conferencias/excluir-item-conferido',
       params,
     );
     return response.data;

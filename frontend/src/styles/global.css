@@ -821,6 +821,27 @@ body {
 }
 .status-pendente { color: var(--slate-400); font-size: 0.8rem; }
 
+.btn-estornar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-estornar-item:hover {
+  background-color: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
 /* ═══════════════════════════════════════
    RESPONSIVO
    ═══════════════════════════════════════ */

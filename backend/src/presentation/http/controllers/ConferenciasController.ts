@@ -11,6 +11,7 @@ import { IniciarConferenciaUseCase } from '../../../application/use-cases/confer
 import { ExcluirConferenciaUseCase } from '../../../application/use-cases/conferencias/ciclo-vida/ExcluirConferenciaUseCase.js';
 import { FinalizarConferenciaUseCase } from '../../../application/use-cases/conferencias/ciclo-vida/FinalizarConferenciaUseCase.js';
 import { CortarNotaUseCase } from '../../../application/use-cases/conferencias/ciclo-vida/CortarNotaUseCase.js';
+import { ExcluirItemConferidoUseCase } from '../../../application/use-cases/conferencias/operacao/ExcluirItemConferidoUseCase.js';
 
 /**
  * Controller de Conferências
@@ -30,6 +31,7 @@ export class ConferenciasController {
     private readonly finalizarConferenciaUseCase: FinalizarConferenciaUseCase,
     private readonly cortarNotaUseCase: CortarNotaUseCase,
     private readonly verificarExcluidosUseCase: VerificarExcluidosUseCase,
+    private readonly excluirItemConferidoUseCase: ExcluirItemConferidoUseCase,
   ) {}
 
   /** GET /conferencias — Lista pedidos pendentes de conferência */
@@ -147,7 +149,47 @@ export class ConferenciasController {
         req.correlationId,
       );
 
-      res.status(200).json({ resultado: result.resultado, itens: itensResult.itens });
+      const itensConfResult = await this.listarItensConferidosUseCase.execute(
+        { nuNota, nuConf: numConf },
+        req.correlationId,
+      );
+
+      res.status(200).json({
+        resultado: result.resultado,
+        itens: itensResult.itens,
+        itensConferidos: itensConfResult.itens,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /** POST /conferencias/excluir-item-conferido — Exclui um item conferido e atualiza saldos */
+  async excluirItemConferido(req: Request, res: Response): Promise<void> {
+    try {
+      const { nuConf, seqConf, nuNota } = req.body;
+      if (!nuConf || !seqConf || !nuNota) {
+        res.status(400).json({ error: 'nuConf, seqConf e nuNota são obrigatórios' });
+        return;
+      }
+
+      await this.excluirItemConferidoUseCase.execute({ nuConf, seqConf }, req.correlationId);
+
+      const itensResult = await this.listarItensPedidoUseCase.execute(
+        { nuNota, usuario: req.username },
+        req.correlationId,
+      );
+
+      const itensConfResult = await this.listarItensConferidosUseCase.execute(
+        { nuNota, nuConf },
+        req.correlationId,
+      );
+
+      res.status(200).json({
+        sucesso: true,
+        itens: itensResult.itens,
+        itensConferidos: itensConfResult.itens,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

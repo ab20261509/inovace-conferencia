@@ -355,6 +355,48 @@ POST /gateway/v1/mge/service.sbr?serviceName=DatasetSP.save&outputType=json
 
 ---
 
+## 6.1 EXCLUIR REGISTROS — DatasetSP.removeRecord
+
+Remove registros de uma entidade via DatasetSP (por exemplo, estorno de conferência na entidade `DetalhesConferencia` / `TGFCOI2`).
+Permite especificar `crudListener` para disparar as regras de negócio automáticas do Sankhya após a exclusão.
+
+### Endpoint
+```
+POST /gateway/v1/mge/service.sbr?serviceName=DatasetSP.removeRecord&outputType=json
+```
+
+### Body:
+```json
+{
+  "serviceName": "DatasetSP.removeRecord",
+  "requestBody": {
+    "entityName": "DetalhesConferencia",
+    "dataSetID": "007",
+    "pks": [
+      {
+        "NUCONF": 24040,
+        "SEQCONF": 1
+      }
+    ],
+    "crudListener": "br.com.sankhya.modelcore.crudlisteners.DetalhesConferenciaCRUDListener",
+    "clientEventList": {
+      "clientEvent": [
+        { "$": "fila.conferencia.client.event.produtos.divergentes" },
+        { "$": "client.event.produtos.escolha.unidade.mov.armazenamento" },
+        { "$": "client.event.escolha.empresa.local.destino" },
+        { "$": "client.event.produtos.excluidos.conferencia" },
+        { "$": "client.event.volumes.produto.recontado" },
+        { "$": "br.com.sankhya.mgecom.busca.identificador.produto" },
+        { "$": "conferencia.lista.produtos.divergentes" },
+        { "$": "client.event.escolha.etiqueta.peso" }
+      ]
+    }
+  }
+}
+```
+
+---
+
 ## 7. LOGIN DE USUÁRIO — MobileLoginSP.login
 
 Autentica um usuário do ERP Sankhya e retorna seu código (CODUSU).

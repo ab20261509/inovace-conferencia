@@ -68,7 +68,28 @@ export interface ItemConferidoResponse {
   referencia?: string;
 }
 
+export interface ItemConferidoDetalhe {
+  nuConf: string;
+  seqConf: string;
+  codProd: string;
+  descrProd: string;
+  referencia: string | null;
+  controle: string | null;
+  qtdConf: number;
+  codBarra: string | null;
+  codVol: string;
+  dhAlter: string;
+}
+
 export interface ConferirItemResponse {
   resultado: ItemConferidoResponse;
   itens: ItemPedido[];
+  itensConferidos?: ItemConferidoDetalhe[];
+}
+
+export interface ExcluirItemConferidoResponse {
+  sucesso: boolean;
+  resultado: any;
+  itens: ItemPedido[];
+  itensConferidos: ItemConferidoDetalhe[];
 }

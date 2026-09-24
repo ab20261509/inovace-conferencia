@@ -38,6 +38,7 @@ import { VerificarExcluidosUseCase } from './application/use-cases/conferencias/
 // Application (Use Cases) - Conferências (operação)
 import { SalvarItemConferidoUseCase } from './application/use-cases/conferencias/operacao/SalvarItemConferidoUseCase.js';
 import { SalvarVolumeUseCase } from './application/use-cases/conferencias/operacao/SalvarVolumeUseCase.js';
+import { ExcluirItemConferidoUseCase } from './application/use-cases/conferencias/operacao/ExcluirItemConferidoUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -105,6 +106,7 @@ export function buildApp(): Application {
   const salvarItemConferidoUseCase = new SalvarItemConferidoUseCase(gatewayAdapter);
   const getProdutosDivergentesUseCase = new GetProdutosDivergentesUseCase(gatewayAdapter);
   const salvarVolumeUseCase = new SalvarVolumeUseCase(gatewayAdapter);
+  const excluirItemConferidoUseCase = new ExcluirItemConferidoUseCase(gatewayAdapter);
   const finalizarConferenciaUseCase = new FinalizarConferenciaUseCase(gatewayAdapter);
   const cortarNotaUseCase = new CortarNotaUseCase(gatewayAdapter);
   const verificarExcluidosUseCase = new VerificarExcluidosUseCase(gatewayAdapter);
@@ -134,6 +136,7 @@ export function buildApp(): Application {
     finalizarConferenciaUseCase,
     cortarNotaUseCase,
     verificarExcluidosUseCase,
+    excluirItemConferidoUseCase,
   );
 
   // 4. Middleware de autenticação
