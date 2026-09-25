@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { PedidoConferencia, NotificacaoDiscordDados } from '../../../domain/models/Conferencia';
 import { ConferenciaApiService } from '../../../infrastructure/api/ConferenciaApiService';
 import { Botao } from '../Botao/Botao';
@@ -165,7 +165,7 @@ export function ModalNotificarDiscord({
                 onClick={handleEnviar}
                 loading={enviando}
               >
-                Enviar ao Discord
+                Enviar Discord
               </Botao>
             </div>
           </>
