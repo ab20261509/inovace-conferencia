@@ -108,7 +108,7 @@ export class ConferenciasController {
   async itensConferidos(req: Request, res: Response): Promise<void> {
     try {
       const { nuNota, nuConf } = req.body;
-      if (!nuNota || !nuConf) { res.status(400).json({ error: 'nuNota e nuConf são obrigatórios' }); return; }
+      if (!nuConf) { res.status(400).json({ error: 'nuConf é obrigatório' }); return; }
 
       const result = await this.listarItensConferidosUseCase.execute({ nuNota, nuConf }, req.correlationId);
       res.status(200).json(result);

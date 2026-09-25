@@ -15,6 +15,7 @@
   - `frontend/src/application/hooks/useConferenciaAtiva.ts`: Estado reativo `itensConferidos`, recarregamento automático e método `excluirItemConferido`.
   - `frontend/src/presentation/pages/ConferenciaProdutos.tsx`: Aba "Itens Conferidos" renderizando os registros individuais de bip com horário, botão "Estornar" e modal de confirmação com a pergunta: *"Deseja estornar este item?"*.
   - `frontend/src/styles/global.css`: Estilização do botão `.btn-estornar-item`.
+- **Fix no carregamento ao reabrir pedido:** Ajustado endpoint `POST /api/conferencias/itens-conferidos` para exigir apenas `nuConf` (consulta direta em `TGFCOI2`), garantindo que a lista de itens conferidos carregue corretamente ao reabrir pedidos em andamento.
 
 ### 2. Regra de Itens Pesados na Conferência Cega
 - `backend/src/application/use-cases/conferencias/consulta/ListarItensPedidoUseCase.ts`:

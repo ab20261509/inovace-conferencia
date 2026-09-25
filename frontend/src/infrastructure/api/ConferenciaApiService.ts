@@ -29,10 +29,10 @@ export class ConferenciaApiService implements IConferenciaService {
     return response.data;
   }
 
-  async listarItensConferidos(nuConf: string | number): Promise<ItemConferidoDetalhe[]> {
+  async listarItensConferidos(nuConf: string | number, nuNota?: number): Promise<ItemConferidoDetalhe[]> {
     const response = await httpClient.post<{ itens: ItemConferidoDetalhe[] }>(
       '/api/conferencias/itens-conferidos',
-      { nuConf },
+      { nuConf, nuNota },
     );
     return response.data.itens;
   }

@@ -14,7 +14,7 @@ export interface ItemConferidoDetalhe {
 }
 
 export interface ListarItensConferidosInput {
-  nuNota: number;
+  nuNota?: number;
   nuConf: number | string;
 }
 

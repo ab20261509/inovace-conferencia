@@ -36,7 +36,7 @@ export function useConferenciaAtiva(nuNota: number) {
 
       if (conf?.numConf) {
         try {
-          const conferidos = await service.listarItensConferidos(conf.numConf);
+          const conferidos = await service.listarItensConferidos(conf.numConf, nuNota);
           setItensConferidos(conferidos || []);
         } catch (e) {
           console.error('Erro ao listar itens conferidos inicial:', e);
@@ -157,7 +157,7 @@ export function useConferenciaAtiva(nuNota: number) {
     setItens(itensAtualizados);
     if (conferencia?.numConf) {
       try {
-        const conferidos = await service.listarItensConferidos(conferencia.numConf);
+        const conferidos = await service.listarItensConferidos(conferencia.numConf, nuNota);
         setItensConferidos(conferidos || []);
       } catch (e) {
         console.error('Erro ao recarregar itens conferidos:', e);

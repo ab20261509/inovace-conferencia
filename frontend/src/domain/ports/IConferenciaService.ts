@@ -12,7 +12,7 @@ export interface IConferenciaService {
   listarPedidos(): Promise<PedidoConferencia[]>;
   iniciarConferencia(nuNota: number, codUsu?: number, nomeUsu?: string, mgeSession?: string): Promise<ConferenciaIniciada>;
   listarItensPedido(nuNota: number): Promise<{ conferenciaIniciada: boolean; itens: ItemPedido[] }>;
-  listarItensConferidos(nuConf: string | number): Promise<ItemConferidoDetalhe[]>;
+  listarItensConferidos(nuConf: string | number, nuNota?: number): Promise<ItemConferidoDetalhe[]>;
   getProduto(nuNota: number, codBarra: string): Promise<ProdutoConferencia>;
   conferirItem(params: {
     numConf: string;
