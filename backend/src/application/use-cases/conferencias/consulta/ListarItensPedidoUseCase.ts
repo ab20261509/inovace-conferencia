@@ -12,6 +12,7 @@ export interface ItemPedido {
   qtdConf: string;
   controle: string | null;
   peso: number;
+  usoProd: string | null;
 }
 
 /**
@@ -140,14 +141,17 @@ export class ListarItensPedidoUseCase {
         return { ...item, status };
       }
 
-      // Regra de itens pesados: se peso >= 7.5 e quantidade pedida > 10,
-      // exibe a quantidade pedida mesmo para usuários não privilegiados.
-      const atendeRegraPesoQtd = item.peso >= 7.5 && pedido > 10;
+      // Regra de exibição para usuários não privilegiados:
+      // 1) Se peso >= 7.5 e quantidade pedida > 10, OU
+      // 2) Se o produto tiver USOPROD = 'V'
+      const isUsoProdV = String(item.usoProd || '').trim().toUpperCase() === 'V';
+      const isPesadoQtdAlta = item.peso >= 7.5 && pedido > 10;
+      const exibirQtdPed = isPesadoQtdAlta || isUsoProdV;
 
       return {
         ...item,
         status,
-        qtdPed: atendeRegraPesoQtd ? item.qtdPed : null,
+        qtdPed: exibirQtdPed ? item.qtdPed : null,
         codBarra: null,
         referencia: null,
       };
@@ -171,7 +175,8 @@ export class ListarItensPedidoUseCase {
     const sql = `
       SELECT ITE.CODPROD, ITE.SEQUENCIA, ITE.QTDNEG, ITE.CONTROLE,
              PRO.DESCRPROD, PRO.REFERENCIA, BAR.CODBARRA,
-             NVL(PRO.PESOBRUTO, NVL(PRO.PESOLIQ, 0)) AS PESO
+             NVL(PRO.PESOBRUTO, NVL(PRO.PESOLIQ, 0)) AS PESO,
+             PRO.USOPROD
       FROM TGFITE ITE
       INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
       LEFT JOIN (
@@ -204,6 +209,7 @@ export class ListarItensPedidoUseCase {
         referencia: row[5] || null,
         codBarra: row[6] || null,
         peso: Number(row[7] || 0),
+        usoProd: row[8] ? String(row[8]).trim() : null,
         qtdConf: '0',
       }));
     } catch {

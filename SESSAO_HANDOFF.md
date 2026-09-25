@@ -17,9 +17,11 @@
   - `frontend/src/styles/global.css`: Estilização do botão `.btn-estornar-item`.
 - **Fix no carregamento ao reabrir pedido:** Ajustado endpoint `POST /api/conferencias/itens-conferidos` para exigir apenas `nuConf` (consulta direta em `TGFCOI2`), garantindo que a lista de itens conferidos carregue corretamente ao reabrir pedidos em andamento.
 
-### 2. Regra de Itens Pesados na Conferência Cega
+### 2. Regra de Exibição de Quantidades na Conferência Cega
 - `backend/src/application/use-cases/conferencias/consulta/ListarItensPedidoUseCase.ts`:
-  - Se `(PESOLIQ >= 7.5 || PESOBRUTO >= 7.5) && qtdPed > 10`, a quantidade pedida (`qtdPed`) é exibida ao conferente na coluna "Pedido" mesmo em conferência cega, apoiando a logística de movimentação física de carga pesada.
+  - A quantidade pedida (`qtdPed`) é exibida ao conferente na coluna "Pedido" se:
+    1. `(PESOLIQ >= 7.5 || PESOBRUTO >= 7.5) && qtdPed > 10` (itens pesados de alta quantidade); OU
+    2. `USOPROD = 'V'` (produtos configurados com uso 'V').
 
 ---
 
