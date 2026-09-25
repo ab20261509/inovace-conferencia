@@ -33,6 +33,8 @@ export function createConferenciasRoutes(controller: ConferenciasController): Ro
   router.post('/volume', (req, res) => controller.salvarVolume(req, res));
   router.post('/finalizar', (req, res) => controller.finalizar(req, res));
   router.post('/cortar', (req, res) => controller.cortar(req, res));
+  router.post('/previa-discord', (req, res) => controller.obterPreviaDiscord(req, res));
+  router.post('/notificar-discord', (req, res) => controller.notificarDiscord(req, res));
 
   return router;
 }

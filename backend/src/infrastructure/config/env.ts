@@ -21,6 +21,9 @@ export interface AppConfig {
   logging: {
     level: string;
   };
+  discord: {
+    webhookUrl: string;
+  };
 }
 
 export const appConfig: AppConfig = {
@@ -41,6 +44,9 @@ export const appConfig: AppConfig = {
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
+  },
+  discord: {
+    webhookUrl: process.env.DISCORD_WEBHOOK_URL || '',
   },
 };
 

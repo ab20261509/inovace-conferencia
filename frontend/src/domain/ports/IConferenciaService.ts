@@ -6,6 +6,8 @@ import {
   ConferirItemResponse,
   ItemConferidoDetalhe,
   ExcluirItemConferidoResponse,
+  NotificacaoDiscordDados,
+  NotificarDiscordResponse,
 } from '../models/Conferencia';
 
 export interface IConferenciaService {
@@ -25,6 +27,8 @@ export interface IConferenciaService {
     seqConf: string;
     nuNota: number;
   }): Promise<ExcluirItemConferidoResponse>;
+  obterPreviaDiscord(nuNota: number, usuario?: string): Promise<NotificacaoDiscordDados>;
+  notificarDiscord(nuNota: number, usuario?: string): Promise<NotificarDiscordResponse>;
   finalizarConferencia(nuConf: string, peso?: number, qtdVol?: number): Promise<any>;
   excluirConferencia(nuNota: number): Promise<{ qtdConferenciasExcluidas: number }>;
 }

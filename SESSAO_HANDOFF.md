@@ -1,3 +1,37 @@
+# Handoff — Sessão 2026-09-25
+
+## Funcionalidades Implementadas
+
+### Notificação via Webhook Discord (Pendência de Estoque)
+- **Objetivo**: Permitir que conferentes notifiquem a equipe via Discord quando um pedido em andamento possui itens pendentes e sem estoque suficiente.
+- **Formato da Mensagem**:
+  ```text
+  Usuário SNK: {usuario}
+  Razão Social: {razaoSocial}
+  Pedido : {pedido}
+  OC : {ordemCarga}
+  Itens Pendentes:
+  {qtd} UN > {descrProd} / COD: {codProd}
+  Estoque: NÃO ENCONTRADO
+  AGUARDANDO RESPOSTA PARA SEGUIR O PROCESSO DE FINALIZAÇÃO !!!
+  ```
+- **Fluxo do Usuário**:
+  1. Na lista de conferências, cards com status "Em andamento" exibem um botão de ação com ícone do Discord.
+  2. Ao clicar, abre o modal de confirmação com a prévia dos dados consultados no Sankhya (cabeçalho da nota em `TGFCAB` + `TGFPAR`, e cálculo de pendentes baseado em `QTDNEG - QTDCONF`).
+  3. O operador pode revisar a mensagem e confirmar o disparo ou cancelar.
+- **Tratamento de Configuração**:
+  - `DISCORD_WEBHOOK_URL` adicionado a `backend/.env.example` e `backend/src/infrastructure/config/env.ts`.
+  - Caso a URL não esteja preenchida, o sistema informa amigavelmente no modal sem interromper a execução do backend.
+- **Backend**:
+  - `backend/src/infrastructure/discord/DiscordWebhookAdapter.ts`: Adapter para envio de mensagens e embeds via axios.
+  - `backend/src/application/use-cases/conferencias/operacao/NotificarDiscordUseCase.ts`: Consulta dados, formata texto e despacha para o webhook.
+  - `backend/src/presentation/http/controllers/ConferenciasController.ts` & rotas: `POST /api/conferencias/previa-discord` e `POST /api/conferencias/notificar-discord`.
+- **Frontend**:
+  - `ModalNotificarDiscord` exibindo prévia estilizada no padrão de cards do Discord.
+  - Botão integrado no card de conferências em andamento (`ListaConferencias.tsx`).
+
+---
+
 # Handoff — Sessão 2026-09-24
 
 ## Funcionalidades Implementadas

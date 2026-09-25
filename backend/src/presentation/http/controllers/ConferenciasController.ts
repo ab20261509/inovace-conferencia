@@ -12,6 +12,7 @@ import { ExcluirConferenciaUseCase } from '../../../application/use-cases/confer
 import { FinalizarConferenciaUseCase } from '../../../application/use-cases/conferencias/ciclo-vida/FinalizarConferenciaUseCase.js';
 import { CortarNotaUseCase } from '../../../application/use-cases/conferencias/ciclo-vida/CortarNotaUseCase.js';
 import { ExcluirItemConferidoUseCase } from '../../../application/use-cases/conferencias/operacao/ExcluirItemConferidoUseCase.js';
+import { NotificarDiscordUseCase } from '../../../application/use-cases/conferencias/operacao/NotificarDiscordUseCase.js';
 
 /**
  * Controller de Conferências
@@ -32,6 +33,7 @@ export class ConferenciasController {
     private readonly cortarNotaUseCase: CortarNotaUseCase,
     private readonly verificarExcluidosUseCase: VerificarExcluidosUseCase,
     private readonly excluirItemConferidoUseCase: ExcluirItemConferidoUseCase,
+    private readonly notificarDiscordUseCase: NotificarDiscordUseCase,
   ) {}
 
   /** GET /conferencias — Lista pedidos pendentes de conferência */
@@ -244,6 +246,34 @@ export class ConferenciasController {
       if (!nuNota) { res.status(400).json({ error: 'nuNota é obrigatório' }); return; }
 
       const result = await this.cortarNotaUseCase.execute({ nuNota, peso, qtdVol }, req.correlationId);
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /** POST /conferencias/previa-discord — Retorna os dados da prévia para notificação no Discord */
+  async obterPreviaDiscord(req: Request, res: Response): Promise<void> {
+    try {
+      const { nuNota, usuario } = req.body;
+      if (!nuNota) { res.status(400).json({ error: 'nuNota é obrigatório' }); return; }
+
+      const usuarioSnk = usuario || req.username;
+      const result = await this.notificarDiscordUseCase.obterPrevia({ nuNota, usuario: usuarioSnk }, req.correlationId);
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /** POST /conferencias/notificar-discord — Dispara a notificação via Webhook no Discord */
+  async notificarDiscord(req: Request, res: Response): Promise<void> {
+    try {
+      const { nuNota, usuario } = req.body;
+      if (!nuNota) { res.status(400).json({ error: 'nuNota é obrigatório' }); return; }
+
+      const usuarioSnk = usuario || req.username;
+      const result = await this.notificarDiscordUseCase.execute({ nuNota, usuario: usuarioSnk }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

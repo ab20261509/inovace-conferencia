@@ -7,6 +7,8 @@ import {
   ConferirItemResponse,
   ItemConferidoDetalhe,
   ExcluirItemConferidoResponse,
+  NotificacaoDiscordDados,
+  NotificarDiscordResponse,
 } from '../../domain/models/Conferencia';
 import { httpClient } from './httpClient';
 
@@ -85,6 +87,22 @@ export class ConferenciaApiService implements IConferenciaService {
 
   async cortarNota(nuNota: number, peso = 0, qtdVol = 0): Promise<any> {
     const response = await httpClient.post('/api/conferencias/cortar', { nuNota, peso, qtdVol });
+    return response.data;
+  }
+
+  async obterPreviaDiscord(nuNota: number, usuario?: string): Promise<NotificacaoDiscordDados> {
+    const response = await httpClient.post<NotificacaoDiscordDados>('/api/conferencias/previa-discord', {
+      nuNota,
+      usuario,
+    });
+    return response.data;
+  }
+
+  async notificarDiscord(nuNota: number, usuario?: string): Promise<NotificarDiscordResponse> {
+    const response = await httpClient.post<NotificarDiscordResponse>('/api/conferencias/notificar-discord', {
+      nuNota,
+      usuario,
+    });
     return response.data;
   }
 }

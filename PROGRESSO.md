@@ -77,6 +77,21 @@
 - **Modal de confirmação**: solicita confirmação (*"Deseja estornar este item?"*) apresentando o produto, lote e quantidade a estornar.
 - **Integração Sankhya**: executa `DatasetSP.removeRecord` com listener `DetalhesConferenciaCRUDListener`, atualizando automaticamente saldos, divergências e listas na tela.
 
+### Notificação via Webhook Discord (Itens Pendentes / Sem Estoque)
+- **Botão Discord na lista de pedidos**: disponível diretamente nos cards com status "Em andamento".
+- **Modal de Prévia e Confirmação**:
+  - Exibe o cabeçalho do pedido, itens pendentes calculados e prévia exata do texto a ser enviado.
+  - Permite confirmar o envio ou cancelar sem disparar a mensagem.
+- **Estrutura da Notificação**:
+  - Usuário SNK, Razão Social, Pedido (NUNOTA), OC (ORDEMCARGA), Lista de Itens Pendentes (QTD UN > PRODUTO / COD: CODPROD) e mensagem fixa *"Estoque: NÃO ENCONTRADO \n AGUARDANDO RESPOSTA PARA SEGUIR O PROCESSO DE FINALIZAÇÃO !!!"*.
+  - Envio com embed rico estilizado e texto formatado.
+- **Configuração e Tratamento**:
+  - Variável `DISCORD_WEBHOOK_URL` no `.env`.
+  - Tratamento defensivo caso a URL ainda não esteja preenchida, alertando o usuário no modal sem quebrar a aplicação.
+- **Backend**:
+  - Endpoints `POST /api/conferencias/previa-discord` e `POST /api/conferencias/notificar-discord`.
+  - `DiscordWebhookAdapter` e `NotificarDiscordUseCase`.
+
 ### Consulta de Produtos
 - Botão **"Consultar Produto"** ao lado do nome do usuário na lista de conferências
 - Modal responsivo (ocupa a tela toda, adaptando largura/altura)

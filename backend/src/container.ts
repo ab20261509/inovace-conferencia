@@ -39,6 +39,10 @@ import { VerificarExcluidosUseCase } from './application/use-cases/conferencias/
 import { SalvarItemConferidoUseCase } from './application/use-cases/conferencias/operacao/SalvarItemConferidoUseCase.js';
 import { SalvarVolumeUseCase } from './application/use-cases/conferencias/operacao/SalvarVolumeUseCase.js';
 import { ExcluirItemConferidoUseCase } from './application/use-cases/conferencias/operacao/ExcluirItemConferidoUseCase.js';
+import { NotificarDiscordUseCase } from './application/use-cases/conferencias/operacao/NotificarDiscordUseCase.js';
+
+// Infrastructure (Discord)
+import { DiscordWebhookAdapter } from './infrastructure/discord/DiscordWebhookAdapter.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -111,6 +115,14 @@ export function buildApp(): Application {
   const cortarNotaUseCase = new CortarNotaUseCase(gatewayAdapter);
   const verificarExcluidosUseCase = new VerificarExcluidosUseCase(gatewayAdapter);
 
+  // Discord
+  const discordAdapter = new DiscordWebhookAdapter(appConfig.discord.webhookUrl);
+  const notificarDiscordUseCase = new NotificarDiscordUseCase(
+    gatewayAdapter,
+    listarItensPedidoUseCase,
+    discordAdapter,
+  );
+
   // 3. Controllers (Presentation)
   const authController = new AuthController(loginUseCase, loginSankhyaUseCase, logoutUseCase, validateSessionUseCase);
   const crudController = new CrudController(
@@ -137,6 +149,7 @@ export function buildApp(): Application {
     cortarNotaUseCase,
     verificarExcluidosUseCase,
     excluirItemConferidoUseCase,
+    notificarDiscordUseCase,
   );
 
   // 4. Middleware de autenticação

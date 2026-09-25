@@ -93,3 +93,18 @@ export interface ExcluirItemConferidoResponse {
   itens: ItemPedido[];
   itensConferidos: ItemConferidoDetalhe[];
 }
+
+export interface NotificacaoDiscordDados {
+  usuarioSnk: string;
+  razaoSocial: string;
+  pedido: number | string;
+  oc: string;
+  itensPendentes: string[];
+  estoque: string;
+  mensagemFormatada: string;
+}
+
+export interface NotificarDiscordResponse {
+  sucesso: boolean;
+  dados: NotificacaoDiscordDados;
+}
