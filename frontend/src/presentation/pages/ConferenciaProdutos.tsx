@@ -476,6 +476,7 @@ export function ConferenciaProdutosPage() {
                   <tr>
                     <th>Produto</th>
                     <th>Lote</th>
+                    <th>Unidade</th>
                     <th>Qtd Conferida</th>
                     <th>Horário</th>
                     <th>Ações</th>
@@ -504,6 +505,7 @@ export function ConferenciaProdutosPage() {
                         </div>
                       </td>
                       <td className="num-cell">{item.controle || '-'}</td>
+                      <td className="num-cell">{item.codVol || '-'}</td>
                       <td className="num-cell" style={{ color: 'var(--emerald-600)', fontWeight: 800 }}>
                         {item.qtdConf}
                       </td>
@@ -617,6 +619,9 @@ export function ConferenciaProdutosPage() {
               <div><strong>Produto:</strong> {itemParaEstornar.descrProd} ({itemParaEstornar.codProd})</div>
               {itemParaEstornar.controle && (
                 <div><strong>Lote:</strong> {itemParaEstornar.controle}</div>
+              )}
+              {itemParaEstornar.codVol && (
+                <div><strong>Unidade:</strong> {itemParaEstornar.codVol}</div>
               )}
               <div><strong>Qtd Conferida:</strong> {itemParaEstornar.qtdConf}</div>
             </div>

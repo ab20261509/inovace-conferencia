@@ -38,7 +38,7 @@ export class ListarItensConferidosUseCase {
           PRO.DESCRPROD,
           PRO.REFERENCIA,
           COI.CONTROLE,
-          COI.QTDCONF,
+          COI.QTDCONFVOLPAD,
           COI.CODBARRA,
           COI.CODVOL,
           COI.DHALTER
@@ -69,7 +69,7 @@ export class ListarItensConferidosUseCase {
         controle: row[5] ? String(row[5]).trim() : null,
         qtdConf: Number(row[6] || 0),
         codBarra: row[7] ? String(row[7]).trim() : null,
-        codVol: row[8] || '',
+        codVol: row[8] ? String(row[8]).trim() : '',
         dhAlter: row[9] || '',
       }));
 

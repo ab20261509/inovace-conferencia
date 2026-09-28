@@ -1,3 +1,20 @@
+# Handoff — Sessão 2026-09-28
+
+## Funcionalidades e Ajustes Implementados
+
+### 1. Quantidade Conferida no Volume Padrão (`QTDCONFVOLPAD`)
+- **Backend:** Em `backend/src/application/use-cases/conferencias/consulta/ListarItensConferidosUseCase.ts`, a consulta direta na tabela `TGFCOI2` foi alterada para selecionar estritamente o campo `COI.QTDCONFVOLPAD` no lugar de `COI.QTDCONF`.
+- **Objetivo:** Refletir a quantidade conferida na unidade/volume padrão cadastrado no Sankhya.
+
+### 2. Coluna Unidade (`CODVOL`) na Tabela de Itens Conferidos
+- **Frontend:**
+  - `frontend/src/presentation/pages/ConferenciaProdutos.tsx`:
+    - Adicionado cabeçalho `<th>Unidade</th>` e célula `<td className="num-cell">{item.codVol || '-'}</td>` posicionada após a coluna `Lote`.
+    - No modal de confirmação de estorno de item, incluída a exibição do campo `Unidade` quando preenchido.
+- **Backend:** Aplicado `trim()` no campo `CODVOL` retornado da consulta `TGFCOI2` para remover espaços em branco de tipos CHAR do Oracle.
+
+---
+
 # Handoff — Sessão 2026-09-25
 
 ## Funcionalidades Implementadas

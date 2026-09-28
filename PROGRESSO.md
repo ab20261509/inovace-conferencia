@@ -72,9 +72,10 @@
 
 ### Estorno de Itens Conferidos
 - **Aba Itens Conferidos com dados reais**: consulta detalhada em `TGFCOI2` (`DetalhesConferencia`) unida com `TGFPRO`.
-- Exibe lote (`CONTROLE`), quantidade conferida (`QTDCONF`), data/hora da alteração (`DHALTER`) e botão de ação.
+- Exibe lote (`CONTROLE`), unidade (`CODVOL`), quantidade conferida no volume padrão (`QTDCONFVOLPAD`), data/hora da alteração (`DHALTER`) e botão de ação.
+- **Coluna Unidade**: exibida após a coluna Lote na tabela e detalhada no modal de confirmação de estorno.
 - **Botão Estornar**: presente em cada registro conferido.
-- **Modal de confirmação**: solicita confirmação (*"Deseja estornar este item?"*) apresentando o produto, lote e quantidade a estornar.
+- **Modal de confirmação**: solicita confirmação (*"Deseja estornar este item?"*) apresentando o produto, lote, unidade e quantidade a estornar.
 - **Integração Sankhya**: executa `DatasetSP.removeRecord` com listener `DetalhesConferenciaCRUDListener`, atualizando automaticamente saldos, divergências e listas na tela.
 
 ### Notificação via Webhook Discord (Itens Pendentes / Sem Estoque)
