@@ -5,7 +5,7 @@ import { useAuth } from '../../application/contexts/AuthContext';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
 import { ItemConferidoDetalhe } from '../../domain/models/Conferencia';
 import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infrastructure/audio/alertas';
-import { Botao, Campo, Container, Grid, Label, Painel } from '../components';
+import { Botao, Campo, Container, Grid, Label, Painel, ModalCameraScanner } from '../components';
 import { Loading } from '../components/Loading/Loading';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
@@ -64,6 +64,7 @@ export function ConferenciaProdutosPage() {
   const [itemParaEstornar, setItemParaEstornar] = useState<ItemConferidoDetalhe | null>(null);
   const [estornando, setEstornando] = useState(false);
   const [feedbackVisual, setFeedbackVisual] = useState<{ codProd: string; descrProd: string } | null>(null);
+  const [showCameraModal, setShowCameraModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -121,6 +122,57 @@ export function ConferenciaProdutosPage() {
     prepararAudio();
     tocarAlertaErro();
     setError('Não é permitido colar código de barras. Utilize o leitor físico ou digite o código.');
+  }
+
+  async function handleCameraScan(codigoLido: string) {
+    if (!codigoLido || conferindo) return;
+    setCodBarra(codigoLido);
+    setShowCameraModal(false);
+
+    prepararAudio();
+    setConferindo(true);
+    try {
+      const qtdInformada = parseFloat(quantidade) || 1;
+      let qtdFinal = qtdInformada;
+      let seqZerada: string | null = null;
+      if (isRecontagem) {
+        const itemMatch = itens.find(
+          (i) => String(i.codBarra) === String(codigoLido) || String(i.codProd) === String(codigoLido),
+        );
+        const snapshotDoItem = itemMatch ? parseFloat(snapshotQtdConf[itemMatch.sequencia] || '0') : 0;
+        if (itemMatch && snapshotDoItem > 0 && !itensZerados.has(itemMatch.sequencia)) {
+          qtdFinal = qtdInformada - snapshotDoItem;
+          seqZerada = itemMatch.sequencia;
+        }
+      }
+
+      const qtd = qtdFinal.toFixed(9);
+      const resultado = await conferirItem(codigoLido, qtd);
+
+      if (seqZerada) {
+        setItensZerados((prev) => new Set(prev).add(seqZerada!));
+      }
+      setCodBarra('');
+      setQuantidade('1');
+
+      if (resultado?.codProd) {
+        setFeedbackVisual({
+          codProd: resultado.codProd,
+          descrProd: resultado.descrProd || '',
+        });
+        if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+        feedbackTimeoutRef.current = setTimeout(() => {
+          setFeedbackVisual(null);
+        }, 1200);
+      }
+      tocarAlertaSucesso();
+    } catch (err: any) {
+      tocarAlertaErro();
+      setError(err.message || 'Erro ao conferir item lido pela câmera');
+    } finally {
+      setConferindo(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
   }
 
   /**
@@ -262,6 +314,19 @@ export function ConferenciaProdutosPage() {
   const qtdItensCompletos = itens.filter((i) => i.status === 'completo').length;
   const itensPendentes = totalItens - qtdItensCompletos;
 
+  const itensPendentesVisiveis = itens
+    .filter((i) => i.status !== 'completo')
+    .sort((a, b) => {
+      if (isRecontagem) {
+        const aInit = parseFloat(snapshotQtdConf[a.sequencia] || '0') > 0 ? 0 : 1;
+        const bInit = parseFloat(snapshotQtdConf[b.sequencia] || '0') > 0 ? 0 : 1;
+        return aInit - bInit;
+      }
+      const parcialA = a.status === 'parcial' ? 0 : 1;
+      const parcialB = b.status === 'parcial' ? 0 : 1;
+      return parcialA - parcialB;
+    });
+
   if (loading && !conferencia) {
     return <Loading fullscreen mensagem="Iniciando conferência..." />;
   }
@@ -314,6 +379,17 @@ export function ConferenciaProdutosPage() {
               bloquearColar
               onTentativaColar={handleTentativaColar}
             />
+            <button
+              type="button"
+              className="btn-camera-scanner"
+              title="Ler código de barras pela câmera"
+              onClick={() => setShowCameraModal(true)}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+            </button>
             <Campo
               variant="compact"
               type="number"
@@ -390,30 +466,79 @@ export function ConferenciaProdutosPage() {
                 <p style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--slate-500)', marginTop: '8px' }}>Carregando itens...</p>
               </div>
             ) : (
-              <table className="tabela-itens">
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th>Lote</th>
-                    <th>Pedido</th>
-                    <th>Conferido</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itens.filter((i) => i.status !== 'completo').sort((a, b) => {
-                    // Em recontagem, itens que já tinham qtdConf inicial sobem
-                    // (são os que precisam de reconferência total). Fora dela,
-                    // só os parciais sobem.
-                    if (isRecontagem) {
-                      const aInit = parseFloat(snapshotQtdConf[a.sequencia] || '0') > 0 ? 0 : 1;
-                      const bInit = parseFloat(snapshotQtdConf[b.sequencia] || '0') > 0 ? 0 : 1;
-                      return aInit - bInit;
-                    }
-                    const parcialA = a.status === 'parcial' ? 0 : 1;
-                    const parcialB = b.status === 'parcial' ? 0 : 1;
-                    return parcialA - parcialB;
-                  }).map((item) => {
+              <>
+                {/* Visualização Desktop: Tabela */}
+                <div className="itens-tabela-wrapper">
+                  <table className="tabela-itens">
+                    <thead>
+                      <tr>
+                        <th>Produto</th>
+                        <th>Lote</th>
+                        <th>Pedido</th>
+                        <th>Conferido</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itensPendentesVisiveis.map((item) => {
+                        const qtdConf = parseFloat(item.qtdConf);
+                        const parcial = item.status === 'parcial';
+                        const tinhaQtdInicial =
+                          isRecontagem && parseFloat(snapshotQtdConf[item.sequencia] || '0') > 0;
+                        const destacar = tinhaQtdInicial || parcial;
+
+                        return (
+                          <tr key={item.sequencia} className={`${destacar ? 'row-parcial' : ''} ${tinhaQtdInicial ? 'row-recontagem' : ''}`}>
+                            <td>
+                              <div className="produto-cell">
+                                <img
+                                  src={`/api/crud/produto/${item.codProd}/imagem`}
+                                  alt={item.descrProd || ''}
+                                  className="produto-img"
+                                  onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                                <div>
+                                  <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
+                                  <span className="produto-barra">
+                                    {verCamposSensiveis
+                                      ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
+                                      : item.codProd}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="num-cell">{item.controle || '-'}</td>
+                            <td className="num-cell">{item.qtdPed !== null && item.qtdPed !== undefined ? item.qtdPed : '—'}</td>
+                            <td className="num-cell">{qtdConf}</td>
+                            <td>
+                              {tinhaQtdInicial && (
+                                <span
+                                  className="status-reconferir"
+                                  title="Item já tinha quantidade contada — reconferir a quantidade total"
+                                >
+                                  ⚠ Reconferir total
+                                </span>
+                              )}
+                              {isRecontagem && !tinhaQtdInicial && parcial && (
+                                <span className="status-parcial">Parcial</span>
+                              )}
+                              {isRecontagem && !tinhaQtdInicial && !parcial && (
+                                <span className="status-pendente">—</span>
+                              )}
+                              {!isRecontagem && parcial && <span className="status-parcial">Parcial</span>}
+                              {!isRecontagem && !parcial && <span className="status-pendente">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Visualização Mobile / Tablet: Cards */}
+                <div className="itens-cards-mobile">
+                  {itensPendentesVisiveis.map((item) => {
                     const qtdConf = parseFloat(item.qtdConf);
                     const parcial = item.status === 'parcial';
                     const tinhaQtdInicial =
@@ -421,52 +546,64 @@ export function ConferenciaProdutosPage() {
                     const destacar = tinhaQtdInicial || parcial;
 
                     return (
-                      <tr key={item.sequencia} className={`${destacar ? 'row-parcial' : ''} ${tinhaQtdInicial ? 'row-recontagem' : ''}`}>
-                        <td>
-                          <div className="produto-cell">
-                            <img
-                              src={`/api/crud/produto/${item.codProd}/imagem`}
-                              alt={item.descrProd || ''}
-                              className="produto-img"
-                              onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                            />
-                            <div>
-                              <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
-                              <span className="produto-barra">
-                                {verCamposSensiveis
-                                  ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
-                                  : item.codProd}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="num-cell">{item.controle || '-'}</td>
-                        <td className="num-cell">{item.qtdPed !== null && item.qtdPed !== undefined ? item.qtdPed : '—'}</td>
-                        <td className="num-cell">{qtdConf}</td>
-                        <td>
-                          {tinhaQtdInicial && (
-                            <span
-                              className="status-reconferir"
-                              title="Item já tinha quantidade contada — reconferir a quantidade total"
-                            >
-                              ⚠ Reconferir total
+                      <div
+                        key={`card-${item.sequencia}`}
+                        className={`item-card-mobile ${destacar ? 'item-card-parcial' : ''} ${tinhaQtdInicial ? 'item-card-recontagem' : ''}`}
+                      >
+                        <div className="item-card-header">
+                          <img
+                            src={`/api/crud/produto/${item.codProd}/imagem`}
+                            alt={item.descrProd || ''}
+                            className="produto-img item-card-img"
+                            onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                          <div className="item-card-info">
+                            <span className="produto-desc item-card-title">{item.descrProd || `Cod ${item.codProd}`}</span>
+                            <span className="produto-barra item-card-sub">
+                              {verCamposSensiveis
+                                ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
+                                : `Cód: ${item.codProd}`}
                             </span>
-                          )}
-                          {isRecontagem && !tinhaQtdInicial && parcial && (
-                            <span className="status-parcial">Parcial</span>
-                          )}
-                          {isRecontagem && !tinhaQtdInicial && !parcial && (
-                            <span className="status-pendente">—</span>
-                          )}
-                          {!isRecontagem && parcial && <span className="status-parcial">Parcial</span>}
-                          {!isRecontagem && !parcial && <span className="status-pendente">—</span>}
-                        </td>
-                      </tr>
+                          </div>
+                          <div className="item-card-badge">
+                            {tinhaQtdInicial && (
+                              <span className="status-reconferir" title="Reconferir a quantidade total">
+                                ⚠ Reconferir
+                              </span>
+                            )}
+                            {isRecontagem && !tinhaQtdInicial && parcial && (
+                              <span className="status-parcial">Parcial</span>
+                            )}
+                            {isRecontagem && !tinhaQtdInicial && !parcial && (
+                              <span className="status-pendente">Pendente</span>
+                            )}
+                            {!isRecontagem && parcial && <span className="status-parcial">Parcial</span>}
+                            {!isRecontagem && !parcial && <span className="status-pendente">Pendente</span>}
+                          </div>
+                        </div>
+
+                        <div className="item-card-metrics">
+                          <div className="item-card-metric-col">
+                            <span className="item-metric-label">Lote</span>
+                            <span className="item-metric-val">{item.controle || '—'}</span>
+                          </div>
+                          <div className="item-card-metric-col">
+                            <span className="item-metric-label">Pedido</span>
+                            <span className="item-metric-val">
+                              {item.qtdPed !== null && item.qtdPed !== undefined ? item.qtdPed : '—'}
+                            </span>
+                          </div>
+                          <div className="item-card-metric-col">
+                            <span className="item-metric-label">Conferido</span>
+                            <span className="item-metric-val val-conferido">{qtdConf}</span>
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+              </>
             )}
           </Container>
         )}
@@ -479,67 +616,135 @@ export function ConferenciaProdutosPage() {
                 <p style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--slate-500)' }}>Nenhum item conferido ainda</p>
               </div>
             ) : (
-              <table className="tabela-itens">
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th>Lote</th>
-                    <th>Unidade</th>
-                    <th>Qtd Conferida</th>
-                    <th>Horário</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <>
+                {/* Visualização Desktop: Tabela */}
+                <div className="itens-tabela-wrapper">
+                  <table className="tabela-itens">
+                    <thead>
+                      <tr>
+                        <th>Produto</th>
+                        <th>Lote</th>
+                        <th>Unidade</th>
+                        <th>Qtd Conferida</th>
+                        <th>Horário</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itensConferidos.map((item) => (
+                        <tr key={`${item.nuConf}-${item.seqConf}`} className="row-ok">
+                          <td>
+                            <div className="produto-cell">
+                              <img
+                                src={`/api/crud/produto/${item.codProd}/imagem`}
+                                alt={item.descrProd || ''}
+                                className="produto-img"
+                                onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                              <div>
+                                <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
+                                <span className="produto-barra">
+                                  {verCamposSensiveis
+                                    ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
+                                    : item.codProd}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="num-cell">{item.controle || '-'}</td>
+                          <td className="num-cell">{item.codVol || '-'}</td>
+                          <td className="num-cell" style={{ color: 'var(--emerald-600)', fontWeight: 800 }}>
+                            {item.qtdConf}
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--slate-500)' }}>
+                            {formatarDataHora(item.dhAlter)}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn-estornar-item"
+                              title="Estornar este item"
+                              onClick={() => setItemParaEstornar(item)}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                              </svg>
+                              <span>Estornar</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Visualização Mobile / Tablet: Cards */}
+                <div className="itens-cards-mobile">
                   {itensConferidos.map((item) => (
-                    <tr key={`${item.nuConf}-${item.seqConf}`} className="row-ok">
-                      <td>
-                        <div className="produto-cell">
-                          <img
-                            src={`/api/crud/produto/${item.codProd}/imagem`}
-                            alt={item.descrProd || ''}
-                            className="produto-img"
-                            onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                          <div>
-                            <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
-                            <span className="produto-barra">
-                              {verCamposSensiveis
-                                ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
-                                : item.codProd}
-                            </span>
-                          </div>
+                    <div key={`card-conf-${item.nuConf}-${item.seqConf}`} className="item-card-mobile item-card-conferido">
+                      <div className="item-card-header">
+                        <img
+                          src={`/api/crud/produto/${item.codProd}/imagem`}
+                          alt={item.descrProd || ''}
+                          className="produto-img item-card-img"
+                          onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                        <div className="item-card-info">
+                          <span className="produto-desc item-card-title">{item.descrProd || `Cod ${item.codProd}`}</span>
+                          <span className="produto-barra item-card-sub">
+                            {verCamposSensiveis
+                              ? `${item.codProd} | ${item.codBarra || '-'} | Ref: ${item.referencia || '-'}`
+                              : `Cód: ${item.codProd}`}
+                          </span>
                         </div>
-                      </td>
-                      <td className="num-cell">{item.controle || '-'}</td>
-                      <td className="num-cell">{item.codVol || '-'}</td>
-                      <td className="num-cell" style={{ color: 'var(--emerald-600)', fontWeight: 800 }}>
-                        {item.qtdConf}
-                      </td>
-                      <td style={{ fontSize: '0.8rem', color: 'var(--slate-500)' }}>
-                        {formatarDataHora(item.dhAlter)}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn-estornar-item"
-                          title="Estornar este item"
-                          onClick={() => setItemParaEstornar(item)}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        <div className="item-card-time">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
                           </svg>
-                          <span>Estornar</span>
-                        </button>
-                      </td>
-                    </tr>
+                          <span>{formatarDataHora(item.dhAlter)}</span>
+                        </div>
+                      </div>
+
+                      <div className="item-card-metrics">
+                        <div className="item-card-metric-col">
+                          <span className="item-metric-label">Lote</span>
+                          <span className="item-metric-val">{item.controle || '—'}</span>
+                        </div>
+                        <div className="item-card-metric-col">
+                          <span className="item-metric-label">Unidade</span>
+                          <span className="item-metric-val">{item.codVol || '—'}</span>
+                        </div>
+                        <div className="item-card-metric-col">
+                          <span className="item-metric-label">Qtd Conferida</span>
+                          <span className="item-metric-val val-conferido-ok">{item.qtdConf}</span>
+                        </div>
+                        <div className="item-card-actions">
+                          <button
+                            type="button"
+                            className="btn-estornar-item btn-estornar-card"
+                            title="Estornar este item"
+                            onClick={() => setItemParaEstornar(item)}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                            <span>Estornar</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </>
             )}
           </Container>
         )}
@@ -679,6 +884,13 @@ export function ConferenciaProdutosPage() {
           <img src={imagemAmpliada} alt="Produto" className="img-modal" />
         </div>
       )}
+
+      {/* Modal Leitor de Câmera */}
+      <ModalCameraScanner
+        aberto={showCameraModal}
+        onFechar={() => setShowCameraModal(false)}
+        onScan={handleCameraScan}
+      />
     </div>
   );
 }

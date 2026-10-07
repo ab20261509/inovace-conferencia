@@ -13,6 +13,29 @@
     - Disparo de som de erro (`tocarAlertaErro()`) e mensagem explicativa ao operador caso haja tentativa de colar.
 - **Compatibilidade com Leitores Físicos**: Leitores de código de barras (coletores/pistolas USB) funcionam via emulação de teclado (HID) e não disparam eventos de colagem, mantendo a operação normal.
 
+### 2. Leitor de Código de Barras via Câmera (Mobile/Tablet), PWA e HTTPS Caddy
+- **Leitor de Câmera Fluido:**
+  - Biblioteca `html5-qrcode` com suporte a EAN-13, EAN-8, Code 128, Code 39, QR Code.
+  - Aceleração nativa por GPU do Chrome Android (Barcode Detection API).
+  - Componente `ModalCameraScanner` com mira visual, animação laser e botão de lanterna (flash).
+  - Regra de responsividade: botão de acionamento exibido apenas em Tablet/Mobile ($\le$ 1024px) e oculto em desktop.
+  - Ao ler: aciona feedback tátil (vibração), atualiza o campo e submete a conferência automaticamente.
+- **PWA (Instalação via Chrome):**
+  - Criação de `manifest.webmanifest`, meta tags mobile e Service Worker (`sw.js`).
+  - Permite adicionar o app à tela inicial do celular com execução em tela cheia (*standalone*).
+- **HTTPS com Caddy na Porta 8080:**
+  - `caddy/Caddyfile` e serviço `caddy` no `docker-compose.yml` escutando na porta atual `8080` com `tls internal`.
+### 3. Cards Responsivos para Mobile e Tablet na Conferência de Produtos
+- **Objetivo**: Garantir legibilidade e usabilidade das listas de itens pendentes e conferidos em dispositivos móveis e tablets, substituindo a tabela horizontal por cards compactos e informativos.
+- **Frontend**:
+  - `frontend/src/styles/global.css`:
+    - Adicionada classe `.itens-tabela-wrapper`: visível em desktops (`> 1024px`) e oculta via `@media (max-width: 1024px)`.
+    - Adicionada classe `.itens-cards-mobile`: oculta em desktops e exibida em layout de cards flexíveis em tablets e celulares ($\le$ 1024px).
+    - Estilização completa de `.item-card-mobile`, `.item-card-header`, `.item-card-foto`, `.item-card-info`, `.item-card-metrics`, `.item-card-metric` e `.item-card-actions`.
+  - `frontend/src/presentation/pages/ConferenciaProdutos.tsx`:
+    - Aba de Pendentes: tabela original preservada em desktop; em mobile exibe cards com foto ampliada ao toque, descrição, código do produto, badge de status (Pendente/Parcial), lote, quantidade pedida e conferida.
+    - Aba de Conferidos: tabela original preservada em desktop; em mobile exibe cards com foto, descrição, data/hora da conferência, lote, unidade, quantidade conferida em destaque verde e botão de estorno integrado.
+
 ---
 
 # Handoff — Sessão 2026-09-28

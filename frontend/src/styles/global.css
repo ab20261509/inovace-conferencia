@@ -766,6 +766,38 @@ body {
 }
 .scanner-form-inner .ui-campo:first-child { flex: 1; }
 
+/* Botão Câmera Scanner — Visível apenas em Tablet e Mobile (<= 1024px) */
+.btn-camera-scanner {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .btn-camera-scanner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 48px;
+    width: 48px;
+    min-width: 48px;
+    background: var(--slate-100);
+    border: 1px solid var(--slate-300);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--slate-700);
+    transition: all var(--transition);
+  }
+  .btn-camera-scanner:hover {
+    background: var(--slate-200);
+    color: var(--slate-900);
+  }
+  .btn-camera-scanner:active {
+    background: var(--orange-500);
+    color: white;
+    border-color: var(--orange-600);
+    transform: scale(0.95);
+  }
+}
+
 /* Feedback */
 .feedback-success {
   margin-bottom: 14px;
@@ -840,6 +872,183 @@ body {
   background-color: #dc2626;
   color: #ffffff;
   border-color: #dc2626;
+}
+
+/* ═══════════════════════════════════════
+   TABELA VS CARDS RESPONSIVOS (MOBILE / TABLET)
+   ═══════════════════════════════════════ */
+.itens-tabela-wrapper {
+  display: block;
+}
+
+.itens-cards-mobile {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .itens-tabela-wrapper {
+    display: none;
+  }
+
+  .itens-cards-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+}
+
+.item-card-mobile {
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all var(--transition);
+}
+
+.item-card-mobile:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.item-card-mobile.item-card-parcial {
+  border-left: 4px solid var(--orange-500);
+  background: #fffdfa;
+}
+
+.item-card-mobile.item-card-recontagem {
+  border-left: 4px solid #f43f5e;
+  background: #fff5f7;
+}
+
+.item-card-mobile.item-card-conferido {
+  border-left: 4px solid var(--emerald-500);
+}
+
+.item-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.item-card-img {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  border: 1px solid var(--slate-200);
+}
+
+.item-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-card-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--slate-800);
+  line-height: 1.3;
+}
+
+.item-card-sub {
+  font-size: 0.75rem;
+  color: var(--slate-500);
+}
+
+.item-card-badge {
+  flex-shrink: 0;
+}
+
+.item-card-time {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--slate-500);
+  background: var(--slate-100);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.item-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: var(--slate-50);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  border: 1px solid var(--slate-100);
+  align-items: center;
+}
+
+.item-card-conferido .item-card-metrics {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 540px) {
+  .item-card-conferido .item-card-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .item-card-conferido .item-card-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+}
+
+.item-card-metric-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-metric-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.item-metric-val {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--slate-800);
+  font-variant-numeric: tabular-nums;
+}
+
+.item-metric-val.val-conferido {
+  color: var(--orange-600);
+  font-weight: 800;
+}
+
+.item-metric-val.val-conferido-ok {
+  color: var(--emerald-600);
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.item-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.btn-estornar-card {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  border-radius: 6px;
 }
 
 /* ═══════════════════════════════════════

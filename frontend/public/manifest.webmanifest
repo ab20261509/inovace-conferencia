@@ -1,0 +1,19 @@
+{
+  "name": "Sankhya - Conferência de Saída",
+  "short_name": "Conferência",
+  "description": "Sistema de Conferência de Saída Sankhya",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

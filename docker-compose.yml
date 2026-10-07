@@ -13,11 +13,27 @@ services:
   frontend:
     build: ./frontend
     container_name: conferencia-frontend
-    ports:
-      # Porta do host. Padrão 8080 porque no servidor de deploy a 80 é ocupada
-      # por outro serviço (Zabbix). Para mudar, defina FRONTEND_PORT no .env
-      # da raiz — mas não dependa disso: o default já é a porta que funciona.
-      - "${FRONTEND_PORT:-8080}:80"
+    expose:
+      - "80"
     depends_on:
       - backend
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: conferencia-caddy
+    restart: unless-stopped
+    ports:
+      # Porta HTTPS do host. Padrão 8080 porque no servidor de deploy a 80/443 são ocupadas
+      # por outro serviço (Zabbix).
+      - "${FRONTEND_PORT:-8080}:8080"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:

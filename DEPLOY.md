@@ -25,13 +25,20 @@ escolha da porta 8080, detalhada na seção de problemas.
 
 ## 2. Arquitetura do deploy
 
-Dois containers na rede default criada pelo Compose:
+Três containers na rede default criada pelo Compose:
 
 ```
-Navegador
+Navegador / Coletor Mobile
    │
-   │  http://IP:8080
+   │  https://IP:8080 (HTTPS com Caddy tls internal)
    ▼
+┌─────────────────────────────┐
+│ conferencia-caddy           │   caddy:2-alpine
+│  - terminação TLS/HTTPS     │
+│  - reverse proxy → frontend │
+└──────────────┬──────────────┘
+               │  http://frontend:80 (porta interna)
+               ▼
 ┌─────────────────────────────┐
 │ conferencia-frontend        │   nginx:alpine
 │  - serve a SPA (build Vite) │
@@ -49,13 +56,7 @@ Navegador
       Gateway Sankhya
 ```
 
-Detalhe relevante: como o nginx faz proxy de `/api/` e `/auth/`, o navegador
-sempre conversa com **uma única origem**. Não há CORS em jogo no fluxo normal,
-e o backend não precisa estar exposto publicamente.
-
-A porta 3001 do backend também está publicada no host (`3001:3001`). Isso é
-útil para diagnóstico, mas não é necessário para a aplicação funcionar — veja
-"Pontos abertos".
+Detalhe relevante: o Caddy cuida do HTTPS na porta `8080` (mantendo a porta que já era utilizada), sem conflitar com o Zabbix nas portas 80/443. O navegador conversa com uma única origem segura, permitindo o uso da câmera no celular e a instalação como PWA.
 
 ---
 
@@ -65,7 +66,8 @@ Todos versionados no repositório:
 
 | Arquivo | Papel |
 |---|---|
-| `docker-compose.yml` | Define os dois serviços |
+| `docker-compose.yml` | Define os três serviços (backend, frontend e caddy) |
+| `caddy/Caddyfile` | Configuração de HTTPS automático e proxy reverso |
 | `backend/Dockerfile` | Build multi-stage: compila TS, roda só com deps de produção |
 | `frontend/Dockerfile` | Build multi-stage: `vite build`, resultado servido por nginx |
 | `frontend/nginx.conf` | Fallback da SPA + proxy para o backend |
@@ -92,11 +94,28 @@ services:
   frontend:
     build: ./frontend
     container_name: conferencia-frontend
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
+    expose:
+      - "80"
     depends_on:
       - backend
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: conferencia-caddy
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:
 ```
 
 ---

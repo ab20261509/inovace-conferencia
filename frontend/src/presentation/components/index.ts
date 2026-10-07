@@ -4,3 +4,4 @@ export { Container } from './Container/Container';
 export { Grid, GridItem } from './Grid/Grid';
 export { Label } from './Label/Label';
 export { Painel } from './Painel/Painel';
+export { ModalCameraScanner } from './ModalCameraScanner/ModalCameraScanner';
