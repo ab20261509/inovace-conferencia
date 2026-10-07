@@ -56,6 +56,7 @@ import { CrudController } from './presentation/http/controllers/CrudController.j
 import { ApiProxyController } from './presentation/http/controllers/ApiProxyController.js';
 import { ConferenciasController } from './presentation/http/controllers/ConferenciasController.js';
 import { ProdutoController } from './presentation/http/controllers/ProdutoController.js';
+import { SistemaController } from './presentation/http/controllers/SistemaController.js';
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
 import { createServer } from './presentation/server.js';
 
@@ -151,6 +152,7 @@ export function buildApp(): Application {
     excluirItemConferidoUseCase,
     notificarDiscordUseCase,
   );
+  const sistemaController = new SistemaController();
 
   // 4. Middleware de autenticação
   const authMiddleware = createAuthMiddleware(tokenAdapter);
@@ -158,7 +160,7 @@ export function buildApp(): Application {
   // 5. Montar servidor
   const app = createServer(
     { corsOrigin: appConfig.cors.origin },
-    { authController, crudController, apiProxyController, conferenciasController, produtoController },
+    { authController, crudController, apiProxyController, conferenciasController, produtoController, sistemaController },
     authMiddleware,
   );
 

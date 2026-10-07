@@ -38,6 +38,16 @@
     - Aba de Pendentes: tabela original preservada em desktop; em mobile exibe cards com foto ampliada ao toque, descrição, código do produto, badge de status (Pendente/Parcial), lote, quantidade pedida e conferida.
     - Aba de Conferidos: tabela original preservada em desktop; em mobile exibe cards com foto, descrição, data/hora da conferência, lote, unidade, quantidade conferida em destaque verde e botão de estorno integrado.
 
+### 4. Download do Certificado CA para Usuários Autenticados
+- **Objetivo**: Permitir que operadores e encarregados baixem o certificado raiz do Caddy diretamente pelo navegador para instalar no celular sem necessidade de acesso SSH.
+- **Backend**:
+  - `backend/src/presentation/http/controllers/SistemaController.ts`: método `baixarCertificado` servindo o `root.crt` com MIME `application/x-x509-ca-cert` e nome `conferencia-ca.crt`.
+  - `backend/src/presentation/http/routes/sistemaRoutes.ts`: rota autenticada `GET /api/sistema/certificado`.
+  - `docker-compose.yml`: volume `./caddy/data:/caddy-data:ro` para o backend acessar o certificado gerado pelo Caddy.
+- **Frontend**:
+  - `frontend/src/presentation/components/ModalCertificado/ModalCertificado.tsx` & `.css`: modal com instruções passo a passo para Android e acionamento de download.
+  - `frontend/src/presentation/pages/ListaConferencias.tsx`: botão "🛡️ Certificado CA" na barra de ações do header.
+
 ---
 
 # Handoff — Sessão 2026-09-28

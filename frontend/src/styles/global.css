@@ -92,6 +92,7 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .header-info { flex: 1; }
@@ -1057,6 +1058,7 @@ body {
 @media (max-width: 640px) {
   .page-container { padding: 16px 12px; }
   .page-header h1 { font-size: 1.3rem; }
+  .header-actions { gap: 8px; width: 100%; justify-content: flex-start; }
   .ui-grid--cols-3 { grid-template-columns: repeat(3, 1fr); }
   .scanner-form-inner { flex-wrap: wrap; }
   .scanner-form-inner .ui-campo:first-child { flex: none; width: 100%; }
