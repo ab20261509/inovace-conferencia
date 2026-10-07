@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Controller de Sistema
@@ -14,6 +18,8 @@ export class SistemaController {
     const candidatePaths = [
       '/certs/root.crt',
       '/caddy-data/caddy/pki/authorities/local/root.crt',
+      path.resolve(__dirname, '../../../../caddy/data/caddy/pki/authorities/local/root.crt'),
+      path.resolve(__dirname, '../../../../../caddy/data/caddy/pki/authorities/local/root.crt'),
       path.resolve(process.cwd(), '../caddy/data/caddy/pki/authorities/local/root.crt'),
       path.resolve(process.cwd(), 'caddy/data/caddy/pki/authorities/local/root.crt'),
     ];

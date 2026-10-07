@@ -38,10 +38,20 @@ export function ModalCertificado({ aberto, onFechar }: ModalCertificadoProps) {
       setSucesso(true);
     } catch (err: any) {
       console.error('Erro ao baixar certificado:', err);
-      const msgErro =
-        err.response?.data?.error ||
-        err.message ||
-        'Não foi possível baixar o certificado. Verifique se o servidor Caddy gerou o arquivo.';
+      let msgErro = 'Não foi possível baixar o certificado.';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const texto = await err.response.data.text();
+          const json = JSON.parse(texto);
+          msgErro = json.error || msgErro;
+        } catch {
+          msgErro = err.message || msgErro;
+        }
+      } else if (err.response?.data?.error) {
+        msgErro = err.response.data.error;
+      } else if (err.message) {
+        msgErro = err.message;
+      }
       setErro(msgErro);
     } finally {
       setBaixando(false);
