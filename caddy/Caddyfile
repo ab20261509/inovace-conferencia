@@ -1,4 +1,0 @@
-:8080 {
-    tls internal
-    reverse_proxy frontend:80
-}

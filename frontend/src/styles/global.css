@@ -95,20 +95,6 @@ body {
   flex-wrap: wrap;
 }
 
-.btn-escudo-certificado {
-  padding: 8px 12px !important;
-  border-color: #bfdbfe !important;
-  background: #eff6ff !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-.btn-escudo-certificado:hover {
-  background: #dbeafe !important;
-  border-color: #93c5fd !important;
-}
-
 
 .header-info { flex: 1; }
 .header-info h1 { font-size: 1.3rem; }

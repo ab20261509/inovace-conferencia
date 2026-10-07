@@ -13,7 +13,7 @@
     - Disparo de som de erro (`tocarAlertaErro()`) e mensagem explicativa ao operador caso haja tentativa de colar.
 - **Compatibilidade com Leitores Físicos**: Leitores de código de barras (coletores/pistolas USB) funcionam via emulação de teclado (HID) e não disparam eventos de colagem, mantendo a operação normal.
 
-### 2. Leitor de Código de Barras via Câmera (Mobile/Tablet), PWA e HTTPS Caddy
+### 2. Leitor de Código de Barras via Câmera (Mobile/Tablet) e PWA
 - **Leitor de Câmera Fluido:**
   - Biblioteca `html5-qrcode` com suporte a EAN-13, EAN-8, Code 128, Code 39, QR Code.
   - Aceleração nativa por GPU do Chrome Android (Barcode Detection API).
@@ -23,10 +23,7 @@
 - **PWA (Instalação via Chrome):**
   - Criação de `manifest.webmanifest`, meta tags mobile e Service Worker (`sw.js`).
   - Permite adicionar o app à tela inicial do celular com execução em tela cheia (*standalone*).
-- **HTTPS com Caddy na Porta 8080:**
-  - `caddy/Caddyfile` e serviço `caddy` no `docker-compose.yml` escutando na porta atual `8080` com `tls internal`.
-  - Diretórios persistentes mapeados localmente no projeto (`./caddy/data` e `./caddy/config`), ignorados no `.gitignore`.
-  - Certificado Raiz (`root.crt`) gerado pelo Caddy acessível diretamente em `caddy/data/caddy/pki/authorities/local/root.crt`.
+
 ### 3. Cards Responsivos para Mobile e Tablet na Conferência de Produtos
 - **Objetivo**: Garantir legibilidade e usabilidade das listas de itens pendentes e conferidos em dispositivos móveis e tablets, substituindo a tabela horizontal por cards compactos e informativos.
 - **Frontend**:
@@ -37,16 +34,6 @@
   - `frontend/src/presentation/pages/ConferenciaProdutos.tsx`:
     - Aba de Pendentes: tabela original preservada em desktop; em mobile exibe cards com foto ampliada ao toque, descrição, código do produto, badge de status (Pendente/Parcial), lote, quantidade pedida e conferida.
     - Aba de Conferidos: tabela original preservada em desktop; em mobile exibe cards com foto, descrição, data/hora da conferência, lote, unidade, quantidade conferida em destaque verde e botão de estorno integrado.
-
-### 4. Download do Certificado CA para Usuários Autenticados
-- **Objetivo**: Permitir que operadores e encarregados baixem o certificado raiz do Caddy diretamente pelo navegador para instalar no celular sem necessidade de acesso SSH.
-- **Backend**:
-  - `backend/src/presentation/http/controllers/SistemaController.ts`: método `baixarCertificado` servindo o `root.crt` com MIME `application/x-x509-ca-cert` e nome `conferencia-ca.crt`.
-  - `backend/src/presentation/http/routes/sistemaRoutes.ts`: rota autenticada `GET /api/sistema/certificado`.
-  - `docker-compose.yml`: volume `./caddy/data:/caddy-data:ro` para o backend acessar o certificado gerado pelo Caddy.
-- **Frontend**:
-  - `frontend/src/presentation/components/ModalCertificado/ModalCertificado.tsx` & `.css`: modal com instruções passo a passo para Android e acionamento de download.
-  - `frontend/src/presentation/pages/ListaConferencias.tsx`: botão com ícone de escudo azul no cabeçalho (sem texto fixo para máxima discrição e compatibilidade com mobile).
 
 ---
 

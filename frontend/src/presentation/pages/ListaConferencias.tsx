@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { useConferencias } from '../../application/hooks/useConferencias';
-import { Botao, Container, Painel, Label, ModalCertificado } from '../components';
+import { Botao, Container, Painel, Label } from '../components';
 import { FiltrosDinamicos } from '../components/FiltrosDinamicos/FiltrosDinamicos';
 import { Loading } from '../components/Loading/Loading';
 import { ModalConsultaProduto } from '../components/ModalConsultaProduto/ModalConsultaProduto';
@@ -28,7 +28,6 @@ export function ListaConferenciasPage() {
     return stored ? JSON.parse(stored) : {};
   });
   const [showModalProduto, setShowModalProduto] = useState(false);
-  const [showModalCertificado, setShowModalCertificado] = useState(false);
   const [pedidoNotificarDiscord, setPedidoNotificarDiscord] = useState<PedidoConferencia | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -89,29 +88,6 @@ export function ListaConferenciasPage() {
           <span className="user-info">{user?.nomeUsu}</span>
           <Botao variant="secondary" size="sm" onClick={() => setShowModalProduto(true)}>
             Consultar Produto
-          </Botao>
-          <Botao
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowModalCertificado(true)}
-            title="Instalar Certificado HTTPS para Leitor de Câmera e PWA"
-            aria-label="Instalar Certificado HTTPS"
-            className="btn-escudo-certificado"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="#2563eb"
-              stroke="#2563eb"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              <path d="m9 12 2 2 4-4" stroke="#ffffff" strokeWidth="2.5" />
-            </svg>
           </Botao>
           <Botao variant="ghost" size="sm" onClick={logout}>Sair</Botao>
         </div>
@@ -266,12 +242,6 @@ export function ListaConferenciasPage() {
         onFechar={() => setPedidoNotificarDiscord(null)}
         pedido={pedidoNotificarDiscord}
         usuario={user?.nomeUsu}
-      />
-
-      {/* Modal de instalação do certificado CA */}
-      <ModalCertificado
-        aberto={showModalCertificado}
-        onFechar={() => setShowModalCertificado(false)}
       />
     </div>
   );

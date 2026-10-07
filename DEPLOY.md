@@ -25,20 +25,13 @@ escolha da porta 8080, detalhada na seção de problemas.
 
 ## 2. Arquitetura do deploy
 
-Três containers na rede default criada pelo Compose:
+Dois containers na rede default criada pelo Compose:
 
 ```
 Navegador / Coletor Mobile
    │
-   │  https://IP:8080 (HTTPS com Caddy tls internal)
+   │  http://IP:8080 (ou FRONTEND_PORT)
    ▼
-┌─────────────────────────────┐
-│ conferencia-caddy           │   caddy:2-alpine
-│  - terminação TLS/HTTPS     │
-│  - reverse proxy → frontend │
-└──────────────┬──────────────┘
-               │  http://frontend:80 (porta interna)
-               ▼
 ┌─────────────────────────────┐
 │ conferencia-frontend        │   nginx:alpine
 │  - serve a SPA (build Vite) │
@@ -56,7 +49,7 @@ Navegador / Coletor Mobile
       Gateway Sankhya
 ```
 
-Detalhe relevante: o Caddy cuida do HTTPS na porta `8080` (mantendo a porta que já era utilizada), sem conflitar com o Zabbix nas portas 80/443. O navegador conversa com uma única origem segura, permitindo o uso da câmera no celular e a instalação como PWA.
+Detalhe relevante: o frontend publica diretamente na porta `8080` (configurável via `FRONTEND_PORT`), sem conflitar com o Zabbix nas portas 80/443.
 
 ---
 
@@ -66,8 +59,7 @@ Todos versionados no repositório:
 
 | Arquivo | Papel |
 |---|---|
-| `docker-compose.yml` | Define os três serviços (backend, frontend e caddy) |
-| `caddy/Caddyfile` | Configuração de HTTPS automático e proxy reverso |
+| `docker-compose.yml` | Define os dois serviços (backend e frontend) |
 | `backend/Dockerfile` | Build multi-stage: compila TS, roda só com deps de produção |
 | `frontend/Dockerfile` | Build multi-stage: `vite build`, resultado servido por nginx |
 | `frontend/nginx.conf` | Fallback da SPA + proxy para o backend |
@@ -94,31 +86,12 @@ services:
   frontend:
     build: ./frontend
     container_name: conferencia-frontend
-    expose:
-      - "80"
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
     depends_on:
       - backend
     restart: unless-stopped
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: conferencia-caddy
-    restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-8080}:8080"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/data:/data
-      - ./caddy/config:/config
-    depends_on:
-      - frontend
 ```
-
-> **Localização dos Certificados do Caddy:**
-> Os dados e certificados gerados pelo Caddy ficam salvos diretamente na pasta `./caddy/data` do projeto (ignorada no `.gitignore`).
-> O certificado raiz (*Root CA*) fica em:
-> `caddy/data/caddy/pki/authorities/local/root.crt`
-> Para que os celulares Android confiem no certificado sem avisos, basta copiar esse arquivo `root.crt` para o celular e instalá-lo em *Configurações > Segurança > Instalar certificado > Certificado CA*.
 
 ---
 

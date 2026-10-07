@@ -27,9 +27,5 @@ referencia-ui/
 # Logs
 *.log
 
-# Caddy (certificados locais e dados de runtime)
-caddy/data/
-caddy/config/
-
 # Windows reserved filename
 nul

@@ -62,8 +62,6 @@
 - **Leitor de câmera responsivo**: botão de câmera exibido exclusivamente em layouts mobile/tablet (oculto no desktop)
 - **Cards responsivos para Mobile/Tablet**: substituição automática das tabelas de itens pendentes e conferidos por cards visuais e legíveis em telas $\le$ 1024px (mantendo tabela original no desktop)
 - **Instalação PWA (Chrome)**: suporte a instalação direta como app no celular via Progressive Web App
-- **HTTPS com Caddy na porta 8080**: terminação TLS com certificados internos sem alterar a porta de acesso
-- **Download do Certificado CA**: botão e modal explicativo no cabeçalho para download direto do certificado raiz no celular/tablet
 - **Persistência de filtros**: filtros dinâmicos e status selecionado salvos no localStorage
 - **Limpeza de filtros**: botão "Limpar tudo" e remoção automática no logout
 
