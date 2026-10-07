@@ -117,6 +117,12 @@ export function ConferenciaProdutosPage() {
     return () => { if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current); };
   }, []);
 
+  function handleTentativaColar() {
+    prepararAudio();
+    tocarAlertaErro();
+    setError('Não é permitido colar código de barras. Utilize o leitor físico ou digite o código.');
+  }
+
   /**
    * Fluxo único de conferência, usado pelo Enter no campo e pelo botão.
    * Mantido em um só lugar para os dois caminhos não divergirem.
@@ -305,6 +311,8 @@ export function ConferenciaProdutosPage() {
               onChange={(e) => setCodBarra(e.target.value)}
               placeholder="Escanear ou digitar código de barras..."
               autoFocus
+              bloquearColar
+              onTentativaColar={handleTentativaColar}
             />
             <Campo
               variant="compact"

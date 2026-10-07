@@ -46,6 +46,7 @@
 - Ampliar imagem ao clicar
 - Modal de finalização com campo de volumes
 - **Campo quantidade inteligente**: inicia com 1, envia 1 se vazio, reseta para 1 após conferência
+- **Bloqueio de colagem (Ctrl+V)**: proteção contra colar códigos no campo de conferência (Ctrl+V, Cmd+V, Shift+Insert, menu de contexto e drop), emitindo aviso sonoro e visual
 - Suporte a itens duplicados (mesmo CODPROD, lotes diferentes) via SEQUENCIA
 - Itens conferidos nunca somem (merge inteligente com dados do Sankhya)
 
@@ -53,9 +54,10 @@
 - **Header compacto da conferência**: espaçamentos reduzidos para maximizar área útil
 - **Cards de resumo integrados**: Total, Conferidos e Pendentes no header (não em Painel separado)
 - **Sistema de abas**: alternância rápida entre itens pendentes e conferidos
-- **Coluna de lote**: exibição do campo CONTROLE em ambas as tabelas
-- **Centralização de colunas**: Lote, Pedido, Conferido e Status centralizados
+- **Coluna de lote e unidade**: exibição do campo CONTROLE e CODVOL nas tabelas
+- **Centralização de colunas**: Lote, Unidade, Pedido, Conferido e Status centralizados
 - **Campo quantidade inteligente**: inicia com 1, envia 1 se vazio, reseta para 1 após conferência
+- **Proteção anti-colagem no scanner**: bloqueia colar código de barras forçando leitura física
 - **Persistência de filtros**: filtros dinâmicos e status selecionado salvos no localStorage
 - **Limpeza de filtros**: botão "Limpar tudo" e remoção automática no logout
 

@@ -1,3 +1,20 @@
+# Handoff — Sessão 2026-10-07
+
+## Funcionalidades e Ajustes Implementados
+
+### 1. Bloqueio de Colagem (Ctrl+V) no Campo de Código de Barras
+- **Objetivo**: Evitar que operadores copiem e colem códigos de barras para burlar a conferência física, garantindo a utilização do leitor de código de barras ou digitação.
+- **Frontend**:
+  - `frontend/src/presentation/components/Campo/Campo.tsx`:
+    - Adicionadas as propriedades `bloquearColar?: boolean` (ativada automaticamente se `variant="scanner"`) e `onTentativaColar?: () => void`.
+    - Bloqueio de `onPaste`, `onDrop`, `onContextMenu` (botão direito desativado) e atalhos via `onKeyDown` (`Ctrl+V`, `Cmd+V`, `Shift+Insert`).
+  - `frontend/src/presentation/pages/ConferenciaProdutos.tsx`:
+    - Campo de código de barras configurado com proteção anti-colagem.
+    - Disparo de som de erro (`tocarAlertaErro()`) e mensagem explicativa ao operador caso haja tentativa de colar.
+- **Compatibilidade com Leitores Físicos**: Leitores de código de barras (coletores/pistolas USB) funcionam via emulação de teclado (HID) e não disparam eventos de colagem, mantendo a operação normal.
+
+---
+
 # Handoff — Sessão 2026-09-28
 
 ## Funcionalidades e Ajustes Implementados
