@@ -46,7 +46,7 @@
   - `docker-compose.yml`: volume `./caddy/data:/caddy-data:ro` para o backend acessar o certificado gerado pelo Caddy.
 - **Frontend**:
   - `frontend/src/presentation/components/ModalCertificado/ModalCertificado.tsx` & `.css`: modal com instruções passo a passo para Android e acionamento de download.
-  - `frontend/src/presentation/pages/ListaConferencias.tsx`: botão "🛡️ Certificado CA" na barra de ações do header.
+  - `frontend/src/presentation/pages/ListaConferencias.tsx`: botão com ícone de escudo azul no cabeçalho (sem texto fixo para máxima discrição e compatibilidade com mobile).
 
 ---
 
