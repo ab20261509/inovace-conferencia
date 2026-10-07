@@ -29,11 +29,7 @@ services:
       - "${FRONTEND_PORT:-8080}:8080"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+      - ./caddy/data:/data
+      - ./caddy/config:/config
     depends_on:
       - frontend
-
-volumes:
-  caddy_data:
-  caddy_config:

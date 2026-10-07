@@ -25,6 +25,8 @@
   - Permite adicionar o app à tela inicial do celular com execução em tela cheia (*standalone*).
 - **HTTPS com Caddy na Porta 8080:**
   - `caddy/Caddyfile` e serviço `caddy` no `docker-compose.yml` escutando na porta atual `8080` com `tls internal`.
+  - Diretórios persistentes mapeados localmente no projeto (`./caddy/data` e `./caddy/config`), ignorados no `.gitignore`.
+  - Certificado Raiz (`root.crt`) gerado pelo Caddy acessível diretamente em `caddy/data/caddy/pki/authorities/local/root.crt`.
 ### 3. Cards Responsivos para Mobile e Tablet na Conferência de Produtos
 - **Objetivo**: Garantir legibilidade e usabilidade das listas de itens pendentes e conferidos em dispositivos móveis e tablets, substituindo a tabela horizontal por cards compactos e informativos.
 - **Frontend**:

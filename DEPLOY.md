@@ -108,15 +108,17 @@ services:
       - "${FRONTEND_PORT:-8080}:8080"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+      - ./caddy/data:/data
+      - ./caddy/config:/config
     depends_on:
       - frontend
-
-volumes:
-  caddy_data:
-  caddy_config:
 ```
+
+> **Localização dos Certificados do Caddy:**
+> Os dados e certificados gerados pelo Caddy ficam salvos diretamente na pasta `./caddy/data` do projeto (ignorada no `.gitignore`).
+> O certificado raiz (*Root CA*) fica em:
+> `caddy/data/caddy/pki/authorities/local/root.crt`
+> Para que os celulares Android confiem no certificado sem avisos, basta copiar esse arquivo `root.crt` para o celular e instalá-lo em *Configurações > Segurança > Instalar certificado > Certificado CA*.
 
 ---
 
