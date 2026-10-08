@@ -8,7 +8,7 @@ import { buildApp } from './container.js';
  */
 async function bootstrap(): Promise<void> {
   try {
-    const app = buildApp();
+    const app = await buildApp();
 
     app.listen(appConfig.port, () => {
       console.log(`

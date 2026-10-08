@@ -33,3 +33,7 @@ nul
 # Dados locais em runtime
 backend/data/*.json
 data/*.json
+*.db
+*.db-shm
+*.db-wal
+*.bak

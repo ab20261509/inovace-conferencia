@@ -24,6 +24,12 @@ export interface AppConfig {
   discord: {
     webhookUrl: string;
   };
+  turso: {
+    databaseUrl?: string;
+    authToken?: string;
+    syncIntervalMs: number;
+    localDbPath?: string;
+  };
 }
 
 export const appConfig: AppConfig = {
@@ -47,6 +53,12 @@ export const appConfig: AppConfig = {
   },
   discord: {
     webhookUrl: process.env.DISCORD_WEBHOOK_URL || '',
+  },
+  turso: {
+    databaseUrl: process.env.TURSO_DATABASE_URL,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+    syncIntervalMs: parseInt(process.env.TURSO_SYNC_INTERVAL_MS || '30000', 10),
+    localDbPath: process.env.DATABASE_LOCAL_PATH,
   },
 };
 

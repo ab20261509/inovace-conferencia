@@ -16,3 +16,11 @@ yarn-error.log*
 .cache/
 .turbo/
 coverage/
+
+# Dados locais
+data/*.json
+data/*.bak
+*.db
+*.db-shm
+*.db-wal
+*.bak

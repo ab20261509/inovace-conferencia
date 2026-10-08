@@ -44,10 +44,14 @@ import { NotificarDiscordUseCase } from './application/use-cases/conferencias/op
 // Infrastructure (Discord)
 import { DiscordWebhookAdapter } from './infrastructure/discord/DiscordWebhookAdapter.js';
 
-// Infrastructure (Permissoes / Acessos / Conferencias)
-import { JsonPermissoesRepository } from './infrastructure/repositories/JsonPermissoesRepository.js';
-import { JsonConfiguracaoTelasRepository } from './infrastructure/repositories/JsonConfiguracaoTelasRepository.js';
-import { JsonConferenciaEntradaRepository } from './infrastructure/repositories/JsonConferenciaEntradaRepository.js';
+// Infrastructure (Database & Repositórios libSQL / Turso)
+import { Client } from '@libsql/client';
+import { getLibsqlClient, startAutoSync } from './infrastructure/database/libsqlClient.js';
+import { initDatabaseSchema } from './infrastructure/database/schema.js';
+import { AuditService } from './infrastructure/database/AuditService.js';
+import { LibsqlPermissoesRepository } from './infrastructure/repositories/LibsqlPermissoesRepository.js';
+import { LibsqlConfiguracaoTelasRepository } from './infrastructure/repositories/LibsqlConfiguracaoTelasRepository.js';
+import { LibsqlConferenciaEntradaRepository } from './infrastructure/repositories/LibsqlConferenciaEntradaRepository.js';
 
 // Application (Use Cases) - Acessos
 import { ObterMeusAcessosUseCase } from './application/use-cases/acessos/ObterMeusAcessosUseCase.js';
@@ -90,7 +94,14 @@ import { createServer } from './presentation/server.js';
  *
  * Fluxo: Config → Adapters → Use Cases → Controllers → Server
  */
-export function buildApp(): Application {
+export async function buildApp(customClient?: Client): Promise<Application> {
+  // Inicialização do Banco de Dados SQLite / Turso
+  const dbClient = customClient || getLibsqlClient();
+  await initDatabaseSchema(dbClient);
+  startAutoSync();
+
+  const auditService = new AuditService(dbClient);
+
   // 1. Adapters (Infrastructure)
   const gatewayAdapter = new SankhyaGatewayAdapter({
     url: appConfig.gateway.url,
@@ -105,9 +116,9 @@ export function buildApp(): Application {
   });
 
   const authAdapter = new InMemoryAuthAdapter();
-  const permissoesRepo = new JsonPermissoesRepository();
-  const configTelasRepo = new JsonConfiguracaoTelasRepository(permissoesRepo);
-  const conferenciaEntradaRepo = new JsonConferenciaEntradaRepository();
+  const permissoesRepo = new LibsqlPermissoesRepository(dbClient, auditService);
+  const configTelasRepo = new LibsqlConfiguracaoTelasRepository(dbClient, permissoesRepo, auditService);
+  const conferenciaEntradaRepo = new LibsqlConferenciaEntradaRepository(dbClient, auditService);
 
   // 2. Use Cases (Application)
   const loginUseCase = new LoginUseCase(authAdapter, tokenAdapter);
