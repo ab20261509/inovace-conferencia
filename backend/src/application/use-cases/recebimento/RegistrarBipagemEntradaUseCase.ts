@@ -40,7 +40,7 @@ export class RegistrarBipagemEntradaUseCase {
 
     const nunotasStr = sessao.nunotas.join(', ');
 
-    // 1. Buscar se o código corresponde a produto principal (REFERENCIA) ou alternativo (TGFBAR)
+    // 1. Buscar se o código corresponde a produto principal (REFERENCIA) ou alternativo (TGFVOA + TGFBAR)
     const sql = `
 SELECT
     ITE.NUNOTA,
@@ -54,9 +54,21 @@ SELECT
     NVL(BAR.QUANTIDADE, 1) AS FATOR_ALT
 FROM TGFITE ITE
 INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
-LEFT JOIN TGFBAR BAR
-       ON BAR.CODPROD = ITE.CODPROD
-      AND BAR.ATIVO = 'S'
+LEFT JOIN (
+    SELECT CODPROD, CODBARRA, DIVIDEMULTIPLICA, QUANTIDADE
+    FROM TGFVOA
+    WHERE (ATIVO IS NULL OR ATIVO = 'S')
+    UNION ALL
+    SELECT BAR.CODPROD, BAR.CODBARRA, 'M' AS DIVIDEMULTIPLICA, 1 AS QUANTIDADE
+    FROM TGFBAR BAR
+    WHERE NOT EXISTS (
+        SELECT 1 FROM TGFVOA VOA 
+        WHERE VOA.CODPROD = BAR.CODPROD 
+          AND VOA.CODBARRA = BAR.CODBARRA 
+          AND (VOA.ATIVO IS NULL OR VOA.ATIVO = 'S')
+    )
+) BAR ON BAR.CODPROD = ITE.CODPROD
+     AND (UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}') OR UPPER(BAR.CODBARRA) = UPPER(TRIM('${codigoLimpo}')))
 WHERE ITE.NUNOTA IN (${nunotasStr})
   AND (
        UPPER(PRO.REFERENCIA) = UPPER('${codigoLimpo}')
