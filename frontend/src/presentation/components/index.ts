@@ -5,3 +5,4 @@ export { Grid, GridItem } from './Grid/Grid';
 export { Label } from './Label/Label';
 export { Painel } from './Painel/Painel';
 export { ModalCameraScanner } from './ModalCameraScanner/ModalCameraScanner';
+export { AppDrawer, AppHeader, AppLayout } from './AppLayout';

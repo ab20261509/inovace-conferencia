@@ -1,0 +1,308 @@
+/* Drawer / Menu Gaveta */
+.app-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s;
+}
+
+.app-drawer-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.app-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 85vw;
+  background: #ffffff;
+  z-index: 1001;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.app-drawer.open {
+  transform: translateX(0);
+}
+
+/* Header do Drawer */
+.app-drawer-header {
+  padding: 20px;
+  background: linear-gradient(135deg, var(--slate-900) 0%, var(--slate-800) 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.app-drawer-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.app-drawer-brand-badge {
+  background: var(--orange-500);
+  color: #ffffff;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.app-drawer-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  transition: background 0.15s ease;
+}
+
+.app-drawer-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.app-drawer-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app-drawer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--orange-500);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.app-drawer-user-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-drawer-user-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-drawer-user-code {
+  font-size: 0.75rem;
+  color: var(--slate-400);
+}
+
+/* Corpo do Drawer / Itens de Navegação */
+.app-drawer-nav {
+  flex: 1;
+  padding: 16px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-drawer-section-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--slate-400);
+  letter-spacing: 0.05em;
+  padding: 10px 12px 4px;
+}
+
+.app-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--slate-700);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.app-drawer-item:hover {
+  background: var(--slate-100);
+  color: var(--slate-900);
+}
+
+.app-drawer-item.active {
+  background: #fff7ed;
+  color: var(--orange-600);
+  font-weight: 700;
+}
+
+.app-drawer-item-icon {
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+}
+
+.app-drawer-item-badge {
+  margin-left: auto;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: var(--slate-200);
+  color: var(--slate-700);
+}
+
+.app-drawer-item.active .app-drawer-item-badge {
+  background: var(--orange-500);
+  color: #ffffff;
+}
+
+/* Footer do Drawer */
+.app-drawer-footer {
+  padding: 16px;
+  border-top: 1px solid var(--slate-200);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--slate-50);
+}
+
+.app-drawer-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--slate-300);
+  background: #ffffff;
+  color: var(--rose-600);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.app-drawer-logout-btn:hover {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+/* App Header com botão Hamburger */
+.app-global-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.app-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.app-hamburger-btn {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  color: var(--slate-700);
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: all 0.15s ease;
+}
+
+.app-hamburger-btn:hover {
+  background: var(--slate-100);
+  color: var(--slate-900);
+  border-color: var(--slate-300);
+}
+
+.app-hamburger-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.app-header-title-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--slate-900);
+  letter-spacing: -0.03em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.app-header-subtitle {
+  font-size: 0.8rem;
+  color: var(--slate-500);
+  font-weight: 500;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}

@@ -1,3 +1,44 @@
+# Handoff — Sessão 2026-10-08
+
+## Funcionalidades e Ajustes Implementados
+
+### 1. Camada de Permissões e Gestão de Acessos (RBAC Desacoplado)
+- **Domínio & Port:**
+  - Criada entidade `ModulosUsuario` (`conferencia_saida`, `conferencia_entrada`, `consulta_produtos`, `ver_campos_sensiveis`, `gerenciar_acessos`).
+  - Definida porta `IPermissoesRepository` para total desacoplamento da camada de persistência.
+  - Implementado `JsonPermissoesRepository` gravando em `backend/data/acessos.json` com cache em memória e fallback automático para superusuários (`SUP`, `ANTONY`, `ANTONY.B`).
+  - Preparado para migração futura para banco de dados ou tabela do Sankhya simplesmente trocando a implementação da porta.
+- **Use Cases & Rotas Backend:**
+  - `ObterMeusAcessosUseCase` (`GET /api/acessos/me`): retorna as permissões do usuário logado.
+  - `ListarUsuariosAcessosUseCase` (`GET /api/acessos/usuarios`): busca usuários ativos do Sankhya via `TSIUSU` (`SELECT CODUSU, NOMEUSU, CODGRUPO, ATIVO FROM TSIUSU WHERE ATIVO = 'S'`) e combina com suas permissões.
+  - `SalvarAcessosUsuarioUseCase` (`PUT /api/acessos/usuarios/:codUsu`): salva permissões atualizadas, com proteção para administradores.
+  - Injetado `permissoesRepo` em `ListarItensPedidoUseCase` para avaliação dinâmica do toggle `ver_campos_sensiveis`.
+- **Docker Compose:**
+  - Adicionado volume persistente `./backend/data:/app/data` para garantir que o arquivo `acessos.json` não seja perdido ao reiniciar os contêineres.
+
+### 2. Visibilidade Dinâmica de Campos Sensíveis
+- A regra anterior de lista fixa em código (`['SUP', 'ANTONY', 'ANTONY.B']`) foi migrada para o controle dinâmico configurável `ver_campos_sensiveis`.
+- Quando desmarcado, `qtdPed`, `codBarra` e `referencia` são omitidos na origem pelo backend, garantindo conferência cega estrita para os operadores.
+
+### 3. Navegação Global com Menu Gaveta (Drawer)
+- Criados componentes `AppDrawer`, `AppHeader` e `AppLayout`:
+  - Botão hambúrguer (`☰`) no cabeçalho.
+  - Menu lateral deslizante (*drawer*) com avatar do usuário, identificador `CODUSU`, links para módulos autorizados (`📦 Conferência de Saída`, `📥 Conferência de Entrada`, `🔍 Consultar Produto`, `⚙️ Gestão de Acessos`) e botão de saída.
+  - Apenas módulos liberados nas permissões do usuário são renderizados na navegação.
+
+### 4. Gestão Administrativa de Acessos (`/configuracoes/acessos`)
+- Tela com busca instantânea por nome ou `CODUSU`.
+- Tabela com switches/toggles visuais para cada um dos 5 módulos/permissões.
+- Atualização otimista e salvamento em tempo real com feedback de sucesso/erro.
+- Proteção de rota via `PrivateRoute` exigindo permissão `gerenciar_acessos`.
+
+### 5. Estrutura Base da Conferência de Entrada (Recebimento) (`/recebimento`)
+- Nova rota `/recebimento` com `RecebimentoPage`.
+- Layout integrado ao design system (hero informativo, toolbar de busca por nota fiscal/fornecedor, contadores de status e lista de cartões).
+- Pronto para acoplamento do fluxo de conferência de notas fiscais de entrada e pedidos de compra.
+
+---
+
 # Handoff — Sessão 2026-10-07
 
 ## Funcionalidades e Ajustes Implementados

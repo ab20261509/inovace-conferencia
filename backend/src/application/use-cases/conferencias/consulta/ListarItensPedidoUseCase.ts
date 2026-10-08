@@ -1,4 +1,5 @@
 import { IGatewayPort } from '../../../../domain/ports/IGatewayPort.js';
+import { IPermissoesRepository } from '../../../../domain/ports/IPermissoesRepository.js';
 import { CONFERENCIA_CLIENT_EVENTS } from '../shared/clientEvents.js';
 import { podeVerCamposSensiveis } from '../../../../domain/permissions.js';
 
@@ -59,7 +60,10 @@ export interface ListarItensPedidoOutput {
  * e cruza com as qtdConf do ConferenciaSP.listarItensPedido
  */
 export class ListarItensPedidoUseCase {
-  constructor(private readonly gateway: IGatewayPort) {}
+  constructor(
+    private readonly gateway: IGatewayPort,
+    private readonly permissoesRepo?: IPermissoesRepository,
+  ) {}
 
   async execute(input: ListarItensPedidoInput, correlationId?: string): Promise<ListarItensPedidoOutput> {
     // 1. Buscar TODOS os itens da nota via SQL e qtdConf via ConferenciaSP em paralelo
@@ -126,7 +130,17 @@ export class ListarItensPedidoUseCase {
 
     // 4. Calcular o status no servidor e, se o usuário não for privilegiado,
     //    remover os campos sensíveis da resposta.
-    const verCamposSensiveis = podeVerCamposSensiveis(input.usuario);
+    let verCamposSensiveis = podeVerCamposSensiveis(input.usuario);
+    if (this.permissoesRepo && input.usuario) {
+      try {
+        const modulos = await this.permissoesRepo.obterPermissoes(0, input.usuario);
+        if (modulos.ver_campos_sensiveis !== undefined) {
+          verCamposSensiveis = modulos.ver_campos_sensiveis;
+        }
+      } catch (err) {
+        // Fallback para podeVerCamposSensiveis mantido
+      }
+    }
 
     const itensResposta: ItemPedidoResponse[] = itens.map((item) => {
       const pedido = parseFloat(item.qtdPed);

@@ -74,3 +74,15 @@ export class GatewayNaoAutorizadoError extends AppError {
     super(message);
   }
 }
+
+/**
+ * Usuário autenticado não possui permissão para executar a ação ou acessar o módulo.
+ */
+export class AcessoNegadoError extends AppError {
+  readonly statusCode = 403;
+  readonly codigo = 'ACESSO_NEGADO';
+
+  constructor(message = 'Acesso não autorizado para esta funcionalidade') {
+    super(message);
+  }
+}

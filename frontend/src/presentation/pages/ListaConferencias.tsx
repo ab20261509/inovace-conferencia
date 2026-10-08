@@ -1,10 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { useConferencias } from '../../application/hooks/useConferencias';
-import { Botao, Container, Painel, Label } from '../components';
+import { Botao, Container, Painel, Label, AppLayout, AppHeader } from '../components';
 import { FiltrosDinamicos } from '../components/FiltrosDinamicos/FiltrosDinamicos';
 import { Loading } from '../components/Loading/Loading';
-import { ModalConsultaProduto } from '../components/ModalConsultaProduto/ModalConsultaProduto';
 import { ModalNotificarDiscord } from '../components/ModalNotificarDiscord/ModalNotificarDiscord';
 import { PedidoConferencia } from '../../domain/models/Conferencia';
 import { useState, useEffect, useMemo } from 'react';
@@ -27,7 +26,6 @@ export function ListaConferenciasPage() {
     const stored = localStorage.getItem('conferencia_filtros');
     return stored ? JSON.parse(stored) : {};
   });
-  const [showModalProduto, setShowModalProduto] = useState(false);
   const [pedidoNotificarDiscord, setPedidoNotificarDiscord] = useState<PedidoConferencia | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -80,18 +78,15 @@ export function ListaConferenciasPage() {
   }
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <header className="page-header">
-        <h1>Conferências de Saída</h1>
-        <div className="header-actions">
-          <span className="user-info">{user?.nomeUsu}</span>
-          <Botao variant="secondary" size="sm" onClick={() => setShowModalProduto(true)}>
-            Consultar Produto
-          </Botao>
-          <Botao variant="ghost" size="sm" onClick={logout}>Sair</Botao>
-        </div>
-      </header>
+    <AppLayout>
+      {({ openDrawer, abrirConsultaProduto }) => (
+        <div className="page-container">
+          {/* Header */}
+          <AppHeader
+            titulo="Conferências de Saída"
+            onOpenDrawer={openDrawer}
+            onAbrirConsultaProduto={abrirConsultaProduto}
+          />
 
        {/* Toolbar: atualizar + filtros + contagem + contadores por status */}
       <Container variant="default" padding="sm" className="toolbar-container">
@@ -233,16 +228,15 @@ export function ListaConferenciasPage() {
       </Painel>
       )}
 
-      {/* Modal de consulta de produtos */}
-      <ModalConsultaProduto aberto={showModalProduto} onFechar={() => setShowModalProduto(false)} />
-
-      {/* Modal de notificação no Discord */}
-      <ModalNotificarDiscord
-        aberto={!!pedidoNotificarDiscord}
-        onFechar={() => setPedidoNotificarDiscord(null)}
-        pedido={pedidoNotificarDiscord}
-        usuario={user?.nomeUsu}
-      />
-    </div>
+          {/* Modal de notificação no Discord */}
+          <ModalNotificarDiscord
+            aberto={!!pedidoNotificarDiscord}
+            onFechar={() => setPedidoNotificarDiscord(null)}
+            pedido={pedidoNotificarDiscord}
+            usuario={user?.nomeUsu}
+          />
+        </div>
+      )}
+    </AppLayout>
   );
 }

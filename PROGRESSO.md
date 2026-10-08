@@ -16,12 +16,18 @@
 
 ---
 
-## Funcionalidades Implementadas
+### Multi-Módulos & Gestão de Acessos
+- **Arquitetura Multi-Módulos**: Plataforma expandida para suportar múltiplos fluxos operacionais (Saída, Entrada/Recebimento, Consultas, Configurações).
+- **Menu Gaveta (Drawer)**: Menu lateral deslizante responsivo acionado pelo ícone hambúrguer (`☰`), permitindo transição fluida entre módulos autorizados.
+- **Camada de Permissões (RBAC)**: Interface de repositório desacoplada (`IPermissoesRepository` / `JsonPermissoesRepository` em `backend/data/acessos.json`), preparada para migração futura para banco de dados/tabela Sankhya sem alterar use cases.
+- **Tela de Gestão de Acessos** (`/configuracoes/acessos`): Painel interno administrativo onde supervisores visualizam usuários do Sankhya (`TSIUSU`) e configuram permissões em tempo real com toggle switches.
+- **Visibilidade Dinâmica de Campos Sensíveis** (`ver_campos_sensiveis`): Substituição da lista estática fixa no código por controle configurável por usuário, ocultando na origem `qtdPed`, `codBarra` e `referencia` quando desabilitado.
+- **Módulo de Conferência de Entrada (Recebimento)** (`/recebimento`): Estrutura base completa do layout operacional para recepção de mercadorias e notas fiscais de fornecedores.
 
 ### Login
 - Login via `MobileLoginSP.login` (credenciais Sankhya)
 - JWT gerado pelo backend com codUsu do conferente
-- Proteção de rotas no frontend
+- Proteção de rotas no frontend com validação de permissão de módulo (`PrivateRoute`)
 
 ### Lista de Conferências
 - Consulta SQL complexa com JOINs (DbExplorerSP)

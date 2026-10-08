@@ -5,11 +5,13 @@ import { createCrudRoutes } from './crudRoutes.js';
 import { createApiRoutes } from './apiRoutes.js';
 import { createConferenciasRoutes } from './conferenciasRoutes.js';
 import { createProdutoRoutes } from './produtoRoutes.js';
+import { createAcessosRoutes } from './acessosRoutes.js';
 import { AuthController } from '../controllers/AuthController.js';
 import { CrudController } from '../controllers/CrudController.js';
 import { ApiProxyController } from '../controllers/ApiProxyController.js';
 import { ConferenciasController } from '../controllers/ConferenciasController.js';
 import { ProdutoController } from '../controllers/ProdutoController.js';
+import { AcessosController } from '../controllers/AcessosController.js';
 
 export interface RouteControllers {
   authController: AuthController;
@@ -17,6 +19,7 @@ export interface RouteControllers {
   apiProxyController: ApiProxyController;
   conferenciasController: ConferenciasController;
   produtoController: ProdutoController;
+  acessosController: AcessosController;
 }
 
 /**
@@ -33,6 +36,7 @@ export function registerRoutes(app: Application, controllers: RouteControllers, 
   app.use('/api/conferencias', authMiddleware, createConferenciasRoutes(controllers.conferenciasController));
   app.use('/api/crud', authMiddleware, createCrudRoutes(controllers.crudController));
   app.use('/api/produtos', authMiddleware, createProdutoRoutes(controllers.produtoController));
+  app.use('/api/acessos', authMiddleware, createAcessosRoutes(controllers.acessosController));
   app.use('/api', authMiddleware, createApiRoutes(controllers.apiProxyController));
 
   // Health check

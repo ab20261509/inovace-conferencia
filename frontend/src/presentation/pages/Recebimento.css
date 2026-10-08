@@ -1,0 +1,86 @@
+.recebimento-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recebimento-hero {
+  background: linear-gradient(135deg, var(--slate-900) 0%, var(--slate-800) 100%);
+  color: #ffffff;
+  padding: 24px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recebimento-hero-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.recebimento-hero-badge {
+  background: var(--emerald-500);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.recebimento-hero-text {
+  color: var(--slate-300);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  max-width: 680px;
+}
+
+.recebimento-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.recebimento-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.recebimento-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.recebimento-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recebimento-card-fornecedor {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--slate-900);
+}
+
+.recebimento-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--slate-600);
+}

@@ -44,6 +44,14 @@ import { NotificarDiscordUseCase } from './application/use-cases/conferencias/op
 // Infrastructure (Discord)
 import { DiscordWebhookAdapter } from './infrastructure/discord/DiscordWebhookAdapter.js';
 
+// Infrastructure (Permissoes / Acessos)
+import { JsonPermissoesRepository } from './infrastructure/repositories/JsonPermissoesRepository.js';
+
+// Application (Use Cases) - Acessos
+import { ObterMeusAcessosUseCase } from './application/use-cases/acessos/ObterMeusAcessosUseCase.js';
+import { ListarUsuariosAcessosUseCase } from './application/use-cases/acessos/ListarUsuariosAcessosUseCase.js';
+import { SalvarAcessosUsuarioUseCase } from './application/use-cases/acessos/SalvarAcessosUsuarioUseCase.js';
+
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
 import { ExcluirConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/ExcluirConferenciaUseCase.js';
@@ -56,6 +64,7 @@ import { CrudController } from './presentation/http/controllers/CrudController.j
 import { ApiProxyController } from './presentation/http/controllers/ApiProxyController.js';
 import { ConferenciasController } from './presentation/http/controllers/ConferenciasController.js';
 import { ProdutoController } from './presentation/http/controllers/ProdutoController.js';
+import { AcessosController } from './presentation/http/controllers/AcessosController.js';
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
 import { createServer } from './presentation/server.js';
 
@@ -80,12 +89,18 @@ export function buildApp(): Application {
   });
 
   const authAdapter = new InMemoryAuthAdapter();
+  const permissoesRepo = new JsonPermissoesRepository();
 
   // 2. Use Cases (Application)
   const loginUseCase = new LoginUseCase(authAdapter, tokenAdapter);
   const loginSankhyaUseCase = new LoginSankhyaUseCase(gatewayAdapter, tokenAdapter);
   const logoutUseCase = new LogoutUseCase();
   const validateSessionUseCase = new ValidateSessionUseCase(tokenAdapter);
+
+  // Acessos
+  const obterMeusAcessosUseCase = new ObterMeusAcessosUseCase(permissoesRepo);
+  const listarUsuariosAcessosUseCase = new ListarUsuariosAcessosUseCase(gatewayAdapter, permissoesRepo);
+  const salvarAcessosUsuarioUseCase = new SalvarAcessosUsuarioUseCase(permissoesRepo);
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -104,7 +119,7 @@ export function buildApp(): Application {
   const getConferenciaSaidaUseCase = new GetConferenciaSaidaUseCase(gatewayAdapter);
   const iniciarConferenciaUseCase = new IniciarConferenciaUseCase(gatewayAdapter);
   const excluirConferenciaUseCase = new ExcluirConferenciaUseCase(gatewayAdapter);
-  const listarItensPedidoUseCase = new ListarItensPedidoUseCase(gatewayAdapter);
+  const listarItensPedidoUseCase = new ListarItensPedidoUseCase(gatewayAdapter, permissoesRepo);
   const listarItensConferidosUseCase = new ListarItensConferidosUseCase(gatewayAdapter);
   const getProdutoUseCase = new GetProdutoUseCase(gatewayAdapter);
   const salvarItemConferidoUseCase = new SalvarItemConferidoUseCase(gatewayAdapter);
@@ -125,6 +140,11 @@ export function buildApp(): Application {
 
   // 3. Controllers (Presentation)
   const authController = new AuthController(loginUseCase, loginSankhyaUseCase, logoutUseCase, validateSessionUseCase);
+  const acessosController = new AcessosController(
+    obterMeusAcessosUseCase,
+    listarUsuariosAcessosUseCase,
+    salvarAcessosUsuarioUseCase,
+  );
   const crudController = new CrudController(
     loadRecordsUseCase,
     loadRecordUseCase,
@@ -158,7 +178,14 @@ export function buildApp(): Application {
   // 5. Montar servidor
   const app = createServer(
     { corsOrigin: appConfig.cors.origin },
-    { authController, crudController, apiProxyController, conferenciasController, produtoController },
+    {
+      authController,
+      crudController,
+      apiProxyController,
+      conferenciasController,
+      produtoController,
+      acessosController,
+    },
     authMiddleware,
   );
 
