@@ -5,6 +5,7 @@ import { ConferenciaProdutosPage } from '../pages/ConferenciaProdutos';
 import { RecebimentoPage } from '../pages/Recebimento';
 import { ConferenciaEntradaPage } from '../pages/ConferenciaEntradaPage';
 import { GestaoAcessosPage } from '../pages/GestaoAcessos';
+import { BancoDadosPage } from '../pages/BancoDados/BancoDadosPage';
 import { PrivateRoute } from './PrivateRoute';
 
 export function AppRoutes() {
@@ -55,6 +56,16 @@ export function AppRoutes() {
           element={
             <PrivateRoute modulo="gerenciar_acessos">
               <GestaoAcessosPage />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Gerenciador de Banco de Dados (SQLite / Turso) */}
+        <Route
+          path="/configuracoes/banco"
+          element={
+            <PrivateRoute modulo="gerenciar_acessos">
+              <BancoDadosPage />
             </PrivateRoute>
           }
         />

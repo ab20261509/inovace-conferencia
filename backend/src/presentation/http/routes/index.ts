@@ -8,6 +8,7 @@ import { createProdutoRoutes } from './produtoRoutes.js';
 import { createAcessosRoutes } from './acessosRoutes.js';
 import { createConfiguracaoTelasRoutes } from './configuracaoTelasRoutes.js';
 import { createConferenciaEntradaRoutes } from './conferenciaEntradaRoutes.js';
+import { createDatabaseRoutes } from './databaseRoutes.js';
 import { AuthController } from '../controllers/AuthController.js';
 import { CrudController } from '../controllers/CrudController.js';
 import { ApiProxyController } from '../controllers/ApiProxyController.js';
@@ -16,6 +17,7 @@ import { ProdutoController } from '../controllers/ProdutoController.js';
 import { AcessosController } from '../controllers/AcessosController.js';
 import { ConfiguracaoTelasController } from '../controllers/ConfiguracaoTelasController.js';
 import { ConferenciaEntradaController } from '../controllers/ConferenciaEntradaController.js';
+import { DatabaseExplorerController } from '../controllers/DatabaseExplorerController.js';
 
 export interface RouteControllers {
   authController: AuthController;
@@ -26,6 +28,7 @@ export interface RouteControllers {
   acessosController: AcessosController;
   configuracaoTelasController: ConfiguracaoTelasController;
   conferenciaEntradaController: ConferenciaEntradaController;
+  databaseExplorerController: DatabaseExplorerController;
 }
 
 /**
@@ -45,6 +48,7 @@ export function registerRoutes(app: Application, controllers: RouteControllers, 
   app.use('/api/produtos', authMiddleware, createProdutoRoutes(controllers.produtoController));
   app.use('/api/acessos', authMiddleware, createAcessosRoutes(controllers.acessosController));
   app.use('/api/configuracoes/telas', authMiddleware, createConfiguracaoTelasRoutes(controllers.configuracaoTelasController));
+  app.use('/api/database', authMiddleware, createDatabaseRoutes(controllers.databaseExplorerController));
   app.use('/api', authMiddleware, createApiRoutes(controllers.apiProxyController));
 
   // Health check

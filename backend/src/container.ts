@@ -52,6 +52,7 @@ import { AuditService } from './infrastructure/database/AuditService.js';
 import { LibsqlPermissoesRepository } from './infrastructure/repositories/LibsqlPermissoesRepository.js';
 import { LibsqlConfiguracaoTelasRepository } from './infrastructure/repositories/LibsqlConfiguracaoTelasRepository.js';
 import { LibsqlConferenciaEntradaRepository } from './infrastructure/repositories/LibsqlConferenciaEntradaRepository.js';
+import { LibsqlDatabaseExplorerRepository } from './infrastructure/repositories/LibsqlDatabaseExplorerRepository.js';
 
 // Application (Use Cases) - Acessos
 import { ObterMeusAcessosUseCase } from './application/use-cases/acessos/ObterMeusAcessosUseCase.js';
@@ -85,6 +86,7 @@ import { ProdutoController } from './presentation/http/controllers/ProdutoContro
 import { AcessosController } from './presentation/http/controllers/AcessosController.js';
 import { ConfiguracaoTelasController } from './presentation/http/controllers/ConfiguracaoTelasController.js';
 import { ConferenciaEntradaController } from './presentation/http/controllers/ConferenciaEntradaController.js';
+import { DatabaseExplorerController } from './presentation/http/controllers/DatabaseExplorerController.js';
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
 import { createServer } from './presentation/server.js';
 
@@ -229,6 +231,9 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     notificarDiscordUseCase,
   );
 
+  const databaseExplorerRepo = new LibsqlDatabaseExplorerRepository(dbClient, auditService);
+  const databaseExplorerController = new DatabaseExplorerController(databaseExplorerRepo, permissoesRepo);
+
   // 4. Middleware de autenticação
   const authMiddleware = createAuthMiddleware(tokenAdapter);
 
@@ -244,6 +249,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
       acessosController,
       configuracaoTelasController,
       conferenciaEntradaController,
+      databaseExplorerController,
     },
     authMiddleware,
   );

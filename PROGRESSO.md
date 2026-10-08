@@ -25,6 +25,12 @@
   - **Zero Latência & Resiliência Offline**: Leituras e escritas acontecem no disco local; se a internet do armazém oscilar, o sistema opera normalmente e sincroniza em background.
   - **Segurança Reforçada**: 100% Prepared Statements (prevenção a SQLi), isolamento de credenciais no backend e tabela `logs_auditoria` para rastreamento de estornos e permissões.
   - **Auto-migração de Dados**: Migração automática de arquivos `.json` legados (`acessos.json`, `campos_telas.json`, `conferencias_entrada.json`) para o SQLite, com backup `.bak`.
+- **Gerenciador de Banco de Dados (SQLite & Turso) & Documentação Viva** (`/configuracoes/banco`):
+  - **Explorador Visual de Tabelas (CRUD Completo)**: Navegação por tabelas com contadores, busca rápida, ordenação e modais de inserção (INSERT), edição (UPDATE) e exclusão segura (DELETE).
+  - **Terminal / Console SQL**: Execução de consultas personalizadas com medição de latência em milissegundos, atalhos rápidos e exportação para JSON.
+  - **Status & Sincronização**: Monitoramento de modo (Local vs Turso Cloud) e acionamento de sync sob demanda.
+  - **Aba de Documentação & Diagrama de Relacionamentos**: Dicionário de dados completo com propósito e tipos de cada coluna e mapa visual de relacionamentos (ERD).
+  - **REGRA ARQUITETURAL MANDATÓRIA**: Qualquer nova tabela ou coluna DEVE ser registrada em `backend/src/infrastructure/database/schema.ts` com criação idempotente via helper `garantirColuna`.
 - **Tela de Gestão de Acessos com Duas Abas** (`/configuracoes/acessos`):
   - **Aba 1 (Usuários & Módulos)**: Painel onde supervisores visualizam usuários, configuram permissões em tempo real com toggle switches, acompanham carimbo de 1º acesso e último acesso, com visualização em cards responsivos no mobile/tablet ($\le 1024$px).
   - **Aba 2 (Campos Sensíveis por Tela)**: Catálogo visual e dinâmico de telas do sistema (`conferencia_saida`, `conferencia_entrada`, `consulta_produtos`), permitindo marcar individualmente quais campos são sensíveis em cada tela (com switch em tempo real e persistência em `backend/data/campos_telas.json`).

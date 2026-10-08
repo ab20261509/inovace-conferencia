@@ -130,6 +130,14 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
                 <span className="app-drawer-item-icon">⚙️</span>
                 <span>Gestão de Acessos</span>
               </NavLink>
+              <NavLink
+                to="/configuracoes/banco"
+                className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+                onClick={onClose}
+              >
+                <span className="app-drawer-item-icon">🗄️</span>
+                <span>Banco de Dados</span>
+              </NavLink>
             </>
           )}
         </nav>

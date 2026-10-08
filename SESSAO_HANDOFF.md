@@ -62,6 +62,18 @@
 - Tabelas horizontais (`<table>`) com scroll lateral excessivo são permitidas exclusivamente no Desktop (`> 1024px`).
 - No Mobile/Tablet (`≤ 1024px`), as tabelas são ocultadas via CSS e substituídas por cards verticais limpos, com badges de status/métricas bem visíveis e controles/botões com área ampla de toque para dedos e leitores coletores.
 
+### 7. Gerenciador de Banco de Dados (SQLite & Turso) & Documentação de Esquema (`/configuracoes/banco`)
+- **Tela Administrativa Integrada (`BancoDadosPage`)**:
+  - Restrita a usuários com permissão `gerenciar_acessos` ou administradores cadastrados.
+  - **Aba 1 (Explorador de Tabelas)**: Lista dinâmica de tabelas com quantitativo de registros, busca rápida por texto/número em todas as colunas, paginação configurável (10 a 100), ordenação por clique nos cabeçalhos, e modais de inserção (INSERT), edição (UPDATE) e exclusão segura (DELETE).
+  - **Aba 2 (Terminal / Console SQL)**: Editor SQL para consultas personalizadas, botões de queries prontas, cálculo de latência em milissegundos e exportação de resultados em JSON.
+  - **Aba 3 (Documentação & Relacionamentos)**:
+    - **Regra Arquitetural Mandatória**: Qualquer nova tabela ou coluna DEVE ser registrada em `backend/src/infrastructure/database/schema.ts` com criação idempotente via helper `garantirColuna`.
+    - Diagrama visual de relacionamentos entre as tabelas do sistema (ERD).
+    - Dicionário de dados completo com propósito e tipos de cada campo.
+  - **Status & Sincronização**: Badge indicando modo SQLite Local vs Turso Cloud e botão para disparar sync manual imediato.
+  - **Trilha de Auditoria**: Qualquer operação de escrita (UPDATE, DELETE, INSERT ou query direta) registra eventos na tabela `logs_auditoria`.
+
 ---
 
 # Handoff — Sessão 2026-10-07
