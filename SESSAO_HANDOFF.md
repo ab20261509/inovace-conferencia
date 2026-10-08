@@ -31,10 +31,10 @@
   - **Aba 1 (👥 Usuários & Módulos)**: Gerenciamento dos operadores, status de 1º e último acesso, permissões de módulos, flag `ver_campos_sensiveis` e admin.
   - **Aba 2 (🛡️ Campos Sensíveis por Tela)**: Seletor de telas com pills/chips informando quantidade de campos, banner informativo sobre proteção de dados, e grid de cards responsivos de campos com switches e feedback em tempo real.
 
-### 3. Navegação Global com Menu Gaveta (Drawer)
+### 3. Navegação Global com Menu Gaveta (Drawer — ConferCheck)
 - Criados componentes `AppDrawer`, `AppHeader` e `AppLayout`:
   - Botão hambúrguer (`☰`) no cabeçalho.
-  - Menu lateral deslizante (*drawer*) com avatar do usuário, identificador `CODUSU`, links para módulos autorizados (`📦 Conferência de Saída`, `📥 Conferência de Entrada`, `🔍 Consultar Produto`, `⚙️ Gestão de Acessos`) e botão de saída.
+  - Menu lateral deslizante (*drawer*) com a marca oficial **ConferCheck**, avatar do usuário, identificador `CODUSU`, links para módulos autorizados (`📦 Conferência de Saída`, `📥 Conferência de Entrada`, `🔍 Consultar Produto`, `⚙️ Gestão de Acessos`) e botão de saída.
   - Apenas módulos liberados nas permissões do usuário são renderizados na navegação.
 
 ### 4. Auto-Registro de Usuários no 1º Login & Carimbo de Acessos

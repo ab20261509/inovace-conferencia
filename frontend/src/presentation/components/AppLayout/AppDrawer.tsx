@@ -54,8 +54,8 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
         <div className="app-drawer-header">
           <div className="app-drawer-header-top">
             <div className="app-drawer-brand">
-              <span className="app-drawer-brand-badge">S</span>
-              <span>Sankhya WMS</span>
+              <span className="app-drawer-brand-badge">C</span>
+              <span>ConferCheck</span>
             </div>
             <button
               type="button"

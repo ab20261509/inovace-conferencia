@@ -18,7 +18,7 @@
 
 ### Multi-Módulos & Gestão de Acessos
 - **Arquitetura Multi-Módulos**: Plataforma expandida para suportar múltiplos fluxos operacionais (Saída, Entrada/Recebimento, Consultas, Configurações).
-- **Menu Gaveta (Drawer)**: Menu lateral deslizante responsivo acionado pelo ícone hambúrguer (`☰`), permitindo transição fluida entre módulos autorizados.
+- **Menu Gaveta (Drawer — ConferCheck)**: Menu lateral deslizante responsivo acionado pelo ícone hambúrguer (`☰`), com a marca **ConferCheck**, permitindo transição fluida entre módulos autorizados.
 - **Camada de Permissões (RBAC)**: Interface de repositório desacoplada (`IPermissoesRepository` / `JsonPermissoesRepository` em `backend/data/acessos.json`), preparada para migração futura para banco de dados/tabela Sankhya sem alterar use cases.
 - **Tela de Gestão de Acessos com Duas Abas** (`/configuracoes/acessos`):
   - **Aba 1 (Usuários & Módulos)**: Painel onde supervisores visualizam usuários, configuram permissões em tempo real com toggle switches, acompanham carimbo de 1º acesso e último acesso, com visualização em cards responsivos no mobile/tablet ($\le 1024$px).
