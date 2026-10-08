@@ -3,11 +3,35 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { RecebimentoApiService } from '../../infrastructure/api/RecebimentoApiService';
 import { NotaEntrada, StatusConferenciaEntrada } from '../../domain/models/ConferenciaEntrada';
-import { AppLayout, AppHeader, Botao, Campo, Container } from '../components';
+import { AppLayout, AppHeader, Botao, Campo, Container, Painel, Label } from '../components';
 import { Loading } from '../components/Loading/Loading';
-import './Recebimento.css';
 
 const recebimentoService = new RecebimentoApiService();
+
+function classeStatusEntrada(status: StatusConferenciaEntrada): string {
+  if (status === 'Conferido') return 'badge-success';
+  if (['N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento'].includes(status)) return 'badge-warning';
+  if (['Divergente', 'Em Reconferência'].includes(status)) return 'badge-danger';
+  return 'badge-pending';
+}
+
+function formatarMoeda(valor?: number): string {
+  if (valor === undefined || valor === null) return 'R$ 0,00';
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatarData(dataStr?: string): string {
+  if (!dataStr) return '—';
+  // Ex: "02092026 00:00:00" ou ISO
+  const limpa = dataStr.trim();
+  if (limpa.length >= 8 && /^\d{8}/.test(limpa)) {
+    const dia = limpa.substring(0, 2);
+    const mes = limpa.substring(2, 4);
+    const ano = limpa.substring(4, 8);
+    return `${dia}/${mes}/${ano}`;
+  }
+  return limpa.split(' ')[0] || dataStr;
+}
 
 export function RecebimentoPage() {
   const { temPermissao } = useAuth();
@@ -30,7 +54,7 @@ export function RecebimentoPage() {
       setNotas(dados);
       setSelectedNunotas(new Set());
     } catch (err: any) {
-      setErro(err.response?.data?.error || 'Erro ao carregar notas de entrada.');
+      setErro(err.response?.data?.error || err.message || 'Erro ao carregar notas de entrada.');
     } finally {
       setLoading(false);
     }
@@ -99,14 +123,6 @@ export function RecebimentoPage() {
     });
   };
 
-  const toggleSelectTodos = () => {
-    if (selectedNunotas.size === notasFiltradas.length && notasFiltradas.length > 0) {
-      setSelectedNunotas(new Set());
-    } else {
-      setSelectedNunotas(new Set(notasFiltradas.map((n) => n.nunota)));
-    }
-  };
-
   const handleIniciarConferencia = (nunotasParaConferir: number[]) => {
     if (nunotasParaConferir.length === 0) return;
     navigate('/recebimento/conferencia', {
@@ -114,25 +130,6 @@ export function RecebimentoPage() {
         nunotas: nunotasParaConferir,
       },
     });
-  };
-
-  const getStatusBadgeClass = (status: StatusConferenciaEntrada) => {
-    switch (status) {
-      case 'Conferido':
-        return 'badge-status-conferido';
-      case 'Divergente':
-      case 'Em Reconferência':
-        return 'badge-status-divergente';
-      case 'N1 em Andamento':
-      case 'N2 em Andamento':
-      case 'N3 em Andamento':
-        return 'badge-status-andamento';
-      case 'Aguardando N2':
-      case 'Aguardando N3':
-        return 'badge-status-aguardando';
-      default:
-        return 'badge-status-aberto';
-    }
   };
 
   if (!podeAcessar) {
@@ -164,6 +161,7 @@ export function RecebimentoPage() {
     <AppLayout>
       {({ openDrawer, abrirConsultaProduto }) => (
         <div className="page-container">
+          {/* Header */}
           <AppHeader
             titulo="Conferência de Entrada"
             subtitulo="Recebimento de Mercadorias e Pedidos de Compra"
@@ -171,236 +169,169 @@ export function RecebimentoPage() {
             onAbrirConsultaProduto={abrirConsultaProduto}
           />
 
-          <div className="recebimento-container">
-            {/* Feedback / Erro */}
-            {erro && <div className="recebimento-alerta-erro">⚠️ {erro}</div>}
+          {/* Feedback de Erro */}
+          {erro && (
+            <div className="error-message" onClick={() => setErro(null)}>
+              {erro}
+            </div>
+          )}
 
-            {/* Toolbar e Ações */}
-            <Container variant="default" padding="sm" className="recebimento-toolbar">
-              <div className="recebimento-toolbar-top">
-                <div className="recebimento-search">
-                  <Campo
-                    type="text"
-                    placeholder="Buscar por Nota Fiscal, Fornecedor ou NUNOTA..."
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                  />
-                </div>
+          {/* Toolbar: atualizar + pesquisa + seleção em lote + contadores de status */}
+          <Container variant="default" padding="sm" className="toolbar-container">
+            <div className="toolbar-row">
+              <Botao variant="secondary" size="sm" onClick={carregarNotas} loading={loading}>
+                Atualizar
+              </Botao>
 
-                <div className="recebimento-actions">
-                  {selectedNunotas.size > 0 && (
-                    <Botao
-                      variant="primary"
-                      onClick={() => handleIniciarConferencia(Array.from(selectedNunotas))}
+              {selectedNunotas.size > 0 && (
+                <Botao
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleIniciarConferencia(Array.from(selectedNunotas))}
+                >
+                  📦 Conferir {selectedNunotas.size} Nota(s)
+                </Botao>
+              )}
+
+              <div style={{ flex: '1', minWidth: '220px', maxWidth: '380px' }}>
+                <Campo
+                  type="text"
+                  placeholder="Filtrar por NF, fornecedor ou NUNOTA..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                />
+              </div>
+
+              <Label variant="caption" className="toolbar-contador">
+                {notasFiltradas.length} de {notas.length} notas
+              </Label>
+            </div>
+
+            {/* Contadores por Status (Pills idênticos à conferência de saída) */}
+            <div className="status-contadores">
+              <button
+                type="button"
+                className={`status-contador badge-pending ${filtroStatus === 'todos' ? 'status-contador--ativo' : ''}`}
+                onClick={() => setFiltroStatus('todos')}
+                title="Mostrar todas as notas"
+              >
+                <span className="status-contador-num">{contadores.todos}</span>
+                <span className="status-contador-txt">Todas</span>
+              </button>
+
+              <button
+                type="button"
+                className={`status-contador badge-pending ${filtroStatus === 'pendentes' ? 'status-contador--ativo' : ''}`}
+                onClick={() => setFiltroStatus(filtroStatus === 'pendentes' ? 'todos' : 'pendentes')}
+                title="Mostrar notas pendentes"
+              >
+                <span className="status-contador-num">{contadores.pendentes}</span>
+                <span className="status-contador-txt">Pendentes</span>
+              </button>
+
+              <button
+                type="button"
+                className={`status-contador badge-warning ${filtroStatus === 'conferindo' ? 'status-contador--ativo' : ''}`}
+                onClick={() => setFiltroStatus(filtroStatus === 'conferindo' ? 'todos' : 'conferindo')}
+                title="Mostrar notas em andamento"
+              >
+                <span className="status-contador-num">{contadores.conferindo}</span>
+                <span className="status-contador-txt">Em Andamento</span>
+              </button>
+
+              <button
+                type="button"
+                className={`status-contador badge-success ${filtroStatus === 'concluidos' ? 'status-contador--ativo' : ''}`}
+                onClick={() => setFiltroStatus(filtroStatus === 'concluidos' ? 'todos' : 'concluidos')}
+                title="Mostrar notas concluídas"
+              >
+                <span className="status-contador-num">{contadores.concluidos}</span>
+                <span className="status-contador-txt">Concluídas</span>
+              </button>
+
+              {filtroStatus !== 'todos' && (
+                <Botao variant="ghost" size="sm" onClick={() => setFiltroStatus('todos')}>
+                  Ver todas
+                </Botao>
+              )}
+            </div>
+          </Container>
+
+          {/* Loading */}
+          {loading && <Loading mensagem="Carregando notas de compra no Sankhya..." />}
+
+          {/* Lista de Cards de Conferência */}
+          {!loading && (
+            <Painel titulo="Notas de Entrada (Recebimento)" className="lista-painel">
+              <div className="lista-conferencias">
+                {notasFiltradas.map((n) => {
+                  const isEmAndamento =
+                    n.statusConferencia !== 'Em Aberto' && n.statusConferencia !== 'Conferido';
+                  const isSelected = selectedNunotas.has(n.nunota);
+
+                  return (
+                    <Container
+                      key={n.nunota}
+                      variant="outlined"
+                      padding="md"
+                      className={`card-conferencia ${isEmAndamento ? 'em-andamento' : ''}`}
                     >
-                      📦 Conferir {selectedNunotas.size} Nota(s)
-                    </Botao>
-                  )}
-                  <Botao variant="secondary" onClick={carregarNotas} disabled={loading}>
-                    🔄 Atualizar
-                  </Botao>
-                </div>
-              </div>
-
-              {/* Contadores / Abas de Status */}
-              <div className="contadores-status-row">
-                <button
-                  type="button"
-                  className={`btn-contador-status ${filtroStatus === 'todos' ? 'ativo' : ''}`}
-                  onClick={() => setFiltroStatus('todos')}
-                >
-                  <span className="contador-label">Todas</span>
-                  <span className="contador-valor">{contadores.todos}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`btn-contador-status ${filtroStatus === 'pendentes' ? 'ativo' : ''}`}
-                  onClick={() => setFiltroStatus('pendentes')}
-                >
-                  <span className="contador-label">Pendentes</span>
-                  <span className="contador-valor">{contadores.pendentes}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`btn-contador-status ${filtroStatus === 'conferindo' ? 'ativo' : ''}`}
-                  onClick={() => setFiltroStatus('conferindo')}
-                >
-                  <span className="contador-label">Em Andamento</span>
-                  <span className="contador-valor">{contadores.conferindo}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`btn-contador-status ${filtroStatus === 'concluidos' ? 'ativo' : ''}`}
-                  onClick={() => setFiltroStatus('concluidos')}
-                >
-                  <span className="contador-label">Concluídas</span>
-                  <span className="contador-valor">{contadores.concluidos}</span>
-                </button>
-              </div>
-            </Container>
-
-            {/* Loading */}
-            {loading ? (
-              <Loading mensagem="Consultando notas de compra no Sankhya..." />
-            ) : notasFiltradas.length === 0 ? (
-              <Container variant="default" padding="lg">
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--slate-500)' }}>
-                  <span style={{ fontSize: '3rem', display: 'block', marginBottom: '16px' }}>📦🚚</span>
-                  <h3 style={{ color: 'var(--slate-800)', marginBottom: '8px' }}>
-                    Nenhuma nota de entrada encontrada
-                  </h3>
-                  <p style={{ maxWidth: '480px', margin: '0 auto', fontSize: '0.9rem' }}>
-                    Não foram encontradas notas fiscais de compra liberadas no Sankhya com os filtros selecionados.
-                  </p>
-                </div>
-              </Container>
-            ) : (
-              <>
-                {/* Visualização Desktop: Tabela (> 1024px) */}
-                <div className="recebimento-tabela-desktop">
-                  <table className="recebimento-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '40px', textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={selectedNunotas.size === notasFiltradas.length && notasFiltradas.length > 0}
-                            onChange={toggleSelectTodos}
-                            title="Selecionar todas"
-                          />
-                        </th>
-                        <th>NF / Série</th>
-                        <th>Fornecedor</th>
-                        <th>Itens</th>
-                        <th>Valor Total</th>
-                        <th>Data Neg.</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'right' }}>Ação</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {notasFiltradas.map((n) => {
-                        const isSelected = selectedNunotas.has(n.nunota);
-                        return (
-                          <tr key={n.nunota} className={isSelected ? 'linha-selecionada' : ''}>
-                            <td style={{ textAlign: 'center' }}>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleSelectNota(n.nunota)}
-                              />
-                            </td>
-                            <td>
-                              <div className="nota-cell-id">
-                                <span className="nota-numero">NF {n.numnota}</span>
-                                <span className="nota-sub">Série {n.serie || '1'} • NUNOTA {n.nunota}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="nota-fornecedor-nome" title={n.nomeparc}>
-                                {n.nomeparc}
-                              </div>
-                              <span className="nota-sub">Cód. Parc: {n.codparc}</span>
-                            </td>
-                            <td>
-                              <span className="badge-itens-count">{n.qtdItens} itens</span>
-                            </td>
-                            <td>
-                              <span className="nota-valor">
-                                {n.vlrnota.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="nota-sub">{n.dtneg || '—'}</span>
-                            </td>
-                            <td>
-                              <span className={`badge-status ${getStatusBadgeClass(n.statusConferencia)}`}>
-                                {n.statusConferencia}
-                              </span>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <Botao
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleIniciarConferencia([n.nunota])}
-                              >
-                                {n.statusConferencia === 'Conferido' ? '👁️ Ver' : 'Conferir'}
-                              </Botao>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Visualização Mobile / Tablet: Cards (<= 1024px) */}
-                <div className="recebimento-cards-mobile">
-                  {notasFiltradas.map((n) => {
-                    const isSelected = selectedNunotas.has(n.nunota);
-                    return (
                       <div
-                        key={`card-${n.nunota}`}
-                        className={`recebimento-card-mobile ${isSelected ? 'selecionado' : ''}`}
+                        onClick={() => handleIniciarConferencia([n.nunota])}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => e.key === 'Enter' && handleIniciarConferencia([n.nunota])}
+                        style={{ cursor: 'pointer' }}
                       >
-                        <div className="card-mobile-top">
-                          <label className="card-mobile-checkbox-label">
+                        <div className="card-header">
+                          <div className="card-header-left" style={{ alignItems: 'center' }}>
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleSelectNota(n.nunota)}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Selecionar para conferência em lote"
+                              style={{ width: '18px', height: '18px', cursor: 'pointer', marginRight: '6px' }}
                             />
-                            <span className="card-mobile-nf">NF {n.numnota}</span>
-                          </label>
-                          <span className={`badge-status ${getStatusBadgeClass(n.statusConferencia)}`}>
+                            <Label variant="title">Nota {n.numnota}</Label>
+                            <span className="card-nunota">#{n.nunota}</span>
+                            <span className="card-parceiro">{n.nomeparc}</span>
+                          </div>
+
+                          <span className={`status-badge ${classeStatusEntrada(n.statusConferencia)}`}>
                             {n.statusConferencia}
                           </span>
                         </div>
 
-                        <div className="card-mobile-fornecedor">
-                          <span className="card-mobile-fornecedor-nome">{n.nomeparc}</span>
-                          <span className="card-mobile-meta">
-                            NUNOTA: {n.nunota} {n.serie ? `• Série: ${n.serie}` : ''}
-                          </span>
-                        </div>
-
-                        <div className="card-mobile-metrics">
-                          <div className="card-mobile-metric-item">
-                            <span className="card-mobile-metric-label">Itens</span>
-                            <span className="card-mobile-metric-valor">{n.qtdItens}</span>
+                        <div className="card-body-compact">
+                          <div className="card-metrics-inline">
+                            <span><strong>Empresa:</strong> {n.codemp}</span>
+                            <span><strong>Itens:</strong> {n.qtdItens}</span>
+                            <span><strong>Valor:</strong> {formatarMoeda(n.vlrnota)}</span>
+                            <span><strong>Data:</strong> {formatarData(n.dtneg)}</span>
+                            {n.serie && <span><strong>Série:</strong> {n.serie}</span>}
+                            {n.nivelAtual && <span><strong>Nível Atual:</strong> N{n.nivelAtual}</span>}
                           </div>
-                          <div className="card-mobile-metric-item">
-                            <span className="card-mobile-metric-label">Valor</span>
-                            <span className="card-mobile-metric-valor">
-                              {n.vlrnota.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </span>
-                          </div>
-                          <div className="card-mobile-metric-item">
-                            <span className="card-mobile-metric-label">Data</span>
-                            <span className="card-mobile-metric-valor">{n.dtneg || '—'}</span>
-                          </div>
-                        </div>
-
-                        <div className="card-mobile-footer">
-                          <Botao
-                            variant="primary"
-                            size="md"
-                            style={{ width: '100%' }}
-                            onClick={() => handleIniciarConferencia([n.nunota])}
-                          >
-                            {n.statusConferencia === 'Conferido' ? '👁️ Ver Conferência' : '▶ Iniciar Conferência'}
-                          </Botao>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
+                    </Container>
+                  );
+                })}
+
+                {!loading && notasFiltradas.length === 0 && (
+                  <div className="empty-state">
+                    <p>
+                      {filtroStatus !== 'todos'
+                        ? `Nenhuma nota de compra encontrada com o filtro selecionado.`
+                        : 'Nenhuma nota de compra pendente de conferência no momento.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Painel>
+          )}
         </div>
       )}
     </AppLayout>
   );
 }
-
