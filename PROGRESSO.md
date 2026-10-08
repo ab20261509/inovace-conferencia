@@ -47,6 +47,7 @@
   - **Parser OCR Calibrado em Campo (`ocrParser.ts`)**: Módulo protegido integrado para extração inteligente de Lote, Validade e Fabricação a partir de texto de etiquetas.
   - **Scanner com Anti-Colagem**: Bloqueio de Ctrl+V forçando bipagem física ou leitura por câmera.
   - **Diretriz de Cards Responsivos no Mobile/Tablet ($\le 1024$px)**: Listagem de notas e cards de itens conferidos organizados verticalmente, sem overflow horizontal nos coletores e tablets.
+  - **Fluxo de Conclusão de Nível & Preservação de Estado**: Ao finalizar N1, o sistema redireciona imediatamente para a lista de notas com feedback ('Aguardando N2'). Ao reabrir a nota a partir da lista, o nível e status são rigorosamente preservados, impedindo qualquer regressão acidental para N1.
 
 ### Login
 - Login via `MobileLoginSP.login` (credenciais Sankhya)
