@@ -177,6 +177,8 @@ export function GestaoAcessosPage() {
                   <thead>
                     <tr>
                       <th>Usuário</th>
+                      <th title="Data e hora do primeiro acesso do usuário no sistema">1º Acesso</th>
+                      <th title="Data e hora do último acesso do usuário no sistema">Último Acesso</th>
                       <th title="Acesso ao módulo de conferência de pedidos de saída">Conf. Saída</th>
                       <th title="Acesso ao módulo de conferência de notas de entrada (recebimento)">Recebimento</th>
                       <th title="Permissão para consultar cadastro de produtos e estoque">Consultar Prod.</th>
@@ -203,11 +205,22 @@ export function GestaoAcessosPage() {
                                 <span className="acessos-user-meta">
                                   COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
                                 </span>
-                                <span className="acessos-user-ultimo-acesso" title={u.primeiroAcessoEm ? `1º login: ${formatarAcesso(u.primeiroAcessoEm)}` : ''}>
-                                  🕒 {formatarAcesso(u.ultimoAcessoEm)}
-                                </span>
                               </div>
                             </div>
+                          </td>
+
+                          {/* 1º Acesso */}
+                          <td className="acessos-data-cell" title={u.primeiroAcessoEm || ''}>
+                            <span className="badge-data-acesso">
+                              {formatarAcesso(u.primeiroAcessoEm)}
+                            </span>
+                          </td>
+
+                          {/* Último Acesso */}
+                          <td className="acessos-data-cell" title={u.ultimoAcessoEm || ''}>
+                            <span className="badge-ultimo-acesso">
+                              {formatarAcesso(u.ultimoAcessoEm)}
+                            </span>
                           </td>
 
                           {/* Conferência Saída */}
@@ -280,7 +293,7 @@ export function GestaoAcessosPage() {
 
                     {usuariosFiltrados.length === 0 && (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
                           Nenhum usuário encontrado com o termo informado.
                         </td>
                       </tr>

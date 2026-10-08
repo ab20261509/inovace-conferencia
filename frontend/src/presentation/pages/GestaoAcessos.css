@@ -193,3 +193,34 @@
   align-items: center;
   gap: 4px;
 }
+
+.acessos-data-cell {
+  font-size: 0.82rem;
+  color: var(--slate-600);
+  white-space: nowrap;
+}
+
+.badge-data-acesso {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--slate-100);
+  color: var(--slate-700);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.badge-ultimo-acesso {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #dbeafe;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
