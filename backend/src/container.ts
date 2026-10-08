@@ -46,11 +46,16 @@ import { DiscordWebhookAdapter } from './infrastructure/discord/DiscordWebhookAd
 
 // Infrastructure (Permissoes / Acessos)
 import { JsonPermissoesRepository } from './infrastructure/repositories/JsonPermissoesRepository.js';
+import { JsonConfiguracaoTelasRepository } from './infrastructure/repositories/JsonConfiguracaoTelasRepository.js';
 
 // Application (Use Cases) - Acessos
 import { ObterMeusAcessosUseCase } from './application/use-cases/acessos/ObterMeusAcessosUseCase.js';
 import { ListarUsuariosAcessosUseCase } from './application/use-cases/acessos/ListarUsuariosAcessosUseCase.js';
 import { SalvarAcessosUsuarioUseCase } from './application/use-cases/acessos/SalvarAcessosUsuarioUseCase.js';
+
+// Application (Use Cases) - Configurações de Telas
+import { ListarConfiguracaoTelasUseCase } from './application/use-cases/configuracoes/ListarConfiguracaoTelasUseCase.js';
+import { SalvarConfiguracaoTelaUseCase } from './application/use-cases/configuracoes/SalvarConfiguracaoTelaUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -65,6 +70,7 @@ import { ApiProxyController } from './presentation/http/controllers/ApiProxyCont
 import { ConferenciasController } from './presentation/http/controllers/ConferenciasController.js';
 import { ProdutoController } from './presentation/http/controllers/ProdutoController.js';
 import { AcessosController } from './presentation/http/controllers/AcessosController.js';
+import { ConfiguracaoTelasController } from './presentation/http/controllers/ConfiguracaoTelasController.js';
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
 import { createServer } from './presentation/server.js';
 
@@ -90,6 +96,7 @@ export function buildApp(): Application {
 
   const authAdapter = new InMemoryAuthAdapter();
   const permissoesRepo = new JsonPermissoesRepository();
+  const configTelasRepo = new JsonConfiguracaoTelasRepository(permissoesRepo);
 
   // 2. Use Cases (Application)
   const loginUseCase = new LoginUseCase(authAdapter, tokenAdapter);
@@ -101,6 +108,10 @@ export function buildApp(): Application {
   const obterMeusAcessosUseCase = new ObterMeusAcessosUseCase(permissoesRepo);
   const listarUsuariosAcessosUseCase = new ListarUsuariosAcessosUseCase(gatewayAdapter, permissoesRepo);
   const salvarAcessosUsuarioUseCase = new SalvarAcessosUsuarioUseCase(permissoesRepo);
+
+  // Configurações de Telas
+  const listarConfiguracaoTelasUseCase = new ListarConfiguracaoTelasUseCase(configTelasRepo, permissoesRepo);
+  const salvarConfiguracaoTelaUseCase = new SalvarConfiguracaoTelaUseCase(configTelasRepo, permissoesRepo);
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -119,7 +130,7 @@ export function buildApp(): Application {
   const getConferenciaSaidaUseCase = new GetConferenciaSaidaUseCase(gatewayAdapter);
   const iniciarConferenciaUseCase = new IniciarConferenciaUseCase(gatewayAdapter);
   const excluirConferenciaUseCase = new ExcluirConferenciaUseCase(gatewayAdapter);
-  const listarItensPedidoUseCase = new ListarItensPedidoUseCase(gatewayAdapter, permissoesRepo);
+  const listarItensPedidoUseCase = new ListarItensPedidoUseCase(gatewayAdapter, permissoesRepo, configTelasRepo);
   const listarItensConferidosUseCase = new ListarItensConferidosUseCase(gatewayAdapter);
   const getProdutoUseCase = new GetProdutoUseCase(gatewayAdapter);
   const salvarItemConferidoUseCase = new SalvarItemConferidoUseCase(gatewayAdapter);
@@ -144,6 +155,10 @@ export function buildApp(): Application {
     obterMeusAcessosUseCase,
     listarUsuariosAcessosUseCase,
     salvarAcessosUsuarioUseCase,
+  );
+  const configuracaoTelasController = new ConfiguracaoTelasController(
+    listarConfiguracaoTelasUseCase,
+    salvarConfiguracaoTelaUseCase,
   );
   const crudController = new CrudController(
     loadRecordsUseCase,
@@ -185,6 +200,7 @@ export function buildApp(): Application {
       conferenciasController,
       produtoController,
       acessosController,
+      configuracaoTelasController,
     },
     authMiddleware,
   );

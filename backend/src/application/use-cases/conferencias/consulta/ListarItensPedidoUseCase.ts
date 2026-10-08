@@ -1,5 +1,6 @@
 import { IGatewayPort } from '../../../../domain/ports/IGatewayPort.js';
 import { IPermissoesRepository } from '../../../../domain/ports/IPermissoesRepository.js';
+import { IConfiguracaoTelasRepository } from '../../../../domain/ports/IConfiguracaoTelasRepository.js';
 import { CONFERENCIA_CLIENT_EVENTS } from '../shared/clientEvents.js';
 import { podeVerCamposSensiveis } from '../../../../domain/permissions.js';
 
@@ -63,6 +64,7 @@ export class ListarItensPedidoUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
     private readonly permissoesRepo?: IPermissoesRepository,
+    private readonly configTelasRepo?: IConfiguracaoTelasRepository,
   ) {}
 
   async execute(input: ListarItensPedidoInput, correlationId?: string): Promise<ListarItensPedidoOutput> {
@@ -128,8 +130,7 @@ export class ListarItensPedidoUseCase {
       qtdConf: qtdConfPorSeq.get(item.sequencia) ?? '0',
     }));
 
-    // 4. Calcular o status no servidor e, se o usuário não for privilegiado,
-    //    remover os campos sensíveis da resposta.
+    // 4. Determinar sensibilidade por usuário e pela configuração de campos da tela
     let verCamposSensiveis = podeVerCamposSensiveis(input.usuario);
     if (this.permissoesRepo && input.usuario) {
       try {
@@ -142,6 +143,23 @@ export class ListarItensPedidoUseCase {
       }
     }
 
+    // Consulta configuração de campos sensíveis da tela 'conferencia_saida'
+    let ocultarQtdPed = !verCamposSensiveis;
+    let ocultarCodBarra = !verCamposSensiveis;
+    let ocultarReferencia = !verCamposSensiveis;
+    let ocultarControle = false;
+
+    if (this.configTelasRepo) {
+      try {
+        ocultarQtdPed = await this.configTelasRepo.deveOcultarCampo('conferencia_saida', 'qtdPed', input.usuario);
+        ocultarCodBarra = await this.configTelasRepo.deveOcultarCampo('conferencia_saida', 'codBarra', input.usuario);
+        ocultarReferencia = await this.configTelasRepo.deveOcultarCampo('conferencia_saida', 'referencia', input.usuario);
+        ocultarControle = await this.configTelasRepo.deveOcultarCampo('conferencia_saida', 'controle', input.usuario);
+      } catch (err) {
+        console.warn('⚠️ Falha ao consultar configuração de campos de tela:', err);
+      }
+    }
+
     const itensResposta: ItemPedidoResponse[] = itens.map((item) => {
       const pedido = parseFloat(item.qtdPed);
       const conferido = parseFloat(item.qtdConf);
@@ -151,23 +169,23 @@ export class ListarItensPedidoUseCase {
       else if (conferido > 0) status = 'parcial';
       else status = 'pendente';
 
-      if (verCamposSensiveis) {
-        return { ...item, status };
-      }
-
-      // Regra de exibição para usuários não privilegiados:
-      // 1) Se peso >= 7.5 e quantidade pedida > 10, OU
-      // 2) Se o produto tiver USOPROD = 'V'
+      // Regra de exceção de exibição para peso >= 7.5 e quantidade pedida > 10, OU USOPROD = 'V'
       const isUsoProdV = String(item.usoProd || '').trim().toUpperCase() === 'V';
       const isPesadoQtdAlta = item.peso >= 7.5 && pedido > 10;
-      const exibirQtdPed = isPesadoQtdAlta || isUsoProdV;
+      const excecaoQtdPed = isPesadoQtdAlta || isUsoProdV;
+
+      const qtdPedFinal = (!ocultarQtdPed || excecaoQtdPed) ? item.qtdPed : null;
+      const codBarraFinal = (!ocultarCodBarra) ? item.codBarra : null;
+      const referenciaFinal = (!ocultarReferencia) ? item.referencia : null;
+      const controleFinal = (!ocultarControle) ? item.controle : null;
 
       return {
         ...item,
         status,
-        qtdPed: exibirQtdPed ? item.qtdPed : null,
-        codBarra: null,
-        referencia: null,
+        qtdPed: qtdPedFinal,
+        codBarra: codBarraFinal,
+        referencia: referenciaFinal,
+        controle: controleFinal,
       };
     });
 

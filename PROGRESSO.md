@@ -20,9 +20,12 @@
 - **Arquitetura Multi-Módulos**: Plataforma expandida para suportar múltiplos fluxos operacionais (Saída, Entrada/Recebimento, Consultas, Configurações).
 - **Menu Gaveta (Drawer)**: Menu lateral deslizante responsivo acionado pelo ícone hambúrguer (`☰`), permitindo transição fluida entre módulos autorizados.
 - **Camada de Permissões (RBAC)**: Interface de repositório desacoplada (`IPermissoesRepository` / `JsonPermissoesRepository` em `backend/data/acessos.json`), preparada para migração futura para banco de dados/tabela Sankhya sem alterar use cases.
-- **Tela de Gestão de Acessos** (`/configuracoes/acessos`): Painel interno administrativo onde supervisores visualizam usuários, configuram permissões em tempo real com toggle switches e acompanham carimbo de último acesso.
+- **Tela de Gestão de Acessos com Duas Abas** (`/configuracoes/acessos`):
+  - **Aba 1 (Usuários & Módulos)**: Painel onde supervisores visualizam usuários, configuram permissões em tempo real com toggle switches, acompanham carimbo de 1º acesso e último acesso, com visualização em cards responsivos no mobile/tablet ($\le 1024$px).
+  - **Aba 2 (Campos Sensíveis por Tela)**: Catálogo visual e dinâmico de telas do sistema (`conferencia_saida`, `conferencia_entrada`, `consulta_produtos`), permitindo marcar individualmente quais campos são sensíveis em cada tela (com switch em tempo real e persistência em `backend/data/campos_telas.json`).
+- **Arquitetura Raiz de Campos Sensíveis**: O método de domínio `IConfiguracaoTelasRepository.deveOcultarCampo(idTela, chaveCampo, usuario)` se tornou a base padronizada para todas as telas presentes e futuras do sistema. A máscara ocorre na origem do backend para qualquer usuário sem `ver_campos_sensiveis`.
 - **Auto-Registro de Usuários no 1º Login**: Todo usuário que faz login é registrado automaticamente no arquivo persistente de acessos com data/hora de primeiro e último acesso, garantindo que a lista nunca fique vazia.
-- **Visibilidade Dinâmica de Campos Sensíveis** (`ver_campos_sensiveis`): Substituição da lista estática fixa no código por controle configurável por usuário, ocultando na origem `qtdPed`, `codBarra` e `referencia` quando desabilitado.
+- **Diretriz de Design Obrigatória (Mobile/Tablet $\le$ 1024px)**: Toda e qualquer tela e listagem DEVE apresentar os dados em formato de **cards verticais**, dispensando tabelas com scroll horizontal que prejudicam a operação nos coletores e tablets.
 - **Módulo de Conferência de Entrada (Recebimento)** (`/recebimento`): Estrutura base completa do layout operacional para recepção de mercadorias e notas fiscais de fornecedores.
 
 ### Login

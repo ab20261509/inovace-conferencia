@@ -1,12 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { AcessosApiService } from '../../infrastructure/api/AcessosApiService';
+import { ConfiguracaoTelasApiService } from '../../infrastructure/api/ConfiguracaoTelasApiService';
 import { UsuarioAcessoInfo, ModulosUsuario } from '../../domain/models/Auth';
-import { AppLayout, AppHeader, Botao, Campo, Container } from '../components';
+import { CatalogoTela, CamposSensiveisConfig } from '../../domain/models/ConfiguracaoTela';
+import { AppLayout, AppHeader, Campo, Container } from '../components';
 import { Loading } from '../components/Loading/Loading';
 import './GestaoAcessos.css';
 
 const acessosService = new AcessosApiService();
+const configTelasService = new ConfiguracaoTelasApiService();
 
 function formatarAcesso(isoDate?: string): string {
   if (!isoDate) return 'Aguardando 1º login';
@@ -27,20 +30,32 @@ function formatarAcesso(isoDate?: string): string {
 
 export function GestaoAcessosPage() {
   const { temPermissao, user } = useAuth();
+  const [abaAtiva, setAbaAtiva] = useState<'usuarios' | 'telas'>('usuarios');
+
+  // Estados Aba 1: Usuários
   const [usuarios, setUsuarios] = useState<UsuarioAcessoInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingUsuarios, setLoadingUsuarios] = useState(true);
   const [salvandoId, setSalvandoId] = useState<number | null>(null);
   const [busca, setBusca] = useState('');
+
+  // Estados Aba 2: Campos por Tela
+  const [catalogoTelas, setCatalogoTelas] = useState<CatalogoTela[]>([]);
+  const [configCampos, setConfigCampos] = useState<CamposSensiveisConfig>({});
+  const [telaSelecionadaId, setTelaSelecionadaId] = useState<string>('conferencia_saida');
+  const [loadingTelas, setLoadingTelas] = useState(false);
+  const [salvandoTela, setSalvandoTela] = useState(false);
+
   const [feedback, setFeedback] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
   const podeAcessar = temPermissao('gerenciar_acessos');
 
+  // Carregar dados de usuários
   useEffect(() => {
     if (!podeAcessar) return;
 
     let cancelado = false;
-    async function carregar() {
-      setLoading(true);
+    async function carregarUsuarios() {
+      setLoadingUsuarios(true);
       try {
         const dados = await acessosService.listarUsuarios();
         if (!cancelado) {
@@ -54,11 +69,45 @@ export function GestaoAcessosPage() {
           });
         }
       } finally {
-        if (!cancelado) setLoading(false);
+        if (!cancelado) setLoadingUsuarios(false);
       }
     }
 
-    carregar();
+    carregarUsuarios();
+    return () => {
+      cancelado = true;
+    };
+  }, [podeAcessar]);
+
+  // Carregar dados de catálogo de telas e campos sensíveis
+  useEffect(() => {
+    if (!podeAcessar) return;
+
+    let cancelado = false;
+    async function carregarConfigTelas() {
+      setLoadingTelas(true);
+      try {
+        const resp = await configTelasService.listarConfiguracaoTelas();
+        if (!cancelado) {
+          setCatalogoTelas(resp.catalogo);
+          setConfigCampos(resp.configuracao);
+          if (resp.catalogo.length > 0 && !resp.catalogo.some((t) => t.idTela === telaSelecionadaId)) {
+            setTelaSelecionadaId(resp.catalogo[0].idTela);
+          }
+        }
+      } catch (err: any) {
+        if (!cancelado) {
+          setFeedback({
+            tipo: 'erro',
+            texto: err.response?.data?.error || 'Erro ao carregar catálogo de telas e campos.',
+          });
+        }
+      } finally {
+        if (!cancelado) setLoadingTelas(false);
+      }
+    }
+
+    carregarConfigTelas();
     return () => {
       cancelado = true;
     };
@@ -74,11 +123,14 @@ export function GestaoAcessosPage() {
     );
   }, [usuarios, busca]);
 
-  async function handleToggle(usuario: UsuarioAcessoInfo, modulo: keyof ModulosUsuario) {
+  const telaAtual = useMemo(() => {
+    return catalogoTelas.find((t) => t.idTela === telaSelecionadaId) || catalogoTelas[0];
+  }, [catalogoTelas, telaSelecionadaId]);
+
+  async function handleToggleUsuario(usuario: UsuarioAcessoInfo, modulo: keyof ModulosUsuario) {
     const novoValor = !usuario.modulos[modulo];
     const novosModulos = { ...usuario.modulos, [modulo]: novoValor };
 
-    // Atualização otimista na tela
     setUsuarios((atuais) =>
       atuais.map((u) => (u.codUsu === usuario.codUsu ? { ...u, modulos: novosModulos } : u)),
     );
@@ -96,7 +148,6 @@ export function GestaoAcessosPage() {
         setFeedback((prev) => (prev?.tipo === 'sucesso' ? null : prev));
       }, 3500);
     } catch (err: any) {
-      // Reverter alteração otimista em caso de erro
       setUsuarios((atuais) =>
         atuais.map((u) => (u.codUsu === usuario.codUsu ? { ...u, modulos: usuario.modulos } : u)),
       );
@@ -106,6 +157,48 @@ export function GestaoAcessosPage() {
       });
     } finally {
       setSalvandoId(null);
+    }
+  }
+
+  async function handleToggleCampoSensivel(idTela: string, chaveCampo: string) {
+    const camposTelaAtual = configCampos[idTela] || {};
+    const valorAtual = camposTelaAtual[chaveCampo] ?? true;
+    const novoValor = !valorAtual;
+
+    const novosCampos = {
+      ...camposTelaAtual,
+      [chaveCampo]: novoValor,
+    };
+
+    setConfigCampos((prev) => ({
+      ...prev,
+      [idTela]: novosCampos,
+    }));
+
+    setSalvandoTela(true);
+    setFeedback(null);
+
+    try {
+      await configTelasService.salvarConfiguracaoTela(idTela, novosCampos);
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `Configuração do campo "${chaveCampo}" atualizada com sucesso!`,
+      });
+      setTimeout(() => {
+        setFeedback((prev) => (prev?.tipo === 'sucesso' ? null : prev));
+      }, 3500);
+    } catch (err: any) {
+      // Reverter
+      setConfigCampos((prev) => ({
+        ...prev,
+        [idTela]: camposTelaAtual,
+      }));
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || 'Erro ao salvar configuração do campo.',
+      });
+    } finally {
+      setSalvandoTela(false);
     }
   }
 
@@ -153,270 +246,407 @@ export function GestaoAcessosPage() {
               </div>
             )}
 
-            {/* Barra de Ferramentas / Busca */}
-            <Container variant="default" padding="sm" className="acessos-toolbar">
-              <div className="acessos-search">
-                <Campo
-                  type="text"
-                  placeholder="Buscar por nome do usuário ou CODUSU..."
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                />
-              </div>
-              <div className="acessos-count">
-                {usuariosFiltrados.length} usuário(s) encontrado(s)
-              </div>
-            </Container>
+            {/* Navegação de Abas Principais */}
+            <div className="gestao-abas-nav">
+              <button
+                type="button"
+                className={`gestao-aba-btn ${abaAtiva === 'usuarios' ? 'ativa' : ''}`}
+                onClick={() => setAbaAtiva('usuarios')}
+              >
+                <span className="gestao-aba-icone">👥</span>
+                <span>Usuários & Módulos</span>
+                <span className="gestao-aba-badge">{usuarios.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`gestao-aba-btn ${abaAtiva === 'telas' ? 'ativa' : ''}`}
+                onClick={() => setAbaAtiva('telas')}
+              >
+                <span className="gestao-aba-icone">🛡️</span>
+                <span>Campos Sensíveis por Tela</span>
+                <span className="gestao-aba-badge">{catalogoTelas.length} telas</span>
+              </button>
+            </div>
 
-            {/* Loading state */}
-            {loading ? (
-              <Loading mensagem="Carregando usuários do Sankhya..." />
-            ) : (
+            {/* ═══════════════════════════════════════════════════════
+                ABA 1: USUÁRIOS & MÓDULOS
+                ═══════════════════════════════════════════════════════ */}
+            {abaAtiva === 'usuarios' && (
               <>
-                {/* Visualização Desktop: Tabela (> 1024px) */}
-                <div className="acessos-table-wrapper acessos-tabela-desktop">
-                  <table className="acessos-table">
-                    <thead>
-                      <tr>
-                        <th>Usuário</th>
-                        <th title="Data e hora do primeiro acesso do usuário no sistema">1º Acesso</th>
-                        <th title="Data e hora do último acesso do usuário no sistema">Último Acesso</th>
-                        <th title="Acesso ao módulo de conferência de pedidos de saída">Conf. Saída</th>
-                        <th title="Acesso ao módulo de conferência de notas de entrada (recebimento)">Recebimento</th>
-                        <th title="Permissão para consultar cadastro de produtos e estoque">Consultar Prod.</th>
-                        <th title="Exibe campos sensíveis: quantidade pedida, código de barras e referência">Ver Sensíveis</th>
-                        <th title="Permite acessar esta tela e alterar permissões">Admin</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                {/* Barra de Ferramentas / Busca */}
+                <Container variant="default" padding="sm" className="acessos-toolbar">
+                  <div className="acessos-search">
+                    <Campo
+                      type="text"
+                      placeholder="Buscar por nome do usuário ou CODUSU..."
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                    />
+                  </div>
+                  <div className="acessos-count">
+                    {usuariosFiltrados.length} usuário(s) encontrado(s)
+                  </div>
+                </Container>
+
+                {/* Loading state Usuários */}
+                {loadingUsuarios ? (
+                  <Loading mensagem="Carregando usuários do Sankhya..." />
+                ) : (
+                  <>
+                    {/* Visualização Desktop: Tabela (> 1024px) */}
+                    <div className="acessos-table-wrapper acessos-tabela-desktop">
+                      <table className="acessos-table">
+                        <thead>
+                          <tr>
+                            <th>Usuário</th>
+                            <th title="Data e hora do primeiro acesso do usuário no sistema">1º Acesso</th>
+                            <th title="Data e hora do último acesso do usuário no sistema">Último Acesso</th>
+                            <th title="Acesso ao módulo de conferência de pedidos de saída">Conf. Saída</th>
+                            <th title="Acesso ao módulo de conferência de notas de entrada (recebimento)">Recebimento</th>
+                            <th title="Permissão para consultar cadastro de produtos e estoque">Consultar Prod.</th>
+                            <th title="Exibe campos sensíveis: quantidade pedida, código de barras e referência">Ver Sensíveis</th>
+                            <th title="Permite acessar esta tela e alterar permissões">Admin</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {usuariosFiltrados.map((u) => {
+                            const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
+                            const ehUsuarioAtual = u.codUsu === user?.codUsu;
+
+                            return (
+                              <tr key={u.codUsu}>
+                                <td>
+                                  <div className="acessos-user-cell">
+                                    <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
+                                      {u.nomeUsu.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="acessos-user-details">
+                                      <span className="acessos-user-name">
+                                        {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
+                                      </span>
+                                      <span className="acessos-user-meta">
+                                        COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* 1º Acesso */}
+                                <td className="acessos-data-cell" title={u.primeiroAcessoEm || ''}>
+                                  <span className="badge-data-acesso">
+                                    {formatarAcesso(u.primeiroAcessoEm)}
+                                  </span>
+                                </td>
+
+                                {/* Último Acesso */}
+                                <td className="acessos-data-cell" title={u.ultimoAcessoEm || ''}>
+                                  <span className="badge-ultimo-acesso">
+                                    {formatarAcesso(u.ultimoAcessoEm)}
+                                  </span>
+                                </td>
+
+                                {/* Conferência Saída */}
+                                <td>
+                                  <label className="toggle-switch" title="Conferência de Saída">
+                                    <input
+                                      type="checkbox"
+                                      checked={u.modulos.conferencia_saida}
+                                      disabled={salvandoId === u.codUsu}
+                                      onChange={() => handleToggleUsuario(u, 'conferencia_saida')}
+                                    />
+                                    <span className="toggle-slider" />
+                                  </label>
+                                </td>
+
+                                {/* Conferência Entrada (Recebimento) */}
+                                <td>
+                                  <label className="toggle-switch" title="Conferência de Entrada (Recebimento)">
+                                    <input
+                                      type="checkbox"
+                                      checked={u.modulos.conferencia_entrada}
+                                      disabled={salvandoId === u.codUsu}
+                                      onChange={() => handleToggleUsuario(u, 'conferencia_entrada')}
+                                    />
+                                    <span className="toggle-slider" />
+                                  </label>
+                                </td>
+
+                                {/* Consulta Produtos */}
+                                <td>
+                                  <label className="toggle-switch" title="Consulta de Produtos">
+                                    <input
+                                      type="checkbox"
+                                      checked={u.modulos.consulta_produtos}
+                                      disabled={salvandoId === u.codUsu}
+                                      onChange={() => handleToggleUsuario(u, 'consulta_produtos')}
+                                    />
+                                    <span className="toggle-slider" />
+                                  </label>
+                                </td>
+
+                                {/* Ver Campos Sensíveis */}
+                                <td>
+                                  <label className="toggle-switch" title="Ver campos sensíveis (qtd pedida, cód. barras)">
+                                    <input
+                                      type="checkbox"
+                                      checked={u.modulos.ver_campos_sensiveis}
+                                      disabled={salvandoId === u.codUsu}
+                                      onChange={() => handleToggleUsuario(u, 'ver_campos_sensiveis')}
+                                    />
+                                    <span className="toggle-slider" />
+                                  </label>
+                                </td>
+
+                                {/* Gerenciar Acessos (Admin) */}
+                                <td>
+                                  <label className="toggle-switch" title="Gerenciar Acessos">
+                                    <input
+                                      type="checkbox"
+                                      checked={u.modulos.gerenciar_acessos}
+                                      disabled={salvandoId === u.codUsu || ehAdminPadrao}
+                                      onChange={() => handleToggleUsuario(u, 'gerenciar_acessos')}
+                                    />
+                                    <span className="toggle-slider toggle-admin" />
+                                  </label>
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                          {usuariosFiltrados.length === 0 && (
+                            <tr>
+                              <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
+                                Nenhum usuário encontrado com o termo informado.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Visualização Mobile / Tablet: Cards (<= 1024px) */}
+                    <div className="acessos-cards-mobile">
                       {usuariosFiltrados.map((u) => {
                         const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
                         const ehUsuarioAtual = u.codUsu === user?.codUsu;
 
                         return (
-                          <tr key={u.codUsu}>
-                            <td>
-                              <div className="acessos-user-cell">
-                                <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
-                                  {u.nomeUsu.charAt(0).toUpperCase()}
-                                </div>
-                                <div className="acessos-user-details">
-                                  <span className="acessos-user-name">
-                                    {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
-                                  </span>
-                                  <span className="acessos-user-meta">
-                                    COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
-                                  </span>
-                                </div>
+                          <div key={`card-${u.codUsu}`} className="acesso-card-mobile">
+                            {/* Header do Card */}
+                            <div className="acesso-card-header">
+                              <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
+                                {u.nomeUsu.charAt(0).toUpperCase()}
                               </div>
-                            </td>
+                              <div className="acesso-card-user-info">
+                                <span className="acesso-card-user-name">
+                                  {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
+                                </span>
+                                <span className="acesso-card-user-sub">
+                                  COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
+                                </span>
+                              </div>
+                            </div>
 
-                            {/* 1º Acesso */}
-                            <td className="acessos-data-cell" title={u.primeiroAcessoEm || ''}>
-                              <span className="badge-data-acesso">
-                                {formatarAcesso(u.primeiroAcessoEm)}
-                              </span>
-                            </td>
+                            {/* Datas de Acesso */}
+                            <div className="acesso-card-datas">
+                              <div className="acesso-card-data-item">
+                                <span className="acesso-card-data-label">1º Acesso:</span>
+                                <span className="badge-data-acesso">{formatarAcesso(u.primeiroAcessoEm)}</span>
+                              </div>
+                              <div className="acesso-card-data-item">
+                                <span className="acesso-card-data-label">Último Acesso:</span>
+                                <span className="badge-ultimo-acesso">{formatarAcesso(u.ultimoAcessoEm)}</span>
+                              </div>
+                            </div>
 
-                            {/* Último Acesso */}
-                            <td className="acessos-data-cell" title={u.ultimoAcessoEm || ''}>
-                              <span className="badge-ultimo-acesso">
-                                {formatarAcesso(u.ultimoAcessoEm)}
-                              </span>
-                            </td>
+                            {/* Grade de Permissões / Toggles */}
+                            <div className="acesso-card-toggles">
+                              <div className="acesso-card-toggle-item">
+                                <span className="acesso-card-toggle-label">📦 Conf. Saída</span>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={u.modulos.conferencia_saida}
+                                    disabled={salvandoId === u.codUsu}
+                                    onChange={() => handleToggleUsuario(u, 'conferencia_saida')}
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
 
-                            {/* Conferência Saída */}
-                            <td>
-                              <label className="toggle-switch" title="Conferência de Saída">
-                                <input
-                                  type="checkbox"
-                                  checked={u.modulos.conferencia_saida}
-                                  disabled={salvandoId === u.codUsu}
-                                  onChange={() => handleToggle(u, 'conferencia_saida')}
-                                />
-                                <span className="toggle-slider" />
-                              </label>
-                            </td>
+                              <div className="acesso-card-toggle-item">
+                                <span className="acesso-card-toggle-label">📥 Recebimento</span>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={u.modulos.conferencia_entrada}
+                                    disabled={salvandoId === u.codUsu}
+                                    onChange={() => handleToggleUsuario(u, 'conferencia_entrada')}
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
 
-                            {/* Conferência Entrada (Recebimento) */}
-                            <td>
-                              <label className="toggle-switch" title="Conferência de Entrada (Recebimento)">
-                                <input
-                                  type="checkbox"
-                                  checked={u.modulos.conferencia_entrada}
-                                  disabled={salvandoId === u.codUsu}
-                                  onChange={() => handleToggle(u, 'conferencia_entrada')}
-                                />
-                                <span className="toggle-slider" />
-                              </label>
-                            </td>
+                              <div className="acesso-card-toggle-item">
+                                <span className="acesso-card-toggle-label">🔍 Consultar Prod.</span>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={u.modulos.consulta_produtos}
+                                    disabled={salvandoId === u.codUsu}
+                                    onChange={() => handleToggleUsuario(u, 'consulta_produtos')}
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
 
-                            {/* Consulta Produtos */}
-                            <td>
-                              <label className="toggle-switch" title="Consulta de Produtos">
-                                <input
-                                  type="checkbox"
-                                  checked={u.modulos.consulta_produtos}
-                                  disabled={salvandoId === u.codUsu}
-                                  onChange={() => handleToggle(u, 'consulta_produtos')}
-                                />
-                                <span className="toggle-slider" />
-                              </label>
-                            </td>
+                              <div className="acesso-card-toggle-item">
+                                <span className="acesso-card-toggle-label">👁️ Ver Sensíveis</span>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={u.modulos.ver_campos_sensiveis}
+                                    disabled={salvandoId === u.codUsu}
+                                    onChange={() => handleToggleUsuario(u, 'ver_campos_sensiveis')}
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
 
-                            {/* Ver Campos Sensíveis */}
-                            <td>
-                              <label className="toggle-switch" title="Ver campos sensíveis (qtd pedida, cód. barras)">
-                                <input
-                                  type="checkbox"
-                                  checked={u.modulos.ver_campos_sensiveis}
-                                  disabled={salvandoId === u.codUsu}
-                                  onChange={() => handleToggle(u, 'ver_campos_sensiveis')}
-                                />
-                                <span className="toggle-slider" />
-                              </label>
-                            </td>
-
-                            {/* Gerenciar Acessos (Admin) */}
-                            <td>
-                              <label className="toggle-switch" title="Gerenciar Acessos">
-                                <input
-                                  type="checkbox"
-                                  checked={u.modulos.gerenciar_acessos}
-                                  disabled={salvandoId === u.codUsu || ehAdminPadrao}
-                                  onChange={() => handleToggle(u, 'gerenciar_acessos')}
-                                />
-                                <span className="toggle-slider toggle-admin" />
-                              </label>
-                            </td>
-                          </tr>
+                              <div className="acesso-card-toggle-item admin-toggle-row">
+                                <span className="acesso-card-toggle-label">🛡️ Administrador</span>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={u.modulos.gerenciar_acessos}
+                                    disabled={salvandoId === u.codUsu || ehAdminPadrao}
+                                    onChange={() => handleToggleUsuario(u, 'gerenciar_acessos')}
+                                  />
+                                  <span className="toggle-slider toggle-admin" />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
                         );
                       })}
 
                       {usuariosFiltrados.length === 0 && (
-                        <tr>
-                          <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
-                            Nenhum usuário encontrado com o termo informado.
-                          </td>
-                        </tr>
+                        <div className="acessos-cards-vazio">
+                          Nenhum usuário encontrado com o termo informado.
+                        </div>
                       )}
-                    </tbody>
-                  </table>
-                </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
 
-                {/* Visualização Mobile / Tablet: Cards (<= 1024px) */}
-                <div className="acessos-cards-mobile">
-                  {usuariosFiltrados.map((u) => {
-                    const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
-                    const ehUsuarioAtual = u.codUsu === user?.codUsu;
-
+            {/* ═══════════════════════════════════════════════════════
+                ABA 2: CAMPOS SENSÍVEIS POR TELA
+                ═══════════════════════════════════════════════════════ */}
+            {abaAtiva === 'telas' && (
+              <div className="gestao-telas-secao">
+                {/* Seletor de Telas / Chips */}
+                <div className="gestao-telas-selector">
+                  {catalogoTelas.map((tela) => {
+                    const isAtiva = tela.idTela === telaSelecionadaId;
+                    const iconesPorTela: Record<string, string> = {
+                      conferencia_saida: '📦',
+                      conferencia_entrada: '📥',
+                      consulta_produtos: '🔍',
+                    };
+                    const icone = iconesPorTela[tela.idTela] || '📄';
                     return (
-                      <div key={`card-${u.codUsu}`} className="acesso-card-mobile">
-                        {/* Header do Card */}
-                        <div className="acesso-card-header">
-                          <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
-                            {u.nomeUsu.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="acesso-card-user-info">
-                            <span className="acesso-card-user-name">
-                              {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
-                            </span>
-                            <span className="acesso-card-user-sub">
-                              COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Datas de Acesso */}
-                        <div className="acesso-card-datas">
-                          <div className="acesso-card-data-item">
-                            <span className="acesso-card-data-label">1º Acesso:</span>
-                            <span className="badge-data-acesso">{formatarAcesso(u.primeiroAcessoEm)}</span>
-                          </div>
-                          <div className="acesso-card-data-item">
-                            <span className="acesso-card-data-label">Último Acesso:</span>
-                            <span className="badge-ultimo-acesso">{formatarAcesso(u.ultimoAcessoEm)}</span>
-                          </div>
-                        </div>
-
-                        {/* Grade de Permissões / Toggles */}
-                        <div className="acesso-card-toggles">
-                          <div className="acesso-card-toggle-item">
-                            <span className="acesso-card-toggle-label">📦 Conf. Saída</span>
-                            <label className="toggle-switch">
-                              <input
-                                type="checkbox"
-                                checked={u.modulos.conferencia_saida}
-                                disabled={salvandoId === u.codUsu}
-                                onChange={() => handleToggle(u, 'conferencia_saida')}
-                              />
-                              <span className="toggle-slider" />
-                            </label>
-                          </div>
-
-                          <div className="acesso-card-toggle-item">
-                            <span className="acesso-card-toggle-label">📥 Recebimento</span>
-                            <label className="toggle-switch">
-                              <input
-                                type="checkbox"
-                                checked={u.modulos.conferencia_entrada}
-                                disabled={salvandoId === u.codUsu}
-                                onChange={() => handleToggle(u, 'conferencia_entrada')}
-                              />
-                              <span className="toggle-slider" />
-                            </label>
-                          </div>
-
-                          <div className="acesso-card-toggle-item">
-                            <span className="acesso-card-toggle-label">🔍 Consultar Prod.</span>
-                            <label className="toggle-switch">
-                              <input
-                                type="checkbox"
-                                checked={u.modulos.consulta_produtos}
-                                disabled={salvandoId === u.codUsu}
-                                onChange={() => handleToggle(u, 'consulta_produtos')}
-                              />
-                              <span className="toggle-slider" />
-                            </label>
-                          </div>
-
-                          <div className="acesso-card-toggle-item">
-                            <span className="acesso-card-toggle-label">👁️ Ver Sensíveis</span>
-                            <label className="toggle-switch">
-                              <input
-                                type="checkbox"
-                                checked={u.modulos.ver_campos_sensiveis}
-                                disabled={salvandoId === u.codUsu}
-                                onChange={() => handleToggle(u, 'ver_campos_sensiveis')}
-                              />
-                              <span className="toggle-slider" />
-                            </label>
-                          </div>
-
-                          <div className="acesso-card-toggle-item admin-toggle-row">
-                            <span className="acesso-card-toggle-label">🛡️ Administrador</span>
-                            <label className="toggle-switch">
-                              <input
-                                type="checkbox"
-                                checked={u.modulos.gerenciar_acessos}
-                                disabled={salvandoId === u.codUsu || ehAdminPadrao}
-                                onChange={() => handleToggle(u, 'gerenciar_acessos')}
-                              />
-                              <span className="toggle-slider toggle-admin" />
-                            </label>
-                          </div>
-                        </div>
-                      </div>
+                      <button
+                        key={tela.idTela}
+                        type="button"
+                        className={`gestao-tela-chip ${isAtiva ? 'ativo' : ''}`}
+                        onClick={() => setTelaSelecionadaId(tela.idTela)}
+                      >
+                        <span className="tela-chip-icone">{icone}</span>
+                        <span className="tela-chip-nome">{tela.nomeTela}</span>
+                        <span className="tela-chip-count">{tela.campos.length} campos</span>
+                      </button>
                     );
                   })}
-
-                  {usuariosFiltrados.length === 0 && (
-                    <div className="acessos-cards-vazio">
-                      Nenhum usuário encontrado com o termo informado.
-                    </div>
-                  )}
                 </div>
-              </>
+
+                {/* Detalhes da Tela Selecionada */}
+                {telaAtual && (
+                  <div className="gestao-tela-detalhes">
+                    <div className="gestao-tela-info-card">
+                      <div className="gestao-tela-info-header">
+                        <h3>{telaAtual.nomeTela}</h3>
+                        <span className="badge-idtela">ID: {telaAtual.idTela}</span>
+                      </div>
+                      <p className="gestao-tela-info-desc">{telaAtual.descricao}</p>
+                      <div className="gestao-tela-info-banner">
+                        <span className="gestao-tela-banner-icone">ℹ️</span>
+                        <div className="gestao-tela-banner-texto">
+                          <strong>Regra Institucional de Proteção de Dados:</strong>
+                          <span>
+                            Campos ativados como <strong>Sensível</strong> nesta tela serão automaticamente mascarados e omitidos na origem para qualquer usuário que <u>NÃO</u> possua a permissão individual <em>&quot;Ver Sensíveis&quot;</em> configurada na aba de Usuários.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cards Responsivos dos Campos */}
+                    {loadingTelas ? (
+                      <Loading mensagem="Carregando catálogo de campos..." />
+                    ) : (
+                      <div className="gestao-campos-grid">
+                        {telaAtual.campos.map((campo) => {
+                          const ehSensivel = configCampos[telaAtual.idTela]?.[campo.chave] ?? campo.sensivelPadrao;
+
+                          return (
+                            <div
+                              key={campo.chave}
+                              className={`gestao-campo-card ${ehSensivel ? 'campo-sensivel-ativo' : ''}`}
+                            >
+                              <div className="gestao-campo-header">
+                                <div className="gestao-campo-identificacao">
+                                  <span className="gestao-campo-rotulo">{campo.rotulo}</span>
+                                  <code className="gestao-campo-chave">{campo.chave}</code>
+                                </div>
+                                <div className="gestao-campo-status-badge">
+                                  {ehSensivel ? (
+                                    <span className="badge-sensivel">🔒 Sensível</span>
+                                  ) : (
+                                    <span className="badge-publico">👁️ Visível</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <p className="gestao-campo-descricao">{campo.descricao}</p>
+
+                              <div className="gestao-campo-footer">
+                                <span className="gestao-campo-toggle-label">
+                                  {ehSensivel
+                                    ? 'Oculto p/ usuários padrão'
+                                    : 'Visível para todos os usuários'}
+                                </span>
+                                <label
+                                  className="toggle-switch"
+                                  title={`Definir "${campo.rotulo}" como sensível nesta tela`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={ehSensivel}
+                                    disabled={salvandoTela}
+                                    onChange={() => handleToggleCampoSensivel(telaAtual.idTela, campo.chave)}
+                                  />
+                                  <span className="toggle-slider toggle-sensivel" />
+                                </label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

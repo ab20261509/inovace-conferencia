@@ -14,11 +14,22 @@
   - `SalvarAcessosUsuarioUseCase` (`PUT /api/acessos/usuarios/:codUsu`): salva permissões atualizadas, com proteção para administradores.
   - Injetado `permissoesRepo` em `ListarItensPedidoUseCase` para avaliação dinâmica do toggle `ver_campos_sensiveis`.
 - **Docker Compose:**
-  - Adicionado volume persistente `./backend/data:/app/data` para garantir que o arquivo `acessos.json` não seja perdido ao reiniciar os contêineres.
+  - Adicionado volume persistente `./backend/data:/app/data` para garantir que o arquivo `acessos.json` e `campos_telas.json` não sejam perdidos ao reiniciar os contêineres.
 
-### 2. Visibilidade Dinâmica de Campos Sensíveis
-- A regra anterior de lista fixa em código (`['SUP', 'ANTONY', 'ANTONY.B']`) foi migrada para o controle dinâmico configurável `ver_campos_sensiveis`.
-- Quando desmarcado, `qtdPed`, `codBarra` e `referencia` são omitidos na origem pelo backend, garantindo conferência cega estrita para os operadores.
+### 2. Arquitetura Raiz de Campos Sensíveis por Tela
+- **Objetivo**: Permitir que cada tela do sistema defina seu catálogo de campos e se cada um é ou não sensível, ao invés de fixar regras no código.
+- **Domínio & Port:**
+  - `ConfiguracaoTela.ts`: Entidade contendo o catálogo de telas (`CATALOGO_TELAS_SISTEMA`), com `conferencia_saida`, `conferencia_entrada`, `consulta_produtos` e respectivos campos configuráveis (`qtdPed`, `codBarra`, `referencia`, `controle`, etc.).
+  - `IConfiguracaoTelasRepository.ts`: Porta com método centralizador `deveOcultarCampo(idTela, chaveCampo, usuario)`.
+  - `JsonConfiguracaoTelasRepository.ts`: Persistência em `backend/data/campos_telas.json`.
+- **Use Cases & Rotas:**
+  - `GET /api/configuracoes/telas`: Retorna catálogo e configuração ativa.
+  - `PUT /api/configuracoes/telas/:idTela`: Atualiza status dos campos da tela.
+- **Integração no Backend:**
+  - `ListarItensPedidoUseCase` agora consulta `configTelasRepo.deveOcultarCampo('conferencia_saida', 'qtdPed', usuario)` e para os demais campos configurados, ocultando-os na origem caso o usuário não tenha a permissão `ver_campos_sensiveis`.
+- **Frontend com Duas Abas na Gestão de Acessos (`/configuracoes/acessos`):**
+  - **Aba 1 (👥 Usuários & Módulos)**: Gerenciamento dos operadores, status de 1º e último acesso, permissões de módulos, flag `ver_campos_sensiveis` e admin.
+  - **Aba 2 (🛡️ Campos Sensíveis por Tela)**: Seletor de telas com pills/chips informando quantidade de campos, banner informativo sobre proteção de dados, e grid de cards responsivos de campos com switches e feedback em tempo real.
 
 ### 3. Navegação Global com Menu Gaveta (Drawer)
 - Criados componentes `AppDrawer`, `AppHeader` e `AppLayout`:
@@ -26,23 +37,13 @@
   - Menu lateral deslizante (*drawer*) com avatar do usuário, identificador `CODUSU`, links para módulos autorizados (`📦 Conferência de Saída`, `📥 Conferência de Entrada`, `🔍 Consultar Produto`, `⚙️ Gestão de Acessos`) e botão de saída.
   - Apenas módulos liberados nas permissões do usuário são renderizados na navegação.
 
-### 4. Gestão Administrativa de Acessos (`/configuracoes/acessos`) & Registro de Acessos
-- **Auto-registro no 1º Login & Atualização de Último Acesso:**
-  - Todo usuário que realiza login ou consulta suas permissões é automaticamente registrado no repositório de dados (`acessos.json`), capturando `primeiroAcessoEm` e `ultimoAcessoEm`.
-  - Novos operadores recebem automaticamente as permissões padrão (`conferencia_saida` e `consulta_produtos`), enquanto superusuários (`SUP`, `ANTONY`, etc.) recebem perfil de administrador total.
-  - O solicitante da tela de acessos é registrado de imediato, garantindo que a lista nunca fique vazia mesmo em ambientes sem retorno da `TSIUSU`.
-  - Lista de usuários ordenada cronologicamente por quem acessou mais recentemente.
-- **Frontend de Gestão:**
-  - Exibição do carimbo de último acesso (`🕒 Hoje às 15:10` ou data completa) logo abaixo do identificador do usuário.
-  - Tela com busca instantânea por nome ou `CODUSU`.
-  - Tabela com switches/toggles visuais para cada um dos 5 módulos/permissões.
-  - Atualização otimista e salvamento em tempo real com feedback de sucesso/erro.
-  - Proteção de rota via `PrivateRoute` exigindo permissão `gerenciar_acessos`.
+### 4. Auto-Registro de Usuários no 1º Login & Carimbo de Acessos
+- Todo usuário que realiza login é automaticamente registrado no repositório com `primeiroAcessoEm` e `ultimoAcessoEm`.
+- Lista exibe data e hora do primeiro e último acesso com formatação amigável (*Hoje às HH:MM* ou data completa).
 
 ### 5. Estrutura Base da Conferência de Entrada (Recebimento) (`/recebimento`)
 - Nova rota `/recebimento` com `RecebimentoPage`.
 - Layout integrado ao design system (hero informativo, toolbar de busca por nota fiscal/fornecedor, contadores de status e lista de cartões).
-- Pronto para acoplamento do fluxo de conferência de notas fiscais de entrada e pedidos de compra.
 
 ### 6. Diretriz Obrigatória: Disposição em Cards no Mobile e Tablet (≤ 1024px)
 - **Regra Institucional:** Todas as telas e listagens de dados em dispositivos móveis, coletores de dados e tablets DEVEM obrigatoriamente dispor as informações em **formato de CARDS**, assim como na Conferência de Saída e Gestão de Acessos.
