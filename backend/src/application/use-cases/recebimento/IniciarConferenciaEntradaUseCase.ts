@@ -34,9 +34,22 @@ export class IniciarConferenciaEntradaUseCase {
     };
 
     if (sessaoAtiva) {
-      // Se já existe, atualiza conferente e nível se for transição
-      sessaoAtiva.nivelAtual = nivel;
-      sessaoAtiva.status = statusPorNivel[nivel] || sessaoAtiva.status;
+      // Se a sessão já existe, preserva o nível em que ela se encontra
+      // Só altera o nível se input.nivel for explicitamente informado e diferente
+      if (input.nivel && [1, 2, 3].includes(input.nivel) && input.nivel !== sessaoAtiva.nivelAtual) {
+        sessaoAtiva.nivelAtual = input.nivel;
+        sessaoAtiva.status = statusPorNivel[input.nivel] || sessaoAtiva.status;
+      } else {
+        // Ao retomar conferência existente, ativa o status de andamento do nível corrente
+        if (sessaoAtiva.nivelAtual === 2) {
+          sessaoAtiva.status = 'N2 em Andamento';
+        } else if (sessaoAtiva.nivelAtual === 3) {
+          sessaoAtiva.status = 'N3 em Andamento';
+        } else if (sessaoAtiva.nivelAtual === 1) {
+          sessaoAtiva.status = 'N1 em Andamento';
+        }
+      }
+
       sessaoAtiva.conferente = input.conferente || sessaoAtiva.conferente;
       sessaoAtiva.atualizadoEm = agora;
       await this.conferenciaRepo.salvarSessao(sessaoAtiva);

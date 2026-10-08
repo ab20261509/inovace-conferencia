@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { RecebimentoApiService } from '../../infrastructure/api/RecebimentoApiService';
 import { NotaEntrada, StatusConferenciaEntrada } from '../../domain/models/ConferenciaEntrada';
@@ -10,7 +10,7 @@ const recebimentoService = new RecebimentoApiService();
 
 function classeStatusEntrada(status: StatusConferenciaEntrada): string {
   if (status === 'Conferido') return 'badge-success';
-  if (['N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento'].includes(status)) return 'badge-warning';
+  if (['N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento', 'Aguardando N2', 'Aguardando N3'].includes(status)) return 'badge-warning';
   if (['Divergente', 'Em Reconferência'].includes(status)) return 'badge-danger';
   return 'badge-pending';
 }
@@ -36,15 +36,25 @@ function formatarData(dataStr?: string): string {
 export function RecebimentoPage() {
   const { temPermissao } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [notas, setNotas] = useState<NotaEntrada[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [selectedNunotas, setSelectedNunotas] = useState<Set<number>>(new Set());
 
   const podeAcessar = temPermissao('conferencia_entrada');
+
+  useEffect(() => {
+    const locState = location.state as { mensagem?: string } | null;
+    if (locState?.mensagem) {
+      setSucesso(locState.mensagem);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const carregarNotas = useCallback(async () => {
     setLoading(true);
@@ -123,11 +133,13 @@ export function RecebimentoPage() {
     });
   };
 
-  const handleIniciarConferencia = (nunotasParaConferir: number[]) => {
+  const handleIniciarConferencia = (nunotasParaConferir: number[], confId?: string, nivel?: number) => {
     if (nunotasParaConferir.length === 0) return;
     navigate('/recebimento/conferencia', {
       state: {
         nunotas: nunotasParaConferir,
+        conferenciaId: confId,
+        nivel: nivel,
       },
     });
   };
@@ -173,6 +185,15 @@ export function RecebimentoPage() {
           {erro && (
             <div className="error-message" onClick={() => setErro(null)}>
               {erro}
+            </div>
+          )}
+
+          {/* Feedback de Sucesso */}
+          {sucesso && (
+            <div style={{ marginBottom: '14px', cursor: 'pointer' }} onClick={() => setSucesso(null)}>
+              <Container variant="default" padding="sm" className="feedback-success">
+                <strong>{sucesso}</strong>
+              </Container>
             </div>
           )}
 
@@ -277,10 +298,10 @@ export function RecebimentoPage() {
                       className={`card-conferencia ${isEmAndamento ? 'em-andamento' : ''}`}
                     >
                       <div
-                        onClick={() => handleIniciarConferencia([n.nunota])}
+                        onClick={() => handleIniciarConferencia([n.nunota], n.conferenciaId, n.nivelAtual)}
                         role="button"
                         tabIndex={0}
-                        onKeyDown={(e) => e.key === 'Enter' && handleIniciarConferencia([n.nunota])}
+                        onKeyDown={(e) => e.key === 'Enter' && handleIniciarConferencia([n.nunota], n.conferenciaId, n.nivelAtual)}
                         style={{ cursor: 'pointer' }}
                       >
                         <div className="card-header">

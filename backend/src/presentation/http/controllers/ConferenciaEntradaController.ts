@@ -65,7 +65,7 @@ export class ConferenciaEntradaController {
 
       const sessao = await this.iniciarConferenciaUseCase.execute({
         nunotas: Array.isArray(nunotas) ? nunotas.map(Number) : [],
-        nivel: nivel ? Number(nivel) : 1,
+        nivel: nivel !== undefined && nivel !== null ? Number(nivel) : undefined,
         conferente,
       });
 

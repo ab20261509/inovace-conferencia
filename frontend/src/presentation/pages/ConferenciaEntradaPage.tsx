@@ -34,7 +34,7 @@ export function ConferenciaEntradaPage() {
 
   const navState = location.state as { nunotas?: number[]; conferenciaId?: string; nivel?: number } | null;
   const nunotas = useMemo(() => navState?.nunotas || [], [navState]);
-  const nivelInicial = navState?.nivel || 1;
+  const nivelInicial = navState?.nivel;
 
   const [sessao, setSessao] = useState<SessaoConferenciaEntrada | null>(null);
   const [itens, setItens] = useState<ItemNotaEntrada[]>([]);
@@ -87,6 +87,13 @@ export function ConferenciaEntradaPage() {
         const resp = await recebimentoService.obterItensConferencia(navState.conferenciaId);
         if (!resp.sessao) throw new Error('Sessão não encontrada.');
         sessaoAtual = resp.sessao;
+
+        // Se a sessão estiver com status "Aguardando N2" ou "Aguardando N3" e o operador entrou para conferir,
+        // ativa a sessão para andamento
+        if (sessaoAtual.status === 'Aguardando N2' || sessaoAtual.status === 'Aguardando N3') {
+          sessaoAtual = await recebimentoService.iniciarConferencia(sessaoAtual.nunotas, sessaoAtual.nivelAtual);
+        }
+
         setSessao(sessaoAtual);
         setItens(resp.itens);
         setBipagens(resp.bipagens);
@@ -314,12 +321,29 @@ export function ConferenciaEntradaPage() {
             mensagem: `✅ Conferência finalizada com sucesso! Carga de ${res.totalItens} itens aprovada.`,
           },
         });
+      } else if (nivelAtual === 1) {
+        tocarAlertaSucesso();
+        navigate('/recebimento', {
+          state: {
+            mensagem: `✅ 1ª Contagem (N1) finalizada com sucesso! A nota agora está na lista aguardando a 2ª Contagem (N2).`,
+          },
+        });
+      } else if (nivelAtual === 2) {
+        tocarAlertaSucesso();
+        navigate('/recebimento', {
+          state: {
+            mensagem: res.possuiDivergencias
+              ? `⚠️ 2ª Contagem (N2) finalizada com divergências! A nota avançou para a Auditoria (N3).`
+              : `✅ 2ª Contagem (N2) finalizada com sucesso!`,
+          },
+        });
       } else {
         tocarAlertaSucesso();
-        setSessao(res.sessao);
-        const respItens = await recebimentoService.obterItensConferencia(res.sessao.id);
-        setItens(respItens.itens);
-        setBipagens(respItens.bipagens);
+        navigate('/recebimento', {
+          state: {
+            mensagem: `✅ Contagem finalizada com sucesso!`,
+          },
+        });
       }
     } catch (err: any) {
       tocarAlertaErro();

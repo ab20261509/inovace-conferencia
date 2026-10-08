@@ -44,6 +44,12 @@ export class ObterItensConferenciaEntradaUseCase {
       nunotas = input.nunotas;
     }
 
+    // Se ainda não temos a sessão carregada, busca por nunotas
+    if (!sessao && nunotas.length > 0) {
+      const sessoes = await this.conferenciaRepo.obterSessoesPorNunotas(nunotas);
+      sessao = sessoes.find((s) => s.status !== 'Conferido') || null;
+    }
+
     if (nunotas.length === 0) {
       return { sessao, itens: [], bipagens: [] };
     }
