@@ -16,9 +16,8 @@ export class AcessosController {
    */
   async me(req: Request, res: Response): Promise<void> {
     try {
-      const user = (req as any).user;
-      const codUsu = Number(user?.userId);
-      const nomeUsu = String(user?.username || '').trim();
+      const codUsu = Number(req.userId || (req as any).user?.userId || 0);
+      const nomeUsu = String(req.username || (req as any).user?.username || '').trim();
 
       const result = await this.obterMeusAcessosUseCase.execute({ codUsu, nomeUsu });
       res.status(200).json(result);
@@ -34,9 +33,8 @@ export class AcessosController {
    */
   async listarUsuarios(req: Request, res: Response): Promise<void> {
     try {
-      const user = (req as any).user;
-      const codUsuSolicitante = Number(user?.userId);
-      const nomeUsuSolicitante = String(user?.username || '').trim();
+      const codUsuSolicitante = Number(req.userId || (req as any).user?.userId || 0);
+      const nomeUsuSolicitante = String(req.username || (req as any).user?.username || '').trim();
 
       const result = await this.listarUsuariosAcessosUseCase.execute(
         { codUsuSolicitante, nomeUsuSolicitante },
@@ -55,9 +53,8 @@ export class AcessosController {
    */
   async salvarAcessos(req: Request, res: Response): Promise<void> {
     try {
-      const user = (req as any).user;
-      const codUsuSolicitante = Number(user?.userId);
-      const nomeUsuSolicitante = String(user?.username || '').trim();
+      const codUsuSolicitante = Number(req.userId || (req as any).user?.userId || 0);
+      const nomeUsuSolicitante = String(req.username || (req as any).user?.username || '').trim();
 
       const codUsuAlvo = Number(req.params.codUsu);
       const { nomeUsu, modulos } = req.body;

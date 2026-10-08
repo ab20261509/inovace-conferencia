@@ -29,3 +29,7 @@ referencia-ui/
 
 # Windows reserved filename
 nul
+
+# Dados locais em runtime
+backend/data/*.json
+data/*.json

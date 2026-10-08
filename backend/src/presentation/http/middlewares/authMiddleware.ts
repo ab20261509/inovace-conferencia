@@ -29,6 +29,11 @@ export function createAuthMiddleware(tokenPort: ITokenPort) {
     req.userId = payload.userId;
     // Necessário para as regras de permissão por login (campos sensíveis)
     req.username = payload.username;
+    (req as any).user = {
+      userId: payload.userId,
+      username: payload.username,
+      email: payload.email,
+    };
     next();
   };
 }
