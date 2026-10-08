@@ -3,6 +3,7 @@ import { LoginPage } from '../pages/Login';
 import { ListaConferenciasPage } from '../pages/ListaConferencias';
 import { ConferenciaProdutosPage } from '../pages/ConferenciaProdutos';
 import { RecebimentoPage } from '../pages/Recebimento';
+import { ConferenciaEntradaPage } from '../pages/ConferenciaEntradaPage';
 import { GestaoAcessosPage } from '../pages/GestaoAcessos';
 import { PrivateRoute } from './PrivateRoute';
 
@@ -36,6 +37,14 @@ export function AppRoutes() {
           element={
             <PrivateRoute modulo="conferencia_entrada">
               <RecebimentoPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/recebimento/conferencia"
+          element={
+            <PrivateRoute modulo="conferencia_entrada">
+              <ConferenciaEntradaPage />
             </PrivateRoute>
           }
         />

@@ -41,9 +41,19 @@
 - Todo usuário que realiza login é automaticamente registrado no repositório com `primeiroAcessoEm` e `ultimoAcessoEm`.
 - Lista exibe data e hora do primeiro e último acesso com formatação amigável (*Hoje às HH:MM* ou data completa).
 
-### 5. Estrutura Base da Conferência de Entrada (Recebimento) (`/recebimento`)
-- Nova rota `/recebimento` com `RecebimentoPage`.
-- Layout integrado ao design system (hero informativo, toolbar de busca por nota fiscal/fornecedor, contadores de status e lista de cartões).
+### 5. Módulo de Conferência de Entrada (Recebimento) (`/recebimento` e `/recebimento/conferencia`)
+- **Extração & Modernização a partir do projeto anterior (`gentle-zebra-yawn`):**
+  - Eliminação da dependência do Appwrite, integrando nativamente ao backend Node.js com Clean Architecture e repositório `JsonConferenciaEntradaRepository` (`backend/data/conferencias_entrada.json`).
+  - Consultas em alto desempenho no Sankhya via `DbExplorerSP.executeQuery` buscando notas de compra (`TGFCAB.TIPMOV = 'C'`), fornecedores (`TGFPAR`) e itens com volumes alternativos (`TGFITE` + `TGFBAR`).
+  - Esteira em 3 níveis:
+    - **N1**: 1ª contagem cega física rápida.
+    - **N2**: 2ª contagem cega com validação de Lote (`CONTROLE`), Validade e Fabricação. Batimento automático: se N1 == N2 == NF, finaliza como `Conferido`; se divergir, transiciona para `Divergente`.
+    - **N3**: Auditoria obrigatória de divergências (apenas itens onde N1 $\neq$ N2 ou contagem $\neq$ NF), com comparativo detalhado e rastreabilidade total.
+  - Bipagem inteligente: Reconhece código principal (`REFERENCIA`) e códigos alternativos de caixas/fardos (`TGFBAR.CODBARRA`), calculando fator multiplicador ou divisor (`DIVIDEMULTIPLICA`).
+  - Parser OCR calibrado em campo (`ocrParser.ts`): Extrai Lote, Validade e Fabricação por análise numérica posicional resiliente a diferentes formatos de etiquetas.
+  - Scanner com proteção anti-colagem (Ctrl+V bloqueado) e suporte a leitura por câmera.
+  - Listagem de notas com filtros de status, contadores dinâmicos e seleção em lote.
+  - Layout estritamente responsivo em **cards verticais no mobile/tablet ($\le 1024$px)** tanto na lista de notas quanto na lista de itens em conferência.
 
 ### 6. Diretriz Obrigatória: Disposição em Cards no Mobile e Tablet (≤ 1024px)
 - **Regra Institucional:** Todas as telas e listagens de dados em dispositivos móveis, coletores de dados e tablets DEVEM obrigatoriamente dispor as informações em **formato de CARDS**, assim como na Conferência de Saída e Gestão de Acessos.

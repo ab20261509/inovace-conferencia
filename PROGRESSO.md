@@ -26,7 +26,16 @@
 - **Arquitetura Raiz de Campos Sensíveis**: O método de domínio `IConfiguracaoTelasRepository.deveOcultarCampo(idTela, chaveCampo, usuario)` se tornou a base padronizada para todas as telas presentes e futuras do sistema. A máscara ocorre na origem do backend para qualquer usuário sem `ver_campos_sensiveis`.
 - **Auto-Registro de Usuários no 1º Login**: Todo usuário que faz login é registrado automaticamente no arquivo persistente de acessos com data/hora de primeiro e último acesso, garantindo que a lista nunca fique vazia.
 - **Diretriz de Design Obrigatória (Mobile/Tablet $\le$ 1024px)**: Toda e qualquer tela e listagem DEVE apresentar os dados em formato de **cards verticais**, dispensando tabelas com scroll horizontal que prejudicam a operação nos coletores e tablets.
-- **Módulo de Conferência de Entrada (Recebimento)** (`/recebimento`): Estrutura base completa do layout operacional para recepção de mercadorias e notas fiscais de fornecedores.
+- **Módulo de Conferência de Entrada (Recebimento)** (`/recebimento` e `/recebimento/conferencia`):
+  - **Consultas em Alto Desempenho**: Consulta SQL direta via `DbExplorerSP.executeQuery` buscando notas de compra (`TGFCAB.TIPMOV = 'C'`), fornecedores (`TGFPAR`) e itens com volumes alternativos (`TGFITE` + `TGFBAR`).
+  - **Esteira de Conferência em 3 Níveis**:
+    - **N1**: 1ª contagem cega física rápida.
+    - **N2**: 2ª contagem cega com validação de Lote (`CONTROLE`), Data de Validade e Data de Fabricação. Se bater com N1 e NF, finaliza como `Conferido`; se divergir, transiciona para `Divergente`.
+    - **N3**: Auditoria obrigatória de divergências (apenas itens onde N1 $\neq$ N2 ou contagem $\neq$ NF), com comparativo detalhado e rastreabilidade total.
+  - **Bipagem Inteligente de Códigos & Fator M/D**: Suporte a código do produto (`REFERENCIA`) e códigos alternativos de caixas/fardos (`TGFBAR.CODBARRA`), aplicando fator multiplicador ou divisor (`DIVIDEMULTIPLICA`).
+  - **Parser OCR Calibrado em Campo (`ocrParser.ts`)**: Módulo protegido integrado para extração inteligente de Lote, Validade e Fabricação a partir de texto de etiquetas.
+  - **Scanner com Anti-Colagem**: Bloqueio de Ctrl+V forçando bipagem física ou leitura por câmera.
+  - **Diretriz de Cards Responsivos no Mobile/Tablet ($\le 1024$px)**: Listagem de notas e cards de itens conferidos organizados verticalmente, sem overflow horizontal nos coletores e tablets.
 
 ### Login
 - Login via `MobileLoginSP.login` (credenciais Sankhya)

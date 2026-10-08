@@ -44,9 +44,10 @@ import { NotificarDiscordUseCase } from './application/use-cases/conferencias/op
 // Infrastructure (Discord)
 import { DiscordWebhookAdapter } from './infrastructure/discord/DiscordWebhookAdapter.js';
 
-// Infrastructure (Permissoes / Acessos)
+// Infrastructure (Permissoes / Acessos / Conferencias)
 import { JsonPermissoesRepository } from './infrastructure/repositories/JsonPermissoesRepository.js';
 import { JsonConfiguracaoTelasRepository } from './infrastructure/repositories/JsonConfiguracaoTelasRepository.js';
+import { JsonConferenciaEntradaRepository } from './infrastructure/repositories/JsonConferenciaEntradaRepository.js';
 
 // Application (Use Cases) - Acessos
 import { ObterMeusAcessosUseCase } from './application/use-cases/acessos/ObterMeusAcessosUseCase.js';
@@ -56,6 +57,14 @@ import { SalvarAcessosUsuarioUseCase } from './application/use-cases/acessos/Sal
 // Application (Use Cases) - Configurações de Telas
 import { ListarConfiguracaoTelasUseCase } from './application/use-cases/configuracoes/ListarConfiguracaoTelasUseCase.js';
 import { SalvarConfiguracaoTelaUseCase } from './application/use-cases/configuracoes/SalvarConfiguracaoTelaUseCase.js';
+
+// Application (Use Cases) - Conferência de Entrada (Recebimento)
+import { ListarNotasEntradaUseCase } from './application/use-cases/recebimento/ListarNotasEntradaUseCase.js';
+import { ObterItensConferenciaEntradaUseCase } from './application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.js';
+import { IniciarConferenciaEntradaUseCase } from './application/use-cases/recebimento/IniciarConferenciaEntradaUseCase.js';
+import { RegistrarBipagemEntradaUseCase } from './application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.js';
+import { AnularBipagemEntradaUseCase } from './application/use-cases/recebimento/AnularBipagemEntradaUseCase.js';
+import { FinalizarNivelEntradaUseCase } from './application/use-cases/recebimento/FinalizarNivelEntradaUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -71,6 +80,7 @@ import { ConferenciasController } from './presentation/http/controllers/Conferen
 import { ProdutoController } from './presentation/http/controllers/ProdutoController.js';
 import { AcessosController } from './presentation/http/controllers/AcessosController.js';
 import { ConfiguracaoTelasController } from './presentation/http/controllers/ConfiguracaoTelasController.js';
+import { ConferenciaEntradaController } from './presentation/http/controllers/ConferenciaEntradaController.js';
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
 import { createServer } from './presentation/server.js';
 
@@ -97,6 +107,7 @@ export function buildApp(): Application {
   const authAdapter = new InMemoryAuthAdapter();
   const permissoesRepo = new JsonPermissoesRepository();
   const configTelasRepo = new JsonConfiguracaoTelasRepository(permissoesRepo);
+  const conferenciaEntradaRepo = new JsonConferenciaEntradaRepository();
 
   // 2. Use Cases (Application)
   const loginUseCase = new LoginUseCase(authAdapter, tokenAdapter);
@@ -112,6 +123,18 @@ export function buildApp(): Application {
   // Configurações de Telas
   const listarConfiguracaoTelasUseCase = new ListarConfiguracaoTelasUseCase(configTelasRepo, permissoesRepo);
   const salvarConfiguracaoTelaUseCase = new SalvarConfiguracaoTelaUseCase(configTelasRepo, permissoesRepo);
+
+  // Conferência de Entrada (Recebimento)
+  const listarNotasEntradaUseCase = new ListarNotasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const obterItensConferenciaEntradaUseCase = new ObterItensConferenciaEntradaUseCase(
+    gatewayAdapter,
+    conferenciaEntradaRepo,
+    configTelasRepo
+  );
+  const iniciarConferenciaEntradaUseCase = new IniciarConferenciaEntradaUseCase(conferenciaEntradaRepo);
+  const registrarBipagemEntradaUseCase = new RegistrarBipagemEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const anularBipagemEntradaUseCase = new AnularBipagemEntradaUseCase(conferenciaEntradaRepo);
+  const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -160,6 +183,14 @@ export function buildApp(): Application {
     listarConfiguracaoTelasUseCase,
     salvarConfiguracaoTelaUseCase,
   );
+  const conferenciaEntradaController = new ConferenciaEntradaController(
+    listarNotasEntradaUseCase,
+    obterItensConferenciaEntradaUseCase,
+    iniciarConferenciaEntradaUseCase,
+    registrarBipagemEntradaUseCase,
+    anularBipagemEntradaUseCase,
+    finalizarNivelEntradaUseCase
+  );
   const crudController = new CrudController(
     loadRecordsUseCase,
     loadRecordUseCase,
@@ -201,6 +232,7 @@ export function buildApp(): Application {
       produtoController,
       acessosController,
       configuracaoTelasController,
+      conferenciaEntradaController,
     },
     authMiddleware,
   );
