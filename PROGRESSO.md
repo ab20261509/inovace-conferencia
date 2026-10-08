@@ -235,6 +235,34 @@
 
 ---
 
+## Diretriz Obrigatória de UX/UI — Disposição em Cards no Mobile e Tablet (≤ 1024px)
+
+> [!IMPORTANT]
+> **Regra Obrigatória para Todas as Telas do Sistema:**
+> Em telas de celulares, coletores de dados e tablets (breakpoint `max-width: 1024px`), **todos os dados listados devem ser apresentados obrigatoriamente no formato de CARDS**, assim como implementado na **Conferência de Saída** (lista de pedidos e itens) e na **Gestão de Acessos**.
+>
+> É estritamente **proibido** manter tabelas horizontais (`<table>`) com scroll lateral excessivo no ambiente mobile/tablet.
+
+### Padrão Arquitetural de Interface Responsiva:
+1. **Desktop (`> 1024px`):**
+   - Tabelas estruturadas (`<table>`) com cabeçalhos e colunas detalhadas são permitidas e recomendadas para visualização ampla em monitores.
+2. **Mobile / Tablet (`≤ 1024px`):**
+   - A tabela desktop é ocultada via CSS (`display: none !important`).
+   - É renderizada uma estrutura de cards verticais (`display: flex; flex-direction: column; gap: 12px;` ou `grid`).
+   - Cada card reúne de forma visual e legível:
+     - Avatar/Foto/Ícone do registro.
+     - Título e identificador principal em destaque.
+     - Informações secundárias e carimbos de data/hora (ex: 1º Acesso, Último Acesso, Lote, Unidade).
+     - Badges compactos com cores semânticas (verde=sucesso, amarelo=alerta, vermelho=divergência/perigo, azul=informativo).
+     - Controles interativos (switches de permissão, botões de ação) com área de clique ampla ($\ge 44$px) adequada para dedos e coletores físicos.
+3. **Módulos que já seguem este padrão obrigatório:**
+   - Conferência de Saída (`ListaConferencias.tsx` e `ConferenciaProdutos.tsx`).
+   - Gestão de Acessos (`GestaoAcessos.tsx`).
+   - Conferência de Entrada / Recebimento (`Recebimento.tsx`).
+   - **Todas as novas telas futuras DEVEM seguir este padrão.**
+
+---
+
 ## Como Rodar
 
 ### Desenvolvimento (local)

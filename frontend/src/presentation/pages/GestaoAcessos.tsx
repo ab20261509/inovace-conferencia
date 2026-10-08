@@ -172,60 +172,178 @@ export function GestaoAcessosPage() {
             {loading ? (
               <Loading mensagem="Carregando usuários do Sankhya..." />
             ) : (
-              <div className="acessos-table-wrapper">
-                <table className="acessos-table">
-                  <thead>
-                    <tr>
-                      <th>Usuário</th>
-                      <th title="Data e hora do primeiro acesso do usuário no sistema">1º Acesso</th>
-                      <th title="Data e hora do último acesso do usuário no sistema">Último Acesso</th>
-                      <th title="Acesso ao módulo de conferência de pedidos de saída">Conf. Saída</th>
-                      <th title="Acesso ao módulo de conferência de notas de entrada (recebimento)">Recebimento</th>
-                      <th title="Permissão para consultar cadastro de produtos e estoque">Consultar Prod.</th>
-                      <th title="Exibe campos sensíveis: quantidade pedida, código de barras e referência">Ver Sensíveis</th>
-                      <th title="Permite acessar esta tela e alterar permissões">Admin</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {usuariosFiltrados.map((u) => {
-                      const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
-                      const ehUsuarioAtual = u.codUsu === user?.codUsu;
+              <>
+                {/* Visualização Desktop: Tabela (> 1024px) */}
+                <div className="acessos-table-wrapper acessos-tabela-desktop">
+                  <table className="acessos-table">
+                    <thead>
+                      <tr>
+                        <th>Usuário</th>
+                        <th title="Data e hora do primeiro acesso do usuário no sistema">1º Acesso</th>
+                        <th title="Data e hora do último acesso do usuário no sistema">Último Acesso</th>
+                        <th title="Acesso ao módulo de conferência de pedidos de saída">Conf. Saída</th>
+                        <th title="Acesso ao módulo de conferência de notas de entrada (recebimento)">Recebimento</th>
+                        <th title="Permissão para consultar cadastro de produtos e estoque">Consultar Prod.</th>
+                        <th title="Exibe campos sensíveis: quantidade pedida, código de barras e referência">Ver Sensíveis</th>
+                        <th title="Permite acessar esta tela e alterar permissões">Admin</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usuariosFiltrados.map((u) => {
+                        const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
+                        const ehUsuarioAtual = u.codUsu === user?.codUsu;
 
-                      return (
-                        <tr key={u.codUsu}>
-                          <td>
-                            <div className="acessos-user-cell">
-                              <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
-                                {u.nomeUsu.charAt(0).toUpperCase()}
+                        return (
+                          <tr key={u.codUsu}>
+                            <td>
+                              <div className="acessos-user-cell">
+                                <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
+                                  {u.nomeUsu.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="acessos-user-details">
+                                  <span className="acessos-user-name">
+                                    {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
+                                  </span>
+                                  <span className="acessos-user-meta">
+                                    COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="acessos-user-details">
-                                <span className="acessos-user-name">
-                                  {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
-                                </span>
-                                <span className="acessos-user-meta">
-                                  COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* 1º Acesso */}
-                          <td className="acessos-data-cell" title={u.primeiroAcessoEm || ''}>
-                            <span className="badge-data-acesso">
-                              {formatarAcesso(u.primeiroAcessoEm)}
+                            {/* 1º Acesso */}
+                            <td className="acessos-data-cell" title={u.primeiroAcessoEm || ''}>
+                              <span className="badge-data-acesso">
+                                {formatarAcesso(u.primeiroAcessoEm)}
+                              </span>
+                            </td>
+
+                            {/* Último Acesso */}
+                            <td className="acessos-data-cell" title={u.ultimoAcessoEm || ''}>
+                              <span className="badge-ultimo-acesso">
+                                {formatarAcesso(u.ultimoAcessoEm)}
+                              </span>
+                            </td>
+
+                            {/* Conferência Saída */}
+                            <td>
+                              <label className="toggle-switch" title="Conferência de Saída">
+                                <input
+                                  type="checkbox"
+                                  checked={u.modulos.conferencia_saida}
+                                  disabled={salvandoId === u.codUsu}
+                                  onChange={() => handleToggle(u, 'conferencia_saida')}
+                                />
+                                <span className="toggle-slider" />
+                              </label>
+                            </td>
+
+                            {/* Conferência Entrada (Recebimento) */}
+                            <td>
+                              <label className="toggle-switch" title="Conferência de Entrada (Recebimento)">
+                                <input
+                                  type="checkbox"
+                                  checked={u.modulos.conferencia_entrada}
+                                  disabled={salvandoId === u.codUsu}
+                                  onChange={() => handleToggle(u, 'conferencia_entrada')}
+                                />
+                                <span className="toggle-slider" />
+                              </label>
+                            </td>
+
+                            {/* Consulta Produtos */}
+                            <td>
+                              <label className="toggle-switch" title="Consulta de Produtos">
+                                <input
+                                  type="checkbox"
+                                  checked={u.modulos.consulta_produtos}
+                                  disabled={salvandoId === u.codUsu}
+                                  onChange={() => handleToggle(u, 'consulta_produtos')}
+                                />
+                                <span className="toggle-slider" />
+                              </label>
+                            </td>
+
+                            {/* Ver Campos Sensíveis */}
+                            <td>
+                              <label className="toggle-switch" title="Ver campos sensíveis (qtd pedida, cód. barras)">
+                                <input
+                                  type="checkbox"
+                                  checked={u.modulos.ver_campos_sensiveis}
+                                  disabled={salvandoId === u.codUsu}
+                                  onChange={() => handleToggle(u, 'ver_campos_sensiveis')}
+                                />
+                                <span className="toggle-slider" />
+                              </label>
+                            </td>
+
+                            {/* Gerenciar Acessos (Admin) */}
+                            <td>
+                              <label className="toggle-switch" title="Gerenciar Acessos">
+                                <input
+                                  type="checkbox"
+                                  checked={u.modulos.gerenciar_acessos}
+                                  disabled={salvandoId === u.codUsu || ehAdminPadrao}
+                                  onChange={() => handleToggle(u, 'gerenciar_acessos')}
+                                />
+                                <span className="toggle-slider toggle-admin" />
+                              </label>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {usuariosFiltrados.length === 0 && (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
+                            Nenhum usuário encontrado com o termo informado.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Visualização Mobile / Tablet: Cards (<= 1024px) */}
+                <div className="acessos-cards-mobile">
+                  {usuariosFiltrados.map((u) => {
+                    const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
+                    const ehUsuarioAtual = u.codUsu === user?.codUsu;
+
+                    return (
+                      <div key={`card-${u.codUsu}`} className="acesso-card-mobile">
+                        {/* Header do Card */}
+                        <div className="acesso-card-header">
+                          <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
+                            {u.nomeUsu.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="acesso-card-user-info">
+                            <span className="acesso-card-user-name">
+                              {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
                             </span>
-                          </td>
-
-                          {/* Último Acesso */}
-                          <td className="acessos-data-cell" title={u.ultimoAcessoEm || ''}>
-                            <span className="badge-ultimo-acesso">
-                              {formatarAcesso(u.ultimoAcessoEm)}
+                            <span className="acesso-card-user-sub">
+                              COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
                             </span>
-                          </td>
+                          </div>
+                        </div>
 
-                          {/* Conferência Saída */}
-                          <td>
-                            <label className="toggle-switch" title="Conferência de Saída">
+                        {/* Datas de Acesso */}
+                        <div className="acesso-card-datas">
+                          <div className="acesso-card-data-item">
+                            <span className="acesso-card-data-label">1º Acesso:</span>
+                            <span className="badge-data-acesso">{formatarAcesso(u.primeiroAcessoEm)}</span>
+                          </div>
+                          <div className="acesso-card-data-item">
+                            <span className="acesso-card-data-label">Último Acesso:</span>
+                            <span className="badge-ultimo-acesso">{formatarAcesso(u.ultimoAcessoEm)}</span>
+                          </div>
+                        </div>
+
+                        {/* Grade de Permissões / Toggles */}
+                        <div className="acesso-card-toggles">
+                          <div className="acesso-card-toggle-item">
+                            <span className="acesso-card-toggle-label">📦 Conf. Saída</span>
+                            <label className="toggle-switch">
                               <input
                                 type="checkbox"
                                 checked={u.modulos.conferencia_saida}
@@ -234,11 +352,11 @@ export function GestaoAcessosPage() {
                               />
                               <span className="toggle-slider" />
                             </label>
-                          </td>
+                          </div>
 
-                          {/* Conferência Entrada (Recebimento) */}
-                          <td>
-                            <label className="toggle-switch" title="Conferência de Entrada (Recebimento)">
+                          <div className="acesso-card-toggle-item">
+                            <span className="acesso-card-toggle-label">📥 Recebimento</span>
+                            <label className="toggle-switch">
                               <input
                                 type="checkbox"
                                 checked={u.modulos.conferencia_entrada}
@@ -247,11 +365,11 @@ export function GestaoAcessosPage() {
                               />
                               <span className="toggle-slider" />
                             </label>
-                          </td>
+                          </div>
 
-                          {/* Consulta Produtos */}
-                          <td>
-                            <label className="toggle-switch" title="Consulta de Produtos">
+                          <div className="acesso-card-toggle-item">
+                            <span className="acesso-card-toggle-label">🔍 Consultar Prod.</span>
+                            <label className="toggle-switch">
                               <input
                                 type="checkbox"
                                 checked={u.modulos.consulta_produtos}
@@ -260,11 +378,11 @@ export function GestaoAcessosPage() {
                               />
                               <span className="toggle-slider" />
                             </label>
-                          </td>
+                          </div>
 
-                          {/* Ver Campos Sensíveis */}
-                          <td>
-                            <label className="toggle-switch" title="Ver campos sensíveis (qtd pedida, cód. barras)">
+                          <div className="acesso-card-toggle-item">
+                            <span className="acesso-card-toggle-label">👁️ Ver Sensíveis</span>
+                            <label className="toggle-switch">
                               <input
                                 type="checkbox"
                                 checked={u.modulos.ver_campos_sensiveis}
@@ -273,11 +391,11 @@ export function GestaoAcessosPage() {
                               />
                               <span className="toggle-slider" />
                             </label>
-                          </td>
+                          </div>
 
-                          {/* Gerenciar Acessos (Admin) */}
-                          <td>
-                            <label className="toggle-switch" title="Gerenciar Acessos">
+                          <div className="acesso-card-toggle-item admin-toggle-row">
+                            <span className="acesso-card-toggle-label">🛡️ Administrador</span>
+                            <label className="toggle-switch">
                               <input
                                 type="checkbox"
                                 checked={u.modulos.gerenciar_acessos}
@@ -286,21 +404,19 @@ export function GestaoAcessosPage() {
                               />
                               <span className="toggle-slider toggle-admin" />
                             </label>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
 
-                    {usuariosFiltrados.length === 0 && (
-                      <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
-                          Nenhum usuário encontrado com o termo informado.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                  {usuariosFiltrados.length === 0 && (
+                    <div className="acessos-cards-vazio">
+                      Nenhum usuário encontrado com o termo informado.
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>

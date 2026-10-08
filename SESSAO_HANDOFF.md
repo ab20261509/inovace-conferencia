@@ -44,6 +44,11 @@
 - Layout integrado ao design system (hero informativo, toolbar de busca por nota fiscal/fornecedor, contadores de status e lista de cartões).
 - Pronto para acoplamento do fluxo de conferência de notas fiscais de entrada e pedidos de compra.
 
+### 6. Diretriz Obrigatória: Disposição em Cards no Mobile e Tablet (≤ 1024px)
+- **Regra Institucional:** Todas as telas e listagens de dados em dispositivos móveis, coletores de dados e tablets DEVEM obrigatoriamente dispor as informações em **formato de CARDS**, assim como na Conferência de Saída e Gestão de Acessos.
+- Tabelas horizontais (`<table>`) com scroll lateral excessivo são permitidas exclusivamente no Desktop (`> 1024px`).
+- No Mobile/Tablet (`≤ 1024px`), as tabelas são ocultadas via CSS e substituídas por cards verticais limpos, com badges de status/métricas bem visíveis e controles/botões com área ampla de toque para dedos e leitores coletores.
+
 ---
 
 # Handoff — Sessão 2026-10-07

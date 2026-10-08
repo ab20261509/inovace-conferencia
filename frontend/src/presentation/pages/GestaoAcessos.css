@@ -224,3 +224,119 @@
   font-weight: 600;
   font-size: 0.8rem;
 }
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVIDADE: Cards no Mobile / Tablet (<= 1024px)
+   ═══════════════════════════════════════════════════════ */
+
+/* Por padrão (Desktop): esconde os cards mobile */
+.acessos-cards-mobile {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  /* No tablet e celular, oculta a tabela tradicional com scroll horizontal */
+  .acessos-tabela-desktop {
+    display: none !important;
+  }
+
+  /* Exibe os cards organizados verticalmente */
+  .acessos-cards-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .acesso-card-mobile {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .acesso-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .acesso-card-user-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .acesso-card-user-name {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--slate-900);
+  }
+
+  .acesso-card-user-sub {
+    font-size: 0.78rem;
+    color: var(--slate-500);
+  }
+
+  .acesso-card-datas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--slate-50);
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--slate-200);
+  }
+
+  .acesso-card-data-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.82rem;
+  }
+
+  .acesso-card-data-label {
+    font-weight: 600;
+    color: var(--slate-600);
+  }
+
+  .acesso-card-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-top: 1px solid var(--slate-100);
+    padding-top: 12px;
+  }
+
+  .acesso-card-toggle-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 4px;
+  }
+
+  .acesso-card-toggle-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--slate-700);
+  }
+
+  .acesso-card-toggle-item.admin-toggle-row {
+    background: #fff7ed;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #ffedd5;
+  }
+
+  .acessos-cards-vazio {
+    text-align: center;
+    padding: 32px 16px;
+    background: #ffffff;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    color: var(--slate-400);
+    font-size: 0.9rem;
+  }
+}
