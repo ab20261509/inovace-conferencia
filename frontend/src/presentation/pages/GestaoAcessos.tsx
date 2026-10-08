@@ -8,6 +8,23 @@ import './GestaoAcessos.css';
 
 const acessosService = new AcessosApiService();
 
+function formatarAcesso(isoDate?: string): string {
+  if (!isoDate) return 'Aguardando 1º login';
+  try {
+    const data = new Date(isoDate);
+    const agora = new Date();
+    const ehHoje = data.toDateString() === agora.toDateString();
+    const hora = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (ehHoje) {
+      return `Hoje às ${hora}`;
+    }
+    const dia = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `${dia} às ${hora}`;
+  } catch {
+    return isoDate;
+  }
+}
+
 export function GestaoAcessosPage() {
   const { temPermissao, user } = useAuth();
   const [usuarios, setUsuarios] = useState<UsuarioAcessoInfo[]>([]);
@@ -185,6 +202,9 @@ export function GestaoAcessosPage() {
                                 </span>
                                 <span className="acessos-user-meta">
                                   COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
+                                </span>
+                                <span className="acessos-user-ultimo-acesso" title={u.primeiroAcessoEm ? `1º login: ${formatarAcesso(u.primeiroAcessoEm)}` : ''}>
+                                  🕒 {formatarAcesso(u.ultimoAcessoEm)}
                                 </span>
                               </div>
                             </div>

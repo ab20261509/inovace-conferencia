@@ -1,5 +1,6 @@
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { ITokenPort } from '../../../domain/ports/ITokenPort.js';
+import { IPermissoesRepository } from '../../../domain/ports/IPermissoesRepository.js';
 import {
   CredenciaisInvalidasError,
   DadosInvalidosError,
@@ -29,6 +30,7 @@ export class LoginSankhyaUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
     private readonly tokenPort: ITokenPort,
+    private readonly permissoesRepo?: IPermissoesRepository,
   ) {}
 
   async execute(input: LoginSankhyaInput, correlationId?: string): Promise<LoginSankhyaOutput> {
@@ -84,7 +86,16 @@ export class LoginSankhyaUseCase {
 
     const jsessionid = body.jsessionid?.$ || '';
 
-    // 3. Gerar JWT com dados do usuário Sankhya
+    // 3. Registrar primeiro ou último acesso do usuário
+    if (this.permissoesRepo) {
+      try {
+        await this.permissoesRepo.registrarAcesso(codUsu, input.usuario);
+      } catch (err) {
+        console.warn('⚠️ Falha ao registrar acesso no login:', err);
+      }
+    }
+
+    // 4. Gerar JWT com dados do usuário Sankhya
     const token = this.tokenPort.generate({
       userId: String(codUsu),
       username: input.usuario,

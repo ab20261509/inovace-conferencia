@@ -184,3 +184,12 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.acessos-user-ultimo-acesso {
+  font-size: 0.73rem;
+  color: var(--slate-500);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

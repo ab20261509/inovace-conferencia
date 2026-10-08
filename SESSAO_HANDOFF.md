@@ -26,11 +26,18 @@
   - Menu lateral deslizante (*drawer*) com avatar do usuário, identificador `CODUSU`, links para módulos autorizados (`📦 Conferência de Saída`, `📥 Conferência de Entrada`, `🔍 Consultar Produto`, `⚙️ Gestão de Acessos`) e botão de saída.
   - Apenas módulos liberados nas permissões do usuário são renderizados na navegação.
 
-### 4. Gestão Administrativa de Acessos (`/configuracoes/acessos`)
-- Tela com busca instantânea por nome ou `CODUSU`.
-- Tabela com switches/toggles visuais para cada um dos 5 módulos/permissões.
-- Atualização otimista e salvamento em tempo real com feedback de sucesso/erro.
-- Proteção de rota via `PrivateRoute` exigindo permissão `gerenciar_acessos`.
+### 4. Gestão Administrativa de Acessos (`/configuracoes/acessos`) & Registro de Acessos
+- **Auto-registro no 1º Login & Atualização de Último Acesso:**
+  - Todo usuário que realiza login ou consulta suas permissões é automaticamente registrado no repositório de dados (`acessos.json`), capturando `primeiroAcessoEm` e `ultimoAcessoEm`.
+  - Novos operadores recebem automaticamente as permissões padrão (`conferencia_saida` e `consulta_produtos`), enquanto superusuários (`SUP`, `ANTONY`, etc.) recebem perfil de administrador total.
+  - O solicitante da tela de acessos é registrado de imediato, garantindo que a lista nunca fique vazia mesmo em ambientes sem retorno da `TSIUSU`.
+  - Lista de usuários ordenada cronologicamente por quem acessou mais recentemente.
+- **Frontend de Gestão:**
+  - Exibição do carimbo de último acesso (`🕒 Hoje às 15:10` ou data completa) logo abaixo do identificador do usuário.
+  - Tela com busca instantânea por nome ou `CODUSU`.
+  - Tabela com switches/toggles visuais para cada um dos 5 módulos/permissões.
+  - Atualização otimista e salvamento em tempo real com feedback de sucesso/erro.
+  - Proteção de rota via `PrivateRoute` exigindo permissão `gerenciar_acessos`.
 
 ### 5. Estrutura Base da Conferência de Entrada (Recebimento) (`/recebimento`)
 - Nova rota `/recebimento` com `RecebimentoPage`.

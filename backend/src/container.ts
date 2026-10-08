@@ -93,7 +93,7 @@ export function buildApp(): Application {
 
   // 2. Use Cases (Application)
   const loginUseCase = new LoginUseCase(authAdapter, tokenAdapter);
-  const loginSankhyaUseCase = new LoginSankhyaUseCase(gatewayAdapter, tokenAdapter);
+  const loginSankhyaUseCase = new LoginSankhyaUseCase(gatewayAdapter, tokenAdapter, permissoesRepo);
   const logoutUseCase = new LogoutUseCase();
   const validateSessionUseCase = new ValidateSessionUseCase(tokenAdapter);
 

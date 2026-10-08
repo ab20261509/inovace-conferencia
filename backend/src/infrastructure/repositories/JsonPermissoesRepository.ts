@@ -134,6 +134,41 @@ export class JsonPermissoesRepository implements IPermissoesRepository {
     return registro;
   }
 
+  async registrarAcesso(codUsu: number, nomeUsu: string): Promise<UsuarioAcesso> {
+    const dados = this.carregar();
+    const chave = String(codUsu);
+    const loginNorm = normalizarLogin(nomeUsu);
+    const agora = new Date().toISOString();
+
+    const existente = dados[chave] || dados[loginNorm];
+
+    if (existente) {
+      existente.codUsu = codUsu;
+      existente.nomeUsu = nomeUsu || existente.nomeUsu;
+      existente.ultimoAcessoEm = agora;
+      if (!existente.primeiroAcessoEm) {
+        existente.primeiroAcessoEm = agora;
+      }
+      dados[chave] = existente;
+      this.persistir();
+      return existente;
+    }
+
+    const ehAdmin = ADMINS_PADRAO.has(loginNorm);
+    const novo: UsuarioAcesso = {
+      codUsu,
+      nomeUsu,
+      modulos: ehAdmin ? { ...PERMISSOES_ADMINISTRADOR } : { ...PERMISSOES_PADRAO_OPERADOR },
+      primeiroAcessoEm: agora,
+      ultimoAcessoEm: agora,
+      atualizadoEm: agora,
+    };
+
+    dados[chave] = novo;
+    this.persistir();
+    return novo;
+  }
+
   async listarTodas(): Promise<Record<string, UsuarioAcesso>> {
     return { ...this.carregar() };
   }

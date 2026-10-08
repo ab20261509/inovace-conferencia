@@ -12,6 +12,8 @@ export interface UsuarioAcessoInfo {
   codGrupo?: number;
   ativo?: string;
   modulos: ModulosUsuario;
+  primeiroAcessoEm?: string;
+  ultimoAcessoEm?: string;
 }
 
 export interface UserSession {

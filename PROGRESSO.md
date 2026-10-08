@@ -20,7 +20,8 @@
 - **Arquitetura Multi-Módulos**: Plataforma expandida para suportar múltiplos fluxos operacionais (Saída, Entrada/Recebimento, Consultas, Configurações).
 - **Menu Gaveta (Drawer)**: Menu lateral deslizante responsivo acionado pelo ícone hambúrguer (`☰`), permitindo transição fluida entre módulos autorizados.
 - **Camada de Permissões (RBAC)**: Interface de repositório desacoplada (`IPermissoesRepository` / `JsonPermissoesRepository` em `backend/data/acessos.json`), preparada para migração futura para banco de dados/tabela Sankhya sem alterar use cases.
-- **Tela de Gestão de Acessos** (`/configuracoes/acessos`): Painel interno administrativo onde supervisores visualizam usuários do Sankhya (`TSIUSU`) e configuram permissões em tempo real com toggle switches.
+- **Tela de Gestão de Acessos** (`/configuracoes/acessos`): Painel interno administrativo onde supervisores visualizam usuários, configuram permissões em tempo real com toggle switches e acompanham carimbo de último acesso.
+- **Auto-Registro de Usuários no 1º Login**: Todo usuário que faz login é registrado automaticamente no arquivo persistente de acessos com data/hora de primeiro e último acesso, garantindo que a lista nunca fique vazia.
 - **Visibilidade Dinâmica de Campos Sensíveis** (`ver_campos_sensiveis`): Substituição da lista estática fixa no código por controle configurável por usuário, ocultando na origem `qtdPed`, `codBarra` e `referencia` quando desabilitado.
 - **Módulo de Conferência de Entrada (Recebimento)** (`/recebimento`): Estrutura base completa do layout operacional para recepção de mercadorias e notas fiscais de fornecedores.
 

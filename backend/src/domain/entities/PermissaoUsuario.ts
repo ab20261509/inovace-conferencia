@@ -14,6 +14,8 @@ export interface UsuarioAcesso {
   codUsu: number;
   nomeUsu: string;
   modulos: ModulosUsuario;
+  primeiroAcessoEm?: string;
+  ultimoAcessoEm?: string;
   atualizadoEm: string;
   atualizadoPor?: string;
 }

@@ -23,6 +23,11 @@ export interface IPermissoesRepository {
   ): Promise<UsuarioAcesso>;
 
   /**
+   * Registra o acesso de um usuário (cria caso seja 1º acesso e atualiza ultimoAcessoEm)
+   */
+  registrarAcesso(codUsu: number, nomeUsu: string): Promise<UsuarioAcesso>;
+
+  /**
    * Lista todas as permissões cadastradas
    */
   listarTodas(): Promise<Record<string, UsuarioAcesso>>;

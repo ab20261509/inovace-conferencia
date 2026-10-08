@@ -9,6 +9,8 @@ export interface UsuarioComAcessos {
   codGrupo?: number;
   ativo: string;
   modulos: ModulosUsuario;
+  primeiroAcessoEm?: string;
+  ultimoAcessoEm?: string;
   atualizadoEm?: string;
   atualizadoPor?: string;
 }
@@ -65,7 +67,19 @@ export class ListarUsuariosAcessosUseCase {
       console.error('⚠️ Falha ao consultar TSIUSU no Sankhya:', err.message);
     }
 
-    // 3. Carrega todas as permissões cadastradas no repositório
+    // Garante que o usuário solicitante está registrado com seu último acesso
+    if (input.codUsuSolicitante && input.nomeUsuSolicitante) {
+      try {
+        await this.permissoesRepo.registrarAcesso(
+          input.codUsuSolicitante,
+          input.nomeUsuSolicitante,
+        );
+      } catch (err) {
+        console.warn('⚠️ Falha ao registrar acesso do solicitante:', err);
+      }
+    }
+
+    // 3. Carrega todas as permissões e acessos cadastrados no repositório
     const todasPermissoes = await this.permissoesRepo.listarTodas();
 
     const usuarios: UsuarioComAcessos[] = [];
@@ -88,12 +102,14 @@ export class ListarUsuariosAcessosUseCase {
         codGrupo,
         ativo,
         modulos,
+        primeiroAcessoEm: registroSalvo?.primeiroAcessoEm,
+        ultimoAcessoEm: registroSalvo?.ultimoAcessoEm,
         atualizadoEm: registroSalvo?.atualizadoEm,
         atualizadoPor: registroSalvo?.atualizadoPor,
       });
     }
 
-    // Inclui eventuais usuários salvos que não vieram do query (ex: SUP)
+    // Inclui todos os usuários que já logaram ou foram cadastrados no repositório
     for (const [chave, reg] of Object.entries(todasPermissoes)) {
       const codUsu = Number(chave);
       if (!isNaN(codUsu) && !usuariosProcessados.has(codUsu)) {
@@ -102,11 +118,23 @@ export class ListarUsuariosAcessosUseCase {
           nomeUsu: reg.nomeUsu,
           ativo: 'S',
           modulos: reg.modulos,
+          primeiroAcessoEm: reg.primeiroAcessoEm,
+          ultimoAcessoEm: reg.ultimoAcessoEm,
           atualizadoEm: reg.atualizadoEm,
           atualizadoPor: reg.atualizadoPor,
         });
       }
     }
+
+    // Ordenação: quem acessou mais recentemente aparece no topo
+    usuarios.sort((a, b) => {
+      if (a.ultimoAcessoEm && b.ultimoAcessoEm) {
+        return new Date(b.ultimoAcessoEm).getTime() - new Date(a.ultimoAcessoEm).getTime();
+      }
+      if (a.ultimoAcessoEm) return -1;
+      if (b.ultimoAcessoEm) return 1;
+      return a.nomeUsu.localeCompare(b.nomeUsu);
+    });
 
     return { usuarios };
   }
