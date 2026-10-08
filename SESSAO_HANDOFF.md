@@ -6,15 +6,17 @@
 - **Domínio & Port:**
   - Criada entidade `ModulosUsuario` (`conferencia_saida`, `conferencia_entrada`, `consulta_produtos`, `ver_campos_sensiveis`, `gerenciar_acessos`).
   - Definida porta `IPermissoesRepository` para total desacoplamento da camada de persistência.
-  - Implementado `JsonPermissoesRepository` gravando em `backend/data/acessos.json` com cache em memória e fallback automático para superusuários (`SUP`, `ANTONY`, `ANTONY.B`).
-  - Preparado para migração futura para banco de dados ou tabela do Sankhya simplesmente trocando a implementação da porta.
+  - Substituído o repositório JSON legado por `LibsqlPermissoesRepository` com queries parametrizadas (Prepared Statements) em SQLite local (`confercheck.db`) com suporte a replicação Turso e auditoria.
+  - Fallback automático para superusuários (`SUP`, `ANTONY`, `ANTONY.B`).
 - **Use Cases & Rotas Backend:**
   - `ObterMeusAcessosUseCase` (`GET /api/acessos/me`): retorna as permissões do usuário logado.
   - `ListarUsuariosAcessosUseCase` (`GET /api/acessos/usuarios`): busca usuários ativos do Sankhya via `TSIUSU` (`SELECT CODUSU, NOMEUSU, CODGRUPO, ATIVO FROM TSIUSU WHERE ATIVO = 'S'`) e combina com suas permissões.
-  - `SalvarAcessosUsuarioUseCase` (`PUT /api/acessos/usuarios/:codUsu`): salva permissões atualizadas, com proteção para administradores.
+  - `SalvarAcessosUsuarioUseCase` (`PUT /api/acessos/usuarios/:codUsu`): salva permissões atualizadas, com proteção para administradores e registro na tabela `logs_auditoria`.
   - Injetado `permissoesRepo` em `ListarItensPedidoUseCase` para avaliação dinâmica do toggle `ver_campos_sensiveis`.
-- **Docker Compose:**
-  - Adicionado volume persistente `./backend/data:/app/data` para garantir que o arquivo `acessos.json` e `campos_telas.json` não sejam perdidos ao reiniciar os contêineres.
+- **Docker Compose & Persistência SQLite + Turso:**
+  - Adicionado volume persistente `./backend/data:/app/data` para o banco SQLite `confercheck.db`.
+  - Auto-migração transparente dos antigos arquivos `.json` para SQLite com geração de backup `.bak`.
+  - Configurado cliente libSQL com suporte a Embedded Replica no Turso via TLS 1.3 e operação offline-first.
 
 ### 2. Arquitetura Raiz de Campos Sensíveis por Tela
 - **Objetivo**: Permitir que cada tela do sistema defina seu catálogo de campos e se cada um é ou não sensível, ao invés de fixar regras no código.

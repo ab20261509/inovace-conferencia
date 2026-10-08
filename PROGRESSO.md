@@ -19,7 +19,12 @@
 ### Multi-Módulos & Gestão de Acessos
 - **Arquitetura Multi-Módulos**: Plataforma expandida para suportar múltiplos fluxos operacionais (Saída, Entrada/Recebimento, Consultas, Configurações).
 - **Menu Gaveta (Drawer — ConferCheck)**: Menu lateral deslizante responsivo acionado pelo ícone hambúrguer (`☰`), com a marca **ConferCheck**, permitindo transição fluida entre módulos autorizados.
-- **Camada de Permissões (RBAC)**: Interface de repositório desacoplada (`IPermissoesRepository` / `JsonPermissoesRepository` em `backend/data/acessos.json`), preparada para migração futura para banco de dados/tabela Sankhya sem alterar use cases.
+- **Camada de Permissões (RBAC)**: Interface de repositório desacoplada (`IPermissoesRepository`), com implementação em SQLite/Turso (`LibsqlPermissoesRepository`).
+- **Persistência SQLite + Replicação Turso com Camada de Segurança**:
+  - Banco de dados SQLite de alto desempenho embutido via `@libsql/client` (`confercheck.db`), com suporte a **Embedded Replicas** sincronizadas com o cluster Turso na nuvem via TLS 1.3.
+  - **Zero Latência & Resiliência Offline**: Leituras e escritas acontecem no disco local; se a internet do armazém oscilar, o sistema opera normalmente e sincroniza em background.
+  - **Segurança Reforçada**: 100% Prepared Statements (prevenção a SQLi), isolamento de credenciais no backend e tabela `logs_auditoria` para rastreamento de estornos e permissões.
+  - **Auto-migração de Dados**: Migração automática de arquivos `.json` legados (`acessos.json`, `campos_telas.json`, `conferencias_entrada.json`) para o SQLite, com backup `.bak`.
 - **Tela de Gestão de Acessos com Duas Abas** (`/configuracoes/acessos`):
   - **Aba 1 (Usuários & Módulos)**: Painel onde supervisores visualizam usuários, configuram permissões em tempo real com toggle switches, acompanham carimbo de 1º acesso e último acesso, com visualização em cards responsivos no mobile/tablet ($\le 1024$px).
   - **Aba 2 (Campos Sensíveis por Tela)**: Catálogo visual e dinâmico de telas do sistema (`conferencia_saida`, `conferencia_entrada`, `consulta_produtos`), permitindo marcar individualmente quais campos são sensíveis em cada tela (com switch em tempo real e persistência em `backend/data/campos_telas.json`).
