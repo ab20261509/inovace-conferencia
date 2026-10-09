@@ -27,6 +27,18 @@ function formatarDataHora(val?: string | null): string {
   return val;
 }
 
+interface ItemEntradaConferidoVisivel {
+  item: ItemNotaEntrada;
+  conferido: number;
+  esperado: number | null;
+  completo: boolean;
+  lote?: string;
+  validade?: string;
+  fabricacao?: string;
+  ultimoHorario?: string;
+  ultimoBip?: BipagemEntrada;
+}
+
 export function ConferenciaEntradaPage() {
   const { temPermissao, user } = useAuth();
   const location = useLocation();
@@ -53,7 +65,7 @@ export function ConferenciaEntradaPage() {
   const [mostrarCamera, setMostrarCamera] = useState(false);
 
   // Navegação de Abas
-  const [abaAtiva, setAbaAtiva] = useState<'itens' | 'bipagens'>('itens');
+  const [abaAtiva, setAbaAtiva] = useState<'pendentes' | 'conferidos'>('pendentes');
 
   // Modais
   const [modalOcrAberto, setModalOcrAberto] = useState(false);
@@ -353,7 +365,49 @@ export function ConferenciaEntradaPage() {
     }
   };
 
-  const bipagensValidas = bipagens.filter((b) => !b.anulado);
+  const bipagensValidas = useMemo(
+    () => bipagens.filter((b) => !b.anulado && b.nivel === nivelAtual),
+    [bipagens, nivelAtual]
+  );
+
+  const itensPendentesVisiveis = useMemo(() => {
+    return itens.filter((item) => {
+      const conferido =
+        nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
+      const esperado = item.qtdneg !== null ? item.qtdneg : null;
+      const completo = esperado !== null ? conferido >= esperado : conferido > 0;
+      return !completo;
+    });
+  }, [itens, nivelAtual]);
+
+  const itensConferidosVisiveis = useMemo<ItemEntradaConferidoVisivel[]>(() => {
+    return itens
+      .filter((item) => {
+        const conferido =
+          nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
+        return conferido > 0;
+      })
+      .map((item) => {
+        const conferido =
+          nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
+        const esperado = item.qtdneg !== null ? item.qtdneg : null;
+        const completo = esperado !== null ? conferido >= esperado : conferido > 0;
+
+        const ultimoBip = bipagensValidas.find((b) => b.codprod === item.codprod);
+
+        return {
+          item,
+          conferido,
+          esperado,
+          completo,
+          lote: ultimoBip?.lote,
+          validade: ultimoBip?.validade,
+          fabricacao: ultimoBip?.fabricacao,
+          ultimoHorario: ultimoBip?.timestamp,
+          ultimoBip,
+        };
+      });
+  }, [itens, bipagensValidas, nivelAtual]);
 
   if (!podeAcessar) {
     return (
@@ -539,25 +593,36 @@ export function ConferenciaEntradaPage() {
       <Painel>
         <div className="tabs-container">
           <button
-            className={`tab-button ${abaAtiva === 'itens' ? 'tab-active' : ''}`}
-            onClick={() => setAbaAtiva('itens')}
+            type="button"
+            className={`tab-button ${abaAtiva === 'pendentes' ? 'tab-active' : ''}`}
+            onClick={() => setAbaAtiva('pendentes')}
           >
-            Itens da Nota <span className="tab-count">{itens.length}</span>
+            Itens Pendentes <span className="tab-count">{itensPendentesVisiveis.length}</span>
           </button>
           <button
-            className={`tab-button ${abaAtiva === 'bipagens' ? 'tab-active' : ''}`}
-            onClick={() => setAbaAtiva('bipagens')}
+            type="button"
+            className={`tab-button ${abaAtiva === 'conferidos' ? 'tab-active' : ''}`}
+            onClick={() => setAbaAtiva('conferidos')}
           >
-            Histórico de Bipagens <span className="tab-count">{bipagensValidas.length}</span>
+            Itens Conferidos <span className="tab-count">{itensConferidosVisiveis.length}</span>
           </button>
         </div>
 
-        {/* Conteúdo da Aba 1: Itens da Carga */}
-        {abaAtiva === 'itens' && (
+        {/* Conteúdo da Aba 1: Itens Pendentes */}
+        {abaAtiva === 'pendentes' && (
           <Container variant="outlined" padding="none">
-            {itens.length === 0 ? (
-              <div className="empty-state">
-                <p>Nenhum item carregado para esta conferência.</p>
+            {itensPendentesVisiveis.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', textAlign: 'center' }}>
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--emerald-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '10px' }}>
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--slate-800)', margin: 0 }}>
+                  Todos os itens do Nível N{nivelAtual} foram conferidos!
+                </p>
+                <span style={{ fontSize: '0.85rem', color: 'var(--slate-500)', marginTop: '4px' }}>
+                  Revise os produtos na aba "Itens Conferidos" ou conclua a contagem clicando no botão "Finalizar N{nivelAtual}" acima.
+                </span>
               </div>
             ) : (
               <>
@@ -574,7 +639,7 @@ export function ConferenciaEntradaPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {itens.map((item) => {
+                      {itensPendentesVisiveis.map((item) => {
                         const conferido =
                           nivelAtual === 1
                             ? item.qtdConferidaN1
@@ -582,13 +647,12 @@ export function ConferenciaEntradaPage() {
                             ? item.qtdConferidaN2
                             : item.qtdConferidaN3;
                         const esperado = item.qtdneg !== null ? item.qtdneg : null;
-                        const completo = esperado !== null ? conferido >= esperado : conferido > 0;
-                        const parcial = conferido > 0 && !completo;
+                        const parcial = conferido > 0;
 
                         return (
                           <tr
                             key={`${item.nunota}-${item.sequencia}`}
-                            className={completo ? 'row-ok' : parcial ? 'row-parcial' : ''}
+                            className={parcial ? 'row-parcial' : ''}
                           >
                             <td>
                               <div className="produto-cell">
@@ -611,9 +675,7 @@ export function ConferenciaEntradaPage() {
                             <td className="num-cell">{esperado !== null ? esperado : '— (Cega)'}</td>
                             <td className="num-cell">{conferido}</td>
                             <td>
-                              {completo ? (
-                                <span className="status-ok">OK</span>
-                              ) : parcial ? (
+                              {parcial ? (
                                 <span className="status-parcial">Parcial</span>
                               ) : (
                                 <span className="status-pendente">—</span>
@@ -628,7 +690,7 @@ export function ConferenciaEntradaPage() {
 
                 {/* Visualização Mobile / Tablet: Cards */}
                 <div className="itens-cards-mobile">
-                  {itens.map((item) => {
+                  {itensPendentesVisiveis.map((item) => {
                     const conferido =
                       nivelAtual === 1
                         ? item.qtdConferidaN1
@@ -636,13 +698,12 @@ export function ConferenciaEntradaPage() {
                         ? item.qtdConferidaN2
                         : item.qtdConferidaN3;
                     const esperado = item.qtdneg !== null ? item.qtdneg : null;
-                    const completo = esperado !== null ? conferido >= esperado : conferido > 0;
-                    const parcial = conferido > 0 && !completo;
+                    const parcial = conferido > 0;
 
                     return (
                       <div
                         key={`card-${item.nunota}-${item.sequencia}`}
-                        className={`item-card-mobile ${completo ? 'item-card-conferido' : parcial ? 'item-card-parcial' : ''}`}
+                        className={`item-card-mobile ${parcial ? 'item-card-parcial' : ''}`}
                       >
                         <div className="item-card-header">
                           <img
@@ -659,9 +720,7 @@ export function ConferenciaEntradaPage() {
                             </span>
                           </div>
                           <div className="item-card-badge">
-                            {completo ? (
-                              <span className="status-ok">OK</span>
-                            ) : parcial ? (
+                            {parcial ? (
                               <span className="status-parcial">Parcial</span>
                             ) : (
                               <span className="status-pendente">Pendente</span>
@@ -692,52 +751,89 @@ export function ConferenciaEntradaPage() {
           </Container>
         )}
 
-        {/* Conteúdo da Aba 2: Histórico de Bipagens */}
-        {abaAtiva === 'bipagens' && (
+        {/* Conteúdo da Aba 2: Itens Conferidos */}
+        {abaAtiva === 'conferidos' && (
           <Container variant="outlined" padding="none">
-            {bipagensValidas.length === 0 ? (
-              <div className="empty-state">
-                <p>Nenhuma bipagem registrada até o momento.</p>
+            {itensConferidosVisiveis.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--slate-500)', margin: 0 }}>
+                  Nenhum item conferido no Nível N{nivelAtual} até o momento.
+                </p>
+                <span style={{ fontSize: '0.8rem', color: 'var(--slate-400)', marginTop: '4px' }}>
+                  Bipe um produto para registrar a primeira conferência.
+                </span>
               </div>
             ) : (
               <>
-                {/* Desktop: Tabela de Bipagens */}
+                {/* Visualização Desktop: Tabela */}
                 <div className="itens-tabela-wrapper">
                   <table className="tabela-itens">
                     <thead>
                       <tr>
+                        <th>Produto</th>
+                        <th>Lote</th>
+                        <th>Unidade</th>
+                        <th>Qtd Conferida</th>
                         <th>Horário</th>
-                        <th>Código / Barra</th>
-                        <th>Nível</th>
-                        <th>Qtd</th>
-                        <th>Lote / Validade</th>
-                        <th>Conferente</th>
-                        <th>Ação</th>
+                        <th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {bipagensValidas.map((b) => (
-                        <tr key={b.id}>
-                          <td className="num-cell">{formatarDataHora(b.timestamp)}</td>
+                      {itensConferidosVisiveis.map((confItem) => (
+                        <tr key={`${confItem.item.nunota}-${confItem.item.sequencia}`} className="row-ok">
                           <td>
-                            <strong>{b.codbarra}</strong>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--slate-400)' }}>Cód: {b.codprod}</div>
+                            <div className="produto-cell">
+                              <img
+                                src={`/api/crud/produto/${confItem.item.codprod}/imagem`}
+                                alt={confItem.item.descrprod}
+                                className="produto-img"
+                                onClick={() => setImagemAmpliada(`/api/crud/produto/${confItem.item.codprod}/imagem`)}
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                              <div>
+                                <span className="produto-desc">{confItem.item.descrprod}</span>
+                                <span className="produto-barra">
+                                  Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
+                                </span>
+                              </div>
+                            </div>
                           </td>
-                          <td className="num-cell">N{b.nivel}</td>
-                          <td className="num-cell" style={{ fontWeight: 800 }}>+{b.qtdConferida}</td>
-                          <td>
-                            {b.lote ? <span>L: {b.lote} </span> : null}
-                            {b.validade ? <span>| Val: {b.validade}</span> : '—'}
+                          <td className="num-cell">
+                            {confItem.lote ? (
+                              <span>
+                                {confItem.lote}
+                                {confItem.validade ? (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', display: 'block' }}>
+                                    Val: {confItem.validade}
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
                           </td>
-                          <td>{b.conferente}</td>
+                          <td className="num-cell">{confItem.item.codvol || 'UN'}</td>
+                          <td className="num-cell" style={{ color: 'var(--emerald-600)', fontWeight: 800 }}>
+                            {confItem.conferido}
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--slate-500)' }}>
+                            {formatarDataHora(confItem.ultimoHorario)}
+                          </td>
                           <td>
                             <button
                               type="button"
                               className="btn-estornar-item"
-                              onClick={() => setBipagemParaEstornar(b)}
-                              title="Estornar bipagem"
+                              title="Estornar a última conferência deste item"
+                              disabled={!confItem.ultimoBip}
+                              onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
                             >
-                              Estornar
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                              </svg>
+                              <span>Estornar</span>
                             </button>
                           </td>
                         </tr>
@@ -746,40 +842,61 @@ export function ConferenciaEntradaPage() {
                   </table>
                 </div>
 
-                {/* Mobile: Cards de Bipagens */}
+                {/* Visualização Mobile / Tablet: Cards */}
                 <div className="itens-cards-mobile">
-                  {bipagensValidas.map((b) => (
-                    <div key={`bip-card-${b.id}`} className="item-card-mobile">
+                  {itensConferidosVisiveis.map((confItem) => (
+                    <div key={`card-conf-${confItem.item.nunota}-${confItem.item.sequencia}`} className="item-card-mobile item-card-conferido">
                       <div className="item-card-header">
+                        <img
+                          src={`/api/crud/produto/${confItem.item.codprod}/imagem`}
+                          alt={confItem.item.descrprod}
+                          className="produto-img item-card-img"
+                          onClick={() => setImagemAmpliada(`/api/crud/produto/${confItem.item.codprod}/imagem`)}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
                         <div className="item-card-info">
-                          <span className="produto-desc item-card-title">{b.codbarra}</span>
+                          <span className="produto-desc item-card-title">{confItem.item.descrprod}</span>
                           <span className="produto-barra item-card-sub">
-                            Cód: {b.codprod} • {formatarDataHora(b.timestamp)} • N{b.nivel}
+                            Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
                           </span>
                         </div>
-                        <div className="item-card-badge">
-                          <span className="status-ok">+{b.qtdConferida}</span>
+                        <div className="item-card-time">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                          </svg>
+                          <span>{formatarDataHora(confItem.ultimoHorario)}</span>
                         </div>
                       </div>
 
                       <div className="item-card-metrics">
                         <div className="item-card-metric-col">
-                          <span className="item-metric-label">Lote / Val</span>
-                          <span className="item-metric-val">
-                            {b.lote ? `Lote ${b.lote}` : ''} {b.validade ? `Val ${b.validade}` : '—'}
-                          </span>
+                          <span className="item-metric-label">Lote</span>
+                          <span className="item-metric-val">{confItem.lote || '—'}</span>
                         </div>
                         <div className="item-card-metric-col">
-                          <span className="item-metric-label">Conferente</span>
-                          <span className="item-metric-val">{b.conferente}</span>
+                          <span className="item-metric-label">Unidade</span>
+                          <span className="item-metric-val">{confItem.item.codvol || 'UN'}</span>
                         </div>
-                        <div className="item-card-metric-col" style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                        <div className="item-card-metric-col">
+                          <span className="item-metric-label">Qtd Conferida</span>
+                          <span className="item-metric-val val-conferido-ok">{confItem.conferido}</span>
+                        </div>
+                        <div className="item-card-actions">
                           <button
                             type="button"
-                            className="btn-estornar-item"
-                            onClick={() => setBipagemParaEstornar(b)}
+                            className="btn-estornar-item btn-estornar-card"
+                            title="Estornar a última conferência deste item"
+                            disabled={!confItem.ultimoBip}
+                            onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
                           >
-                            Estornar
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                            <span>Estornar</span>
                           </button>
                         </div>
                       </div>

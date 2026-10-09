@@ -48,6 +48,7 @@
   - **Scanner com Anti-Colagem**: Bloqueio de Ctrl+V forçando bipagem física ou leitura por câmera.
   - **Diretriz de Cards Responsivos no Mobile/Tablet ($\le 1024$px)**: Listagem de notas e cards de itens conferidos organizados verticalmente, sem overflow horizontal nos coletores e tablets.
   - **Fluxo de Conclusão de Nível & Preservação de Estado**: Ao finalizar N1, o sistema redireciona imediatamente para a lista de notas com feedback ('Aguardando N2'). Ao reabrir a nota a partir da lista, o nível e status são rigorosamente preservados, impedindo qualquer regressão acidental para N1.
+  - **Identidade Visual Padronizada (Paridade Entrada e Saída)**: Aba "Histórico de Bipagens" substituída pela aba **"Itens Conferidos"**, mantendo a experiência idêntica à Conferência de Saída. Os itens conferidos são agrupados por produto com fotos com zoom modal, códigos, lote/validade, unidade, quantidades conferidas em destaque verde, horário da última leitura e botão de estorno com confirmação. Na aba **"Itens Pendentes"**, são mantidos apenas os produtos com contagem pendente no nível ativo.
 
 ### Login
 - Login via `MobileLoginSP.login` (credenciais Sankhya)
