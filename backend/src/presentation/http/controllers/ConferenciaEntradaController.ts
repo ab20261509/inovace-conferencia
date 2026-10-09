@@ -5,6 +5,10 @@ import { IniciarConferenciaEntradaUseCase } from '../../../application/use-cases
 import { RegistrarBipagemEntradaUseCase } from '../../../application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.js';
 import { AnularBipagemEntradaUseCase } from '../../../application/use-cases/recebimento/AnularBipagemEntradaUseCase.js';
 import { FinalizarNivelEntradaUseCase } from '../../../application/use-cases/recebimento/FinalizarNivelEntradaUseCase.js';
+import { ListarDivergenciasEntradaUseCase } from '../../../application/use-cases/recebimento/ListarDivergenciasEntradaUseCase.js';
+import { ResolverDivergenciaUseCase } from '../../../application/use-cases/recebimento/ResolverDivergenciaUseCase.js';
+import { ReiniciarConferenciaEntradaUseCase } from '../../../application/use-cases/recebimento/ReiniciarConferenciaEntradaUseCase.js';
+import { EnviarConferenciaSankhyaUseCase } from '../../../application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.js';
 
 export class ConferenciaEntradaController {
   constructor(
@@ -13,7 +17,11 @@ export class ConferenciaEntradaController {
     private readonly iniciarConferenciaUseCase: IniciarConferenciaEntradaUseCase,
     private readonly registrarBipagemUseCase: RegistrarBipagemEntradaUseCase,
     private readonly anularBipagemUseCase: AnularBipagemEntradaUseCase,
-    private readonly finalizarNivelUseCase: FinalizarNivelEntradaUseCase
+    private readonly finalizarNivelUseCase: FinalizarNivelEntradaUseCase,
+    private readonly listarDivergenciasUseCase?: ListarDivergenciasEntradaUseCase,
+    private readonly resolverDivergenciaUseCase?: ResolverDivergenciaUseCase,
+    private readonly reiniciarConferenciaUseCase?: ReiniciarConferenciaEntradaUseCase,
+    private readonly enviarSankhyaUseCase?: EnviarConferenciaSankhyaUseCase
   ) {}
 
   /** GET /api/recebimento/notas */
@@ -130,6 +138,97 @@ export class ConferenciaEntradaController {
       res.status(200).json(resultado);
     } catch (error: any) {
       res.status(400).json({ error: error.message || 'Erro ao finalizar conferência.' });
+    }
+  }
+
+  /** GET /api/recebimento/gestao/divergencias */
+  async listarDivergencias(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.listarDivergenciasUseCase) {
+        res.status(501).json({ error: 'Funcionalidade não configurada no servidor.' });
+        return;
+      }
+      const divergencias = await this.listarDivergenciasUseCase.execute(req.correlationId);
+      res.status(200).json(divergencias);
+    } catch (error: any) {
+      console.error('❌ Erro em GET /api/recebimento/gestao/divergencias:', error);
+      res.status(500).json({ error: error.message || 'Erro ao listar divergências.' });
+    }
+  }
+
+  /** POST /api/recebimento/conferencia/:id/resolver-divergencia */
+  async resolverDivergencia(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.resolverDivergenciaUseCase) {
+        res.status(501).json({ error: 'Funcionalidade não configurada no servidor.' });
+        return;
+      }
+      const conferenciaId = req.params.id;
+      const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
+      const { observacao } = req.body;
+
+      const sessao = await this.resolverDivergenciaUseCase.execute({
+        conferenciaId,
+        usuario,
+        observacao,
+      });
+
+      res.status(200).json({ success: true, sessao });
+    } catch (error: any) {
+      console.error('❌ Erro ao resolver divergência:', error);
+      res.status(400).json({ error: error.message || 'Erro ao resolver divergência.' });
+    }
+  }
+
+  /** POST /api/recebimento/conferencia/:id/reiniciar */
+  async reiniciarConferencia(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.reiniciarConferenciaUseCase) {
+        res.status(501).json({ error: 'Funcionalidade não configurada no servidor.' });
+        return;
+      }
+      const conferenciaId = req.params.id;
+      const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
+      const { motivo } = req.body;
+
+      const sessao = await this.reiniciarConferenciaUseCase.execute({
+        conferenciaId,
+        usuario,
+        motivo,
+      });
+
+      res.status(200).json({ success: true, sessao });
+    } catch (error: any) {
+      console.error('❌ Erro ao reiniciar conferência:', error);
+      res.status(400).json({ error: error.message || 'Erro ao reiniciar conferência.' });
+    }
+  }
+
+  /** POST /api/recebimento/conferencia/:id/enviar-sankhya */
+  async enviarSankhya(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.enviarSankhyaUseCase) {
+        res.status(501).json({ error: 'Funcionalidade não configurada no servidor.' });
+        return;
+      }
+      const conferenciaId = req.params.id;
+      const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
+      const { observacao, itensCustomizados } = req.body;
+
+      const resultado = await this.enviarSankhyaUseCase.execute(
+        {
+          conferenciaId,
+          usuario,
+          observacao,
+          itensCustomizados,
+        },
+        req.correlationId
+      );
+
+      res.status(200).json({ success: true, ...resultado });
+    } catch (error: any) {
+      console.error('❌ Erro ao enviar conferência para o Sankhya:', error);
+      res.status(400).json({ error: error.message || 'Erro ao integrar com o Sankhya.' });
     }
   }
 }

@@ -7,7 +7,9 @@ export type StatusConferenciaEntrada =
   | 'N3 em Andamento'
   | 'Divergente'
   | 'Em Reconferência'
-  | 'Conferido';
+  | 'Conferido'
+  | 'Aguardando Aprovação'
+  | 'Enviado ao Sankhya';
 
 export interface NotaEntrada {
   nunota: number;
@@ -61,6 +63,11 @@ export interface SessaoConferenciaEntrada {
   atualizadoEm: string;
   finalizadoEm?: string;
   conferente: string;
+  aprovadoPor?: string;
+  aprovadoEm?: string;
+  enviadoSankhyaEm?: string;
+  observacaoAprovacao?: string;
+  respostaSankhyaJson?: string;
 }
 
 export interface BipagemEntrada {

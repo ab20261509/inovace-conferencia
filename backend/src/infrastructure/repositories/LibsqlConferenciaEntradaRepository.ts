@@ -29,6 +29,11 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       conferente: String(row.conferente || 'Operador'),
       criadoEm: String(row.criado_em),
       atualizadoEm: String(row.atualizado_em),
+      aprovadoPor: row.aprovado_por ? String(row.aprovado_por) : undefined,
+      aprovadoEm: row.aprovado_em ? String(row.aprovado_em) : undefined,
+      enviadoSankhyaEm: row.enviado_sankhya_em ? String(row.enviado_sankhya_em) : undefined,
+      observacaoAprovacao: row.observacao_aprovacao ? String(row.observacao_aprovacao) : undefined,
+      respostaSankhyaJson: row.resposta_sankhya_json ? String(row.resposta_sankhya_json) : undefined,
     };
   }
 
@@ -53,7 +58,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
   async obterSessaoPorId(id: string): Promise<SessaoConferenciaEntrada | null> {
     const res = await this.client.execute({
-      sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em
+      sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
+                   aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json
             FROM conferencias_entrada
             WHERE id = ?
             LIMIT 1`,
@@ -67,14 +73,15 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   async obterSessaoPorNunota(nunota: number): Promise<SessaoConferenciaEntrada | null> {
     // Busca todas as sessões e localiza a ativa primeiro, ou a última
     const res = await this.client.execute({
-      sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em
+      sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
+                   aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
     });
 
     const sessoes = res.rows.map((r) => this.mapSessao(r));
-    const sessaoAtiva = sessoes.find((s) => s.nunotas.includes(nunota) && s.status !== 'Conferido');
+    const sessaoAtiva = sessoes.find((s) => s.nunotas.includes(nunota) && s.status !== 'Conferido' && s.status !== 'Enviado ao Sankhya');
     if (sessaoAtiva) return sessaoAtiva;
 
     const sessaoFinalizada = sessoes.find((s) => s.nunotas.includes(nunota));
@@ -86,7 +93,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     const nunotaSet = new Set(nunotas);
 
     const res = await this.client.execute({
-      sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em
+      sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
+                   aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -99,14 +107,22 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   async salvarSessao(sessao: SessaoConferenciaEntrada): Promise<void> {
     const agora = new Date().toISOString();
     await this.client.execute({
-      sql: `INSERT INTO conferencias_entrada (id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+      sql: `INSERT INTO conferencias_entrada (
+              id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
+              aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               nunotas_json = excluded.nunotas_json,
               status = excluded.status,
               nivel_atual = excluded.nivel_atual,
               conferente = excluded.conferente,
-              atualizado_em = excluded.atualizado_em`,
+              atualizado_em = excluded.atualizado_em,
+              aprovado_por = excluded.aprovado_por,
+              aprovado_em = excluded.aprovado_em,
+              enviado_sankhya_em = excluded.enviado_sankhya_em,
+              observacao_aprovacao = excluded.observacao_aprovacao,
+              resposta_sankhya_json = excluded.resposta_sankhya_json`,
       args: [
         sessao.id,
         JSON.stringify(sessao.nunotas || []),
@@ -115,6 +131,11 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         sessao.conferente || 'Operador',
         sessao.criadoEm || agora,
         sessao.atualizadoEm || agora,
+        sessao.aprovadoPor || null,
+        sessao.aprovadoEm || null,
+        sessao.enviadoSankhyaEm || null,
+        sessao.observacaoAprovacao || null,
+        sessao.respostaSankhyaJson || null,
       ],
     });
   }

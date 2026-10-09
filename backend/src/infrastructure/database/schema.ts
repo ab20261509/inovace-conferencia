@@ -109,14 +109,28 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
     );`,
     `CREATE INDEX IF NOT EXISTS idx_audit_usuario ON logs_auditoria(usuario);`,
     `CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON logs_auditoria(timestamp);`,
+
+    // 6. Configurações e parâmetros globais do sistema
+    `CREATE TABLE IF NOT EXISTS configuracoes_sistema (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL,
+      descricao TEXT,
+      atualizado_em TEXT NOT NULL
+    );`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('conferencia_entrada_nivel2_ativo', 'true', 'Ativa a 2ª contagem obrigatória (N2 com Lote e Validade) no Recebimento de Mercadorias', datetime('now'));`,
   ];
 
   for (const sql of statements) {
     await client.execute(sql);
   }
 
-  // Exemplos de expansões futuras de colunas (idempotentes):
-  // await garantirColuna(client, 'usuarios_acessos', 'cargo', 'TEXT');
+  // Evolução da tabela conferencias_entrada (gestão e envio ao Sankhya)
+  await garantirColuna(client, 'conferencias_entrada', 'aprovado_por', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'aprovado_em', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'enviado_sankhya_em', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'observacao_aprovacao', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'resposta_sankhya_json', 'TEXT');
 
   // Executa migração dos arquivos JSON legados, se existirem
   await migrarDadosLegadosJson(client);
@@ -306,11 +320,16 @@ export const SCHEMA_DOCUMENTATION = {
       colunas: [
         { nome: 'id', tipo: 'TEXT', pk: true, notnull: true, descricao: 'UUID identificador único da sessão de recebimento.' },
         { nome: 'nunotas_json', tipo: 'TEXT', pk: false, notnull: true, descricao: 'JSON array com os números únicos de notas (NUNOTA) conferidos nesta sessão.' },
-        { nome: 'status', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Estado atual do processo (ex: "N1 em Andamento", "N2 em Andamento", "FINALIZADA").' },
-        { nome: 'nivel_atual', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Nível de contagem corrente (1 = 1ª Contagem, 2 = 2ª Contagem/Recontagem).' },
+        { nome: 'status', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Estado atual do processo (ex: "N1 em Andamento", "N2 em Andamento", "Conferido", "Divergente", "Enviado ao Sankhya").' },
+        { nome: 'nivel_atual', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Nível de contagem corrente (1 = 1ª Contagem, 2 = 2ª Contagem/Recontagem, 3 = Auditoria).' },
         { nome: 'conferente', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Nome do conferente responsável pela abertura da sessão.' },
         { nome: 'criado_em', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp ISO 8601 de criação da sessão.' },
         { nome: 'atualizado_em', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp ISO 8601 da última bipagem ou alteração de status.' },
+        { nome: 'aprovado_por', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Nome do gestor que aprovou a conferência para envio ao ERP.' },
+        { nome: 'aprovado_em', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Timestamp ISO 8601 da aprovação gerencial.' },
+        { nome: 'enviado_sankhya_em', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Timestamp ISO 8601 da sincronização/envio bem-sucedido ao Sankhya.' },
+        { nome: 'observacao_aprovacao', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Justificativa ou parecer do gestor na aprovação da carga.' },
+        { nome: 'resposta_sankhya_json', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Retorno serializado da gravação no Sankhya (TGFITE / TGFEST).' },
       ],
     },
     {
@@ -343,6 +362,16 @@ export const SCHEMA_DOCUMENTATION = {
         { nome: 'recurso', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Entidade ou tabela afetada pela ação.' },
         { nome: 'detalhes_json', tipo: 'TEXT', pk: false, notnull: false, descricao: 'JSON contendo o contexto completo, valores antes/depois ou parâmetros da operação.' },
         { nome: 'timestamp', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Momento exato da ocorrência (ISO 8601).' },
+      ],
+    },
+    {
+      nome: 'configuracoes_sistema',
+      descricao: 'Parâmetros operacionais e regras de fluxo corporativas globais.',
+      colunas: [
+        { nome: 'chave', tipo: 'TEXT', pk: true, notnull: true, descricao: 'Identificador único do parâmetro (ex: conferencia_entrada_nivel2_ativo).' },
+        { nome: 'valor', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Valor do parâmetro ("true", "false", numérico ou JSON).' },
+        { nome: 'descricao', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Explicação do impacto operacional da configuração.' },
+        { nome: 'atualizado_em', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp ISO 8601 da última alteração.' },
       ],
     },
   ],

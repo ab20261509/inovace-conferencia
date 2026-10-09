@@ -1,5 +1,6 @@
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
+import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
 import {
   SessaoConferenciaEntrada,
   StatusConferenciaEntrada,
@@ -21,7 +22,8 @@ export interface FinalizarNivelEntradaOutput {
 export class FinalizarNivelEntradaUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
-    private readonly conferenciaRepo: IConferenciaEntradaRepository
+    private readonly conferenciaRepo: IConferenciaEntradaRepository,
+    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository
   ) {}
 
   async execute(
@@ -90,10 +92,38 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
     let possuiDivergencias = false;
 
     if (input.nivel === 1) {
-      statusFinal = 'Aguardando N2';
-      sessao.nivelAtual = 2;
-      sessao.status = statusFinal;
-      sessao.atualizadoEm = agora;
+      const n2Param = this.configSistemaRepo
+        ? await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel2_ativo')
+        : 'true';
+      const usarNivel2 = n2Param !== 'false';
+
+      if (!usarNivel2) {
+        // FLUXO DE NÍVEL ÚNICO: Compara N1 diretamente com a NF
+        for (const item of Object.values(mapTotais)) {
+          if (item.n1 !== item.esperado) {
+            possuiDivergencias = true;
+            break;
+          }
+        }
+
+        if (possuiDivergencias) {
+          statusFinal = 'Divergente';
+          sessao.nivelAtual = 3;
+          sessao.status = statusFinal;
+          sessao.atualizadoEm = agora;
+        } else {
+          statusFinal = 'Conferido';
+          sessao.status = statusFinal;
+          sessao.atualizadoEm = agora;
+          sessao.finalizadoEm = agora;
+        }
+      } else {
+        // FLUXO EM 2 NÍVEIS (Padrão): Avança para Aguardando N2
+        statusFinal = 'Aguardando N2';
+        sessao.nivelAtual = 2;
+        sessao.status = statusFinal;
+        sessao.atualizadoEm = agora;
+      }
     } else if (input.nivel === 2) {
       // Comparar N1 x N2 x Esperado
       for (const item of Object.values(mapTotais)) {

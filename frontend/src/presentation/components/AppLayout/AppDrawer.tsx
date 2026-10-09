@@ -97,15 +97,26 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
           )}
 
           {temPermissao('conferencia_entrada') && (
-            <NavLink
-              to="/recebimento"
-              className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
-              onClick={onClose}
-            >
-              <span className="app-drawer-item-icon">📥</span>
-              <span>Conferência de Entrada</span>
-              <span className="app-drawer-item-badge">Recebimento</span>
-            </NavLink>
+            <>
+              <NavLink
+                to="/recebimento"
+                className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+                onClick={onClose}
+              >
+                <span className="app-drawer-item-icon">📥</span>
+                <span>Conferência de Entrada</span>
+                <span className="app-drawer-item-badge">Bipagem</span>
+              </NavLink>
+              <NavLink
+                to="/recebimento/gestao"
+                className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+                onClick={onClose}
+              >
+                <span className="app-drawer-item-icon">📋</span>
+                <span>Gestão de Recebimento</span>
+                <span className="app-drawer-item-badge">Divergências</span>
+              </NavLink>
+            </>
           )}
 
           {temPermissao('consulta_produtos') && (

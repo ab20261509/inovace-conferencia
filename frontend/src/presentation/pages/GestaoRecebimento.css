@@ -1,0 +1,545 @@
+/* ═══════════════════════════════════════════════════════
+   GESTAO RECEBIMENTO - ESTILOS
+   ═══════════════════════════════════════════════════════ */
+
+.gestao-rec-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.gestao-rec-feedback {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gestao-rec-feedback.sucesso {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.gestao-rec-feedback.erro {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+/* Navegação de Abas */
+.gestao-rec-nav {
+  display: flex;
+  gap: 8px;
+  background: #ffffff;
+  padding: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+
+.gestao-rec-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  color: var(--slate-600);
+  font-weight: 600;
+  font-size: 0.92rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.gestao-rec-tab-btn:hover {
+  background: var(--slate-100);
+  color: var(--slate-800);
+}
+
+.gestao-rec-tab-btn.ativa {
+  background: var(--slate-800);
+  color: #ffffff;
+}
+
+.gestao-rec-tab-badge {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.gestao-rec-tab-btn.ativa .gestao-rec-tab-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Header & Barra de Ações */
+.gestao-rec-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gestao-rec-toolbar-titulo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--slate-800);
+}
+
+.gestao-rec-btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--slate-700);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gestao-rec-btn-refresh:hover {
+  background: var(--slate-100);
+  color: var(--slate-900);
+}
+
+/* Cards de Conferências */
+.gestao-rec-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gestao-rec-card {
+  background: #ffffff;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gestao-rec-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--slate-100);
+  padding-bottom: 14px;
+}
+
+.gestao-rec-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gestao-rec-card-notas {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gestao-rec-card-fornecedor {
+  font-size: 0.9rem;
+  color: var(--slate-600);
+  font-weight: 500;
+}
+
+.gestao-rec-card-meta {
+  font-size: 0.8rem;
+  color: var(--slate-400);
+}
+
+.gestao-rec-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge-status-rec {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-status-rec.divergente {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.badge-status-rec.reconferencia {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.badge-status-rec.conferido {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-status-rec.aguardando {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.badge-status-rec.enviado {
+  background: #ede9fe;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.badge-nivel-rec {
+  background: var(--slate-100);
+  color: var(--slate-700);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Resumo de Contagem */
+.gestao-rec-contagem-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  background: var(--slate-50);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.contagem-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contagem-rotulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--slate-500);
+  text-transform: uppercase;
+}
+
+.contagem-valor {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--slate-800);
+}
+
+.contagem-box.divergente .contagem-valor {
+  color: #dc2626;
+}
+
+/* Ações do Card */
+.gestao-rec-card-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gestao-btn-acao {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.gestao-btn-resolver {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.gestao-btn-resolver:hover {
+  background: #059669;
+}
+
+.gestao-btn-n3 {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.gestao-btn-n3:hover {
+  background: #2563eb;
+}
+
+.gestao-btn-reiniciar {
+  background: #ffffff;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.gestao-btn-reiniciar:hover {
+  background: #fee2e2;
+}
+
+.gestao-btn-csv {
+  background: #ffffff;
+  color: var(--slate-700);
+  border-color: var(--border);
+}
+
+.gestao-btn-csv:hover {
+  background: var(--slate-100);
+}
+
+.gestao-btn-enviar-sankhya {
+  background: #ea580c;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.gestao-btn-enviar-sankhya:hover {
+  background: #c2410c;
+}
+
+/* Tabela de Itens Divergentes (Desktop) */
+.gestao-rec-tabela-desktop {
+  display: block;
+  overflow-x: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.gestao-rec-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.gestao-rec-tabela th {
+  background: var(--slate-100);
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--slate-700);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.gestao-rec-tabela td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--slate-100);
+  color: var(--slate-800);
+  vertical-align: middle;
+}
+
+.gestao-rec-tabela tr:last-child td {
+  border-bottom: none;
+}
+
+.gestao-rec-tabela tr:hover td {
+  background: var(--slate-50);
+}
+
+.diferenca-badge {
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.diferenca-badge.falta {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.diferenca-badge.sobra {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.diferenca-badge.ok {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+/* Cards de Itens Mobile (<= 1024px) */
+.gestao-rec-itens-mobile {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gestao-item-card-mobile {
+  background: var(--slate-50);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gestao-item-mobile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gestao-item-mobile-codprod {
+  font-weight: 700;
+  color: var(--slate-900);
+  font-size: 0.92rem;
+}
+
+.gestao-item-mobile-descr {
+  font-size: 0.82rem;
+  color: var(--slate-600);
+}
+
+.gestao-item-mobile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  font-size: 0.8rem;
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--slate-200);
+}
+
+.gestao-item-mobile-lote-info {
+  font-size: 0.78rem;
+  color: var(--slate-500);
+}
+
+/* Responsividade Geral */
+@media (max-width: 1024px) {
+  .gestao-rec-tabela-desktop {
+    display: none;
+  }
+
+  .gestao-rec-itens-mobile {
+    display: flex;
+  }
+
+  .gestao-rec-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .gestao-rec-card-acoes {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .gestao-btn-acao {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+  }
+}
+
+/* Modal de Ação / Confirmação */
+.gestao-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.gestao-modal-box {
+  background: #ffffff;
+  border-radius: var(--radius);
+  max-width: 520px;
+  width: 100%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.gestao-modal-titulo {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin: 0;
+}
+
+.gestao-modal-desc {
+  font-size: 0.88rem;
+  color: var(--slate-600);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.gestao-modal-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.gestao-modal-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.gestao-modal-btn-cancelar {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--slate-600);
+}
+
+.gestao-modal-btn-confirmar {
+  padding: 8px 16px;
+  border: none;
+  background: var(--slate-800);
+  color: #ffffff;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { AcessosApiService } from '../../infrastructure/api/AcessosApiService';
 import { ConfiguracaoTelasApiService } from '../../infrastructure/api/ConfiguracaoTelasApiService';
+import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
 import { UsuarioAcessoInfo, ModulosUsuario } from '../../domain/models/Auth';
 import { CatalogoTela, CamposSensiveisConfig } from '../../domain/models/ConfiguracaoTela';
 import { AppLayout, AppHeader, Campo, Container } from '../components';
@@ -10,6 +11,7 @@ import './GestaoAcessos.css';
 
 const acessosService = new AcessosApiService();
 const configTelasService = new ConfiguracaoTelasApiService();
+const configSistemaService = new ConfiguracaoSistemaApiService();
 
 function formatarAcesso(isoDate?: string): string {
   if (!isoDate) return 'Aguardando 1º login';
@@ -30,7 +32,7 @@ function formatarAcesso(isoDate?: string): string {
 
 export function GestaoAcessosPage() {
   const { temPermissao, user } = useAuth();
-  const [abaAtiva, setAbaAtiva] = useState<'usuarios' | 'telas'>('usuarios');
+  const [abaAtiva, setAbaAtiva] = useState<'usuarios' | 'telas' | 'parametros'>('usuarios');
 
   // Estados Aba 1: Usuários
   const [usuarios, setUsuarios] = useState<UsuarioAcessoInfo[]>([]);
@@ -44,6 +46,11 @@ export function GestaoAcessosPage() {
   const [telaSelecionadaId, setTelaSelecionadaId] = useState<string>('conferencia_saida');
   const [loadingTelas, setLoadingTelas] = useState(false);
   const [salvandoTela, setSalvandoTela] = useState(false);
+
+  // Estados Aba 3: Parâmetros Operacionais
+  const [paramN2Ativo, setParamN2Ativo] = useState<boolean>(true);
+  const [loadingParametros, setLoadingParametros] = useState<boolean>(false);
+  const [salvandoParametro, setSalvandoParametro] = useState<boolean>(false);
 
   const [feedback, setFeedback] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
@@ -112,6 +119,63 @@ export function GestaoAcessosPage() {
       cancelado = true;
     };
   }, [podeAcessar]);
+
+  // Carregar parâmetros do sistema
+  useEffect(() => {
+    if (!podeAcessar) return;
+
+    let cancelado = false;
+    async function carregarParametros() {
+      setLoadingParametros(true);
+      try {
+        const params = await configSistemaService.listarParametros();
+        if (!cancelado) {
+          if (params['conferencia_entrada_nivel2_ativo']) {
+            setParamN2Ativo(params['conferencia_entrada_nivel2_ativo'].valor !== 'false');
+          }
+        }
+      } catch (err: any) {
+        console.error('Erro ao carregar parâmetros do sistema:', err);
+      } finally {
+        if (!cancelado) setLoadingParametros(false);
+      }
+    }
+
+    carregarParametros();
+    return () => {
+      cancelado = true;
+    };
+  }, [podeAcessar]);
+
+  async function handleToggleN2Param() {
+    const novoValor = !paramN2Ativo;
+    setParamN2Ativo(novoValor);
+    setSalvandoParametro(true);
+    setFeedback(null);
+
+    try {
+      await configSistemaService.salvarParametro(
+        'conferencia_entrada_nivel2_ativo',
+        novoValor ? 'true' : 'false',
+        'Ativação da Conferência de Entrada Nível 2'
+      );
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `Conferência de Entrada Nível 2 (N2) ${novoValor ? 'ativada' : 'inativada'} com sucesso!`,
+      });
+      setTimeout(() => {
+        setFeedback((prev) => (prev?.tipo === 'sucesso' ? null : prev));
+      }, 3500);
+    } catch (err: any) {
+      setParamN2Ativo(!novoValor);
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || 'Erro ao salvar configuração do Nível 2.',
+      });
+    } finally {
+      setSalvandoParametro(false);
+    }
+  }
 
   const usuariosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -265,6 +329,17 @@ export function GestaoAcessosPage() {
                 <span className="gestao-aba-icone">🛡️</span>
                 <span>Campos Sensíveis por Tela</span>
                 <span className="gestao-aba-badge">{catalogoTelas.length} telas</span>
+              </button>
+              <button
+                type="button"
+                className={`gestao-aba-btn ${abaAtiva === 'parametros' ? 'ativa' : ''}`}
+                onClick={() => setAbaAtiva('parametros')}
+              >
+                <span className="gestao-aba-icone">⚙️</span>
+                <span>Parâmetros Operacionais</span>
+                <span className={`gestao-aba-badge ${paramN2Ativo ? 'badge-n2-on' : 'badge-n2-off'}`}>
+                  {paramN2Ativo ? 'N2 Ativo' : 'N2 Inativo'}
+                </span>
               </button>
             </div>
 
@@ -644,6 +719,84 @@ export function GestaoAcessosPage() {
                         })}
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════
+                ABA 3: PARÂMETROS OPERACIONAIS
+                ═══════════════════════════════════════════════════════ */}
+            {abaAtiva === 'parametros' && (
+              <div className="gestao-parametros-secao">
+                <div className="gestao-tela-info-card">
+                  <div className="gestao-tela-info-header">
+                    <h3>Parâmetros Globais do Sistema</h3>
+                    <span className="badge-idtela">Configurações Operacionais</span>
+                  </div>
+                  <p className="gestao-tela-info-desc">
+                    Regras gerais de conferência, validação de níveis e fluxos de recebimento e expedição.
+                  </p>
+                </div>
+
+                {loadingParametros ? (
+                  <Loading mensagem="Carregando parâmetros operacionais..." />
+                ) : (
+                  <div className="gestao-parametro-card">
+                    <div className="gestao-parametro-header">
+                      <div className="gestao-parametro-info">
+                        <div className="gestao-parametro-titulo-row">
+                          <span className="gestao-parametro-icone">📦</span>
+                          <h4 className="gestao-parametro-titulo">Conferência de Entrada - Nível 2 (Dupla Conferência Cega)</h4>
+                          <span className={`badge-parametro-status ${paramN2Ativo ? 'ativo' : 'inativo'}`}>
+                            {paramN2Ativo ? '✓ Ativado' : '✕ Inativado'}
+                          </span>
+                        </div>
+                        <p className="gestao-parametro-detalhes">
+                          Quando <strong>ativado</strong>, o sistema exige dupla contagem cega independente (Nível 1 por um conferente e Nível 2 por outro).
+                          Se houver divergência entre as contagens N1 e N2, o processo avança para Nível 3 (Reconferência) ou decisão gerencial.<br />
+                          Quando <strong>desativado</strong>, o Nível 2 é dispensado e a conferência valida a contagem do Nível 1 diretamente contra os itens faturados da Nota Fiscal.
+                        </p>
+                      </div>
+                      <div className="gestao-parametro-toggle-wrapper">
+                        <label className="toggle-switch toggle-switch-lg" title="Ativar ou desativar Conferência de Entrada Nível 2">
+                          <input
+                            type="checkbox"
+                            checked={paramN2Ativo}
+                            disabled={salvandoParametro}
+                            onChange={handleToggleN2Param}
+                          />
+                          <span className="toggle-slider toggle-operacao" />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="gestao-parametro-fluxo-explicacao">
+                      <div className={`fluxo-modo-box ${paramN2Ativo ? 'modo-destaque' : ''}`}>
+                        <div className="fluxo-modo-header">
+                          <span className="fluxo-icone">🔒</span>
+                          <strong>Fluxo com N2 Ativado (Recomendado para Alto Risco / Dupla Validação)</strong>
+                        </div>
+                        <ul>
+                          <li><strong>Nível 1:</strong> Conferente 1 faz contagem cega física sem ver as quantidades da nota.</li>
+                          <li><strong>Nível 2:</strong> Outro conferente repete a contagem física independente.</li>
+                          <li><strong>Convergência:</strong> Se N1 == N2 == Nota Fiscal, nota aprovada automaticamente.</li>
+                          <li><strong>Divergência:</strong> Se N1 != N2 ou divergência com a NF, a nota vai para <em>Divergências</em> na Gestão de Recebimento.</li>
+                        </ul>
+                      </div>
+
+                      <div className={`fluxo-modo-box ${!paramN2Ativo ? 'modo-destaque' : ''}`}>
+                        <div className="fluxo-modo-header">
+                          <span className="fluxo-icone">⚡</span>
+                          <strong>Fluxo com N2 Inativado (Modo Ágil / Contagem Única)</strong>
+                        </div>
+                        <ul>
+                          <li><strong>Nível 1:</strong> Conferente 1 faz a contagem física cega.</li>
+                          <li><strong>Finalização Direta:</strong> Se N1 coincidir exatamente com a NF, a conferência é finalizada com sucesso.</li>
+                          <li><strong>Divergência com a NF:</strong> Caso falte ou sobre produto em relação à NF, a conferência é marcada como <em>Divergente</em> para o gestor.</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

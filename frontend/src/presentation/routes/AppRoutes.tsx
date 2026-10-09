@@ -4,6 +4,7 @@ import { ListaConferenciasPage } from '../pages/ListaConferencias';
 import { ConferenciaProdutosPage } from '../pages/ConferenciaProdutos';
 import { RecebimentoPage } from '../pages/Recebimento';
 import { ConferenciaEntradaPage } from '../pages/ConferenciaEntradaPage';
+import { GestaoRecebimentoPage } from '../pages/GestaoRecebimento';
 import { GestaoAcessosPage } from '../pages/GestaoAcessos';
 import { BancoDadosPage } from '../pages/BancoDados/BancoDadosPage';
 import { PrivateRoute } from './PrivateRoute';
@@ -46,6 +47,14 @@ export function AppRoutes() {
           element={
             <PrivateRoute modulo="conferencia_entrada">
               <ConferenciaEntradaPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/recebimento/gestao"
+          element={
+            <PrivateRoute modulo="conferencia_entrada">
+              <GestaoRecebimentoPage />
             </PrivateRoute>
           }
         />

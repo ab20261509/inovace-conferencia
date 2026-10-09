@@ -51,6 +51,7 @@ import { initDatabaseSchema } from './infrastructure/database/schema.js';
 import { AuditService } from './infrastructure/database/AuditService.js';
 import { LibsqlPermissoesRepository } from './infrastructure/repositories/LibsqlPermissoesRepository.js';
 import { LibsqlConfiguracaoTelasRepository } from './infrastructure/repositories/LibsqlConfiguracaoTelasRepository.js';
+import { LibsqlConfiguracaoSistemaRepository } from './infrastructure/repositories/LibsqlConfiguracaoSistemaRepository.js';
 import { LibsqlConferenciaEntradaRepository } from './infrastructure/repositories/LibsqlConferenciaEntradaRepository.js';
 import { LibsqlDatabaseExplorerRepository } from './infrastructure/repositories/LibsqlDatabaseExplorerRepository.js';
 
@@ -70,6 +71,10 @@ import { IniciarConferenciaEntradaUseCase } from './application/use-cases/recebi
 import { RegistrarBipagemEntradaUseCase } from './application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.js';
 import { AnularBipagemEntradaUseCase } from './application/use-cases/recebimento/AnularBipagemEntradaUseCase.js';
 import { FinalizarNivelEntradaUseCase } from './application/use-cases/recebimento/FinalizarNivelEntradaUseCase.js';
+import { ListarDivergenciasEntradaUseCase } from './application/use-cases/recebimento/ListarDivergenciasEntradaUseCase.js';
+import { ResolverDivergenciaUseCase } from './application/use-cases/recebimento/ResolverDivergenciaUseCase.js';
+import { ReiniciarConferenciaEntradaUseCase } from './application/use-cases/recebimento/ReiniciarConferenciaEntradaUseCase.js';
+import { EnviarConferenciaSankhyaUseCase } from './application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -85,6 +90,7 @@ import { ConferenciasController } from './presentation/http/controllers/Conferen
 import { ProdutoController } from './presentation/http/controllers/ProdutoController.js';
 import { AcessosController } from './presentation/http/controllers/AcessosController.js';
 import { ConfiguracaoTelasController } from './presentation/http/controllers/ConfiguracaoTelasController.js';
+import { ConfiguracaoSistemaController } from './presentation/http/controllers/ConfiguracaoSistemaController.js';
 import { ConferenciaEntradaController } from './presentation/http/controllers/ConferenciaEntradaController.js';
 import { DatabaseExplorerController } from './presentation/http/controllers/DatabaseExplorerController.js';
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
@@ -120,6 +126,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const authAdapter = new InMemoryAuthAdapter();
   const permissoesRepo = new LibsqlPermissoesRepository(dbClient, auditService);
   const configTelasRepo = new LibsqlConfiguracaoTelasRepository(dbClient, permissoesRepo, auditService);
+  const configSistemaRepo = new LibsqlConfiguracaoSistemaRepository(dbClient, auditService);
   const conferenciaEntradaRepo = new LibsqlConferenciaEntradaRepository(dbClient, auditService);
 
   // 2. Use Cases (Application)
@@ -147,7 +154,11 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const iniciarConferenciaEntradaUseCase = new IniciarConferenciaEntradaUseCase(conferenciaEntradaRepo);
   const registrarBipagemEntradaUseCase = new RegistrarBipagemEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const anularBipagemEntradaUseCase = new AnularBipagemEntradaUseCase(conferenciaEntradaRepo);
-  const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo, configSistemaRepo);
+  const listarDivergenciasEntradaUseCase = new ListarDivergenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(conferenciaEntradaRepo);
+  const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo);
+  const enviarConferenciaSankhyaUseCase = new EnviarConferenciaSankhyaUseCase(gatewayAdapter, conferenciaEntradaRepo);
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -196,13 +207,18 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     listarConfiguracaoTelasUseCase,
     salvarConfiguracaoTelaUseCase,
   );
+  const configuracaoSistemaController = new ConfiguracaoSistemaController(configSistemaRepo);
   const conferenciaEntradaController = new ConferenciaEntradaController(
     listarNotasEntradaUseCase,
     obterItensConferenciaEntradaUseCase,
     iniciarConferenciaEntradaUseCase,
     registrarBipagemEntradaUseCase,
     anularBipagemEntradaUseCase,
-    finalizarNivelEntradaUseCase
+    finalizarNivelEntradaUseCase,
+    listarDivergenciasEntradaUseCase,
+    resolverDivergenciaUseCase,
+    reiniciarConferenciaEntradaUseCase,
+    enviarConferenciaSankhyaUseCase
   );
   const crudController = new CrudController(
     loadRecordsUseCase,
@@ -248,6 +264,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
       produtoController,
       acessosController,
       configuracaoTelasController,
+      configuracaoSistemaController,
       conferenciaEntradaController,
       databaseExplorerController,
     },

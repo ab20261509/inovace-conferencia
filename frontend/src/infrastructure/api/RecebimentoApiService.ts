@@ -73,4 +73,44 @@ export class RecebimentoApiService {
     );
     return response.data;
   }
+
+  async listarDivergencias(): Promise<import('../../domain/models/ConferenciaEntrada').ConferenciaDivergenciaGrupo[]> {
+    const response = await httpClient.get<import('../../domain/models/ConferenciaEntrada').ConferenciaDivergenciaGrupo[]>(
+      '/api/recebimento/conferencia/divergencias'
+    );
+    return response.data;
+  }
+
+  async resolverDivergencia(
+    conferenciaId: string,
+    dados: import('../../domain/models/ConferenciaEntrada').ResolverDivergenciaInput
+  ): Promise<SessaoConferenciaEntrada> {
+    const response = await httpClient.put<SessaoConferenciaEntrada>(
+      `/api/recebimento/conferencia/${conferenciaId}/resolver-divergencia`,
+      dados
+    );
+    return response.data;
+  }
+
+  async reiniciarConferencia(
+    conferenciaId: string,
+    motivo?: string
+  ): Promise<SessaoConferenciaEntrada> {
+    const response = await httpClient.post<SessaoConferenciaEntrada>(
+      `/api/recebimento/conferencia/${conferenciaId}/reiniciar`,
+      { motivo }
+    );
+    return response.data;
+  }
+
+  async enviarSankhya(
+    conferenciaId: string,
+    observacao?: string
+  ): Promise<import('../../domain/models/ConferenciaEntrada').EnviarSankhyaResponse> {
+    const response = await httpClient.post<import('../../domain/models/ConferenciaEntrada').EnviarSankhyaResponse>(
+      `/api/recebimento/conferencia/${conferenciaId}/enviar-sankhya`,
+      { observacao }
+    );
+    return response.data;
+  }
 }

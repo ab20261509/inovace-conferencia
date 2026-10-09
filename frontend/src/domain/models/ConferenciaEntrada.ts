@@ -7,7 +7,9 @@ export type StatusConferenciaEntrada =
   | 'N3 em Andamento'
   | 'Divergente'
   | 'Em Reconferência'
-  | 'Conferido';
+  | 'Conferido'
+  | 'Aguardando Aprovação'
+  | 'Enviado ao Sankhya';
 
 export interface NotaEntrada {
   nunota: number;
@@ -61,6 +63,11 @@ export interface SessaoConferenciaEntrada {
   atualizadoEm: string;
   finalizadoEm?: string;
   conferente: string;
+  aprovadoPor?: string;
+  aprovadoEm?: string;
+  enviadoSankhyaEm?: string;
+  observacaoAprovacao?: string;
+  respostaSankhyaJson?: string;
 }
 
 export interface BipagemEntrada {
@@ -99,4 +106,63 @@ export interface FinalizarNivelResponse {
   possuiDivergencias: boolean;
   totalItens: number;
   totalConferidos: number;
+}
+
+export interface ItemDivergenciaResumo {
+  nunota: number;
+  codprod: number;
+  sequencia: number;
+  descrprod: string;
+  referencia: string;
+  codvol: string;
+  qtdEsperada: number;
+  qtdN1: number;
+  qtdN2: number;
+  qtdN3: number;
+  diferenca: number;
+  lote?: string;
+  validade?: string;
+  fabricacao?: string;
+  conferenteN1?: string;
+  conferenteN2?: string;
+  conferenteN3?: string;
+}
+
+export interface ConferenciaDivergenciaGrupo {
+  id: string;
+  nunotas: number[];
+  numerosNotas: string;
+  fornecedor: string;
+  status: string;
+  nivelAtual: number;
+  conferente: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  totalN1: number;
+  totalN2: number;
+  totalN3: number;
+  totalEsperado: number;
+  itensDivergentes: ItemDivergenciaResumo[];
+  todosItens: ItemDivergenciaResumo[];
+}
+
+export interface ResolverDivergenciaInput {
+  acao: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3';
+  observacao?: string;
+}
+
+export interface ReiniciarConferenciaInput {
+  motivo?: string;
+}
+
+export interface EnviarSankhyaInput {
+  observacao?: string;
+}
+
+export interface EnviarSankhyaResponse {
+  sucesso: boolean;
+  mensagem: string;
+  sessao: SessaoConferenciaEntrada;
+  itensAtualizados: number;
+  estoqueAtualizado: number;
 }
