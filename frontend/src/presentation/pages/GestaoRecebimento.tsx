@@ -379,50 +379,45 @@ export function GestaoRecebimentoPage() {
               </div>
             )}
 
-            {/* Navegação de Abas */}
-            <div className="gestao-rec-nav">
-              <button
-                type="button"
-                className={`gestao-rec-tab-btn ${abaAtiva === 'conferencias' ? 'ativa' : ''}`}
-                onClick={() => setAbaAtiva('conferencias')}
-              >
-                <span>📋 Painel de Conferências</span>
-                <span className="gestao-rec-tab-badge">{todasConferencias.length}</span>
-              </button>
-              <button
-                type="button"
-                className={`gestao-rec-tab-btn ${abaAtiva === 'divergencias' ? 'ativa' : ''}`}
-                onClick={() => setAbaAtiva('divergencias')}
-              >
-                <span>⚠️ Divergências de Entrada</span>
-                <span className="gestao-rec-tab-badge">{divergencias.length}</span>
-              </button>
-              <button
-                type="button"
-                className={`gestao-rec-tab-btn ${abaAtiva === 'aprovacao_sankhya' ? 'ativa' : ''}`}
-                onClick={() => setAbaAtiva('aprovacao_sankhya')}
-              >
-                <span>🚀 Aprovação & Envio ao Sankhya</span>
-                <span className="gestao-rec-tab-badge">{conferenciasProntasAgrupadas.length}</span>
-              </button>
-            </div>
+            {/* Navegação de Abas Minimalista */}
+            <div className="gestao-rec-nav-wrapper">
+              <div className="gestao-rec-nav">
+                <button
+                  type="button"
+                  className={`gestao-rec-tab-btn ${abaAtiva === 'conferencias' ? 'ativa' : ''}`}
+                  onClick={() => setAbaAtiva('conferencias')}
+                >
+                  <span>Conferências</span>
+                  <span className="gestao-rec-tab-badge">{todasConferencias.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`gestao-rec-tab-btn ${abaAtiva === 'divergencias' ? 'ativa' : ''}`}
+                  onClick={() => setAbaAtiva('divergencias')}
+                >
+                  <span>Divergências</span>
+                  <span className={`gestao-rec-tab-badge ${divergencias.length > 0 ? 'alerta' : ''}`}>
+                    {divergencias.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`gestao-rec-tab-btn ${abaAtiva === 'aprovacao_sankhya' ? 'ativa' : ''}`}
+                  onClick={() => setAbaAtiva('aprovacao_sankhya')}
+                >
+                  <span>Envio Sankhya</span>
+                  <span className="gestao-rec-tab-badge">{conferenciasProntasAgrupadas.length}</span>
+                </button>
+              </div>
 
-            {/* Toolbar com Atualização */}
-            <div className="gestao-rec-toolbar">
-              <span className="gestao-rec-toolbar-titulo">
-                {abaAtiva === 'conferencias'
-                  ? `Painel Geral de Conferências (${conferenciasFiltradas.length} de ${todasConferencias.length})`
-                  : abaAtiva === 'divergencias'
-                  ? `Conferências Divergentes (${divergencias.length})`
-                  : `Conferências Prontas / Enviadas ao Sankhya (${conferenciasProntasAgrupadas.length})`}
-              </span>
               <button
                 type="button"
                 className="gestao-rec-btn-refresh"
                 onClick={carregarDados}
                 disabled={loading}
+                title="Atualizar dados"
               >
-                <span>🔄 Atualizar Dados</span>
+                <span>🔄 Atualizar</span>
               </button>
             </div>
 
