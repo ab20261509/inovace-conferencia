@@ -1,17 +1,20 @@
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
+import { IConfiguracaoTelasRepository } from '../../../domain/ports/IConfiguracaoTelasRepository.js';
 import { NotaEntrada, StatusConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 
 export interface ListarNotasEntradaFiltros {
   numeroNota?: string;
   fornecedor?: string;
   statusConferencia?: string;
+  usuario?: string;
 }
 
 export class ListarNotasEntradaUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
-    private readonly conferenciaRepo: IConferenciaEntradaRepository
+    private readonly conferenciaRepo: IConferenciaEntradaRepository,
+    private readonly configTelasRepo?: IConfiguracaoTelasRepository
   ) {}
 
   async execute(filtros?: ListarNotasEntradaFiltros, correlationId?: string): Promise<NotaEntrada[]> {
@@ -69,6 +72,21 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
     const nunotas = rows.map((r) => Number(getVal(r, 'NUNOTA'))).filter(Boolean);
     const mapaStatus = await this.conferenciaRepo.obterMapaStatusNotas(nunotas);
 
+    let ocultarFornecedor = false;
+    let ocultarVlrNota = false;
+    if (this.configTelasRepo && filtros?.usuario) {
+      ocultarFornecedor = await this.configTelasRepo.deveOcultarCampo(
+        'conferencia_entrada',
+        'fornecedor',
+        filtros.usuario
+      );
+      ocultarVlrNota = await this.configTelasRepo.deveOcultarCampo(
+        'conferencia_entrada',
+        'vlrUnit',
+        filtros.usuario
+      );
+    }
+
     const notas: NotaEntrada[] = rows.map((r) => {
       const nunota = Number(getVal(r, 'NUNOTA'));
       const statusInfo = mapaStatus[nunota];
@@ -81,10 +99,10 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         dtneg: getVal(r, 'DTNEG') ? String(getVal(r, 'DTNEG')) : '',
         dtentsai: getVal(r, 'DTENTSAI') ? String(getVal(r, 'DTENTSAI')) : '',
         codparc: Number(getVal(r, 'CODPARC')) || 0,
-        nomeparc: String(getVal(r, 'NOMEPARC') || ''),
+        nomeparc: ocultarFornecedor ? '— (Oculto)' : String(getVal(r, 'NOMEPARC') || ''),
         codtipoper: Number(getVal(r, 'CODTIPOPER')) || 0,
         tipmov: String(getVal(r, 'TIPMOV') || 'C'),
-        vlrnota: Number(getVal(r, 'VLRNOTA')) || 0,
+        vlrnota: ocultarVlrNota ? 0 : Number(getVal(r, 'VLRNOTA')) || 0,
         statusnota: String(getVal(r, 'STATUSNOTA') || ''),
         qtdItens: Number(getVal(r, 'QTD_ITENS')) || 0,
         codemp: Number(getVal(r, 'CODEMP')) || 0,

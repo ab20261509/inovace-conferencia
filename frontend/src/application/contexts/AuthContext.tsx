@@ -79,17 +79,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const temPermissao = useCallback((modulo: keyof ModulosUsuario): boolean => {
-    // Admins padrão têm acesso irrestrito por garantia
-    if (user?.nomeUsu && ADMINS_PADRAO.includes(user.nomeUsu.toUpperCase())) {
+    const ehAdmin = !!(user?.nomeUsu && ADMINS_PADRAO.includes(user.nomeUsu.toUpperCase()));
+
+    // Se as permissões já foram carregadas do backend, respeitamos o que está configurado
+    if (permissoes) {
+      if (ehAdmin && modulo === 'gerenciar_acessos') {
+        return true; // Administradores padrão nunca perdem acesso ao painel de gestão
+      }
+      return !!permissoes[modulo];
+    }
+
+    // Se ainda não carregou do backend, administradores têm acesso total por padrão
+    if (ehAdmin) {
       return true;
     }
 
-    if (!permissoes) {
-      // Se ainda não carregou, por padrão permite saída para não travar a tela principal inicial
-      return modulo === 'conferencia_saida';
-    }
-
-    return !!permissoes[modulo];
+    // Operador sem permissões carregadas ainda: padrão seguro
+    return modulo === 'conferencia_saida';
   }, [user, permissoes]);
 
   return (

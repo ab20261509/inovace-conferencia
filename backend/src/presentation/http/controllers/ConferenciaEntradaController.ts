@@ -28,11 +28,13 @@ export class ConferenciaEntradaController {
   async listarNotas(req: Request, res: Response): Promise<void> {
     try {
       const { numeroNota, fornecedor, status } = req.query;
+      const usuario = req.username || (req as any).user?.username || (req as any).username || '';
       const notas = await this.listarNotasUseCase.execute(
         {
           numeroNota: numeroNota ? String(numeroNota) : undefined,
           fornecedor: fornecedor ? String(fornecedor) : undefined,
           statusConferencia: status ? String(status) : undefined,
+          usuario,
         },
         req.correlationId
       );
@@ -48,7 +50,7 @@ export class ConferenciaEntradaController {
       const conferenciaId = req.params.id !== 'novo' ? req.params.id : undefined;
       const nunotasQuery = req.query.nunotas ? String(req.query.nunotas) : undefined;
       const nunotas = nunotasQuery ? nunotasQuery.split(',').map((n) => Number(n.trim())).filter(Boolean) : undefined;
-      const usuario = (req as any).user?.username || (req as any).username || '';
+      const usuario = req.username || (req as any).user?.username || (req as any).username || '';
 
       const resultado = await this.obterItensUseCase.execute(
         {

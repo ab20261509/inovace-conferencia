@@ -164,10 +164,10 @@ WHERE BAR.CODPROD IN (
     }
 
     // Regras de Ocultação de Campos Sensíveis para conferencia_entrada
-    const ocultarQtdPed = await this.configTelasRepo.deveOcultarCampo(
-      'conferencia_entrada',
-      'qtdPed',
-      input.usuario
+    const ocultarQtdNota = (
+      await this.configTelasRepo.deveOcultarCampo('conferencia_entrada', 'qtdNota', input.usuario)
+    ) || (
+      await this.configTelasRepo.deveOcultarCampo('conferencia_entrada', 'qtdPed', input.usuario)
     );
     const ocultarCodBarra = await this.configTelasRepo.deveOcultarCampo(
       'conferencia_entrada',
@@ -216,7 +216,7 @@ WHERE BAR.CODPROD IN (
         descrprod: String(r[itensIndex['DESCRPROD']] || ''),
         referencia: ocultarReferencia ? '—' : String(r[itensIndex['REFERENCIA']] || '').trim(),
         codvol: String(r[itensIndex['CODVOL']] || 'UN'),
-        qtdneg: ocultarQtdPed ? null : rawQtd,
+        qtdneg: ocultarQtdNota ? null : rawQtd,
         qtdConferidaN1: bip.n1,
         qtdConferidaN2: bip.n2,
         qtdConferidaN3: bip.n3,

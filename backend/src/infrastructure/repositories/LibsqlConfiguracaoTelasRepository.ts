@@ -80,7 +80,22 @@ export class LibsqlConfiguracaoTelasRepository implements IConfiguracaoTelasRepo
 
   async deveOcultarCampo(idTela: string, chaveCampo: string, usuario?: string): Promise<boolean> {
     const camposTela = await this.obterCamposSensiveis(idTela);
-    const ehSensivel = camposTela[chaveCampo] ?? false;
+    let ehSensivel = camposTela[chaveCampo] ?? false;
+
+    // Compatibilidade de chaves entre telas/versões para campos de quantidade
+    if (!ehSensivel && idTela === 'conferencia_entrada') {
+      if (chaveCampo === 'qtdPed' && camposTela['qtdNota'] !== undefined) {
+        ehSensivel = camposTela['qtdNota'];
+      } else if (chaveCampo === 'qtdNota' && camposTela['qtdPed'] !== undefined) {
+        ehSensivel = camposTela['qtdPed'];
+      }
+    }
+    if (!ehSensivel && idTela === 'conferencia_saida') {
+      if (chaveCampo === 'qtdNota' && camposTela['qtdPed'] !== undefined) {
+        ehSensivel = camposTela['qtdPed'];
+      }
+    }
+
     if (!ehSensivel) {
       return false;
     }

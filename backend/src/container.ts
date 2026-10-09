@@ -145,7 +145,11 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const salvarConfiguracaoTelaUseCase = new SalvarConfiguracaoTelaUseCase(configTelasRepo, permissoesRepo);
 
   // Conferência de Entrada (Recebimento)
-  const listarNotasEntradaUseCase = new ListarNotasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const listarNotasEntradaUseCase = new ListarNotasEntradaUseCase(
+    gatewayAdapter,
+    conferenciaEntradaRepo,
+    configTelasRepo
+  );
   const obterItensConferenciaEntradaUseCase = new ObterItensConferenciaEntradaUseCase(
     gatewayAdapter,
     conferenciaEntradaRepo,

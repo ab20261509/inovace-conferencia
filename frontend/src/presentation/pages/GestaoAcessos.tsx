@@ -31,7 +31,7 @@ function formatarAcesso(isoDate?: string): string {
 }
 
 export function GestaoAcessosPage() {
-  const { temPermissao, user } = useAuth();
+  const { temPermissao, user, carregarPermissoes } = useAuth();
   const [abaAtiva, setAbaAtiva] = useState<'usuarios' | 'telas' | 'parametros'>('usuarios');
 
   // Estados Aba 1: Usuários
@@ -204,6 +204,9 @@ export function GestaoAcessosPage() {
 
     try {
       await acessosService.salvarAcessos(usuario.codUsu, novosModulos);
+      if (user && (usuario.codUsu === user.codUsu || usuario.nomeUsu.toUpperCase() === user.nomeUsu.toUpperCase())) {
+        await carregarPermissoes();
+      }
       setFeedback({
         tipo: 'sucesso',
         texto: `Acessos do usuário ${usuario.nomeUsu} salvos com sucesso!`,

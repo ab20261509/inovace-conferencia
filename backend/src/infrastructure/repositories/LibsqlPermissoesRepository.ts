@@ -22,11 +22,8 @@ export class LibsqlPermissoesRepository implements IPermissoesRepository {
 
   async obterPermissoes(codUsu: number, nomeUsu: string): Promise<ModulosUsuario> {
     const loginNorm = normalizarLogin(nomeUsu);
-
-    // Administradores nativos sempre têm acesso total
-    if (ADMINS_PADRAO.has(loginNorm)) {
-      return { ...PERMISSOES_ADMINISTRADOR };
-    }
+    const ehAdminNativo = ADMINS_PADRAO.has(loginNorm);
+    const defaults = ehAdminNativo ? PERMISSOES_ADMINISTRADOR : PERMISSOES_PADRAO_OPERADOR;
 
     const res = await this.client.execute({
       sql: `SELECT modulos_json FROM usuarios_acessos WHERE cod_usu = ? OR UPPER(nome_usu) = ? LIMIT 1`,
@@ -37,16 +34,21 @@ export class LibsqlPermissoesRepository implements IPermissoesRepository {
       try {
         const rawJson = String(res.rows[0].modulos_json || '{}');
         const modulos = JSON.parse(rawJson);
-        return {
-          ...PERMISSOES_PADRAO_OPERADOR,
+        const merged: ModulosUsuario = {
+          ...defaults,
           ...modulos,
         };
+        // Proteção anti-lockout: administradores nativos nunca perdem a permissão de gerenciar acessos
+        if (ehAdminNativo) {
+          merged.gerenciar_acessos = true;
+        }
+        return merged;
       } catch {
-        return { ...PERMISSOES_PADRAO_OPERADOR };
+        return { ...defaults };
       }
     }
 
-    return { ...PERMISSOES_PADRAO_OPERADOR };
+    return { ...defaults };
   }
 
   async salvarPermissoes(
@@ -105,9 +107,14 @@ export class LibsqlPermissoesRepository implements IPermissoesRepository {
     if (res.rows.length > 0) {
       const row = res.rows[0];
       const primeiroAcesso = (row.primeiro_acesso_em as string) || agora;
-      let modulos: ModulosUsuario = { ...PERMISSOES_PADRAO_OPERADOR };
+      const ehAdminNativo = ADMINS_PADRAO.has(loginNorm);
+      const defaults = ehAdminNativo ? PERMISSOES_ADMINISTRADOR : PERMISSOES_PADRAO_OPERADOR;
+      let modulos: ModulosUsuario = { ...defaults };
       try {
         modulos = { ...modulos, ...JSON.parse(String(row.modulos_json || '{}')) };
+        if (ehAdminNativo) {
+          modulos.gerenciar_acessos = true;
+        }
       } catch {}
 
       await this.client.execute({
