@@ -36,6 +36,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       conferente: String(row.conferente || 'Operador'),
       criadoEm: String(row.criado_em),
       atualizadoEm: String(row.atualizado_em),
+      finalizadoEm: row.finalizado_em ? String(row.finalizado_em) : undefined,
       aprovadoPor: row.aprovado_por ? String(row.aprovado_por) : undefined,
       aprovadoEm: row.aprovado_em ? String(row.aprovado_em) : undefined,
       enviadoSankhyaEm: row.enviado_sankhya_em ? String(row.enviado_sankhya_em) : undefined,
@@ -68,7 +69,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   async obterSessaoPorId(id: string): Promise<SessaoConferenciaEntrada | null> {
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
             FROM conferencias_entrada
             WHERE id = ?
             LIMIT 1`,
@@ -83,7 +84,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     // Busca todas as sessões e localiza a ativa primeiro, ou a última
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -103,7 +104,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],

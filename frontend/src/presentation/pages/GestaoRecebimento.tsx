@@ -64,16 +64,28 @@ export function GestaoRecebimentoPage() {
     if (!podeAcessar) return;
     setLoading(true);
     setFeedback(null);
+    const erros: string[] = [];
+
+    // 1. Carregar todas as conferências (histórico e em andamento)
     try {
-      // 1. Carregar todas as conferências (histórico e em andamento)
       const confs = await recebimentoService.listarTodasConferencias();
       setTodasConferencias(confs);
+    } catch (err: any) {
+      console.error('Erro ao carregar todas as conferências:', err);
+      erros.push(err.response?.data?.error || 'Falha ao carregar lista de conferências');
+    }
 
-      // 2. Carregar divergências
+    // 2. Carregar divergências
+    try {
       const divs = await recebimentoService.listarDivergencias();
       setDivergencias(divs);
+    } catch (err: any) {
+      console.error('Erro ao carregar divergências:', err);
+      erros.push(err.response?.data?.error || 'Falha ao carregar divergências');
+    }
 
-      // 3. Carregar notas prontas para envio (Conferido / Aguardando Aprovação / Enviado ao Sankhya)
+    // 3. Carregar notas prontas para envio (Conferido / Aguardando Aprovação / Enviado ao Sankhya)
+    try {
       const todasNotas = await recebimentoService.listarNotas();
       const prontas = todasNotas.filter(
         (n) =>
@@ -83,13 +95,18 @@ export function GestaoRecebimentoPage() {
       );
       setConferenciasProntas(prontas);
     } catch (err: any) {
+      console.error('Erro ao carregar notas prontas para envio:', err);
+      erros.push(err.response?.data?.error || 'Falha ao carregar notas para envio ao Sankhya');
+    }
+
+    if (erros.length > 0) {
       setFeedback({
         tipo: 'erro',
-        texto: err.response?.data?.error || 'Erro ao carregar dados de gestão de recebimento.',
+        texto: `Aviso no carregamento: ${erros.join(' | ')}`,
       });
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   }, [podeAcessar]);
 
   useEffect(() => {

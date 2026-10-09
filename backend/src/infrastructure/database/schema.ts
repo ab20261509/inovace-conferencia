@@ -72,7 +72,8 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
       nivel_atual INTEGER NOT NULL DEFAULT 1,
       conferente TEXT NOT NULL,
       criado_em TEXT NOT NULL,
-      atualizado_em TEXT NOT NULL
+      atualizado_em TEXT NOT NULL,
+      finalizado_em TEXT
     );`,
     `CREATE INDEX IF NOT EXISTS idx_conf_status ON conferencias_entrada(status);`,
 
@@ -126,6 +127,7 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   }
 
   // Evolução da tabela conferencias_entrada (gestão e envio ao Sankhya)
+  await garantirColuna(client, 'conferencias_entrada', 'finalizado_em', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'aprovado_por', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'aprovado_em', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'enviado_sankhya_em', 'TEXT');
