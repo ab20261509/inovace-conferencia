@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../application/contexts/AuthContext';
 import './AppDrawer.css';
 
@@ -12,6 +12,7 @@ interface AppDrawerProps {
 export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawerProps) {
   const { user, logout, temPermissao } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Fechar ao pressionar ESC
   useEffect(() => {
@@ -100,7 +101,11 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
             <>
               <NavLink
                 to="/recebimento"
-                className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+                className={`app-drawer-item ${
+                  location.pathname === '/recebimento' || location.pathname.startsWith('/recebimento/conferencia')
+                    ? 'active'
+                    : ''
+                }`}
                 onClick={onClose}
               >
                 <span className="app-drawer-item-icon">📥</span>
@@ -109,7 +114,9 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
               </NavLink>
               <NavLink
                 to="/recebimento/gestao"
-                className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+                className={`app-drawer-item ${
+                  location.pathname.startsWith('/recebimento/gestao') ? 'active' : ''
+                }`}
                 onClick={onClose}
               >
                 <span className="app-drawer-item-icon">📋</span>
