@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../application/contexts/AuthContext';
 import './AppDrawer.css';
 
@@ -39,6 +39,13 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
   }
 
   const inicialNome = user?.nomeUsu ? user.nomeUsu.charAt(0).toUpperCase() : 'U';
+
+  const isSaidaAtiva = location.pathname.startsWith('/conferencias');
+  const isEntradaAtiva =
+    location.pathname === '/recebimento' || location.pathname.startsWith('/recebimento/conferencia');
+  const isGestaoAtiva = location.pathname.startsWith('/recebimento/gestao');
+  const isAcessosAtivo = location.pathname.startsWith('/configuracoes/acessos');
+  const isBancoAtivo = location.pathname.startsWith('/configuracoes/banco');
 
   return (
     <>
@@ -87,42 +94,36 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
           <span className="app-drawer-section-title">Módulos Operacionais</span>
 
           {temPermissao('conferencia_saida') && (
-            <NavLink
+            <Link
               to="/conferencias"
-              className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+              className={`app-drawer-item ${isSaidaAtiva ? 'active' : ''}`}
               onClick={onClose}
             >
               <span className="app-drawer-item-icon">📦</span>
               <span>Conferência de Saída</span>
-            </NavLink>
+            </Link>
           )}
 
           {temPermissao('conferencia_entrada') && (
             <>
-              <NavLink
+              <Link
                 to="/recebimento"
-                className={`app-drawer-item ${
-                  location.pathname === '/recebimento' || location.pathname.startsWith('/recebimento/conferencia')
-                    ? 'active'
-                    : ''
-                }`}
+                className={`app-drawer-item ${isEntradaAtiva ? 'active' : ''}`}
                 onClick={onClose}
               >
                 <span className="app-drawer-item-icon">📥</span>
                 <span>Conferência de Entrada</span>
                 <span className="app-drawer-item-badge">Bipagem</span>
-              </NavLink>
-              <NavLink
+              </Link>
+              <Link
                 to="/recebimento/gestao"
-                className={`app-drawer-item ${
-                  location.pathname.startsWith('/recebimento/gestao') ? 'active' : ''
-                }`}
+                className={`app-drawer-item ${isGestaoAtiva ? 'active' : ''}`}
                 onClick={onClose}
               >
                 <span className="app-drawer-item-icon">📋</span>
                 <span>Gestão de Recebimento</span>
                 <span className="app-drawer-item-badge">Divergências</span>
-              </NavLink>
+              </Link>
             </>
           )}
 
@@ -140,22 +141,22 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
           {temPermissao('gerenciar_acessos') && (
             <>
               <span className="app-drawer-section-title">Administração</span>
-              <NavLink
+              <Link
                 to="/configuracoes/acessos"
-                className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+                className={`app-drawer-item ${isAcessosAtivo ? 'active' : ''}`}
                 onClick={onClose}
               >
                 <span className="app-drawer-item-icon">⚙️</span>
                 <span>Gestão de Acessos</span>
-              </NavLink>
-              <NavLink
+              </Link>
+              <Link
                 to="/configuracoes/banco"
-                className={({ isActive }) => `app-drawer-item ${isActive ? 'active' : ''}`}
+                className={`app-drawer-item ${isBancoAtivo ? 'active' : ''}`}
                 onClick={onClose}
               >
                 <span className="app-drawer-item-icon">🗄️</span>
                 <span>Banco de Dados</span>
-              </NavLink>
+              </Link>
             </>
           )}
         </nav>
