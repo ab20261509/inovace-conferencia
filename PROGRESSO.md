@@ -49,6 +49,29 @@
   - **Diretriz de Cards Responsivos no Mobile/Tablet ($\le 1024$px)**: Listagem de notas e cards de itens conferidos organizados verticalmente, sem overflow horizontal nos coletores e tablets.
   - **Fluxo de Conclusão de Nível & Preservação de Estado**: Ao finalizar N1, o sistema redireciona imediatamente para a lista de notas com feedback ('Aguardando N2'). Ao reabrir a nota a partir da lista, o nível e status são rigorosamente preservados, impedindo qualquer regressão acidental para N1.
   - **Identidade Visual Padronizada (Paridade Entrada e Saída)**: Aba "Histórico de Bipagens" substituída pela aba **"Itens Conferidos"**, mantendo a experiência idêntica à Conferência de Saída. Os itens conferidos são agrupados por produto com fotos com zoom modal, códigos, lote/validade, unidade, quantidades conferidas em destaque verde, horário da última leitura e botão de estorno com confirmação. Na aba **"Itens Pendentes"**, são mantidos apenas os produtos com contagem pendente no nível ativo.
+- **Módulo de Gestão de Recebimento, Histórico & Sincronização ERP Sankhya** (`/recebimento/gestao`):
+  - **Aba 1 (Conferências - Painel Geral & Ações)**:
+    - Visão consolidada de todas as conferências (em andamento, recontagem, finalizadas e reiniciadas).
+    - Filtros por chips com contagem dinâmica (*Todas*, *Em Andamento*, *Recontagem / Pendente*, *Concluídas*, *💾 Com Backup*).
+    - Busca em tempo real por NF, parceiro, ID ou conferente.
+    - Cards com métricas de contagem (Itens faturados, N1, N2, N3 e itens em backup) e expansão para inspeção de itens com lote/validade.
+    - **Reinício Seguro com Snapshot**: Gravação de snapshot em `backup_contagem_json` com anulação lógica (`anulado = 1`), garantindo que nenhuma contagem seja fisicamente perdida.
+    - **Solicitação de Recontagem**: Modal com escolha de nível (N1 cega simples, N2 com lote/validade, N3 desempate).
+    - **Recuperação de Contagem**: Restauração pontual de bipagens arquivadas (`anulado = 0`), restabelecendo status e nível anteriores.
+    - **Acesso ao Coletor**: Botão "📱 Abrir no Coletor" redirecionando diretamente para a sessão.
+  - **Aba 2 (Divergências de Entrada)**:
+    - Detalhamento de itens divergentes comparando contagens de N1, N2 e N3 com a nota fiscal.
+    - Ações gerenciais de resolução/aprovação e solicitação de reconferência N3 de desempate.
+    - Exportação completa em planilha CSV.
+  - **Aba 3 (Envio & Aprovação Sankhya)**:
+    - Fila de conferências prontas para sincronização com o ERP.
+    - Atualização transacional de itens da nota (`TGFITE`), registros de lotes (`TGFLOT`), atualização de saldo de estoque (`TGFEST`) e histórico em `TGFCAB.OBSERVACAO`.
+  - **Design Minimalista**:
+    - Abas em formato de Segmented Control (Pill Tabs) compacto, moderno e sem poluição visual.
+    - Badges compactos com alerta dinâmico para divergências pendentes e botão de atualização integrado.
+  - **Resiliência de Banco de Dados & Carregamento**:
+    - Colunas adicionadas de forma idempotente em `conferencias_entrada` (`finalizado_em`, `aprovado_por`, `aprovado_em`, `enviado_sankhya_em`, `observacao_aprovacao`, `resposta_sankhya_json`, `backup_contagem_json`).
+    - Carregamento de dados desacoplado com proteção individual por serviço.
 
 ### Login
 - Login via `MobileLoginSP.login` (credenciais Sankhya)

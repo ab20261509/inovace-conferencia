@@ -1,3 +1,62 @@
+# Handoff — Sessão 2026-10-09
+
+## Funcionalidades e Ajustes Implementados
+
+### 1. Painel Geral de Conferências de Entrada (`/recebimento/gestao`)
+- **Visão Unificada**: Nova aba principal **"Conferências"** exibindo todas as conferências registradas no sistema (em andamento, recontagem, finalizadas e reiniciadas).
+- **Filtros Rápidos por Categoria (Chips)**:
+  - *Todas*
+  - *Em Andamento* (Iniciadas, N1 em Andamento, N2 em Andamento, N3 em Andamento)
+  - *Recontagem / Pendente* (Aguardando N2, Aguardando N3, Divergentes)
+  - *Concluídas* (Conferidas, Aguardando Aprovação, Enviadas ao Sankhya)
+  - *💾 Com Backup* (Conferências reiniciadas com snapshot de contagem anterior disponível para restauração)
+- **Busca em Tempo Real**: Campo de pesquisa filtrando simultaneamente por número da NF, fornecedor/parceiro, ID da conferência ou conferente.
+- **Detalhamento e Bipagens**: Resumo numérico de contagens (Itens faturados, N1, N2, N3, itens em backup) e botão de expansão para visualização de itens conferidos com lote e validade.
+- **Acesso ao Coletor**: Botão "📱 Abrir no Coletor" com redirecionamento direto para a sessão ativa de conferência (`/recebimento/conferencia`).
+
+### 2. Reinício Seguro com Backup, Recontagem e Recuperação de Contagem
+- **Reinício Seguro (Zero Data Loss)**:
+  - Ao reiniciar uma conferência, os dados físicos não são apagados.
+  - As bipagens ativas recebem soft-anulação (`anulado = 1`).
+  - É registrado um snapshot estruturado na coluna `backup_contagem_json` da tabela `conferencias_entrada` com: status anterior, nível anterior, data/hora, responsável, motivo e total de bipagens arquivadas.
+- **Solicitação de Recontagem com Seletor de Nível**:
+  - Modal com escolha de nível: Nível 1 (Recontagem cega simples), Nível 2 (Recontagem com lote e validade) e Nível 3 (Reconferência de desempate).
+  - Disponibiliza imediatamente a conferência para a equipe no coletor.
+- **Recuperação de Contagem Reiniciada**:
+  - Para conferências com backup disponível, é exibido o badge destacado **"💾 Backup Recuperável"** e o botão de recuperação.
+  - O modal apresenta detalhes completos do snapshot.
+  - Ao confirmar, o sistema executa `restaurarBipagens(conferenciaId)`, reativando as bipagens (`anulado = 0`), restabelecendo status e nível anteriores e liberando o snapshot.
+
+### 3. Gestão de Divergências & Integração Direta com ERP Sankhya
+- **Resolução de Divergências**:
+  - Aba **"Divergências"** com agrupamento por conferência e itens discordantes (N1 x N2 x NF).
+  - Ações para aprovar gerencialmente a divergência ou solicitar reconferência N3 de desempate.
+  - Exportação completa da planilha de divergências em CSV.
+- **Aprovação e Envio ao Sankhya**:
+  - Aba **"Envio Sankhya"** exibindo conferências prontas para sincronização.
+  - Atualização dos itens faturados (`TGFITE`) com as quantidades e lotes conferidos.
+  - Registro de lotes e validades em `TGFLOT`.
+  - Atualização do saldo de estoque físico em `TGFEST`.
+  - Registro de histórico e observações na nota (`TGFCAB.OBSERVACAO`).
+
+### 4. Design Minimalista & Modernização de Interface
+- **Segmented Control (Pill Tabs)**:
+  - Substituída a navegação pesada por uma barra de abas segmentada compacta e elegante (`var(--slate-100)` com padding de 3px e borda suave).
+  - Títulos diretos e objetivos: *Conferências*, *Divergências* e *Envio Sankhya*.
+  - Badges compactos com alerta visual vermelho suave para divergências pendentes (`alerta`).
+  - Botão *🔄 Atualizar* integrado de forma minimalista na mesma linha das abas.
+- **Isolamento de Seleção de Rota no Menu**:
+  - Ajustado o estado ativo dos itens de menu no drawer para evitar seleção simultânea entre *Conferência de Entrada* e *Gestão de Recebimento*.
+
+### 5. Resiliência e Evolução do Banco de Dados
+- **Esquema SQLite / Turso**:
+  - Adicionadas as colunas `finalizado_em`, `aprovado_por`, `aprovado_em`, `enviado_sankhya_em`, `observacao_aprovacao`, `resposta_sankhya_json`, `backup_contagem_json` na tabela `conferencias_entrada`.
+  - Implementação idempotente via helper `garantirColuna` em `schema.ts`.
+- **Desacoplamento e Resiliência no Frontend**:
+  - Tratamento individual de erros no carregamento da Gestão de Recebimento (`listarTodasConferencias`, `listarDivergencias`, `listarNotas`), evitando que falha em um serviço bloqueie a renderização dos demais.
+
+---
+
 # Handoff — Sessão 2026-10-08
 
 ## Funcionalidades e Ajustes Implementados
