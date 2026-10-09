@@ -54,6 +54,15 @@ export interface ItemNotaEntrada {
   divergente?: boolean;
 }
 
+export interface BackupContagemEntrada {
+  statusAnterior: StatusConferenciaEntrada;
+  nivelAnterior: number;
+  reiniciadoEm: string;
+  reiniciadoPor: string;
+  motivo?: string;
+  totalBipagensAnuladas: number;
+}
+
 export interface SessaoConferenciaEntrada {
   id: string;
   nunotas: number[];
@@ -68,6 +77,29 @@ export interface SessaoConferenciaEntrada {
   enviadoSankhyaEm?: string;
   observacaoAprovacao?: string;
   respostaSankhyaJson?: string;
+  backupContagemJson?: string;
+  backupContagem?: BackupContagemEntrada;
+}
+
+export interface ConferenciaEntradaResumo {
+  id: string;
+  nunotas: number[];
+  numerosNotas: string;
+  fornecedor: string;
+  status: StatusConferenciaEntrada;
+  nivelAtual: number;
+  conferente: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  finalizadoEm?: string;
+  enviadoSankhyaEm?: string;
+  totalItens: number;
+  totalBipadoN1: number;
+  totalBipadoN2: number;
+  totalBipadoN3: number;
+  temBackupContagem: boolean;
+  backupContagem?: BackupContagemEntrada;
+  observacaoAprovacao?: string;
 }
 
 export interface BipagemEntrada {

@@ -22,15 +22,29 @@ export class ReiniciarConferenciaEntradaUseCase {
 
     const agora = new Date().toISOString();
 
-    // 1. Anular todas as bipagens ativas da sessão
+    // 1. Criar snapshot de segurança da contagem anterior se houver bipagens ou status avançado
     const bipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
-    for (const b of bipagens) {
-      if (!b.anulado) {
-        await this.conferenciaRepo.anularBipagem(b.id);
-      }
+    const bipagensAtivas = bipagens.filter((b) => !b.anulado);
+
+    if (bipagensAtivas.length > 0 || sessao.nivelAtual > 1 || sessao.status !== 'Em Aberto') {
+      const backup = {
+        statusAnterior: sessao.status,
+        nivelAnterior: sessao.nivelAtual,
+        reiniciadoEm: agora,
+        reiniciadoPor: input.usuario || 'Gestor',
+        motivo: input.motivo,
+        totalBipagensAnuladas: bipagensAtivas.length,
+      };
+      sessao.backupContagemJson = JSON.stringify(backup);
+      sessao.backupContagem = backup;
     }
 
-    // 2. Retornar status da sessão para Em Aberto e nível para 1
+    // 2. Anular todas as bipagens ativas da sessão
+    for (const b of bipagensAtivas) {
+      await this.conferenciaRepo.anularBipagem(b.id);
+    }
+
+    // 3. Retornar status da sessão para Em Aberto e nível para 1
     sessao.status = 'Em Aberto';
     sessao.nivelAtual = 1;
     sessao.atualizadoEm = agora;

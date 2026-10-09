@@ -113,4 +113,33 @@ export class RecebimentoApiService {
     );
     return response.data;
   }
+
+  async listarTodasConferencias(): Promise<import('../../domain/models/ConferenciaEntrada').ConferenciaEntradaResumo[]> {
+    const response = await httpClient.get<import('../../domain/models/ConferenciaEntrada').ConferenciaEntradaResumo[]>(
+      '/api/recebimento/conferencias'
+    );
+    return response.data;
+  }
+
+  async solicitarRecontagem(
+    conferenciaId: string,
+    dados: { nivel: number; motivo?: string }
+  ): Promise<SessaoConferenciaEntrada> {
+    const response = await httpClient.post<{ success: boolean; sessao: SessaoConferenciaEntrada }>(
+      `/api/recebimento/conferencia/${conferenciaId}/recontar`,
+      dados
+    );
+    return response.data.sessao;
+  }
+
+  async recuperarContagem(
+    conferenciaId: string,
+    motivo?: string
+  ): Promise<SessaoConferenciaEntrada> {
+    const response = await httpClient.post<{ success: boolean; sessao: SessaoConferenciaEntrada }>(
+      `/api/recebimento/conferencia/${conferenciaId}/recuperar`,
+      { motivo }
+    );
+    return response.data.sessao;
+  }
 }

@@ -9,6 +9,9 @@ import { ListarDivergenciasEntradaUseCase } from '../../../application/use-cases
 import { ResolverDivergenciaUseCase } from '../../../application/use-cases/recebimento/ResolverDivergenciaUseCase.js';
 import { ReiniciarConferenciaEntradaUseCase } from '../../../application/use-cases/recebimento/ReiniciarConferenciaEntradaUseCase.js';
 import { EnviarConferenciaSankhyaUseCase } from '../../../application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.js';
+import { ListarTodasConferenciasEntradaUseCase } from '../../../application/use-cases/recebimento/ListarTodasConferenciasEntradaUseCase.js';
+import { SolicitarRecontagemEntradaUseCase } from '../../../application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.js';
+import { RecuperarContagemReiniciadaUseCase } from '../../../application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
 
 export class ConferenciaEntradaController {
   constructor(
@@ -21,7 +24,10 @@ export class ConferenciaEntradaController {
     private readonly listarDivergenciasUseCase?: ListarDivergenciasEntradaUseCase,
     private readonly resolverDivergenciaUseCase?: ResolverDivergenciaUseCase,
     private readonly reiniciarConferenciaUseCase?: ReiniciarConferenciaEntradaUseCase,
-    private readonly enviarSankhyaUseCase?: EnviarConferenciaSankhyaUseCase
+    private readonly enviarSankhyaUseCase?: EnviarConferenciaSankhyaUseCase,
+    private readonly listarTodasUseCase?: ListarTodasConferenciasEntradaUseCase,
+    private readonly solicitarRecontagemUseCase?: SolicitarRecontagemEntradaUseCase,
+    private readonly recuperarContagemUseCase?: RecuperarContagemReiniciadaUseCase
   ) {}
 
   /** GET /api/recebimento/notas */
@@ -232,6 +238,70 @@ export class ConferenciaEntradaController {
     } catch (error: any) {
       console.error('❌ Erro ao enviar conferência para o Sankhya:', error);
       res.status(400).json({ error: error.message || 'Erro ao integrar com o Sankhya.' });
+    }
+  }
+
+  /** GET /api/recebimento/conferencias — Visão geral de todas as conferências */
+  async listarTodas(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.listarTodasUseCase) {
+        res.status(501).json({ error: 'Funcionalidade não configurada no servidor.' });
+        return;
+      }
+      const conferencias = await this.listarTodasUseCase.execute(req.correlationId);
+      res.status(200).json(conferencias);
+    } catch (error: any) {
+      console.error('❌ Erro ao listar todas as conferências:', error);
+      res.status(500).json({ error: error.message || 'Erro ao listar conferências.' });
+    }
+  }
+
+  /** POST /api/recebimento/conferencia/:id/recontar — Solicitar recontagem N1/N2/N3 */
+  async solicitarRecontagem(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.solicitarRecontagemUseCase) {
+        res.status(501).json({ error: 'Funcionalidade não configurada no servidor.' });
+        return;
+      }
+      const conferenciaId = req.params.id;
+      const usuario = req.username || (req as any).user?.username || (req as any).username || 'Gestor';
+      const { nivel, motivo } = req.body;
+
+      const sessao = await this.solicitarRecontagemUseCase.execute({
+        conferenciaId,
+        nivel: Number(nivel) || 2,
+        usuario,
+        motivo,
+      });
+
+      res.status(200).json({ success: true, sessao });
+    } catch (error: any) {
+      console.error('❌ Erro ao solicitar recontagem:', error);
+      res.status(400).json({ error: error.message || 'Erro ao solicitar recontagem.' });
+    }
+  }
+
+  /** POST /api/recebimento/conferencia/:id/recuperar — Restaurar contagem reiniciada */
+  async recuperarContagem(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.recuperarContagemUseCase) {
+        res.status(501).json({ error: 'Funcionalidade não configurada no servidor.' });
+        return;
+      }
+      const conferenciaId = req.params.id;
+      const usuario = req.username || (req as any).user?.username || (req as any).username || 'Gestor';
+      const { motivo } = req.body;
+
+      const sessao = await this.recuperarContagemUseCase.execute({
+        conferenciaId,
+        usuario,
+        motivo,
+      });
+
+      res.status(200).json({ success: true, sessao });
+    } catch (error: any) {
+      console.error('❌ Erro ao recuperar contagem reiniciada:', error);
+      res.status(400).json({ error: error.message || 'Erro ao recuperar contagem reiniciada.' });
     }
   }
 }

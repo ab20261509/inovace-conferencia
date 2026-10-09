@@ -25,6 +25,7 @@ export function createConferenciaEntradaRoutes(controller: ConferenciaEntradaCon
   router.post('/conferencia/:id/finalizar', (req, res) => controller.finalizarNivel(req, res));
 
   // Gestão de divergências e envio ao Sankhya
+  router.get('/conferencias', (req, res) => controller.listarTodas(req, res));
   router.get('/conferencia/divergencias', (req, res) => controller.listarDivergencias(req, res));
   router.get('/gestao/divergencias', (req, res) => controller.listarDivergencias(req, res));
   router.get('/divergencias', (req, res) => controller.listarDivergencias(req, res));
@@ -33,6 +34,8 @@ export function createConferenciaEntradaRoutes(controller: ConferenciaEntradaCon
   router.put('/conferencia/:id/resolver-divergencia', (req, res) => controller.resolverDivergencia(req, res));
 
   router.post('/conferencia/:id/reiniciar', (req, res) => controller.reiniciarConferencia(req, res));
+  router.post('/conferencia/:id/recontar', (req, res) => controller.solicitarRecontagem(req, res));
+  router.post('/conferencia/:id/recuperar', (req, res) => controller.recuperarContagem(req, res));
   router.post('/conferencia/:id/enviar-sankhya', (req, res) => controller.enviarSankhya(req, res));
 
   return router;

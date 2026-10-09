@@ -75,6 +75,9 @@ import { ListarDivergenciasEntradaUseCase } from './application/use-cases/recebi
 import { ResolverDivergenciaUseCase } from './application/use-cases/recebimento/ResolverDivergenciaUseCase.js';
 import { ReiniciarConferenciaEntradaUseCase } from './application/use-cases/recebimento/ReiniciarConferenciaEntradaUseCase.js';
 import { EnviarConferenciaSankhyaUseCase } from './application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.js';
+import { ListarTodasConferenciasEntradaUseCase } from './application/use-cases/recebimento/ListarTodasConferenciasEntradaUseCase.js';
+import { SolicitarRecontagemEntradaUseCase } from './application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.js';
+import { RecuperarContagemReiniciadaUseCase } from './application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -161,8 +164,11 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo, configSistemaRepo);
   const listarDivergenciasEntradaUseCase = new ListarDivergenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(conferenciaEntradaRepo);
-  const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo);
+  const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo, auditService);
   const enviarConferenciaSankhyaUseCase = new EnviarConferenciaSankhyaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const listarTodasConferenciasUseCase = new ListarTodasConferenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const solicitarRecontagemEntradaUseCase = new SolicitarRecontagemEntradaUseCase(conferenciaEntradaRepo, auditService);
+  const recuperarContagemReiniciadaUseCase = new RecuperarContagemReiniciadaUseCase(conferenciaEntradaRepo, auditService);
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -222,7 +228,10 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     listarDivergenciasEntradaUseCase,
     resolverDivergenciaUseCase,
     reiniciarConferenciaEntradaUseCase,
-    enviarConferenciaSankhyaUseCase
+    enviarConferenciaSankhyaUseCase,
+    listarTodasConferenciasUseCase,
+    solicitarRecontagemEntradaUseCase,
+    recuperarContagemReiniciadaUseCase
   );
   const crudController = new CrudController(
     loadRecordsUseCase,
