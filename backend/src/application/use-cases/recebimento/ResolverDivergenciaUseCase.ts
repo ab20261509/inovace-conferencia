@@ -5,6 +5,7 @@ import { AuditService } from '../../../infrastructure/database/AuditService.js';
 export interface ResolverDivergenciaInput {
   conferenciaId: string;
   usuario: string;
+  acao?: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3';
   observacao?: string;
 }
 
@@ -21,12 +22,25 @@ export class ResolverDivergenciaUseCase {
     }
 
     const agora = new Date().toISOString();
-    sessao.status = 'Conferido';
-    sessao.atualizadoEm = agora;
-    sessao.finalizadoEm = agora;
-    sessao.aprovadoPor = input.usuario;
-    sessao.aprovadoEm = agora;
-    sessao.observacaoAprovacao = input.observacao || 'Divergência resolvida e aprovada pelo gestor.';
+
+    if (input.acao === 'RECONFERIR_N3') {
+      sessao.status = 'Aguardando N3';
+      sessao.nivelAtual = 3;
+      sessao.atualizadoEm = agora;
+      sessao.observacaoAprovacao = input.observacao
+        ? `Reconferência N3: ${input.observacao}`
+        : 'Reconferência Nível 3 solicitada pelo gestor.';
+      sessao.aprovadoPor = undefined;
+      sessao.aprovadoEm = undefined;
+    } else {
+      // APROVAR_DIVERGENCIA (padrão)
+      sessao.status = 'Aguardando Aprovação';
+      sessao.atualizadoEm = agora;
+      sessao.finalizadoEm = agora;
+      sessao.aprovadoPor = input.usuario;
+      sessao.aprovadoEm = agora;
+      sessao.observacaoAprovacao = input.observacao || 'Divergência resolvida e aprovada pelo gestor.';
+    }
 
     await this.conferenciaRepo.salvarSessao(sessao);
 

@@ -106,7 +106,33 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     const divideMultiplica = String(targetRow[fieldIndex['DIVIDEMULTIPLICA']] || 'M');
     const fatorAlt = Number(targetRow[fieldIndex['FATOR_ALT']] || 1);
 
-    // 2. Calcular quantidade efetiva considerando fator se for embalagem alternativa
+    // 2. Se a conferência estiver no Nível 3 (Reconferência / Desempate),
+    // validar se o item bipado é realmente divergente nos níveis anteriores
+    const nivelAtual = input.nivel || sessao.nivelAtual || 1;
+    if (nivelAtual === 3) {
+      const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
+      let n1Item = 0;
+      let n2Item = 0;
+      for (const b of todasBipagens) {
+        if (!b.anulado && b.nunota === nunota && b.codprod === codprod && b.sequencia === sequencia) {
+          if (b.nivel === 1) n1Item += b.qtdConferida;
+          if (b.nivel === 2) n2Item += b.qtdConferida;
+        }
+      }
+      const qtdEsperada = Number(targetRow[fieldIndex['QTDNEG']] || 0);
+      const houveN2 = todasBipagens.some((b) => !b.anulado && b.nivel === 2);
+      const divergente = houveN2
+        ? n1Item !== qtdEsperada || n2Item !== qtdEsperada || n1Item !== n2Item
+        : n1Item !== qtdEsperada;
+
+      if (!divergente) {
+        throw new Error(
+          `O produto "${descrprod}" já foi conferido e validado com sucesso nos níveis anteriores (${n1Item} un). No Nível 3, bipe apenas os itens divergentes.`
+        );
+      }
+    }
+
+    // 3. Calcular quantidade efetiva considerando fator se for embalagem alternativa
     let fator = 1;
     if (codBarraAlt.toUpperCase() === codigoLimpo.toUpperCase() && fatorAlt > 0) {
       fator = divideMultiplica === 'D' ? 1 / fatorAlt : fatorAlt;

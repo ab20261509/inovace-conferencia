@@ -197,8 +197,12 @@ WHERE BAR.CODPROD IN (
       const key = `${nunota}|${codprod}|${sequencia}`;
       const bip = mapQtdBipada[key] || { n1: 0, n2: 0, n3: 0 };
 
-      // Se N3 estiver em jogo, identificar divergência
-      const divergente = bip.n1 !== rawQtd || bip.n2 !== rawQtd || bip.n1 !== bip.n2;
+      // Se houve contagem no Nível 2, compara N1 x N2 x NF.
+      // Se não houve N2 (contagem única), compara N1 x NF.
+      const houveNivel2 = bipagens.some((b) => !b.anulado && b.nivel === 2);
+      const divergente = houveNivel2
+        ? bip.n1 !== rawQtd || bip.n2 !== rawQtd || bip.n1 !== bip.n2
+        : bip.n1 !== rawQtd;
 
       let codigosAlternativos = mapaBarras[codprod] || [];
       if (ocultarCodBarra) {
@@ -221,9 +225,19 @@ WHERE BAR.CODPROD IN (
       };
     });
 
+    // Se a conferência estiver no Nível 3 (Reconferência / Desempate),
+    // o conferente deve receber APENAS os itens que divergiram nos níveis anteriores!
+    const ehNivel3 =
+      sessao?.nivelAtual === 3 ||
+      sessao?.status === 'Aguardando N3' ||
+      sessao?.status === 'N3 em Andamento' ||
+      sessao?.status === 'Divergente';
+
+    const itensRetornados = ehNivel3 ? itens.filter((i) => i.divergente) : itens;
+
     return {
       sessao,
-      itens,
+      itens: itensRetornados,
       bipagens,
     };
   }

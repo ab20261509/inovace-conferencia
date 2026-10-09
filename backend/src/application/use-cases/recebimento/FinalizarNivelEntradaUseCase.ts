@@ -145,11 +145,30 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
         sessao.finalizadoEm = agora;
       }
     } else {
-      // N3 é o nível final de conferência
-      statusFinal = 'Conferido';
-      sessao.status = statusFinal;
-      sessao.atualizadoEm = agora;
-      sessao.finalizadoEm = agora;
+      // N3 é o nível final de conferência de desempate
+      const houveN2 = todasBipagens.some((b) => !b.anulado && b.nivel === 2);
+      for (const item of Object.values(mapTotais)) {
+        const eraDivergente = houveN2
+          ? item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2
+          : item.n1 !== item.esperado;
+
+        // Se era divergente, verifica se a contagem do N3 bate com o faturado
+        if (eraDivergente && item.n3 !== item.esperado) {
+          possuiDivergencias = true;
+          break;
+        }
+      }
+
+      if (possuiDivergencias) {
+        statusFinal = 'Divergente';
+        sessao.status = statusFinal;
+        sessao.atualizadoEm = agora;
+      } else {
+        statusFinal = 'Conferido';
+        sessao.status = statusFinal;
+        sessao.atualizadoEm = agora;
+        sessao.finalizadoEm = agora;
+      }
     }
 
     await this.conferenciaRepo.salvarSessao(sessao);
@@ -159,7 +178,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       statusFinal,
       possuiDivergencias,
       totalItens: Object.keys(mapTotais).length,
-      totalConferidos: Object.values(mapTotais).filter((i) => i.n1 > 0 || i.n2 > 0).length,
+      totalConferidos: Object.values(mapTotais).filter((i) => i.n1 > 0 || i.n2 > 0 || i.n3 > 0).length,
     };
   }
 }

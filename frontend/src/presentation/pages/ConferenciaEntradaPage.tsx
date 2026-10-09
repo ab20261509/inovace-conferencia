@@ -444,7 +444,7 @@ export function ConferenciaEntradaPage() {
               Nota(s) {sessao?.nunotas.join(', ')} — Recebimento
             </span>
             <span className="badge-recontagem-header" title="Nível atual da conferência">
-              N{nivelAtual}: {nivelAtual === 1 ? 'Contagem Cega' : nivelAtual === 2 ? 'Lote e Validade' : 'Auditoria'}
+              N{nivelAtual}: {nivelAtual === 1 ? 'Contagem Cega' : nivelAtual === 2 ? 'Lote e Validade' : 'Desempate de Divergência'}
             </span>
           </div>
 
@@ -472,6 +472,29 @@ export function ConferenciaEntradaPage() {
             Finalizar N{nivelAtual}
           </Botao>
         </header>
+
+        {nivelAtual === 3 && (
+          <div
+            style={{
+              background: '#fef3c7',
+              color: '#92400e',
+              border: '1px solid #fde68a',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              margin: '0 0 10px 0',
+              fontSize: '0.86rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+            <span>
+              <strong>Reconferência Nível 3:</strong> Apenas os itens divergentes ({itens.length}) foram carregados para desempate.
+            </span>
+          </div>
+        )}
 
         {/* Scanner */}
         <Painel titulo="Conferir Produto">
