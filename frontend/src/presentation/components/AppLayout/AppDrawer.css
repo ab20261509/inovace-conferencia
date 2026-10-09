@@ -1,13 +1,13 @@
-/* Drawer / Menu Gaveta */
+/* Drawer / Menu Gaveta Minimalista */
 .app-drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
   z-index: 1000;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s;
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.2s;
 }
 
 .app-drawer-backdrop.open {
@@ -20,30 +20,32 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 320px;
-  max-width: 85vw;
+  width: 250px;
+  max-width: 80vw;
   background: #ffffff;
   z-index: 1001;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   transform: translateX(-100%);
-  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  border-right: 1px solid var(--border);
 }
 
 .app-drawer.open {
   transform: translateX(0);
 }
 
-/* Header do Drawer */
+/* Header Minimalista */
 .app-drawer-header {
-  padding: 20px;
-  background: linear-gradient(135deg, var(--slate-900) 0%, var(--slate-800) 100%);
+  padding: 12px 14px;
+  background: var(--slate-900);
   color: #ffffff;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .app-drawer-header-top {
@@ -55,122 +57,126 @@
 .app-drawer-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  font-size: 1.15rem;
-  letter-spacing: -0.02em;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
   color: #ffffff;
 }
 
 .app-drawer-brand-badge {
   background: var(--orange-500);
   color: #ffffff;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 900;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .app-drawer-close-btn {
-  background: rgba(255, 255, 255, 0.1);
+  background: transparent;
   border: none;
-  color: #ffffff;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  color: var(--slate-400);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
-  transition: background 0.15s ease;
+  font-size: 0.95rem;
+  transition: all 0.15s ease;
 }
 
 .app-drawer-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 .app-drawer-user {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .app-drawer-avatar {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--orange-500);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 1.1rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
 }
 
 .app-drawer-user-info {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  line-height: 1.2;
 }
 
 .app-drawer-user-name {
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-weight: 600;
+  font-size: 0.82rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #f8fafc;
 }
 
 .app-drawer-user-code {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: var(--slate-400);
 }
 
-/* Corpo do Drawer / Itens de Navegação */
+/* Corpo Minimalista */
 .app-drawer-nav {
   flex: 1;
-  padding: 16px 12px;
+  padding: 10px 8px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .app-drawer-section-title {
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: 0.65rem;
+  font-weight: 700;
   text-transform: uppercase;
   color: var(--slate-400);
   letter-spacing: 0.05em;
-  padding: 10px 12px 4px;
+  padding: 8px 8px 2px;
 }
 
 .app-drawer-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  color: var(--slate-700);
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--slate-600);
   text-decoration: none;
-  font-weight: 600;
-  font-size: 0.92rem;
+  font-weight: 500;
+  font-size: 0.83rem;
   cursor: pointer;
   background: transparent;
   border: none;
   width: 100%;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
 }
 
 .app-drawer-item:hover {
@@ -185,21 +191,22 @@
 }
 
 .app-drawer-item-icon {
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 18px;
+  flex-shrink: 0;
 }
 
 .app-drawer-item-badge {
   margin-left: auto;
-  font-size: 0.7rem;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-weight: 700;
-  background: var(--slate-200);
-  color: var(--slate-700);
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: var(--slate-100);
+  color: var(--slate-500);
 }
 
 .app-drawer-item.active .app-drawer-item-badge {
@@ -207,30 +214,30 @@
   color: #ffffff;
 }
 
-/* Footer do Drawer */
+/* Footer Minimalista */
 .app-drawer-footer {
-  padding: 16px;
-  border-top: 1px solid var(--slate-200);
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   background: var(--slate-50);
 }
 
 .app-drawer-logout-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--slate-300);
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--slate-200);
   background: #ffffff;
   color: var(--rose-600);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
 }
 
 .app-drawer-logout-btn:hover {
