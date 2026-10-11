@@ -680,7 +680,56 @@
   font-weight: 600;
 }
 
+.gestao-aba-badges-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gestao-parametro-resumo-curto {
+  margin: 0 0 8px 0;
+  font-size: 0.88rem;
+  color: var(--slate-600);
+  line-height: 1.4;
+}
+
+.gestao-parametro-btn-toggle {
+  background: var(--slate-100);
+  border: 1px solid var(--border);
+  color: var(--slate-700);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.gestao-parametro-btn-toggle:hover {
+  background: var(--slate-200);
+  color: var(--slate-900);
+}
+
+.gestao-parametro-detalhes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  animation: fadeIn 0.2s ease-in-out;
+}
+
 .gestao-parametros-secao {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gestao-parametros-lista {
   display: flex;
   flex-direction: column;
   gap: 16px;

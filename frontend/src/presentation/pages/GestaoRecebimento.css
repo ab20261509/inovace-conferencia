@@ -365,15 +365,6 @@
   background: #6d28d9;
 }
 
-.gestao-btn-coletor {
-  background: #0f172a;
-  color: #ffffff;
-}
-
-.gestao-btn-coletor:hover {
-  background: #1e293b;
-}
-
 .gestao-btn-csv {
   background: #ffffff;
   color: var(--slate-700);
@@ -394,6 +385,86 @@
   background: #c2410c;
 }
 
+/* Barra de Controle de Exibição / Esconder Itens */
+.gestao-rec-itens-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--slate-100);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.gestao-rec-itens-filtros {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.gestao-rec-item-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--slate-600);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gestao-rec-item-chip:hover {
+  background: var(--slate-50);
+  color: var(--slate-800);
+  border-color: var(--slate-400);
+}
+
+.gestao-rec-item-chip.ativo {
+  background: var(--slate-800);
+  color: #ffffff;
+  border-color: var(--slate-800);
+}
+
+.gestao-rec-item-chip .chip-count {
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.gestao-rec-item-chip.ativo .chip-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.gestao-rec-btn-toggle-itens {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--slate-700);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.gestao-rec-btn-toggle-itens:hover {
+  background: var(--slate-50);
+  color: var(--slate-900);
+  border-color: var(--slate-400);
+}
+
 /* Tabela de Itens Divergentes (Desktop) */
 .gestao-rec-tabela-desktop {
   display: block;
@@ -402,27 +473,31 @@
   border: 1px solid var(--border);
 }
 
+/* Tabela de Itens Compacta (Altura Mínima) */
 .gestao-rec-tabela {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.81rem;
   text-align: left;
 }
 
 .gestao-rec-tabela th {
   background: var(--slate-100);
-  padding: 10px 12px;
+  padding: 6px 8px;
   font-weight: 700;
+  font-size: 0.78rem;
   color: var(--slate-700);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .gestao-rec-tabela td {
-  padding: 10px 12px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--slate-100);
   color: var(--slate-800);
   vertical-align: middle;
+  line-height: 1.25;
 }
 
 .gestao-rec-tabela tr:last-child td {
@@ -435,9 +510,11 @@
 
 .diferenca-badge {
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  display: inline-block;
+  line-height: 1.2;
 }
 
 .diferenca-badge.falta {
@@ -455,21 +532,21 @@
   color: #16a34a;
 }
 
-/* Cards de Itens Mobile (<= 1024px) */
+/* Cards de Itens Mobile / Tablet (<= 1024px) */
 .gestao-rec-itens-mobile {
   display: none;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .gestao-item-card-mobile {
   background: var(--slate-50);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 6px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .gestao-item-mobile-header {
@@ -482,28 +559,32 @@
 .gestao-item-mobile-codprod {
   font-weight: 700;
   color: var(--slate-900);
-  font-size: 0.92rem;
+  font-size: 0.85rem;
 }
 
 .gestao-item-mobile-descr {
   font-size: 0.82rem;
-  color: var(--slate-600);
+  font-weight: 600;
+  color: var(--slate-900);
+  line-height: 1.25;
 }
 
 .gestao-item-mobile-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
-  font-size: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 4px 8px;
+  font-size: 0.76rem;
   background: #ffffff;
-  padding: 8px;
-  border-radius: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
   border: 1px solid var(--slate-200);
+  line-height: 1.2;
 }
 
 .gestao-item-mobile-lote-info {
-  font-size: 0.78rem;
-  color: var(--slate-500);
+  font-size: 0.74rem;
+  color: var(--slate-600);
+  line-height: 1.2;
 }
 
 /* Responsividade Geral */

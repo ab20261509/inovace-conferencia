@@ -10,6 +10,9 @@ import {
 } from '../../domain/models/ConferenciaEntrada';
 import { AppLayout, AppHeader, Container } from '../components';
 import { Loading } from '../components/Loading/Loading';
+import { ModalGerenciarLotes, FracaoLote } from '../components/Recebimento/ModalGerenciarLotes';
+import { ModalImportarLotesExcel } from '../components/Recebimento/ModalImportarLotesExcel';
+import { LoteImportadoExcel } from '../components/Recebimento/loteExcelHelper';
 import './GestaoRecebimento.css';
 
 const recebimentoService = new RecebimentoApiService();
@@ -42,6 +45,154 @@ export function GestaoRecebimentoPage() {
   // Filtros do Painel de Conferências
   const [filtroStatus, setFiltroStatus] = useState<'todas' | 'em_andamento' | 'recontagem' | 'concluidas' | 'com_backup'>('todas');
   const [buscaTexto, setBuscaTexto] = useState('');
+
+  // Estados para Gerenciamento de Lotes e Importação Excel
+  const [lotesCustomizadosPorConferencia, setLotesCustomizadosPorConferencia] = useState<
+    Record<string, Record<number, FracaoLote[]>>
+  >({});
+  const [origemExcelPorConferencia, setOrigemExcelPorConferencia] = useState<
+    Record<string, Set<number>>
+  >({});
+  const [modalGerenciarLotesAberto, setModalGerenciarLotesAberto] = useState(false);
+  const [produtoEdicaoLotes, setProdutoEdicaoLotes] = useState<{
+    nunota: number;
+    sequencia: number;
+    codprod: number;
+    descrprod: string;
+    qtdEsperada: number;
+    conferenciaId: string;
+  } | null>(null);
+  const [modalImportarExcelAberto, setModalImportarExcelAberto] = useState(false);
+  const [conferenciaParaExcel, setConferenciaParaExcel] = useState<{
+    conferenciaId: string;
+    nunotas: number[];
+  } | null>(null);
+
+  // Controle de exibição (esconder/exibir) e filtro por card de divergência (Aba 2)
+  const [itensDivergenciaExpandidos, setItensDivergenciaExpandidos] = useState<Record<string, boolean>>({});
+  const [filtroItensDivergencia, setFiltroItensDivergencia] = useState<Record<string, 'divergentes' | 'todos'>>({});
+
+  const toggleItensDivergencia = (grupoId: string) => {
+    setItensDivergenciaExpandidos((prev) => ({
+      ...prev,
+      [grupoId]: !prev[grupoId],
+    }));
+  };
+
+  const obterLotesItem = (conferenciaId: string, item: any, bipagens: any[] = []): FracaoLote[] => {
+    const custom = lotesCustomizadosPorConferencia[conferenciaId]?.[item.codprod];
+    if (custom && custom.length > 0) return custom;
+
+    const bipagensProd = bipagens.filter(
+      (b) => b.codprod === item.codprod && !b.anulado && b.lote
+    );
+
+    if (bipagensProd.length > 0) {
+      const mapa = new Map<string, FracaoLote>();
+      for (const b of bipagensProd) {
+        const key = b.lote.trim();
+        if (!mapa.has(key)) {
+          mapa.set(key, {
+            lote: key,
+            qtd: 0,
+            validade: b.validade || item.validade,
+            fabricacao: b.fabricacao || item.fabricacao,
+          });
+        }
+        mapa.get(key)!.qtd += b.qtdConferida || 0;
+      }
+      return Array.from(mapa.values());
+    }
+
+    if (item.lote) {
+      return [
+        {
+          lote: item.lote,
+          qtd: item.qtdneg || 0,
+          validade: item.validade,
+          fabricacao: item.fabricacao,
+        },
+      ];
+    }
+
+    return [];
+  };
+
+  const handleSalvarLotesCustomizados = (lotes: FracaoLote[]) => {
+    if (!produtoEdicaoLotes) return;
+    const { conferenciaId, codprod } = produtoEdicaoLotes;
+    setLotesCustomizadosPorConferencia((prev) => ({
+      ...prev,
+      [conferenciaId]: {
+        ...(prev[conferenciaId] || {}),
+        [codprod]: lotes,
+      },
+    }));
+    setFeedback({
+      tipo: 'sucesso',
+      texto: `Lotes do produto ${codprod} atualizados (${lotes.length} frações configuradas).`,
+    });
+  };
+
+  const handleAplicarImportacaoExcel = (lotesImportados: LoteImportadoExcel[]) => {
+    if (!conferenciaParaExcel) return;
+    const { conferenciaId } = conferenciaParaExcel;
+
+    const novosLotes: Record<number, FracaoLote[]> = {};
+    const prodsExcel = new Set<number>();
+
+    for (const l of lotesImportados) {
+      prodsExcel.add(l.codprod);
+      if (!novosLotes[l.codprod]) {
+        novosLotes[l.codprod] = [];
+      }
+      novosLotes[l.codprod].push({
+        lote: l.lote,
+        qtd: l.qtd || 0,
+        validade: l.validade,
+        fabricacao: l.fabricacao,
+      });
+    }
+
+    setLotesCustomizadosPorConferencia((prev) => ({
+      ...prev,
+      [conferenciaId]: {
+        ...(prev[conferenciaId] || {}),
+        ...novosLotes,
+      },
+    }));
+
+    setOrigemExcelPorConferencia((prev) => ({
+      ...prev,
+      [conferenciaId]: new Set([...(prev[conferenciaId] || []), ...prodsExcel]),
+    }));
+
+    setFeedback({
+      tipo: 'sucesso',
+      texto: `Importação concluída! ${lotesImportados.length} lotes importados para ${prodsExcel.size} produto(s).`,
+    });
+  };
+
+  const formatarConferentes = (item: any) => {
+    const n1 = item.conferenteN1?.trim();
+    const n2 = item.conferenteN2?.trim();
+    const n3 = item.conferenteN3?.trim();
+    if (!n1 && !n2 && !n3) return <span style={{ color: 'var(--slate-400)' }}>—</span>;
+    if (n1 && n2 && n1 === n2 && !n3) {
+      return <span>{n1} <small style={{ color: 'var(--slate-500)', fontWeight: 500 }}>(N1/N2)</small></span>;
+    }
+    const parts: string[] = [];
+    if (n1) parts.push(`N1: ${n1}`);
+    if (n2) parts.push(`N2: ${n2}`);
+    if (n3) parts.push(`N3: ${n3}`);
+    return <span>{parts.join(' • ')}</span>;
+  };
+
+  const formatarDataSimples = (d?: string) => {
+    if (!d) return '—';
+    if (d.includes('T')) return d.split('T')[0];
+    return d;
+  };
 
   // Estados de feedback e modais
   const [feedback, setFeedback] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
@@ -235,7 +386,25 @@ export function GestaoRecebimentoPage() {
           texto: 'Contagem restaurada com sucesso! As bipagens salvas e status anterior foram restabelecidos.',
         });
       } else if (modalAcao.tipo === 'ENVIAR_SANKHYA') {
-        const resp = await recebimentoService.enviarSankhya(modalAcao.conferenciaId, observacaoModal);
+        const lotesCust = lotesCustomizadosPorConferencia[modalAcao.conferenciaId];
+        const resp = await recebimentoService.enviarSankhya(modalAcao.conferenciaId, {
+          observacao: observacaoModal,
+          itensCustomizados: lotesCust ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
+            const codprod = Number(codprodStr);
+            const itemRef = detalhesConferencias[modalAcao.conferenciaId]?.itens.find((i) => i.codprod === codprod);
+            const nunota = itemRef?.nunota || 0;
+            const sequencia = itemRef?.sequencia ?? 1;
+            return fracoes.filter((f) => f.lote?.trim()).map((f) => ({
+              nunota,
+              sequencia,
+              codprod,
+              lote: f.lote.trim(),
+              validade: f.validade,
+              fabricacao: f.fabricacao,
+              qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
+            }));
+          }) : undefined,
+        });
         setFeedback({
           tipo: 'sucesso',
           texto: `Envio concluído com sucesso ao Sankhya! ${resp.itensAtualizados} itens da nota e ${resp.estoqueAtualizado} registros de estoque atualizados.`,
@@ -581,50 +750,181 @@ export function GestaoRecebimentoPage() {
                               )}
                             </div>
 
-                            {/* Tabela de Detalhes / Bipagens Expandida */}
+                            {/* Tabela de Itens Expandida */}
                             {isExpandido && (
                               <div style={{ marginTop: '8px' }}>
                                 {isCarregandoDetalhes ? (
                                   <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)', padding: '12px' }}>
-                                    Carregando dados dos itens e bipagens...
+                                    Carregando dados dos itens e contagens...
                                   </div>
                                 ) : detalhes ? (
-                                  <div className="gestao-rec-tabela-desktop">
-                                    <table className="gestao-rec-tabela">
-                                      <thead>
-                                        <tr>
-                                          <th>Cód. Produto</th>
-                                          <th>Descrição</th>
-                                          <th>Qtd Bipada</th>
-                                          <th>Nível</th>
-                                          <th>Lote Bipado</th>
-                                          <th>Validade</th>
-                                          <th>Data / Hora</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {detalhes.bipagens.length === 0 ? (
+                                  <>
+                                    <div className="gestao-rec-tabela-desktop">
+                                      <table className="gestao-rec-tabela">
+                                        <thead>
                                           <tr>
-                                            <td colSpan={7} style={{ textAlign: 'center', color: 'var(--slate-400)' }}>
-                                              Nenhuma bipagem ativa nesta sessão no momento.
-                                            </td>
+                                            <th>Produto</th>
+                                            <th>Vol.</th>
+                                            <th>Nota</th>
+                                            <th>N1</th>
+                                            <th>N2</th>
+                                            {(conf.totalBipadoN3 > 0 || detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0)) && <th>N3</th>}
+                                            <th>Diferença</th>
+                                            <th>Lote</th>
+                                            <th>Validade</th>
+                                            <th>Fabricação</th>
+                                            <th>Conferentes</th>
                                           </tr>
-                                        ) : (
-                                          detalhes.bipagens.map((b) => (
-                                            <tr key={b.id}>
-                                              <td><strong>{b.codprod}</strong></td>
-                                              <td>Item {b.sequencia}</td>
-                                              <td><strong>{b.qtdConferida}</strong></td>
-                                              <td>N{b.nivel}</td>
-                                              <td>{b.lote || <span style={{ color: 'var(--slate-400)' }}>Sem lote</span>}</td>
-                                              <td>{b.validade || '—'}</td>
-                                              <td>{new Date(b.timestamp).toLocaleTimeString('pt-BR')}</td>
+                                        </thead>
+                                        <tbody>
+                                          {detalhes.itens.length === 0 ? (
+                                            <tr>
+                                              <td colSpan={11} style={{ textAlign: 'center', color: 'var(--slate-400)' }}>
+                                                Nenhum item faturado encontrado para esta conferência.
+                                              </td>
                                             </tr>
-                                          ))
-                                        )}
-                                      </tbody>
-                                    </table>
-                                  </div>
+                                          ) : (
+                                            detalhes.itens.map((item) => {
+                                              const diferenca = item.diferenca !== undefined
+                                                ? item.diferenca
+                                                : ((item.qtdConferidaN3 || 0) > 0
+                                                    ? (item.qtdConferidaN3 || 0)
+                                                    : (item.qtdConferidaN2 || 0) > 0
+                                                    ? (item.qtdConferidaN2 || 0)
+                                                    : (item.qtdConferidaN1 || 0)) - (item.qtdneg || 0);
+                                              const classeDif =
+                                                diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+
+                                              return (
+                                                <tr key={`conf-${item.nunota}-${item.codprod}-${item.sequencia}`}>
+                                                  <td>
+                                                    <div style={{ fontWeight: 600, color: 'var(--slate-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.descrprod}>
+                                                      {item.descrprod || `Produto ${item.codprod}`}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)', whiteSpace: 'nowrap' }}>
+                                                      Cód: {item.codprod}
+                                                      {item.refforn ? ` • Ref: ${item.refforn}` : item.referencia ? ` • Ref: ${item.referencia}` : ''}
+                                                      {item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
+                                                    </div>
+                                                  </td>
+                                                  <td>{item.codvol || 'UN'}</td>
+                                                  <td>
+                                                    <strong>{item.qtdneg ?? '—'}</strong>
+                                                  </td>
+                                                  <td>{item.qtdConferidaN1 || 0}</td>
+                                                  <td>{item.qtdConferidaN2 || 0}</td>
+                                                  {(conf.totalBipadoN3 > 0 || detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0)) && (
+                                                    <td>{item.qtdConferidaN3 || 0}</td>
+                                                  )}
+                                                  <td>
+                                                    <span className={`diferenca-badge ${classeDif}`}>
+                                                      {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                                    </span>
+                                                  </td>
+                                                  <td>
+                                                    {item.lote ? (
+                                                      <span style={{ fontWeight: 600, color: 'var(--slate-800)' }}>{item.lote}</span>
+                                                    ) : (
+                                                      <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                    )}
+                                                  </td>
+                                                  <td>
+                                                    {item.validade ? (
+                                                      <span>{formatarDataSimples(item.validade)}</span>
+                                                    ) : (
+                                                      <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                    )}
+                                                  </td>
+                                                  <td>
+                                                    {item.fabricacao ? (
+                                                      <span>{formatarDataSimples(item.fabricacao)}</span>
+                                                    ) : (
+                                                      <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                    )}
+                                                  </td>
+                                                  <td style={{ fontSize: '0.75rem', color: 'var(--slate-600)', whiteSpace: 'nowrap' }}>
+                                                    {formatarConferentes(item)}
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+
+                                    {/* Cards Mobile Padronizados (<= 1024px) */}
+                                    <div className="gestao-rec-itens-mobile" style={{ marginTop: '8px' }}>
+                                      {detalhes.itens.length === 0 ? (
+                                        <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: '12px' }}>
+                                          Nenhum item faturado encontrado para esta conferência.
+                                        </div>
+                                      ) : (
+                                        detalhes.itens.map((item) => {
+                                          const diferenca = item.diferenca !== undefined
+                                            ? item.diferenca
+                                            : ((item.qtdConferidaN3 || 0) > 0
+                                                ? (item.qtdConferidaN3 || 0)
+                                                : (item.qtdConferidaN2 || 0) > 0
+                                                ? (item.qtdConferidaN2 || 0)
+                                                : (item.qtdConferidaN1 || 0)) - (item.qtdneg || 0);
+                                          const classeDif =
+                                            diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+
+                                          return (
+                                            <div
+                                              key={`conf-mob-${item.nunota}-${item.codprod}-${item.sequencia}`}
+                                              className="gestao-item-card-mobile"
+                                            >
+                                              <div className="gestao-item-mobile-header">
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                  <div className="gestao-item-mobile-descr">
+                                                    {item.descrprod || `Produto ${item.codprod}`}
+                                                  </div>
+                                                  <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)' }}>
+                                                    Cód: {item.codprod}{item.refforn ? ` • Ref: ${item.refforn}` : item.referencia ? ` • Ref: ${item.referencia}` : ''} • Vol: {item.codvol || 'UN'}{item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
+                                                  </div>
+                                                </div>
+                                                <span className={`diferenca-badge ${classeDif}`}>
+                                                  {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                                </span>
+                                              </div>
+
+                                              <div className="gestao-item-mobile-grid">
+                                                <div>
+                                                  Nota: <strong>{item.qtdneg ?? '—'}</strong>
+                                                </div>
+                                                <div>
+                                                  N1: <strong>{item.qtdConferidaN1 || 0}</strong>
+                                                </div>
+                                                <div>
+                                                  N2: <strong>{item.qtdConferidaN2 || 0}</strong>
+                                                </div>
+                                                {(conf.totalBipadoN3 > 0 || (item.qtdConferidaN3 || 0) > 0) && (
+                                                  <div>
+                                                    N3: <strong>{item.qtdConferidaN3 || 0}</strong>
+                                                  </div>
+                                                )}
+                                              </div>
+
+                                              <div className="gestao-item-mobile-lote-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                                <div>
+                                                  {item.lote ? `Lote: ${item.lote}` : 'Sem lote'}
+                                                  {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}
+                                                  {item.fabricacao ? ` • Fab: ${formatarDataSimples(item.fabricacao)}` : ''}
+                                                </div>
+                                                {(item.conferenteN1 || item.conferenteN2 || item.conferenteN3) && (
+                                                  <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)' }}>
+                                                    {formatarConferentes(item)}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </>
                                 ) : null}
                               </div>
                             )}
@@ -796,114 +1096,194 @@ export function GestaoRecebimentoPage() {
                             </div>
                           </div>
 
-                          {/* Tabela Desktop (> 1024px) */}
-                          <div className="gestao-rec-tabela-desktop">
-                            <table className="gestao-rec-tabela">
-                              <thead>
-                                <tr>
-                                  <th>Cód. / Ref.</th>
-                                  <th>Descrição</th>
-                                  <th>Vol.</th>
-                                  <th>Esperado</th>
-                                  <th>N1</th>
-                                  <th>N2</th>
-                                  {grupo.totalN3 > 0 && <th>N3</th>}
-                                  <th>Diferença</th>
-                                  <th>Lote / Validade</th>
-                                  <th>Conferentes</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {grupo.itensDivergentes.map((item) => {
-                                  const diferenca = item.diferenca;
-                                  const classeDif =
-                                    diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
-                                  return (
-                                    <tr key={`${item.nunota}-${item.codprod}-${item.sequencia}`}>
-                                      <td>
-                                        <strong>{item.codprod}</strong>
-                                        {item.referencia && (
-                                          <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>
-                                            {item.referencia}
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td>{item.descrprod}</td>
-                                      <td>{item.codvol}</td>
-                                      <td><strong>{item.qtdEsperada}</strong></td>
-                                      <td>{item.qtdN1}</td>
-                                      <td>{item.qtdN2}</td>
-                                      {grupo.totalN3 > 0 && <td>{item.qtdN3}</td>}
-                                      <td>
-                                        <span className={`diferenca-badge ${classeDif}`}>
-                                          {diferenca > 0 ? `+${diferenca}` : diferenca}
-                                        </span>
-                                      </td>
-                                      <td>
-                                        {item.lote ? (
-                                          <div>
-                                            <strong>Lote:</strong> {item.lote}
-                                            {item.validade && <div>Val: {item.validade}</div>}
-                                          </div>
-                                        ) : (
-                                          <span style={{ color: 'var(--slate-400)' }}>Sem lote</span>
-                                        )}
-                                      </td>
-                                      <td style={{ fontSize: '0.78rem', color: 'var(--slate-600)' }}>
-                                        {item.conferenteN1 && <div>N1: {item.conferenteN1}</div>}
-                                        {item.conferenteN2 && <div>N2: {item.conferenteN2}</div>}
-                                        {item.conferenteN3 && <div>N3: {item.conferenteN3}</div>}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                          {/* Barra de Controle de Exibição / Esconder Itens */}
+                          {(() => {
+                            const isExpandido = itensDivergenciaExpandidos[grupo.id] === true;
+                            const filtroAtivo = filtroItensDivergencia[grupo.id] || 'divergentes';
+                            const todosDisponiveis = grupo.todosItens && grupo.todosItens.length > 0;
+                            const itensParaExibir = filtroAtivo === 'todos' && todosDisponiveis
+                              ? grupo.todosItens
+                              : grupo.itensDivergentes;
 
-                          {/* Cards Mobile (<= 1024px) */}
-                          <div className="gestao-rec-itens-mobile">
-                            {grupo.itensDivergentes.map((item) => {
-                              const diferenca = item.diferenca;
-                              const classeDif =
-                                diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
-                              return (
-                                <div
-                                  key={`mob-${item.nunota}-${item.codprod}-${item.sequencia}`}
-                                  className="gestao-item-card-mobile"
-                                >
-                                  <div className="gestao-item-mobile-header">
-                                    <div>
-                                      <span className="gestao-item-mobile-codprod">
-                                        {item.codprod} - {item.descrprod}
-                                      </span>
-                                      {item.referencia && (
-                                        <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)' }}>
-                                          Ref: {item.referencia} • Vol: {item.codvol}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <span className={`diferenca-badge ${classeDif}`}>
-                                      {diferenca > 0 ? `+${diferenca}` : diferenca}
+                            return (
+                              <>
+                                <div className="gestao-rec-itens-header" style={{ marginTop: '10px' }}>
+                                  <div className="gestao-rec-itens-filtros">
+                                    <button
+                                      type="button"
+                                      className={`gestao-rec-item-chip ${filtroAtivo === 'divergentes' ? 'ativo' : ''}`}
+                                      onClick={() => setFiltroItensDivergencia((prev) => ({ ...prev, [grupo.id]: 'divergentes' }))}
+                                    >
+                                      <span>⚠️ Divergentes</span>
+                                      <span className="chip-count">{grupo.itensDivergentes.length}</span>
+                                    </button>
+                                    {todosDisponiveis && (
+                                      <button
+                                        type="button"
+                                        className={`gestao-rec-item-chip ${filtroAtivo === 'todos' ? 'ativo' : ''}`}
+                                        onClick={() => setFiltroItensDivergencia((prev) => ({ ...prev, [grupo.id]: 'todos' }))}
+                                      >
+                                        <span>📋 Todos os Itens</span>
+                                        <span className="chip-count">{grupo.todosItens.length}</span>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    className="gestao-rec-btn-toggle-itens"
+                                    onClick={() => toggleItensDivergencia(grupo.id)}
+                                  >
+                                    <span>
+                                      {isExpandido
+                                        ? '▲ Ocultar Itens'
+                                        : `▼ Exibir Itens (${itensParaExibir.length})`}
                                     </span>
-                                  </div>
-
-                                  <div className="gestao-item-mobile-grid">
-                                    <div>Esperado: <strong>{item.qtdEsperada}</strong></div>
-                                    <div>N1: <strong>{item.qtdN1}</strong></div>
-                                    <div>N2: <strong>{item.qtdN2}</strong></div>
-                                    {grupo.totalN3 > 0 && <div>N3: <strong>{item.qtdN3}</strong></div>}
-                                  </div>
-
-                                  {item.lote && (
-                                    <div className="gestao-item-mobile-lote-info">
-                                      Lote: {item.lote} {item.validade ? `• Val: ${item.validade}` : ''}
-                                    </div>
-                                  )}
+                                  </button>
                                 </div>
-                              );
-                            })}
-                          </div>
+
+                                {isExpandido && (
+                                  <>
+                                    {/* Tabela Desktop (> 1024px) */}
+                                    <div className="gestao-rec-tabela-desktop" style={{ marginTop: '8px' }}>
+                                      <table className="gestao-rec-tabela">
+                                        <thead>
+                                          <tr>
+                                            <th>Produto</th>
+                                            <th>Vol.</th>
+                                            <th>Nota</th>
+                                            <th>N1</th>
+                                            <th>N2</th>
+                                            {grupo.totalN3 > 0 && <th>N3</th>}
+                                            <th>Diferença</th>
+                                            <th>Lote</th>
+                                            <th>Validade</th>
+                                            <th>Fabricação</th>
+                                            <th>Conferentes</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {itensParaExibir.map((item) => {
+                                            const diferenca = item.diferenca;
+                                            const classeDif =
+                                              diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+                                            return (
+                                              <tr key={`${item.nunota}-${item.codprod}-${item.sequencia}`}>
+                                                <td>
+                                                  <div style={{ fontWeight: 600, color: 'var(--slate-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.descrprod}>
+                                                    {item.descrprod || `Produto ${item.codprod}`}
+                                                  </div>
+                                                  <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)', whiteSpace: 'nowrap' }}>
+                                                    Cód: {item.codprod}
+                                                    {item.referencia ? ` • Ref: ${item.referencia}` : ''}
+                                                  </div>
+                                                </td>
+                                                <td>{item.codvol || 'UN'}</td>
+                                                <td>
+                                                  <strong>{item.qtdEsperada}</strong>
+                                                </td>
+                                                <td>{item.qtdN1}</td>
+                                                <td>{item.qtdN2}</td>
+                                                {grupo.totalN3 > 0 && <td>{item.qtdN3}</td>}
+                                                <td>
+                                                  <span className={`diferenca-badge ${classeDif}`}>
+                                                    {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                                  </span>
+                                                </td>
+                                                <td>
+                                                  {item.lote ? (
+                                                    <span style={{ fontWeight: 600, color: 'var(--slate-800)' }}>{item.lote}</span>
+                                                  ) : (
+                                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                  )}
+                                                </td>
+                                                <td>
+                                                  {item.validade ? (
+                                                    <span>{formatarDataSimples(item.validade)}</span>
+                                                  ) : (
+                                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                  )}
+                                                </td>
+                                                <td>
+                                                  {item.fabricacao ? (
+                                                    <span>{formatarDataSimples(item.fabricacao)}</span>
+                                                  ) : (
+                                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                  )}
+                                                </td>
+                                                <td style={{ fontSize: '0.75rem', color: 'var(--slate-600)', whiteSpace: 'nowrap' }}>
+                                                  {formatarConferentes(item)}
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+
+                                    {/* Cards Mobile (<= 1024px) */}
+                                    <div className="gestao-rec-itens-mobile" style={{ marginTop: '8px' }}>
+                                      {itensParaExibir.map((item) => {
+                                        const diferenca = item.diferenca;
+                                        const classeDif =
+                                          diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+                                        return (
+                                          <div
+                                            key={`mob-${item.nunota}-${item.codprod}-${item.sequencia}`}
+                                            className="gestao-item-card-mobile"
+                                          >
+                                            <div className="gestao-item-mobile-header">
+                                              <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div className="gestao-item-mobile-descr">
+                                                  {item.descrprod || `Produto ${item.codprod}`}
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)' }}>
+                                                  Cód: {item.codprod}{item.referencia ? ` • Ref: ${item.referencia}` : ''} • Vol: {item.codvol || 'UN'}
+                                                </div>
+                                              </div>
+                                              <span className={`diferenca-badge ${classeDif}`}>
+                                                {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                              </span>
+                                            </div>
+
+                                            <div className="gestao-item-mobile-grid">
+                                              <div>
+                                                Nota: <strong>{item.qtdEsperada}</strong>
+                                              </div>
+                                              <div>
+                                                N1: <strong>{item.qtdN1}</strong>
+                                              </div>
+                                              <div>
+                                                N2: <strong>{item.qtdN2}</strong>
+                                              </div>
+                                              {grupo.totalN3 > 0 && (
+                                                <div>
+                                                  N3: <strong>{item.qtdN3}</strong>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            <div className="gestao-item-mobile-lote-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                              <div>
+                                                {item.lote ? `Lote: ${item.lote}` : 'Sem lote'}
+                                                {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}
+                                                {item.fabricacao ? ` • Fab: ${formatarDataSimples(item.fabricacao)}` : ''}
+                                              </div>
+                                              {(item.conferenteN1 || item.conferenteN2 || item.conferenteN3) && (
+                                                <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)' }}>
+                                                  {formatarConferentes(item)}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            );
+                          })()}
 
                           {/* Barra de Ações da Conferência */}
                           <div className="gestao-rec-card-acoes">
@@ -1022,48 +1402,363 @@ export function GestaoRecebimentoPage() {
                               </div>
                             </div>
 
-                            {/* Botão de Ver Cruzamento de Itens */}
+                            {/* Seção de Itens / Cruzamento de Lotes e Importação Excel */}
                             {grupo.conferenciaId && (
-                              <div>
-                                {!detalhes && !isCarregandoDetalhes ? (
+                              <div style={{ marginTop: '10px' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
                                   <button
                                     type="button"
                                     className="gestao-btn-acao gestao-btn-csv"
-                                    onClick={() => carregarDetalhesConferencia(grupo.conferenciaId, grupo.nunotas)}
+                                    onClick={() => {
+                                      if (!detalhes && !isCarregandoDetalhes) {
+                                        carregarDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
+                                      } else {
+                                        toggleDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
+                                      }
+                                    }}
                                   >
-                                    <span>🔍 Ver Cruzamento de Lotes & Itens da NF</span>
+                                    <span>
+                                      {detalhes && conferenciasExpandidas[grupo.conferenciaId]
+                                        ? '▲ Ocultar Itens da NF'
+                                        : '🔍 Ver Cruzamento de Lotes & Itens da NF'}
+                                    </span>
                                   </button>
-                                ) : isCarregandoDetalhes ? (
-                                  <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)' }}>
+
+                                  <button
+                                    type="button"
+                                    className="gestao-btn-acao gestao-btn-csv"
+                                    style={{ borderColor: '#3b82f6', color: '#1d4ed8' }}
+                                    onClick={async () => {
+                                      if (!detalhes) {
+                                        await carregarDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
+                                      }
+                                      setConferenciaParaExcel({
+                                        conferenciaId: grupo.conferenciaId,
+                                        nunotas: grupo.nunotas,
+                                      });
+                                      setModalImportarExcelAberto(true);
+                                    }}
+                                  >
+                                    <span>📥 Importar Lotes (Excel)</span>
+                                  </button>
+                                </div>
+
+                                {isCarregandoDetalhes ? (
+                                  <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)', padding: '10px' }}>
                                     Carregando dados dos lotes e itens...
                                   </div>
-                                ) : detalhes ? (
-                                  <div className="gestao-rec-tabela-desktop" style={{ marginTop: '8px' }}>
-                                    <table className="gestao-rec-tabela">
-                                      <thead>
-                                        <tr>
-                                          <th>Cód. Produto</th>
-                                          <th>Descrição</th>
-                                          <th>Qtd Bipada</th>
-                                          <th>Lote Bipado</th>
-                                          <th>Validade</th>
-                                          <th>Fabricação</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {detalhes.bipagens.map((b) => (
-                                          <tr key={b.id}>
-                                            <td><strong>{b.codprod}</strong></td>
-                                            <td>Item {b.sequencia}</td>
-                                            <td><strong>{b.qtdConferida}</strong></td>
-                                            <td>{b.lote || <span style={{ color: 'var(--slate-400)' }}>Sem lote</span>}</td>
-                                            <td>{b.validade || '—'}</td>
-                                            <td>{b.fabricacao || '—'}</td>
+                                ) : detalhes && conferenciasExpandidas[grupo.conferenciaId] !== false ? (
+                                  <>
+                                    <div className="gestao-rec-tabela-desktop">
+                                      <table className="gestao-rec-tabela">
+                                        <thead>
+                                          <tr>
+                                            <th>Produto</th>
+                                            <th>Vol.</th>
+                                            <th>Nota</th>
+                                            <th>N1</th>
+                                            <th>N2</th>
+                                            {detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0) && <th>N3</th>}
+                                            <th>Diferença</th>
+                                            <th>Lote</th>
+                                            <th>Validade</th>
+                                            <th>Fabricação</th>
+                                            <th>Conferentes</th>
                                           </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
+                                        </thead>
+                                        <tbody>
+                                          {detalhes.itens.map((item) => {
+                                            const qtdNivel = (item.qtdConferidaN3 || 0) > 0
+                                              ? (item.qtdConferidaN3 || 0)
+                                              : (item.qtdConferidaN2 || 0) > 0
+                                              ? (item.qtdConferidaN2 || 0)
+                                              : (item.qtdConferidaN1 || 0);
+                                            const diferenca = item.diferenca !== undefined
+                                              ? item.diferenca
+                                              : qtdNivel - (item.qtdneg || 0);
+                                            const classeDif =
+                                              diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+
+                                            const lotesDoItem = obterLotesItem(grupo.conferenciaId, item, detalhes.bipagens);
+                                            const temMultiplosLotes = lotesDoItem.length > 1;
+                                            const isVeioExcel = origemExcelPorConferencia[grupo.conferenciaId]?.has(item.codprod);
+
+                                            return (
+                                              <tr key={`sankhya-${item.nunota}-${item.codprod}-${item.sequencia}`}>
+                                                <td>
+                                                  <div style={{ fontWeight: 600, color: 'var(--slate-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.descrprod}>
+                                                    {item.descrprod || `Produto ${item.codprod}`}
+                                                  </div>
+                                                  <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)', whiteSpace: 'nowrap' }}>
+                                                    Cód: {item.codprod}
+                                                    {item.refforn ? ` • Ref: ${item.refforn}` : item.referencia ? ` • Ref: ${item.referencia}` : ''}
+                                                    {item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
+                                                  </div>
+                                                </td>
+                                                <td>{item.codvol || 'UN'}</td>
+                                                <td>
+                                                  <strong>{item.qtdneg ?? '—'}</strong>
+                                                </td>
+                                                <td>{item.qtdConferidaN1 || 0}</td>
+                                                <td>{item.qtdConferidaN2 || 0}</td>
+                                                {detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0) && (
+                                                  <td>{item.qtdConferidaN3 || 0}</td>
+                                                )}
+                                                <td>
+                                                  <span className={`diferenca-badge ${classeDif}`}>
+                                                    {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                                  </span>
+                                                </td>
+                                                <td>
+                                                  {temMultiplosLotes ? (
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                                      <span title={isVeioExcel ? 'Importado via Excel' : 'Conferido pelo coletor'}>
+                                                        {isVeioExcel ? '📊' : '📱'}
+                                                      </span>
+                                                      <span className="badge-status-rec enviado" style={{ fontSize: '0.72rem', padding: '1px 5px' }} title={lotesDoItem.map((l) => `${l.lote} (${l.qtd} un)`).join(', ')}>
+                                                        ✂️ {lotesDoItem.length} lotes
+                                                      </span>
+                                                      <button
+                                                        type="button"
+                                                        className="gestao-rec-btn-refresh"
+                                                        style={{ padding: '1px 5px', fontSize: '0.70rem', lineHeight: 1 }}
+                                                        title="Gerenciar / Dividir lotes"
+                                                        onClick={() => {
+                                                          setProdutoEdicaoLotes({
+                                                            nunota: item.nunota,
+                                                            sequencia: item.sequencia,
+                                                            codprod: item.codprod,
+                                                            descrprod: item.descrprod || `Produto ${item.codprod}`,
+                                                            qtdEsperada: item.qtdneg || 0,
+                                                            conferenciaId: grupo.conferenciaId,
+                                                          });
+                                                          setModalGerenciarLotesAberto(true);
+                                                        }}
+                                                      >
+                                                        ✂️
+                                                      </button>
+                                                    </div>
+                                                  ) : lotesDoItem.length === 1 ? (
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                                      <span title={isVeioExcel ? 'Importado via Excel' : 'Conferido pelo coletor'}>
+                                                        {isVeioExcel ? '📊' : '📱'}
+                                                      </span>
+                                                      <strong style={{ color: 'var(--slate-800)' }}>{lotesDoItem[0].lote}</strong>
+                                                      <button
+                                                        type="button"
+                                                        className="gestao-rec-btn-refresh"
+                                                        style={{ padding: '1px 5px', fontSize: '0.70rem', lineHeight: 1 }}
+                                                        title="Dividir lote ou alterar"
+                                                        onClick={() => {
+                                                          setProdutoEdicaoLotes({
+                                                            nunota: item.nunota,
+                                                            sequencia: item.sequencia,
+                                                            codprod: item.codprod,
+                                                            descrprod: item.descrprod || `Produto ${item.codprod}`,
+                                                            qtdEsperada: item.qtdneg || 0,
+                                                            conferenciaId: grupo.conferenciaId,
+                                                          });
+                                                          setModalGerenciarLotesAberto(true);
+                                                        }}
+                                                      >
+                                                        ✂️
+                                                      </button>
+                                                    </div>
+                                                  ) : item.lote ? (
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                                      <span title={isVeioExcel ? 'Importado via Excel' : 'Conferido pelo coletor'}>
+                                                        {isVeioExcel ? '📊' : '📱'}
+                                                      </span>
+                                                      <strong style={{ color: 'var(--slate-800)' }}>{item.lote}</strong>
+                                                      <button
+                                                        type="button"
+                                                        className="gestao-rec-btn-refresh"
+                                                        style={{ padding: '1px 5px', fontSize: '0.70rem', lineHeight: 1 }}
+                                                        title="Dividir lote ou alterar"
+                                                        onClick={() => {
+                                                          setProdutoEdicaoLotes({
+                                                            nunota: item.nunota,
+                                                            sequencia: item.sequencia,
+                                                            codprod: item.codprod,
+                                                            descrprod: item.descrprod || `Produto ${item.codprod}`,
+                                                            qtdEsperada: item.qtdneg || 0,
+                                                            conferenciaId: grupo.conferenciaId,
+                                                          });
+                                                          setModalGerenciarLotesAberto(true);
+                                                        }}
+                                                      >
+                                                        ✂️
+                                                      </button>
+                                                    </div>
+                                                  ) : (
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                                      <span style={{ color: 'var(--slate-400)', fontSize: '0.8rem' }}>Sem lote</span>
+                                                      <button
+                                                        type="button"
+                                                        className="gestao-rec-btn-refresh"
+                                                        style={{ padding: '1px 5px', fontSize: '0.70rem', lineHeight: 1 }}
+                                                        title="Adicionar lote / Dividir item"
+                                                        onClick={() => {
+                                                          setProdutoEdicaoLotes({
+                                                            nunota: item.nunota,
+                                                            sequencia: item.sequencia,
+                                                            codprod: item.codprod,
+                                                            descrprod: item.descrprod || `Produto ${item.codprod}`,
+                                                            qtdEsperada: item.qtdneg || 0,
+                                                            conferenciaId: grupo.conferenciaId,
+                                                          });
+                                                          setModalGerenciarLotesAberto(true);
+                                                        }}
+                                                      >
+                                                        + Lote
+                                                      </button>
+                                                    </div>
+                                                  )}
+                                                </td>
+                                                <td>
+                                                  {temMultiplosLotes ? (
+                                                    <span style={{ fontSize: '0.78rem' }}>
+                                                      {Array.from(new Set(lotesDoItem.map((l) => formatarDataSimples(l.validade)).filter((v) => v !== '—'))).join(', ') || <span style={{ color: 'var(--slate-400)' }}>—</span>}
+                                                    </span>
+                                                  ) : lotesDoItem.length === 1 ? (
+                                                    <span>{formatarDataSimples(lotesDoItem[0].validade)}</span>
+                                                  ) : item.validade ? (
+                                                    <span>{formatarDataSimples(item.validade)}</span>
+                                                  ) : (
+                                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                  )}
+                                                </td>
+                                                <td>
+                                                  {temMultiplosLotes ? (
+                                                    <span style={{ fontSize: '0.78rem' }}>
+                                                      {Array.from(new Set(lotesDoItem.map((l) => formatarDataSimples(l.fabricacao)).filter((v) => v !== '—'))).join(', ') || <span style={{ color: 'var(--slate-400)' }}>—</span>}
+                                                    </span>
+                                                  ) : lotesDoItem.length === 1 ? (
+                                                    <span>{formatarDataSimples(lotesDoItem[0].fabricacao)}</span>
+                                                  ) : item.fabricacao ? (
+                                                    <span>{formatarDataSimples(item.fabricacao)}</span>
+                                                  ) : (
+                                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                                  )}
+                                                </td>
+                                                <td style={{ fontSize: '0.75rem', color: 'var(--slate-600)', whiteSpace: 'nowrap' }}>
+                                                  {formatarConferentes(item)}
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+
+                                    {/* Cards Mobile Padronizados (<= 1024px) */}
+                                    <div className="gestao-rec-itens-mobile" style={{ marginTop: '8px' }}>
+                                      {detalhes.itens.map((item) => {
+                                        const qtdNivel = (item.qtdConferidaN3 || 0) > 0
+                                          ? (item.qtdConferidaN3 || 0)
+                                          : (item.qtdConferidaN2 || 0) > 0
+                                          ? (item.qtdConferidaN2 || 0)
+                                          : (item.qtdConferidaN1 || 0);
+                                        const diferenca = item.diferenca !== undefined
+                                          ? item.diferenca
+                                          : qtdNivel - (item.qtdneg || 0);
+                                        const classeDif =
+                                          diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+
+                                        const lotesDoItem = obterLotesItem(grupo.conferenciaId, item, detalhes.bipagens);
+                                        const temMultiplosLotes = lotesDoItem.length > 1;
+                                        const isVeioExcel = origemExcelPorConferencia[grupo.conferenciaId]?.has(item.codprod);
+
+                                        return (
+                                          <div
+                                            key={`sankhya-mob-${item.nunota}-${item.codprod}-${item.sequencia}`}
+                                            className="gestao-item-card-mobile"
+                                          >
+                                            <div className="gestao-item-mobile-header">
+                                              <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div className="gestao-item-mobile-descr">
+                                                  {item.descrprod || `Produto ${item.codprod}`}
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)' }}>
+                                                  Cód: {item.codprod}{item.refforn ? ` • Ref: ${item.refforn}` : item.referencia ? ` • Ref: ${item.referencia}` : ''} • Vol: {item.codvol || 'UN'}{item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
+                                                </div>
+                                              </div>
+                                              <span className={`diferenca-badge ${classeDif}`}>
+                                                {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                              </span>
+                                            </div>
+
+                                            <div className="gestao-item-mobile-grid">
+                                              <div>
+                                                Nota: <strong>{item.qtdneg ?? '—'}</strong>
+                                              </div>
+                                              <div>
+                                                N1: <strong>{item.qtdConferidaN1 || 0}</strong>
+                                              </div>
+                                              <div>
+                                                N2: <strong>{item.qtdConferidaN2 || 0}</strong>
+                                              </div>
+                                              {(item.qtdConferidaN3 || 0) > 0 && (
+                                                <div>
+                                                  N3: <strong>{item.qtdConferidaN3 || 0}</strong>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            <div className="gestao-item-mobile-lote-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                                <span title={isVeioExcel ? 'Importado via Excel' : 'Conferido pelo coletor'}>
+                                                  {isVeioExcel ? '📊' : '📱'}
+                                                </span>
+                                                {temMultiplosLotes ? (
+                                                  <span>{lotesDoItem.length} lotes ({lotesDoItem.map((l) => l.lote).join(', ')})</span>
+                                                ) : lotesDoItem.length === 1 ? (
+                                                  <span>
+                                                    Lote: {lotesDoItem[0].lote}
+                                                    {lotesDoItem[0].validade ? ` • Val: ${formatarDataSimples(lotesDoItem[0].validade)}` : ''}
+                                                    {lotesDoItem[0].fabricacao ? ` • Fab: ${formatarDataSimples(lotesDoItem[0].fabricacao)}` : ''}
+                                                  </span>
+                                                ) : item.lote ? (
+                                                  <span>
+                                                    Lote: {item.lote}
+                                                    {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}
+                                                    {item.fabricacao ? ` • Fab: ${formatarDataSimples(item.fabricacao)}` : ''}
+                                                  </span>
+                                                ) : (
+                                                  <span style={{ color: 'var(--slate-400)' }}>Sem lote</span>
+                                                )}
+                                              </div>
+
+                                              <button
+                                                type="button"
+                                                className="gestao-rec-btn-refresh"
+                                                style={{ padding: '2px 8px', fontSize: '0.74rem' }}
+                                                onClick={() => {
+                                                  setProdutoEdicaoLotes({
+                                                    nunota: item.nunota,
+                                                    sequencia: item.sequencia,
+                                                    codprod: item.codprod,
+                                                    descrprod: item.descrprod || `Produto ${item.codprod}`,
+                                                    qtdEsperada: item.qtdneg || 0,
+                                                    conferenciaId: grupo.conferenciaId,
+                                                  });
+                                                  setModalGerenciarLotesAberto(true);
+                                                }}
+                                              >
+                                                ✂️ {temMultiplosLotes ? 'Gerenciar' : 'Dividir / Lote'}
+                                              </button>
+                                            </div>
+
+                                            {(item.conferenteN1 || item.conferenteN2 || item.conferenteN3) && (
+                                              <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)', marginTop: '-2px' }}>
+                                                {formatarConferentes(item)}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </>
                                 ) : null}
                               </div>
                             )}

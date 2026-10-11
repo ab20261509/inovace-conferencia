@@ -125,11 +125,22 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
         sessao.atualizadoEm = agora;
       }
     } else if (input.nivel === 2) {
-      // Comparar N1 x N2 x Esperado
-      for (const item of Object.values(mapTotais)) {
-        if (item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2) {
-          possuiDivergencias = true;
-          break;
+      const houveN1 = todasBipagens.some((b) => !b.anulado && b.nivel === 1);
+      if (houveN1) {
+        // Comparar N1 x N2 x Esperado
+        for (const item of Object.values(mapTotais)) {
+          if (item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2) {
+            possuiDivergencias = true;
+            break;
+          }
+        }
+      } else {
+        // FLUXO COM N1 INATIVADO: N2 é a contagem única direta comparada com a NF
+        for (const item of Object.values(mapTotais)) {
+          if (item.n2 !== item.esperado) {
+            possuiDivergencias = true;
+            break;
+          }
         }
       }
 
@@ -146,11 +157,17 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       }
     } else {
       // N3 é o nível final de conferência de desempate
+      const houveN1 = todasBipagens.some((b) => !b.anulado && b.nivel === 1);
       const houveN2 = todasBipagens.some((b) => !b.anulado && b.nivel === 2);
       for (const item of Object.values(mapTotais)) {
-        const eraDivergente = houveN2
-          ? item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2
-          : item.n1 !== item.esperado;
+        let eraDivergente = false;
+        if (houveN1 && houveN2) {
+          eraDivergente = item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2;
+        } else if (houveN2) {
+          eraDivergente = item.n2 !== item.esperado;
+        } else {
+          eraDivergente = item.n1 !== item.esperado;
+        }
 
         // Se era divergente, verifica se a contagem do N3 bate com o faturado
         if (eraDivergente && item.n3 !== item.esperado) {

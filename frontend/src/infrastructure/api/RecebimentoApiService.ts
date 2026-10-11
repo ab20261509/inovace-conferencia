@@ -105,11 +105,15 @@ export class RecebimentoApiService {
 
   async enviarSankhya(
     conferenciaId: string,
-    observacao?: string
+    dadosOuObservacao?: string | import('../../domain/models/ConferenciaEntrada').EnviarSankhyaInput
   ): Promise<import('../../domain/models/ConferenciaEntrada').EnviarSankhyaResponse> {
+    const payload = typeof dadosOuObservacao === 'string'
+      ? { observacao: dadosOuObservacao }
+      : (dadosOuObservacao || {});
+
     const response = await httpClient.post<import('../../domain/models/ConferenciaEntrada').EnviarSankhyaResponse>(
       `/api/recebimento/conferencia/${conferenciaId}/enviar-sankhya`,
-      { observacao }
+      payload
     );
     return response.data;
   }

@@ -66,9 +66,15 @@
   - **Aba 3 (Envio & Aprovação Sankhya)**:
     - Fila de conferências prontas para sincronização com o ERP.
     - Atualização transacional de itens da nota (`TGFITE`), registros de lotes (`TGFLOT`), atualização de saldo de estoque (`TGFEST`) e histórico em `TGFCAB.OBSERVACAO`.
-  - **Design Minimalista**:
+  - **Design Minimalista & Padronização de Visões de Itens**:
     - Abas em formato de Segmented Control (Pill Tabs) compacto, moderno e sem poluição visual.
     - Badges compactos com alerta dinâmico para divergências pendentes e botão de atualização integrado.
+    - **Visão Padronizada de Itens nas 3 Abas**: Conferências, Divergências e Envio Sankhya agora compartilham o mesmo padrão visual de colunas separadas: `Produto`, `Vol.`, `Nota`, `N1`, `N2`, `N3` (se houver), `Diferença`, `Lote`, `Validade`, `Fabricação` e `Conferentes`.
+    - **Coluna Produto Otimizada**: Descrição destacada na linha superior e metadados minimalistas na linha inferior (`Cód: X • Ref: Y • EAN: Z`).
+    - **Tag de Origem Discreta**: Origem (📊 Planilha Excel vs 📱 Coletor) exibida apenas como ícone emoji com tooltip junto ao lote, eliminando poluição visual.
+    - **Linhas com Altura Mínima**: Padding reduzido (`5px 8px`), `line-height: 1.25` e badges/botões compactos sem quebras verticais indesejadas.
+    - **Cards Responsivos Mobile & Tablet ($\le 1024$px)**: Layout vertical com grid de métricas auto-ajustável (`repeat(auto-fit, minmax(70px, 1fr))`) e informações de lote/validade/fabricação organizadas sem rolagem horizontal.
+    - **Divisão e Gestão de Lotes / Importação Excel**: Suporte a múltiplos lotes por item com modal de divisão manual (`ModalGerenciarLotes`) e importação inteligente de planilha (`ModalImportarLotesExcel`).
   - **Resiliência de Banco de Dados & Carregamento**:
     - Colunas adicionadas de forma idempotente em `conferencias_entrada` (`finalizado_em`, `aprovado_por`, `aprovado_em`, `enviado_sankhya_em`, `observacao_aprovacao`, `resposta_sankhya_json`, `backup_contagem_json`).
     - Carregamento de dados desacoplado com proteção individual por serviço.

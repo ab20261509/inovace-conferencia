@@ -1,3 +1,48 @@
+# Handoff — Sessão 2026-10-10
+
+## Funcionalidades e Ajustes Implementados
+
+### 1. Padronização de Colunas & Visões de Itens na Gestão de Recebimento (`/recebimento/gestao`)
+- **Alinhamento e Separação de Colunas**:
+  - As 3 abas (**Conferências**, **Divergências** e **Envio Sankhya**) agora seguem rigorosamente o mesmo modelo de exibição de itens faturados/conferidos em colunas separadas:
+    - `Produto`
+    - `Vol.`
+    - `Nota`
+    - `N1`
+    - `N2`
+    - `N3` (coluna condicional, exibida apenas quando houver conferência N3)
+    - `Diferença`
+    - `Lote`
+    - `Validade`
+    - `Fabricação`
+    - `Conferentes`
+- **Coluna Produto Otimizada**:
+  - Linha superior com a descrição do produto em negrito (`descrprod`).
+  - Linha inferior minimalista com subtítulo compacto: `Cód: {codprod} • Ref: {referencia} • EAN: {codbarra}`.
+  - Eliminação de dados agrupados ou misturados em uma mesma coluna.
+
+### 2. Tag de Origem Minimalista (Ícone Discreto)
+- A indicação de origem dos dados do lote (planilha importada vs coletor móvel) foi reduzida de uma tag volumosa para apenas o ícone emoji ao lado do lote:
+  - 📊 : Importado via Planilha Excel
+  - 📱 : Conferido pelo coletor móvel
+  - Tooltip informativo ao passar o mouse explicando a origem.
+
+### 3. Altura Mínima de Linhas (Compact Layout)
+- Padding reduzido em `.gestao-rec-tabela th` (`6px 8px`) e `.gestao-rec-tabela td` (`5px 8px`).
+- Altura de linha ajustada para `1.25` com `vertical-align: middle`.
+- Elementos inline compactos (botões `✂️`, badges de diferença e tags de lotes divididos).
+
+### 4. Responsividade Mobile e Tablet ($\le 1024$px)
+- Renderização limpa de `.gestao-item-card-mobile` em todas as abas.
+- Grid auto-ajustável (`repeat(auto-fit, minmax(70px, 1fr))`) para as contagens Nota / N1 / N2 / N3.
+- Metadados de lote, validade e fabricação agrupados harmonicamente sem barra de rolagem horizontal quebrada.
+
+### 5. Gestão de Lotes Customizados & Desdobramento de Itens no Envio Sankhya
+- Integração de `ModalGerenciarLotes` e `ModalImportarLotesExcel`.
+- Suporte a múltiplos lotes no envio para o Sankhya (`IDesmembrarItemNotaService`), transformando frações em `itensCustomizados` estruturados para atualização das tabelas `TGFITE`, `TGFLOT` e `TGFEST`.
+
+---
+
 # Handoff — Sessão 2026-10-09
 
 ## Funcionalidades e Ajustes Implementados

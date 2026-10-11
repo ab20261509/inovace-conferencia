@@ -1,0 +1,437 @@
+/* ═══════════════════════════════════════════════════════
+   MODAL LOTES & IMPORTAÇÃO EXCEL - PADRÃO CONFERCHECK
+   ═══════════════════════════════════════════════════════ */
+
+.modal-lotes-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal-lotes-box {
+  background: #ffffff;
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 780px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border, #e2e8f0);
+}
+
+.modal-lotes-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--slate-100, #f1f5f9);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: #ffffff;
+}
+
+.modal-lotes-header-info h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--slate-900, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-lotes-header-info p {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  color: var(--slate-600, #475569);
+}
+
+.modal-lotes-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--slate-400, #94a3b8);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.modal-lotes-close-btn:hover {
+  color: var(--slate-800, #1e293b);
+  background: var(--slate-100, #f1f5f9);
+}
+
+.modal-lotes-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Balanço de Quantidades - Padrão .gestao-rec-contagem-resumo */
+.modal-lotes-balanco-card {
+  background: var(--slate-50, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-lotes-balanco-metricas {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.modal-lotes-metrica-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modal-lotes-metrica-rotulo {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--slate-500, #64748b);
+  font-weight: 600;
+}
+
+.modal-lotes-metrica-valor {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--slate-800, #1e293b);
+}
+
+.modal-lotes-balanco-status {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.modal-lotes-balanco-status.ok {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.modal-lotes-balanco-status.falta {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.modal-lotes-balanco-status.sobra {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+/* Barra de progresso visual */
+.modal-lotes-barra-wrapper {
+  width: 100%;
+  height: 6px;
+  background: var(--slate-200, #e2e8f0);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.modal-lotes-barra-preenchimento {
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.modal-lotes-barra-preenchimento.ok {
+  background: #16a34a;
+}
+
+.modal-lotes-barra-preenchimento.falta {
+  background: #dc2626;
+}
+
+.modal-lotes-barra-preenchimento.sobra {
+  background: #d97706;
+}
+
+/* Lista de Frações de Lote */
+.modal-lotes-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-lote-linha-card {
+  background: #ffffff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr 36px;
+  gap: 8px;
+  align-items: center;
+}
+
+.modal-lote-linha-card:hover {
+  border-color: var(--slate-300, #cbd5e1);
+}
+
+.modal-lote-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.modal-lote-campo label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--slate-600, #475569);
+  text-transform: uppercase;
+}
+
+.modal-lote-campo input {
+  padding: 6px 10px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--slate-800, #1e293b);
+  outline: none;
+  transition: border-color 0.15s ease;
+  background: #ffffff;
+}
+
+.modal-lote-campo input:focus {
+  border-color: var(--slate-800, #1e293b);
+}
+
+.modal-lote-remover-btn {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  margin-bottom: 2px;
+  transition: all 0.15s ease;
+}
+
+.modal-lote-remover-btn:hover {
+  background: #fee2e2;
+}
+
+.modal-lotes-add-btn {
+  border: 1px dashed var(--border, #cbd5e1);
+  background: var(--slate-50, #f8fafc);
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--slate-700, #334155);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.modal-lotes-add-btn:hover {
+  background: var(--slate-100, #f1f5f9);
+  color: var(--slate-900, #0f172a);
+  border-color: var(--slate-400, #94a3b8);
+}
+
+/* Footer com Ações */
+.modal-lotes-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--slate-100, #f1f5f9);
+  background: #ffffff;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-lotes-btn-cancelar {
+  padding: 8px 16px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #ffffff;
+  color: var(--slate-600, #475569);
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-lotes-btn-cancelar:hover {
+  background: var(--slate-50, #f8fafc);
+  color: var(--slate-800, #1e293b);
+}
+
+.modal-lotes-btn-salvar {
+  padding: 8px 16px;
+  background: var(--slate-800, #1e293b);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.modal-lotes-btn-salvar:hover:not(:disabled) {
+  background: var(--slate-900, #0f172a);
+}
+
+.modal-lotes-btn-salvar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Área de Upload Excel */
+.modal-excel-dropzone {
+  border: 1px dashed var(--slate-300, #cbd5e1);
+  border-radius: 6px;
+  padding: 24px 16px;
+  text-align: center;
+  background: var(--slate-50, #f8fafc);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-excel-dropzone:hover,
+.modal-excel-dropzone.dragover {
+  border-color: var(--slate-600, #475569);
+  background: var(--slate-100, #f1f5f9);
+}
+
+.modal-excel-dropzone-icone {
+  font-size: 1.8rem;
+}
+
+.modal-excel-dropzone-texto {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--slate-800, #1e293b);
+}
+
+.modal-excel-dropzone-dica {
+  font-size: 0.78rem;
+  color: var(--slate-500, #64748b);
+}
+
+.modal-excel-template-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--slate-100, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modal-excel-template-info {
+  font-size: 0.82rem;
+  color: var(--slate-600, #475569);
+}
+
+/* Tabela de Preview de Importação */
+.modal-excel-preview-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.modal-excel-preview-tabela th {
+  background: var(--slate-100, #f1f5f9);
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--slate-700, #334155);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.modal-excel-preview-tabela td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--slate-100, #f1f5f9);
+  color: var(--slate-800, #1e293b);
+}
+
+.modal-excel-badge-divisao {
+  background: #ede9fe;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Avisos e Alertas */
+.modal-excel-alerta-box {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.modal-excel-alerta-box.aviso {
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  color: #854d0e;
+}
+
+.modal-excel-alerta-box.erro {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+/* Responsividade Mobile */
+@media (max-width: 768px) {
+  .modal-lote-linha-card {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .modal-lote-remover-btn {
+    align-self: flex-start;
+  }
+
+  .modal-lotes-balanco-metricas {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

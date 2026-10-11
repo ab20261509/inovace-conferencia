@@ -1,5 +1,6 @@
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
+import { IDesmembrarItemNotaService } from '../../../domain/ports/IDesmembrarItemNotaService.js';
 import { SessaoConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
 
@@ -18,12 +19,14 @@ export interface EnviarConferenciaSankhyaInput {
   conferenciaId: string;
   usuario: string;
   observacao?: string;
+  nivelEscolhido?: number;
   itensCustomizados?: ItemAssociacaoEnvio[];
 }
 
 export interface EnviarConferenciaSankhyaOutput {
   sessao: SessaoConferenciaEntrada;
   itensAtualizados: number;
+  itensDivididos?: number;
   estoqueAtualizado: number;
   protocolo: string;
 }
@@ -32,7 +35,8 @@ export class EnviarConferenciaSankhyaUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
-    private readonly audit?: AuditService
+    private readonly audit?: AuditService,
+    private readonly desmembrarItemService?: IDesmembrarItemNotaService
   ) {}
 
   async execute(
@@ -76,36 +80,77 @@ export class EnviarConferenciaSankhyaUseCase {
 
     const iteRows: any[] = respIte?.responseBody?.rows || [];
 
-    // 2. Coletar lotes e validades das bipagens válidas da conferência
+    // 2. Coletar lotes e validades das bipagens da conferência ou itens customizados
     const bipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
     const bipagensValidas = bipagens.filter((b) => !b.anulado);
 
-    // Agrupar por nunota + codprod (ou usar itensCustomizados se fornecido)
-    const mapaBipsPorProd: Record<
+    const mapaLotesPorProd: Record<
       string,
-      { lote: string; validade?: string; fabricacao?: string; qtd: number }
+      Array<{ lote: string; validade?: string; fabricacao?: string; qtd: number }>
     > = {};
 
-    for (const b of bipagensValidas) {
-      if (!b.lote) continue;
-      const key = `${b.nunota}|${b.codprod}`;
-      if (!mapaBipsPorProd[key]) {
-        mapaBipsPorProd[key] = {
-          lote: b.lote,
-          validade: b.validade,
-          fabricacao: b.fabricacao,
-          qtd: 0,
-        };
+    if (input.itensCustomizados && input.itensCustomizados.length > 0) {
+      for (const item of input.itensCustomizados) {
+        if (!item.lote) continue;
+        const key = `${item.nunota}|${item.codprod}`;
+        if (!mapaLotesPorProd[key]) {
+          mapaLotesPorProd[key] = [];
+        }
+        mapaLotesPorProd[key].push({
+          lote: item.lote.trim(),
+          validade: item.validade?.trim(),
+          fabricacao: item.fabricacao?.trim(),
+          qtd: item.qtdConferida,
+        });
       }
-      mapaBipsPorProd[key].qtd += b.qtdConferida;
+    } else {
+      let bipsParaUso = bipagensValidas;
+      if (input.nivelEscolhido) {
+        const filtrados = bipagensValidas.filter((b) => b.nivel === input.nivelEscolhido && Boolean(b.lote));
+        if (filtrados.length > 0) {
+          bipsParaUso = filtrados;
+        }
+      } else {
+        const temLoteN3 = bipagensValidas.some((b) => b.nivel === 3 && Boolean(b.lote));
+        const temLoteN2 = bipagensValidas.some((b) => b.nivel === 2 && Boolean(b.lote));
+        if (temLoteN3) {
+          bipsParaUso = bipagensValidas.filter((b) => b.nivel === 3 && Boolean(b.lote));
+        } else if (temLoteN2) {
+          bipsParaUso = bipagensValidas.filter((b) => b.nivel === 2 && Boolean(b.lote));
+        }
+      }
+
+      for (const b of bipsParaUso) {
+        if (!b.lote) continue;
+        const key = `${b.nunota}|${b.codprod}`;
+        if (!mapaLotesPorProd[key]) {
+          mapaLotesPorProd[key] = [];
+        }
+        const loteExistente = mapaLotesPorProd[key].find(
+          (l) => l.lote.toUpperCase() === b.lote!.trim().toUpperCase()
+        );
+        if (loteExistente) {
+          loteExistente.qtd += b.qtdConferida;
+          if (b.validade && !loteExistente.validade) loteExistente.validade = b.validade;
+          if (b.fabricacao && !loteExistente.fabricacao) loteExistente.fabricacao = b.fabricacao;
+        } else {
+          mapaLotesPorProd[key].push({
+            lote: b.lote.trim(),
+            validade: b.validade?.trim(),
+            fabricacao: b.fabricacao?.trim(),
+            qtd: b.qtdConferida,
+          });
+        }
+      }
     }
 
     let itensAtualizados = 0;
+    let itensDivididos = 0;
     let estoqueAtualizado = 0;
     const agoraFormatada = new Date().toLocaleString('pt-BR');
     const agoraIso = new Date().toISOString();
 
-    // 3. Atualizar cada item correspondente na TGFITE e lançar na TGFEST
+    // 3. Atualizar TGFITE e lançar na TGFLOT e TGFEST
     for (const r of iteRows) {
       const nunota = Number(r[0]);
       const sequencia = Number(r[1]);
@@ -113,18 +158,35 @@ export class EnviarConferenciaSankhyaUseCase {
       const codlocal = Number(r[4]) || 1;
 
       const key = `${nunota}|${codprod}`;
-      const bipInfo = mapaBipsPorProd[key];
+      const lotesDoItem = mapaLotesPorProd[key] || [];
 
-      if (bipInfo && bipInfo.lote) {
-        const loteLimpo = bipInfo.lote.trim();
-        const validadeSql = bipInfo.validade
-          ? `TO_DATE('${bipInfo.validade.trim()}', 'DD/MM/YYYY')`
-          : `NULL`;
-        const fabricacaoSql = bipInfo.fabricacao
-          ? `TO_DATE('${bipInfo.fabricacao.trim()}', 'DD/MM/YYYY')`
-          : `NULL`;
+      // Múltiplos lotes para o mesmo item faturado -> Desmembramento
+      if (lotesDoItem.length > 1) {
+        itensDivididos++;
+        if (this.desmembrarItemService) {
+          await this.desmembrarItemService.desmembrarItemPorLote(
+            {
+              nunota,
+              sequenciaOriginal: sequencia,
+              codprod,
+              lotes: lotesDoItem.map((l) => ({
+                lote: l.lote,
+                validade: l.validade,
+                fabricacao: l.fabricacao,
+                quantidade: l.qtd,
+              })),
+              usuario: input.usuario,
+            },
+            correlationId
+          );
+        }
+      }
 
-        // UPDATE TGFITE: preenche o CONTROLE com o lote conferido
+      // Atualiza o primeiro lote na TGFITE
+      if (lotesDoItem.length > 0) {
+        const primeiroLote = lotesDoItem[0];
+        const loteLimpo = primeiroLote.lote.trim();
+
         const updateIteSql = `
           UPDATE TGFITE
           SET CONTROLE = '${loteLimpo}'
@@ -138,71 +200,92 @@ export class EnviarConferenciaSankhyaUseCase {
         );
         itensAtualizados++;
 
-        // Garantir lote na TGFLOT (se a tabela existir)
-        const checkLotSql = `
-          SELECT COUNT(1) FROM TGFLOT WHERE CODPROD = ${codprod} AND CONTROLE = '${loteLimpo}'
-        `.trim();
-        try {
-          const respLot = await this.gateway.serviceCall<any>(
-            'DbExplorerSP.executeQuery',
-            { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: checkLotSql } },
-            correlationId
-          );
-          const existeLot = Number(respLot?.responseBody?.rows?.[0]?.[0]) > 0;
-          if (!existeLot) {
-            const insertLotSql = `
-              INSERT INTO TGFLOT (CODPROD, CONTROLE, DTVAL, DTFABRICACAO)
-              VALUES (${codprod}, '${loteLimpo}', ${validadeSql}, ${fabricacaoSql})
-            `.trim();
-            await this.gateway.serviceCall<any>(
+        // Garantir cada lote na TGFLOT e TGFEST
+        for (const loteObj of lotesDoItem) {
+          const lLimpo = loteObj.lote.trim();
+          if (!lLimpo) continue;
+
+          const valFormatada = loteObj.validade ? loteObj.validade.replace(/-/g, '').slice(0, 8) : null;
+          const fabFormatada = loteObj.fabricacao ? loteObj.fabricacao.replace(/-/g, '').slice(0, 8) : null;
+
+          const validadeSql = valFormatada
+            ? `TO_DATE('${valFormatada}', 'YYYYMMDD')`
+            : loteObj.validade
+              ? `TO_DATE('${loteObj.validade}', 'YYYY-MM-DD')`
+              : 'NULL';
+
+          const fabricacaoSql = fabFormatada
+            ? `TO_DATE('${fabFormatada}', 'YYYYMMDD')`
+            : loteObj.fabricacao
+              ? `TO_DATE('${loteObj.fabricacao}', 'YYYY-MM-DD')`
+              : 'NULL';
+
+          // Garantir lote na TGFLOT (se a tabela existir)
+          const checkLotSql = `
+            SELECT COUNT(1) FROM TGFLOT WHERE CODPROD = ${codprod} AND CONTROLE = '${lLimpo}'
+          `.trim();
+          try {
+            const respLot = await this.gateway.serviceCall<any>(
               'DbExplorerSP.executeQuery',
-              { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: insertLotSql } },
+              { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: checkLotSql } },
               correlationId
             );
+            const existeLot = Number(respLot?.responseBody?.rows?.[0]?.[0]) > 0;
+            if (!existeLot) {
+              const insertLotSql = `
+                INSERT INTO TGFLOT (CODPROD, CONTROLE, DTVAL, DTFABRICACAO)
+                VALUES (${codprod}, '${lLimpo}', ${validadeSql}, ${fabricacaoSql})
+              `.trim();
+              await this.gateway.serviceCall<any>(
+                'DbExplorerSP.executeQuery',
+                { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: insertLotSql } },
+                correlationId
+              );
+            }
+          } catch {
+            // Fallback silencioso caso TGFLOT não tenha permissão de insert direto
           }
-        } catch {
-          // Fallback silencioso caso TGFLOT não tenha permissão de insert direto
-        }
 
-        // Lançamento / Atualização na TGFEST (Estoque por lote)
-        const checkEstSql = `
-          SELECT COUNT(1) FROM TGFEST
-          WHERE CODPROD = ${codprod} AND CODLOCAL = ${codlocal} AND CODEMP = ${codemp} AND CONTROLE = '${loteLimpo}'
-        `.trim();
+          // Lançamento / Atualização na TGFEST (Estoque por lote)
+          const checkEstSql = `
+            SELECT COUNT(1) FROM TGFEST
+            WHERE CODPROD = ${codprod} AND CODLOCAL = ${codlocal} AND CODEMP = ${codemp} AND CONTROLE = '${lLimpo}'
+          `.trim();
 
-        try {
-          const respEst = await this.gateway.serviceCall<any>(
-            'DbExplorerSP.executeQuery',
-            { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: checkEstSql } },
-            correlationId
-          );
-          const existeEst = Number(respEst?.responseBody?.rows?.[0]?.[0]) > 0;
-
-          if (existeEst) {
-            const updateEstSql = `
-              UPDATE TGFEST
-              SET DTVAL = ${validadeSql}, DTFABRICACAO = ${fabricacaoSql}
-              WHERE CODPROD = ${codprod} AND CODLOCAL = ${codlocal} AND CODEMP = ${codemp} AND CONTROLE = '${loteLimpo}'
-            `.trim();
-            await this.gateway.serviceCall<any>(
+          try {
+            const respEst = await this.gateway.serviceCall<any>(
               'DbExplorerSP.executeQuery',
-              { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: updateEstSql } },
+              { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: checkEstSql } },
               correlationId
             );
-          } else {
-            const insertEstSql = `
-              INSERT INTO TGFEST (CODPROD, CODLOCAL, CODEMP, CODPARC, TIPO, CONTROLE, ESTOQUE, DTVAL, DTFABRICACAO)
-              VALUES (${codprod}, ${codlocal}, ${codemp}, 0, 'P', '${loteLimpo}', 0, ${validadeSql}, ${fabricacaoSql})
-            `.trim();
-            await this.gateway.serviceCall<any>(
-              'DbExplorerSP.executeQuery',
-              { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: insertEstSql } },
-              correlationId
-            );
+            const existeEst = Number(respEst?.responseBody?.rows?.[0]?.[0]) > 0;
+
+            if (existeEst) {
+              const updateEstSql = `
+                UPDATE TGFEST
+                SET DTVAL = ${validadeSql}, DTFABRICACAO = ${fabricacaoSql}
+                WHERE CODPROD = ${codprod} AND CODLOCAL = ${codlocal} AND CODEMP = ${codemp} AND CONTROLE = '${lLimpo}'
+              `.trim();
+              await this.gateway.serviceCall<any>(
+                'DbExplorerSP.executeQuery',
+                { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: updateEstSql } },
+                correlationId
+              );
+            } else {
+              const insertEstSql = `
+                INSERT INTO TGFEST (CODPROD, CODLOCAL, CODEMP, CODPARC, TIPO, CONTROLE, ESTOQUE, DTVAL, DTFABRICACAO)
+                VALUES (${codprod}, ${codlocal}, ${codemp}, 0, 'P', '${lLimpo}', 0, ${validadeSql}, ${fabricacaoSql})
+              `.trim();
+              await this.gateway.serviceCall<any>(
+                'DbExplorerSP.executeQuery',
+                { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: insertEstSql } },
+                correlationId
+              );
+            }
+            estoqueAtualizado++;
+          } catch {
+            // Ignora se regras de gatilho do Sankhya controlarem o estoque automaticamente
           }
-          estoqueAtualizado++;
-        } catch {
-          // Ignora se regras de gatilho do Sankhya controlarem o estoque automaticamente
         }
       }
     }
@@ -234,7 +317,9 @@ export class EnviarConferenciaSankhyaUseCase {
     sessao.observacaoAprovacao = input.observacao || 'Conferência aprovada e enviada com sucesso ao Sankhya.';
     sessao.respostaSankhyaJson = JSON.stringify({
       itensAtualizados,
+      itensDivididos,
       estoqueAtualizado,
+      nivelEscolhido: input.nivelEscolhido || sessao.nivelAtual,
       protocolo: sessao.id,
       timestamp: agoraIso,
     });
@@ -250,7 +335,9 @@ export class EnviarConferenciaSankhyaUseCase {
           conferenciaId: sessao.id,
           nunotas: sessao.nunotas,
           itensAtualizados,
+          itensDivididos,
           estoqueAtualizado,
+          nivelEscolhido: input.nivelEscolhido || sessao.nivelAtual,
           observacao: input.observacao,
         },
       });
@@ -259,6 +346,7 @@ export class EnviarConferenciaSankhyaUseCase {
     return {
       sessao,
       itensAtualizados,
+      itensDivididos,
       estoqueAtualizado,
       protocolo: sessao.id,
     };

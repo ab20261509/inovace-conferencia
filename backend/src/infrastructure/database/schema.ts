@@ -119,6 +119,8 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
       atualizado_em TEXT NOT NULL
     );`,
     `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('conferencia_entrada_nivel1_ativo', 'true', 'Ativa a 1ª contagem cega simples no Recebimento de Mercadorias', datetime('now'));`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
      VALUES ('conferencia_entrada_nivel2_ativo', 'true', 'Ativa a 2ª contagem obrigatória (N2 com Lote e Validade) no Recebimento de Mercadorias', datetime('now'));`,
   ];
 

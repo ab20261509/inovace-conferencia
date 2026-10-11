@@ -48,9 +48,21 @@ export function GestaoAcessosPage() {
   const [salvandoTela, setSalvandoTela] = useState(false);
 
   // Estados Aba 3: Parâmetros Operacionais
+  const [paramN1Ativo, setParamN1Ativo] = useState<boolean>(true);
   const [paramN2Ativo, setParamN2Ativo] = useState<boolean>(true);
   const [loadingParametros, setLoadingParametros] = useState<boolean>(false);
   const [salvandoParametro, setSalvandoParametro] = useState<boolean>(false);
+  const [descricoesAbertas, setDescricoesAbertas] = useState<{ n1: boolean; n2: boolean }>({
+    n1: false,
+    n2: false,
+  });
+
+  const toggleDescricao = (nivel: 'n1' | 'n2') => {
+    setDescricoesAbertas((prev) => ({
+      ...prev,
+      [nivel]: !prev[nivel],
+    }));
+  };
 
   const [feedback, setFeedback] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
@@ -130,6 +142,9 @@ export function GestaoAcessosPage() {
       try {
         const params = await configSistemaService.listarParametros();
         if (!cancelado) {
+          if (params['conferencia_entrada_nivel1_ativo']) {
+            setParamN1Ativo(params['conferencia_entrada_nivel1_ativo'].valor !== 'false');
+          }
           if (params['conferencia_entrada_nivel2_ativo']) {
             setParamN2Ativo(params['conferencia_entrada_nivel2_ativo'].valor !== 'false');
           }
@@ -147,8 +162,58 @@ export function GestaoAcessosPage() {
     };
   }, [podeAcessar]);
 
+  async function handleToggleN1Param() {
+    const novoValor = !paramN1Ativo;
+
+    // Regra de segurança: não permitir desativar ambos N1 e N2
+    if (!novoValor && !paramN2Ativo) {
+      setFeedback({
+        tipo: 'erro',
+        texto: 'Atenção: Pelo menos um nível de conferência (N1 ou N2) deve permanecer ativo no sistema.',
+      });
+      return;
+    }
+
+    setParamN1Ativo(novoValor);
+    setSalvandoParametro(true);
+    setFeedback(null);
+
+    try {
+      await configSistemaService.salvarParametro(
+        'conferencia_entrada_nivel1_ativo',
+        novoValor ? 'true' : 'false',
+        'Ativa a 1ª contagem cega simples no Recebimento de Mercadorias'
+      );
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `Conferência de Entrada Nível 1 (N1) ${novoValor ? 'ativada' : 'inativada'} com sucesso!`,
+      });
+      setTimeout(() => {
+        setFeedback((prev) => (prev?.tipo === 'sucesso' ? null : prev));
+      }, 3500);
+    } catch (err: any) {
+      setParamN1Ativo(!novoValor);
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || 'Erro ao salvar configuração do Nível 1.',
+      });
+    } finally {
+      setSalvandoParametro(false);
+    }
+  }
+
   async function handleToggleN2Param() {
     const novoValor = !paramN2Ativo;
+
+    // Regra de segurança: não permitir desativar ambos N1 e N2
+    if (!novoValor && !paramN1Ativo) {
+      setFeedback({
+        tipo: 'erro',
+        texto: 'Atenção: Pelo menos um nível de conferência (N1 ou N2) deve permanecer ativo no sistema.',
+      });
+      return;
+    }
+
     setParamN2Ativo(novoValor);
     setSalvandoParametro(true);
     setFeedback(null);
@@ -157,7 +222,7 @@ export function GestaoAcessosPage() {
       await configSistemaService.salvarParametro(
         'conferencia_entrada_nivel2_ativo',
         novoValor ? 'true' : 'false',
-        'Ativação da Conferência de Entrada Nível 2'
+        'Ativa a 2ª contagem obrigatória (N2 com Lote e Validade) no Recebimento de Mercadorias'
       );
       setFeedback({
         tipo: 'sucesso',
@@ -340,8 +405,13 @@ export function GestaoAcessosPage() {
               >
                 <span className="gestao-aba-icone">⚙️</span>
                 <span>Parâmetros Operacionais</span>
-                <span className={`gestao-aba-badge ${paramN2Ativo ? 'badge-n2-on' : 'badge-n2-off'}`}>
-                  {paramN2Ativo ? 'N2 Ativo' : 'N2 Inativo'}
+                <span className="gestao-aba-badges-wrapper">
+                  <span className={`gestao-aba-badge ${paramN1Ativo ? 'badge-n2-on' : 'badge-n2-off'}`}>
+                    {paramN1Ativo ? 'N1 Ativo' : 'N1 Inativo'}
+                  </span>
+                  <span className={`gestao-aba-badge ${paramN2Ativo ? 'badge-n2-on' : 'badge-n2-off'}`}>
+                    {paramN2Ativo ? 'N2 Ativo' : 'N2 Inativo'}
+                  </span>
                 </span>
               </button>
             </div>
@@ -745,60 +815,149 @@ export function GestaoAcessosPage() {
                 {loadingParametros ? (
                   <Loading mensagem="Carregando parâmetros operacionais..." />
                 ) : (
-                  <div className="gestao-parametro-card">
-                    <div className="gestao-parametro-header">
-                      <div className="gestao-parametro-info">
-                        <div className="gestao-parametro-titulo-row">
-                          <span className="gestao-parametro-icone">📦</span>
-                          <h4 className="gestao-parametro-titulo">Conferência de Entrada - Nível 2 (Dupla Conferência Cega)</h4>
-                          <span className={`badge-parametro-status ${paramN2Ativo ? 'ativo' : 'inativo'}`}>
-                            {paramN2Ativo ? '✓ Ativado' : '✕ Inativado'}
-                          </span>
+                  <div className="gestao-parametros-lista">
+                    {/* CARD 1: NÍVEL 1 */}
+                    <div className="gestao-parametro-card">
+                      <div className="gestao-parametro-header">
+                        <div className="gestao-parametro-info">
+                          <div className="gestao-parametro-titulo-row">
+                            <span className="gestao-parametro-icone">📦</span>
+                            <h4 className="gestao-parametro-titulo">Conferência de Entrada - Nível 1 (1ª Contagem Cega)</h4>
+                            <span className={`badge-parametro-status ${paramN1Ativo ? 'ativo' : 'inativo'}`}>
+                              {paramN1Ativo ? '✓ Ativado' : '✕ Inativado'}
+                            </span>
+                          </div>
+                          <p className="gestao-parametro-resumo-curto">
+                            Primeira contagem física simples sem exibição prévia das quantidades faturadas da nota.
+                          </p>
+                          <button
+                            type="button"
+                            className="gestao-parametro-btn-toggle"
+                            onClick={() => toggleDescricao('n1')}
+                            title={descricoesAbertas.n1 ? 'Ocultar detalhes' : 'Exibir detalhes da rotina'}
+                          >
+                            <span>{descricoesAbertas.n1 ? '▲ Ocultar detalhes da rotina' : 'ℹ️ Ver detalhes da rotina ▼'}</span>
+                          </button>
                         </div>
-                        <p className="gestao-parametro-detalhes">
-                          Quando <strong>ativado</strong>, o sistema exige dupla contagem cega independente (Nível 1 por um conferente e Nível 2 por outro).
-                          Se houver divergência entre as contagens N1 e N2, o processo avança para Nível 3 (Reconferência) ou decisão gerencial.<br />
-                          Quando <strong>desativado</strong>, o Nível 2 é dispensado e a conferência valida a contagem do Nível 1 diretamente contra os itens faturados da Nota Fiscal.
-                        </p>
+                        <div className="gestao-parametro-toggle-wrapper">
+                          <label className="toggle-switch toggle-switch-lg" title="Ativar ou desativar Conferência de Entrada Nível 1">
+                            <input
+                              type="checkbox"
+                              checked={paramN1Ativo}
+                              disabled={salvandoParametro}
+                              onChange={handleToggleN1Param}
+                            />
+                            <span className="toggle-slider toggle-operacao" />
+                          </label>
+                        </div>
                       </div>
-                      <div className="gestao-parametro-toggle-wrapper">
-                        <label className="toggle-switch toggle-switch-lg" title="Ativar ou desativar Conferência de Entrada Nível 2">
-                          <input
-                            type="checkbox"
-                            checked={paramN2Ativo}
-                            disabled={salvandoParametro}
-                            onChange={handleToggleN2Param}
-                          />
-                          <span className="toggle-slider toggle-operacao" />
-                        </label>
-                      </div>
+
+                      {descricoesAbertas.n1 && (
+                        <div className="gestao-parametro-detalhes-container">
+                          <p className="gestao-parametro-detalhes">
+                            Quando <strong>ativado</strong>, o sistema inicia novas conferências exigindo a 1ª contagem cega física (N1).<br />
+                            Quando <strong>desativado</strong>, a 1ª contagem cega é dispensada, iniciando o fluxo de recebimento diretamente no Nível 2 (com coleta de Lote e Validade).
+                          </p>
+
+                          <div className="gestao-parametro-fluxo-explicacao">
+                            <div className={`fluxo-modo-box ${paramN1Ativo ? 'modo-destaque' : ''}`}>
+                              <div className="fluxo-modo-header">
+                                <span className="fluxo-icone">🔒</span>
+                                <strong>Fluxo com N1 Ativado (Padrão)</strong>
+                              </div>
+                              <ul>
+                                <li><strong>Início no N1:</strong> Conferente faz a contagem cega inicial das mercadorias.</li>
+                                <li><strong>Continuidade:</strong> Se N2 estiver ativo, avança para N2; se N2 estiver inativo, valida e finaliza diretamente contra a NF.</li>
+                              </ul>
+                            </div>
+
+                            <div className={`fluxo-modo-box ${!paramN1Ativo ? 'modo-destaque' : ''}`}>
+                              <div className="fluxo-modo-header">
+                                <span className="fluxo-icone">⚡</span>
+                                <strong>Fluxo com N1 Inativado (Início Direto em N2)</strong>
+                              </div>
+                              <ul>
+                                <li><strong>Início no N2:</strong> Operadores pulam a contagem cega inicial e iniciam direto na conferência com Lote e Validade.</li>
+                                <li><strong>Validação com a NF:</strong> O N2 valida as quantidades diretamente com a Nota Fiscal. Se bater, finaliza como <em>Conferido</em>. Se divergir, avança para N3.</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="gestao-parametro-fluxo-explicacao">
-                      <div className={`fluxo-modo-box ${paramN2Ativo ? 'modo-destaque' : ''}`}>
-                        <div className="fluxo-modo-header">
-                          <span className="fluxo-icone">🔒</span>
-                          <strong>Fluxo com N2 Ativado (Recomendado para Alto Risco / Dupla Validação)</strong>
+                    {/* CARD 2: NÍVEL 2 */}
+                    <div className="gestao-parametro-card">
+                      <div className="gestao-parametro-header">
+                        <div className="gestao-parametro-info">
+                          <div className="gestao-parametro-titulo-row">
+                            <span className="gestao-parametro-icone">🏷️</span>
+                            <h4 className="gestao-parametro-titulo">Conferência de Entrada - Nível 2 (Dupla Conferência Cega)</h4>
+                            <span className={`badge-parametro-status ${paramN2Ativo ? 'ativo' : 'inativo'}`}>
+                              {paramN2Ativo ? '✓ Ativado' : '✕ Inativado'}
+                            </span>
+                          </div>
+                          <p className="gestao-parametro-resumo-curto">
+                            Segunda contagem física independente com exigência de Lote, Validade e Fabricação.
+                          </p>
+                          <button
+                            type="button"
+                            className="gestao-parametro-btn-toggle"
+                            onClick={() => toggleDescricao('n2')}
+                            title={descricoesAbertas.n2 ? 'Ocultar detalhes' : 'Exibir detalhes da rotina'}
+                          >
+                            <span>{descricoesAbertas.n2 ? '▲ Ocultar detalhes da rotina' : 'ℹ️ Ver detalhes da rotina ▼'}</span>
+                          </button>
                         </div>
-                        <ul>
-                          <li><strong>Nível 1:</strong> Conferente 1 faz contagem cega física sem ver as quantidades da nota.</li>
-                          <li><strong>Nível 2:</strong> Outro conferente repete a contagem física independente.</li>
-                          <li><strong>Convergência:</strong> Se N1 == N2 == Nota Fiscal, nota aprovada automaticamente.</li>
-                          <li><strong>Divergência:</strong> Se N1 != N2 ou divergência com a NF, a nota vai para <em>Divergências</em> na Gestão de Recebimento.</li>
-                        </ul>
+                        <div className="gestao-parametro-toggle-wrapper">
+                          <label className="toggle-switch toggle-switch-lg" title="Ativar ou desativar Conferência de Entrada Nível 2">
+                            <input
+                              type="checkbox"
+                              checked={paramN2Ativo}
+                              disabled={salvandoParametro}
+                              onChange={handleToggleN2Param}
+                            />
+                            <span className="toggle-slider toggle-operacao" />
+                          </label>
+                        </div>
                       </div>
 
-                      <div className={`fluxo-modo-box ${!paramN2Ativo ? 'modo-destaque' : ''}`}>
-                        <div className="fluxo-modo-header">
-                          <span className="fluxo-icone">⚡</span>
-                          <strong>Fluxo com N2 Inativado (Modo Ágil / Contagem Única)</strong>
+                      {descricoesAbertas.n2 && (
+                        <div className="gestao-parametro-detalhes-container">
+                          <p className="gestao-parametro-detalhes">
+                            Quando <strong>ativado</strong>, o sistema exige dupla contagem cega independente (Nível 1 por um conferente e Nível 2 por outro).
+                            Se houver divergência entre as contagens N1 e N2, o processo avança para Nível 3 (Reconferência) ou decisão gerencial.<br />
+                            Quando <strong>desativado</strong>, o Nível 2 é dispensado e a conferência valida a contagem do Nível 1 diretamente contra os itens faturados da Nota Fiscal.
+                          </p>
+
+                          <div className="gestao-parametro-fluxo-explicacao">
+                            <div className={`fluxo-modo-box ${paramN2Ativo ? 'modo-destaque' : ''}`}>
+                              <div className="fluxo-modo-header">
+                                <span className="fluxo-icone">🔒</span>
+                                <strong>Fluxo com N2 Ativado (Recomendado para Alto Risco / Dupla Validação)</strong>
+                              </div>
+                              <ul>
+                                <li><strong>Nível 1:</strong> Conferente 1 faz contagem cega física sem ver as quantidades da nota.</li>
+                                <li><strong>Nível 2:</strong> Outro conferente repete a contagem física independente com Lote e Validade.</li>
+                                <li><strong>Convergência:</strong> Se N1 == N2 == Nota Fiscal, nota aprovada automaticamente.</li>
+                                <li><strong>Divergência:</strong> Se N1 != N2 ou divergência com a NF, a nota vai para <em>Divergências</em> na Gestão de Recebimento.</li>
+                              </ul>
+                            </div>
+
+                            <div className={`fluxo-modo-box ${!paramN2Ativo ? 'modo-destaque' : ''}`}>
+                              <div className="fluxo-modo-header">
+                                <span className="fluxo-icone">⚡</span>
+                                <strong>Fluxo com N2 Inativado (Modo Ágil / Contagem Única)</strong>
+                              </div>
+                              <ul>
+                                <li><strong>Nível 1:</strong> Conferente faz a contagem física cega.</li>
+                                <li><strong>Finalização Direta:</strong> Se N1 coincidir exatamente com a NF, a conferência é finalizada com sucesso.</li>
+                                <li><strong>Divergência com a NF:</strong> Caso falte ou sobre produto em relação à NF, a conferência é marcada como <em>Divergente</em> para o gestor.</li>
+                              </ul>
+                            </div>
+                          </div>
                         </div>
-                        <ul>
-                          <li><strong>Nível 1:</strong> Conferente 1 faz a contagem física cega.</li>
-                          <li><strong>Finalização Direta:</strong> Se N1 coincidir exatamente com a NF, a conferência é finalizada com sucesso.</li>
-                          <li><strong>Divergência com a NF:</strong> Caso falte ou sobre produto em relação à NF, a conferência é marcada como <em>Divergente</em> para o gestor.</li>
-                        </ul>
-                      </div>
+                      )}
                     </div>
                   </div>
                 )}

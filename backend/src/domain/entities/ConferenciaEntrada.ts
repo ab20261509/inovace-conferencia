@@ -45,6 +45,8 @@ export interface ItemNotaEntrada {
   codprod: number;
   descrprod: string;
   referencia: string;
+  refforn?: string;
+  codbarra?: string;
   codvol: string;
   qtdneg: number | null; // pode ser mascarado se for campo sensível
   qtdConferidaN1: number;
@@ -52,6 +54,13 @@ export interface ItemNotaEntrada {
   qtdConferidaN3: number;
   codigosAlternativos: CodigoAlternativoEntrada[];
   divergente?: boolean;
+  lote?: string;
+  validade?: string;
+  fabricacao?: string;
+  conferenteN1?: string;
+  conferenteN2?: string;
+  conferenteN3?: string;
+  diferenca?: number;
 }
 
 export interface BackupContagemEntrada {
@@ -116,5 +125,7 @@ export interface BipagemEntrada {
   lote?: string;
   validade?: string;
   fabricacao?: string;
+  descrprod?: string;
+  referencia?: string;
   anulado: boolean;
 }

@@ -64,6 +64,7 @@ SELECT
     ITE.CODPROD,
     NVL(PRO.DESCRPROD, 'PRODUTO NÃO IDENTIFICADO') AS DESCRPROD,
     NVL(PRO.REFERENCIA, ' ') AS REFERENCIA,
+    NVL(PRO.REFFORN, ' ') AS REFFORN,
     NVL(ITE.CODVOL, 'UN') AS CODVOL,
     NVL(ITE.QTDNEG, 0) AS QTDNEG
 FROM TGFITE ITE
@@ -149,18 +150,43 @@ WHERE BAR.CODPROD IN (
     // Buscar Bipagens do Repositório
     const bipagens = sessao ? await this.conferenciaRepo.listarBipagens(sessao.id) : [];
 
-    // Mapear totais bipados por item e por nível
-    const mapQtdBipada: Record<string, { n1: number; n2: number; n3: number }> = {};
+    // Mapear detalhes de contagem por item e por nível (lotes, validades, conferentes)
+    const mapBipsDetalhadas: Record<
+      string,
+      {
+        n1: number;
+        n2: number;
+        n3: number;
+        lote?: string;
+        validade?: string;
+        fabricacao?: string;
+        conferenteN1?: string;
+        conferenteN2?: string;
+        conferenteN3?: string;
+      }
+    > = {};
+
     for (const b of bipagens) {
       if (b.anulado) continue;
       const key = `${b.nunota}|${b.codprod}|${b.sequencia}`;
-      if (!mapQtdBipada[key]) {
-        mapQtdBipada[key] = { n1: 0, n2: 0, n3: 0 };
+      if (!mapBipsDetalhadas[key]) {
+        mapBipsDetalhadas[key] = { n1: 0, n2: 0, n3: 0 };
       }
       const qtd = Number(b.qtdConferida) || 0;
-      if (b.nivel === 1) mapQtdBipada[key].n1 += qtd;
-      else if (b.nivel === 2) mapQtdBipada[key].n2 += qtd;
-      else if (b.nivel === 3) mapQtdBipada[key].n3 += qtd;
+      if (b.nivel === 1) {
+        mapBipsDetalhadas[key].n1 += qtd;
+        if (b.conferente) mapBipsDetalhadas[key].conferenteN1 = b.conferente;
+      } else if (b.nivel === 2) {
+        mapBipsDetalhadas[key].n2 += qtd;
+        if (b.conferente) mapBipsDetalhadas[key].conferenteN2 = b.conferente;
+      } else if (b.nivel === 3) {
+        mapBipsDetalhadas[key].n3 += qtd;
+        if (b.conferente) mapBipsDetalhadas[key].conferenteN3 = b.conferente;
+      }
+
+      if (b.lote && !mapBipsDetalhadas[key].lote) mapBipsDetalhadas[key].lote = b.lote;
+      if (b.validade && !mapBipsDetalhadas[key].validade) mapBipsDetalhadas[key].validade = b.validade;
+      if (b.fabricacao && !mapBipsDetalhadas[key].fabricacao) mapBipsDetalhadas[key].fabricacao = b.fabricacao;
     }
 
     // Regras de Ocultação de Campos Sensíveis para conferencia_entrada
@@ -195,14 +221,23 @@ WHERE BAR.CODPROD IN (
       const rawQtd = Number(r[itensIndex['QTDNEG']] || 0);
 
       const key = `${nunota}|${codprod}|${sequencia}`;
-      const bip = mapQtdBipada[key] || { n1: 0, n2: 0, n3: 0 };
+      const bip = mapBipsDetalhadas[key] || { n1: 0, n2: 0, n3: 0 };
 
-      // Se houve contagem no Nível 2, compara N1 x N2 x NF.
-      // Se não houve N2 (contagem única), compara N1 x NF.
+      // Se houve contagem em N1 e N2, compara N1 x N2 x NF.
+      // Se não houve N1 (iniciado direto em N2), compara N2 x NF.
+      // Se não houve N2 (contagem única em N1), compara N1 x NF.
+      const houveNivel1 = bipagens.some((b) => !b.anulado && b.nivel === 1);
       const houveNivel2 = bipagens.some((b) => !b.anulado && b.nivel === 2);
-      const divergente = houveNivel2
-        ? bip.n1 !== rawQtd || bip.n2 !== rawQtd || bip.n1 !== bip.n2
-        : bip.n1 !== rawQtd;
+      const divergente =
+        houveNivel1 && houveNivel2
+          ? bip.n1 !== rawQtd || bip.n2 !== rawQtd || bip.n1 !== bip.n2
+          : houveNivel2
+          ? bip.n2 !== rawQtd
+          : bip.n1 !== rawQtd;
+
+      // Contagem física final apurada
+      const contagemFinal = bip.n3 > 0 ? bip.n3 : bip.n2 > 0 ? bip.n2 : bip.n1;
+      const diferenca = contagemFinal - rawQtd;
 
       let codigosAlternativos = mapaBarras[codprod] || [];
       if (ocultarCodBarra) {
@@ -215,6 +250,8 @@ WHERE BAR.CODPROD IN (
         codprod,
         descrprod: String(r[itensIndex['DESCRPROD']] || ''),
         referencia: ocultarReferencia ? '—' : String(r[itensIndex['REFERENCIA']] || '').trim(),
+        refforn: String(r[itensIndex['REFFORN']] || '').trim(),
+        codbarra: codigosAlternativos[0]?.codbarra || '',
         codvol: String(r[itensIndex['CODVOL']] || 'UN'),
         qtdneg: ocultarQtdNota ? null : rawQtd,
         qtdConferidaN1: bip.n1,
@@ -222,8 +259,27 @@ WHERE BAR.CODPROD IN (
         qtdConferidaN3: bip.n3,
         codigosAlternativos,
         divergente,
+        lote: bip.lote,
+        validade: bip.validade,
+        fabricacao: bip.fabricacao,
+        conferenteN1: bip.conferenteN1,
+        conferenteN2: bip.conferenteN2,
+        conferenteN3: bip.conferenteN3,
+        diferenca,
       };
     });
+
+    // Mapa de Descrições e Referências dos Produtos
+    const mapaProdutos: Record<number, { descrprod: string; referencia: string }> = {};
+    for (const r of itensRows) {
+      const codprod = Number(r[itensIndex['CODPROD']]);
+      if (!mapaProdutos[codprod]) {
+        mapaProdutos[codprod] = {
+          descrprod: String(r[itensIndex['DESCRPROD']] || ''),
+          referencia: String(r[itensIndex['REFERENCIA']] || '').trim(),
+        };
+      }
+    }
 
     // Se a conferência estiver no Nível 3 (Reconferência / Desempate),
     // o conferente deve receber APENAS os itens que divergiram nos níveis anteriores!
@@ -235,10 +291,20 @@ WHERE BAR.CODPROD IN (
 
     const itensRetornados = ehNivel3 ? itens.filter((i) => i.divergente) : itens;
 
+    // Enriquecer bipagens com dados descritivos do produto
+    const bipagensEnriquecidas = bipagens.map((b) => {
+      const prod = mapaProdutos[b.codprod];
+      return {
+        ...b,
+        descrprod: prod?.descrprod || 'PRODUTO NÃO IDENTIFICADO',
+        referencia: prod?.referencia || '',
+      };
+    });
+
     return {
       sessao,
       itens: itensRetornados,
-      bipagens,
+      bipagens: bipagensEnriquecidas,
     };
   }
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
+import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
 import {
   SessaoConferenciaEntrada,
   StatusConferenciaEntrada,
@@ -12,10 +13,21 @@ export interface IniciarConferenciaEntradaInput {
 }
 
 export class IniciarConferenciaEntradaUseCase {
-  constructor(private readonly conferenciaRepo: IConferenciaEntradaRepository) {}
+  constructor(
+    private readonly conferenciaRepo: IConferenciaEntradaRepository,
+    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository
+  ) {}
 
   async execute(input: IniciarConferenciaEntradaInput): Promise<SessaoConferenciaEntrada> {
-    const nivel = input.nivel || 1;
+    let nivel = input.nivel;
+    if (!nivel) {
+      if (this.configSistemaRepo) {
+        const n1Param = await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel1_ativo');
+        nivel = n1Param === 'false' ? 2 : 1;
+      } else {
+        nivel = 1;
+      }
+    }
     const nunotas = input.nunotas.filter(Boolean);
 
     if (nunotas.length === 0) {

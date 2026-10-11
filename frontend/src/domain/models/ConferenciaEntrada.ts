@@ -45,6 +45,8 @@ export interface ItemNotaEntrada {
   codprod: number;
   descrprod: string;
   referencia: string;
+  refforn?: string;
+  codbarra?: string;
   codvol: string;
   qtdneg: number | null; // pode ser null se for campo sensível protegido
   qtdConferidaN1: number;
@@ -52,6 +54,14 @@ export interface ItemNotaEntrada {
   qtdConferidaN3: number;
   codigosAlternativos: CodigoAlternativoEntrada[];
   divergente?: boolean;
+  codlocal?: number;
+  lote?: string;
+  validade?: string;
+  fabricacao?: string;
+  conferenteN1?: string;
+  conferenteN2?: string;
+  conferenteN3?: string;
+  diferenca?: number;
 }
 
 export interface BackupContagemEntrada {
@@ -116,6 +126,8 @@ export interface BipagemEntrada {
   lote?: string;
   validade?: string;
   fabricacao?: string;
+  descrprod?: string;
+  referencia?: string;
   anulado: boolean;
 }
 
@@ -187,14 +199,30 @@ export interface ReiniciarConferenciaInput {
   motivo?: string;
 }
 
+export interface ItemAssociacaoEnvio {
+  nunota: number;
+  sequencia: number;
+  codprod: number;
+  lote: string;
+  validade?: string;
+  fabricacao?: string;
+  qtdConferida: number;
+  codlocal?: number;
+}
+
 export interface EnviarSankhyaInput {
   observacao?: string;
+  nivelEscolhido?: number;
+  itensCustomizados?: ItemAssociacaoEnvio[];
 }
 
 export interface EnviarSankhyaResponse {
-  sucesso: boolean;
-  mensagem: string;
+  success?: boolean;
+  sucesso?: boolean;
+  mensagem?: string;
   sessao: SessaoConferenciaEntrada;
   itensAtualizados: number;
+  itensDivididos?: number;
   estoqueAtualizado: number;
+  protocolo?: string;
 }

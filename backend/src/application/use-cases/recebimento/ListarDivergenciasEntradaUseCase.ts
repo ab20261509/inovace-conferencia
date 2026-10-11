@@ -203,10 +203,15 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         });
       }
 
-      // Itens divergentes são aqueles onde N1 != esperado OU N2 != esperado OU N1 != N2
+      // Itens divergentes são aqueles onde:
+      // Se houve N3: N3 != esperado
+      // Se houve N1 e N2: N1 != N2 OU N2 != esperado
+      // Se houve N2 sem N1: N2 != esperado
+      // Senão: N1 != esperado
       const itensDivergentes = todosItens.filter((it) => {
         if (it.qtdN3 > 0) return it.qtdN3 !== it.qtdEsperada;
-        if (it.qtdN2 > 0) return it.qtdN1 !== it.qtdN2 || it.qtdN2 !== it.qtdEsperada;
+        if (totalN1 > 0 && totalN2 > 0) return it.qtdN1 !== it.qtdN2 || it.qtdN2 !== it.qtdEsperada;
+        if (totalN2 > 0) return it.qtdN2 !== it.qtdEsperada;
         return it.qtdN1 !== it.qtdEsperada;
       });
 

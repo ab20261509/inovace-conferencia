@@ -75,6 +75,7 @@ import { ListarDivergenciasEntradaUseCase } from './application/use-cases/recebi
 import { ResolverDivergenciaUseCase } from './application/use-cases/recebimento/ResolverDivergenciaUseCase.js';
 import { ReiniciarConferenciaEntradaUseCase } from './application/use-cases/recebimento/ReiniciarConferenciaEntradaUseCase.js';
 import { EnviarConferenciaSankhyaUseCase } from './application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.js';
+import { SankhyaDesmembrarItemService } from './infrastructure/services/SankhyaDesmembrarItemService.js';
 import { ListarTodasConferenciasEntradaUseCase } from './application/use-cases/recebimento/ListarTodasConferenciasEntradaUseCase.js';
 import { SolicitarRecontagemEntradaUseCase } from './application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.js';
 import { RecuperarContagemReiniciadaUseCase } from './application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
@@ -158,14 +159,23 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     conferenciaEntradaRepo,
     configTelasRepo
   );
-  const iniciarConferenciaEntradaUseCase = new IniciarConferenciaEntradaUseCase(conferenciaEntradaRepo);
+  const iniciarConferenciaEntradaUseCase = new IniciarConferenciaEntradaUseCase(
+    conferenciaEntradaRepo,
+    configSistemaRepo
+  );
   const registrarBipagemEntradaUseCase = new RegistrarBipagemEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const anularBipagemEntradaUseCase = new AnularBipagemEntradaUseCase(conferenciaEntradaRepo);
   const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo, configSistemaRepo);
   const listarDivergenciasEntradaUseCase = new ListarDivergenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(conferenciaEntradaRepo);
   const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo, auditService);
-  const enviarConferenciaSankhyaUseCase = new EnviarConferenciaSankhyaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const desmembrarItemService = new SankhyaDesmembrarItemService(gatewayAdapter);
+  const enviarConferenciaSankhyaUseCase = new EnviarConferenciaSankhyaUseCase(
+    gatewayAdapter,
+    conferenciaEntradaRepo,
+    auditService,
+    desmembrarItemService
+  );
   const listarTodasConferenciasUseCase = new ListarTodasConferenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const solicitarRecontagemEntradaUseCase = new SolicitarRecontagemEntradaUseCase(conferenciaEntradaRepo, auditService);
   const recuperarContagemReiniciadaUseCase = new RecuperarContagemReiniciadaUseCase(conferenciaEntradaRepo, auditService);

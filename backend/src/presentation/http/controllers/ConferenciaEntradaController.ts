@@ -222,7 +222,7 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
-      const { observacao, itensCustomizados } = req.body;
+      const { observacao, itensCustomizados, nivelEscolhido } = req.body;
 
       const resultado = await this.enviarSankhyaUseCase.execute(
         {
@@ -230,6 +230,7 @@ export class ConferenciaEntradaController {
           usuario,
           observacao,
           itensCustomizados,
+          nivelEscolhido: nivelEscolhido ? Number(nivelEscolhido) : undefined,
         },
         req.correlationId
       );
