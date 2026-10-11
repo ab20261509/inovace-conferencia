@@ -270,8 +270,10 @@ export function GestaoRecebimentoPage() {
     try {
       const resp = await recebimentoService.obterItensConferencia(conferenciaId, nunotas);
       setDetalhesConferencias((prev) => ({ ...prev, [conferenciaId]: resp }));
+      return resp;
     } catch (err: any) {
       console.error('Erro ao obter detalhes da conferência:', err);
+      return null;
     } finally {
       setLoadingDetalhes(null);
     }
@@ -1794,6 +1796,49 @@ export function GestaoRecebimentoPage() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Modal de Gerenciamento / Divisão de Lotes */}
+            {modalGerenciarLotesAberto && produtoEdicaoLotes && (
+              <ModalGerenciarLotes
+                isOpen={modalGerenciarLotesAberto}
+                onClose={() => {
+                  setModalGerenciarLotesAberto(false);
+                  setProdutoEdicaoLotes(null);
+                }}
+                produto={produtoEdicaoLotes}
+                lotesIniciais={
+                  lotesCustomizadosPorConferencia[produtoEdicaoLotes.conferenciaId]?.[produtoEdicaoLotes.codprod] || []
+                }
+                onSalvar={handleSalvarLotesCustomizados}
+              />
+            )}
+
+            {/* Modal de Importação de Lotes via Planilha Excel */}
+            {modalImportarExcelAberto && conferenciaParaExcel && (
+              <ModalImportarLotesExcel
+                isOpen={modalImportarExcelAberto}
+                onClose={() => {
+                  setModalImportarExcelAberto(false);
+                  setConferenciaParaExcel(null);
+                }}
+                itensConferencia={
+                  (detalhesConferencias[conferenciaParaExcel.conferenciaId]?.itens || []).map((i) => ({
+                    nunota: i.nunota,
+                    sequencia: i.sequencia,
+                    codprod: i.codprod,
+                    descrprod: i.descrprod,
+                    referencia: i.referencia,
+                    refforn: i.refforn,
+                    codbarra: i.codbarra,
+                    lote: i.lote,
+                    validade: i.validade,
+                    fabricacao: i.fabricacao,
+                    codigosAlternativos: i.codigosAlternativos,
+                  }))
+                }
+                onAplicarImportacao={handleAplicarImportacaoExcel}
+              />
             )}
 
             {/* Modal de Ações / Justificativa / Configuração */}
