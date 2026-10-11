@@ -279,12 +279,13 @@ export function GestaoRecebimentoPage() {
     }
   };
 
-  const toggleDetalhesConferencia = async (conferenciaId: string, nunotas: number[]) => {
-    if (conferenciasExpandidas[conferenciaId]) {
-      setConferenciasExpandidas((prev) => ({ ...prev, [conferenciaId]: false }));
+  const toggleDetalhesConferencia = async (conferenciaId: string, nunotas: number[], chaveCustom?: string) => {
+    const chave = chaveCustom || conferenciaId;
+    if (conferenciasExpandidas[chave]) {
+      setConferenciasExpandidas((prev) => ({ ...prev, [chave]: false }));
       return;
     }
-    setConferenciasExpandidas((prev) => ({ ...prev, [conferenciaId]: true }));
+    setConferenciasExpandidas((prev) => ({ ...prev, [chave]: true }));
     if (!detalhesConferencias[conferenciaId]) {
       await carregarDetalhesConferencia(conferenciaId, nunotas);
     }
@@ -391,6 +392,7 @@ export function GestaoRecebimentoPage() {
         const lotesCust = lotesCustomizadosPorConferencia[modalAcao.conferenciaId];
         const resp = await recebimentoService.enviarSankhya(modalAcao.conferenciaId, {
           observacao: observacaoModal,
+          nunotas: modalAcao.dadosExtras?.nunotas,
           itensCustomizados: lotesCust ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
             const codprod = Number(codprodStr);
             const itemRef = detalhesConferencias[modalAcao.conferenciaId]?.itens.find((i) => i.codprod === codprod);
@@ -492,18 +494,22 @@ export function GestaoRecebimentoPage() {
   const conferenciasProntasAgrupadas = useMemo(() => {
     const mapa = new Map<string, NotaEntrada[]>();
     for (const nota of conferenciasProntas) {
-      const key = nota.conferenciaId || `sem_id_${nota.nunota}`;
+      const key = nota.conferenciaId ? `${nota.conferenciaId}_${nota.nunota}` : `sem_id_${nota.nunota}`;
       if (!mapa.has(key)) mapa.set(key, []);
       mapa.get(key)!.push(nota);
     }
-    return Array.from(mapa.entries()).map(([confId, notas]) => ({
-      conferenciaId: confId,
-      notas,
-      numerosNotas: notas.map((n) => n.numnota).join(', '),
-      fornecedor: notas[0]?.nomeparc || '—',
-      status: notas[0]?.statusConferencia || 'Conferido',
-      nunotas: notas.map((n) => n.nunota),
-    }));
+    return Array.from(mapa.entries()).map(([key, notas]) => {
+      const confId = notas[0]?.conferenciaId || '';
+      return {
+        key,
+        conferenciaId: confId,
+        notas,
+        numerosNotas: notas.map((n) => n.numnota).join(', '),
+        fornecedor: notas[0]?.nomeparc || '—',
+        status: notas[0]?.statusConferencia || 'Conferido',
+        nunotas: notas.map((n) => n.nunota),
+      };
+    });
   }, [conferenciasProntas]);
 
   if (!podeAcessar) {
@@ -704,6 +710,21 @@ export function GestaoRecebimentoPage() {
                                 )}
                               </div>
                             </div>
+
+                            {/* Detalhamento de Status Individual por Nota (para conferências agrupadas) */}
+                            {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '8px 16px', background: 'var(--slate-50, #f8fafc)', borderBottom: '1px solid var(--slate-200, #e2e8f0)', fontSize: '0.85rem' }}>
+                                <span style={{ fontWeight: 600, color: 'var(--slate-600, #475569)' }}>Status por Nota:</span>
+                                {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => (
+                                  <span key={nunotaStr} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ color: 'var(--slate-700, #334155)' }}>NUNOTA {nunotaStr}:</span>
+                                    <span className={`badge-status-rec ${getStatusBadgeClass(st)}`} style={{ fontSize: '0.75rem', padding: '2px 6px' }}>
+                                      {st}
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
 
                             {/* Aviso de Backup Disponível */}
                             {conf.temBackupContagem && conf.backupContagem && (
@@ -1375,7 +1396,7 @@ export function GestaoRecebimentoPage() {
                         const isCarregandoDetalhes = loadingDetalhes === grupo.conferenciaId;
 
                         return (
-                          <div key={grupo.conferenciaId} className="gestao-rec-card">
+                          <div key={grupo.key} className="gestao-rec-card">
                             <div className="gestao-rec-card-header">
                               <div className="gestao-rec-card-info">
                                 <div className="gestao-rec-card-notas">
@@ -1405,71 +1426,74 @@ export function GestaoRecebimentoPage() {
                             </div>
 
                             {/* Seção de Itens / Cruzamento de Lotes e Importação Excel */}
-                            {grupo.conferenciaId && (
-                              <div style={{ marginTop: '10px' }}>
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
-                                  <button
-                                    type="button"
-                                    className="gestao-btn-acao gestao-btn-csv"
-                                    onClick={() => {
-                                      if (!detalhes && !isCarregandoDetalhes) {
-                                        carregarDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
-                                      } else {
-                                        toggleDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
-                                      }
-                                    }}
-                                  >
-                                    <span>
-                                      {detalhes && conferenciasExpandidas[grupo.conferenciaId]
-                                        ? '▲ Ocultar Itens da NF'
-                                        : '🔍 Ver Cruzamento de Lotes & Itens da NF'}
-                                    </span>
-                                  </button>
+                            {grupo.conferenciaId && (() => {
+                              const isExpandido = Boolean(conferenciasExpandidas[grupo.key]);
+                              const itensDoCard = (detalhes?.itens || []).filter((i) => grupo.nunotas.includes(i.nunota));
 
-                                  <button
-                                    type="button"
-                                    className="gestao-btn-acao gestao-btn-csv"
-                                    style={{ borderColor: '#3b82f6', color: '#1d4ed8' }}
-                                    onClick={async () => {
-                                      if (!detalhes) {
-                                        await carregarDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
-                                      }
-                                      setConferenciaParaExcel({
-                                        conferenciaId: grupo.conferenciaId,
-                                        nunotas: grupo.nunotas,
-                                      });
-                                      setModalImportarExcelAberto(true);
-                                    }}
-                                  >
-                                    <span>📥 Importar Lotes (Excel)</span>
-                                  </button>
-                                </div>
+                              return (
+                                <div style={{ marginTop: '10px' }}>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                    <button
+                                      type="button"
+                                      className="gestao-btn-acao gestao-btn-csv"
+                                      onClick={async () => {
+                                        if (!detalhes && !isCarregandoDetalhes) {
+                                          await carregarDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
+                                        }
+                                        toggleDetalhesConferencia(grupo.conferenciaId, grupo.nunotas, grupo.key);
+                                      }}
+                                    >
+                                      <span>
+                                        {detalhes && isExpandido
+                                          ? '▲ Ocultar Itens da NF'
+                                          : '🔍 Ver Cruzamento de Lotes & Itens da NF'}
+                                      </span>
+                                    </button>
 
-                                {isCarregandoDetalhes ? (
-                                  <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)', padding: '10px' }}>
-                                    Carregando dados dos lotes e itens...
+                                    <button
+                                      type="button"
+                                      className="gestao-btn-acao gestao-btn-csv"
+                                      style={{ borderColor: '#3b82f6', color: '#1d4ed8' }}
+                                      onClick={async () => {
+                                        if (!detalhes) {
+                                          await carregarDetalhesConferencia(grupo.conferenciaId, grupo.nunotas);
+                                        }
+                                        setConferenciaParaExcel({
+                                          conferenciaId: grupo.conferenciaId,
+                                          nunotas: grupo.nunotas,
+                                        });
+                                        setModalImportarExcelAberto(true);
+                                      }}
+                                    >
+                                      <span>📥 Importar Lotes (Excel)</span>
+                                    </button>
                                   </div>
-                                ) : detalhes && conferenciasExpandidas[grupo.conferenciaId] !== false ? (
-                                  <>
-                                    <div className="gestao-rec-tabela-desktop">
-                                      <table className="gestao-rec-tabela">
-                                        <thead>
-                                          <tr>
-                                            <th>Produto</th>
-                                            <th>Vol.</th>
-                                            <th>Nota</th>
-                                            <th>N1</th>
-                                            <th>N2</th>
-                                            {detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0) && <th>N3</th>}
-                                            <th>Diferença</th>
-                                            <th>Lote</th>
-                                            <th>Validade</th>
-                                            <th>Fabricação</th>
-                                            <th>Conferentes</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {detalhes.itens.map((item) => {
+
+                                  {isCarregandoDetalhes ? (
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--slate-500)', padding: '10px' }}>
+                                      Carregando dados dos lotes e itens...
+                                    </div>
+                                  ) : detalhes && isExpandido ? (
+                                    <>
+                                      <div className="gestao-rec-tabela-desktop">
+                                        <table className="gestao-rec-tabela">
+                                          <thead>
+                                            <tr>
+                                              <th>Produto</th>
+                                              <th>Vol.</th>
+                                              <th>Nota</th>
+                                              <th>N1</th>
+                                              <th>N2</th>
+                                              {itensDoCard.some((i) => (i.qtdConferidaN3 || 0) > 0) && <th>N3</th>}
+                                              <th>Diferença</th>
+                                              <th>Lote</th>
+                                              <th>Validade</th>
+                                              <th>Fabricação</th>
+                                              <th>Conferentes</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {itensDoCard.map((item) => {
                                             const qtdNivel = (item.qtdConferidaN3 || 0) > 0
                                               ? (item.qtdConferidaN3 || 0)
                                               : (item.qtdConferidaN2 || 0) > 0
@@ -1503,7 +1527,7 @@ export function GestaoRecebimentoPage() {
                                                 </td>
                                                 <td>{item.qtdConferidaN1 || 0}</td>
                                                 <td>{item.qtdConferidaN2 || 0}</td>
-                                                {detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0) && (
+                                                {itensDoCard.some((i) => (i.qtdConferidaN3 || 0) > 0) && (
                                                   <td>{item.qtdConferidaN3 || 0}</td>
                                                 )}
                                                 <td>
@@ -1655,7 +1679,7 @@ export function GestaoRecebimentoPage() {
 
                                     {/* Cards Mobile Padronizados (<= 1024px) */}
                                     <div className="gestao-rec-itens-mobile" style={{ marginTop: '8px' }}>
-                                      {detalhes.itens.map((item) => {
+                                      {itensDoCard.map((item) => {
                                         const qtdNivel = (item.qtdConferidaN3 || 0) > 0
                                           ? (item.qtdConferidaN3 || 0)
                                           : (item.qtdConferidaN2 || 0) > 0
@@ -1754,8 +1778,8 @@ export function GestaoRecebimentoPage() {
                                             {(item.conferenteN1 || item.conferenteN2 || item.conferenteN3) && (
                                               <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)', marginTop: '-2px' }}>
                                                 {formatarConferentes(item)}
-                                              </div>
-                                            )}
+                                               </div>
+                                             )}
                                           </div>
                                         );
                                       })}
@@ -1763,7 +1787,8 @@ export function GestaoRecebimentoPage() {
                                   </>
                                 ) : null}
                               </div>
-                            )}
+                            );
+                            })()}
 
                             {/* Ações de Envio */}
                             <div className="gestao-rec-card-acoes">
@@ -1778,6 +1803,7 @@ export function GestaoRecebimentoPage() {
                                       titulo: 'Aprovar e Integrar ao Sankhya',
                                       descricao: `Confirma a integração dos lotes e atualização do estoque (TGFITE / TGFLOT / TGFEST) da(s) nota(s) ${grupo.numerosNotas}?`,
                                       placeholder: 'Observação opcional gravada na nota do Sankhya...',
+                                      dadosExtras: { nunotas: grupo.nunotas },
                                     });
                                   }}
                                 >

@@ -1,3 +1,38 @@
+# Handoff — Sessão 2026-10-11
+
+## Funcionalidades e Ajustes Implementados
+
+### 1. Conferência Conjunta de Múltiplas Notas Fiscais (Cargas Agrupadas)
+- **Seleção em Lote no Recebimento (`/recebimento`)**:
+  - Operador pode marcar múltiplos checkboxes e iniciar uma conferência unificada de múltiplas notas fiscais simultâneas.
+- **Enriquecimento com Número de Nota (`NUMNOTA`)**:
+  - `ItemNotaEntrada` no backend e frontend enriquecido com `numnota?: number`.
+  - `ObterItensConferenciaEntradaUseCase` realiza `INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA` retornando `CAB.NUMNOTA`.
+- **Identificação Visual por NF no Coletor (`/recebimento/conferencia`)**:
+  - Cabeçalho exibe os números das NFs agrupadas: `NF(s) {numerosNFs.join(', ')} — Recebimento`.
+  - Produtos pendentes e conferidos exibem badge destacado com a nota de origem (ex: `[NF 75574]`, `[NF 35801]`) tanto na visualização em tabela desktop quanto nos cards mobile.
+  - Bipagem e estorno operam pela chave tripla única `nunota + sequencia + codprod`.
+- **Bipagem Inteligente com Alocação de Saldo**:
+  - Em `RegistrarBipagemEntradaUseCase`: quando o mesmo produto pertence a mais de uma nota da carga agrupada, a bipagem é alocada automaticamente para a nota que ainda possui saldo pendente (`qtdneg - conferido > 0`).
+
+### 2. Filtragem Estrita por Nota na Gestão de Recebimento (`/recebimento/gestao`)
+- **Aba Envio Sankhya**:
+  - Cada card de NF da conferência conjunta filtra estritamente seus próprios itens:
+    `const itensDoCard = (detalhes?.itens || []).filter((i) => grupo.nunotas.includes(i.nunota));`
+  - A NF 35801 exibe exclusivamente seus 4 produtos e a NF 75574 exibe exclusivamente o produto 7725.
+  - Chave de expansão individualizada `${grupo.conferenciaId}_${grupo.nunota}`, impedindo expansão simultânea indesejada.
+
+### 3. Precedência de Status Real & Eliminação de Sessões Fantasmas
+- **Correção da Causa Raiz em `LibsqlConferenciaEntradaRepository.ts`**:
+  - `obterMapaStatusNotas`: Adicionada subquery `total_bipagens = (SELECT COUNT(*) FROM bipagens_entrada b WHERE b.conferencia_id = c.id AND b.anulado = 0)`.
+  - Uma sessão vazia com 0 bipagens criada por engano **nunca mais sobrepõe** uma conferência real que possua bipagens ou que já esteja como `Conferido`/`Enviado ao Sankhya`.
+  - Adicionado método `excluirSessao(id: string)` com auditoria para descarte seguro de sessões órfãs.
+- **Blindagem em `IniciarConferenciaEntradaUseCase.ts`**:
+  - Se todas as notas solicitadas já foram conferidas na mesma conferência, a sessão concluída é reutilizada para visualização dos itens em vez de criar uma conferência duplicada em branco.
+  - Na unificação de sessões ativas, a sessão com histórico real de bipagens é priorizada e sessões ativas vazias são descartadas automaticamente.
+
+---
+
 # Handoff — Sessão 2026-10-10
 
 ## Funcionalidades e Ajustes Implementados

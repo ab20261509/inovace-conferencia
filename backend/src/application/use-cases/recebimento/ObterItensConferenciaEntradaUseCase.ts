@@ -40,14 +40,20 @@ export class ObterItensConferenciaEntradaUseCase {
       }
     }
 
-    if (nunotas.length === 0 && input.nunotas && input.nunotas.length > 0) {
-      nunotas = input.nunotas;
+    if (input.nunotas && input.nunotas.length > 0) {
+      nunotas = Array.from(new Set([...nunotas, ...input.nunotas.filter(Boolean)]));
     }
 
     // Se ainda não temos a sessão carregada, busca por nunotas
     if (!sessao && nunotas.length > 0) {
       const sessoes = await this.conferenciaRepo.obterSessoesPorNunotas(nunotas);
-      sessao = sessoes.find((s) => s.status !== 'Conferido') || null;
+      sessao = sessoes.find((s) => s.status !== 'Conferido' && s.status !== 'Enviado ao Sankhya') || null;
+    }
+
+    if (sessao && nunotas.length > sessao.nunotas.length) {
+      sessao.nunotas = nunotas;
+      sessao.atualizadoEm = new Date().toISOString();
+      await this.conferenciaRepo.salvarSessao(sessao);
     }
 
     if (nunotas.length === 0) {
@@ -60,6 +66,7 @@ export class ObterItensConferenciaEntradaUseCase {
     const sqlItens = `
 SELECT
     ITE.NUNOTA,
+    CAB.NUMNOTA,
     ITE.SEQUENCIA,
     ITE.CODPROD,
     NVL(PRO.DESCRPROD, 'PRODUTO NÃO IDENTIFICADO') AS DESCRPROD,
@@ -68,6 +75,7 @@ SELECT
     NVL(ITE.CODVOL, 'UN') AS CODVOL,
     NVL(ITE.QTDNEG, 0) AS QTDNEG
 FROM TGFITE ITE
+INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
 INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
 WHERE ITE.NUNOTA IN (${nunotasStr})
 ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
@@ -216,6 +224,7 @@ WHERE BAR.CODPROD IN (
 
     const itens: ItemNotaEntrada[] = itensRows.map((r) => {
       const nunota = Number(r[itensIndex['NUNOTA']]);
+      const numnota = Number(r[itensIndex['NUMNOTA']] || 0);
       const sequencia = Number(r[itensIndex['SEQUENCIA']]);
       const codprod = Number(r[itensIndex['CODPROD']]);
       const rawQtd = Number(r[itensIndex['QTDNEG']] || 0);
@@ -246,6 +255,7 @@ WHERE BAR.CODPROD IN (
 
       return {
         nunota,
+        numnota,
         sequencia,
         codprod,
         descrprod: String(r[itensIndex['DESCRPROD']] || ''),

@@ -9,7 +9,7 @@ import { Loading } from '../components/Loading/Loading';
 const recebimentoService = new RecebimentoApiService();
 
 function classeStatusEntrada(status: StatusConferenciaEntrada): string {
-  if (status === 'Conferido') return 'badge-success';
+  if (status === 'Conferido' || status === 'Enviado ao Sankhya') return 'badge-success';
   if (['N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento', 'Aguardando N2', 'Aguardando N3'].includes(status)) return 'badge-warning';
   if (['Divergente', 'Em Reconferência'].includes(status)) return 'badge-danger';
   return 'badge-pending';
@@ -83,7 +83,9 @@ export function RecebimentoPage() {
         n.statusConferencia
       )
     ).length;
-    const concluidos = notas.filter((n) => n.statusConferencia === 'Conferido').length;
+    const concluidos = notas.filter(
+      (n) => n.statusConferencia === 'Conferido' || n.statusConferencia === 'Enviado ao Sankhya'
+    ).length;
     return {
       todos: notas.length,
       pendentes,
@@ -115,7 +117,9 @@ export function RecebimentoPage() {
         )
       );
     } else if (filtroStatus === 'concluidos') {
-      resultado = resultado.filter((n) => n.statusConferencia === 'Conferido');
+      resultado = resultado.filter(
+        (n) => n.statusConferencia === 'Conferido' || n.statusConferencia === 'Enviado ao Sankhya'
+      );
     }
 
     return resultado;

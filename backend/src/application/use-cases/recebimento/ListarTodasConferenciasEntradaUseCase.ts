@@ -132,6 +132,7 @@ WHERE CAB.NUNOTA IN (${nunotasStr})
         temBackupContagem: !!sessao.backupContagemJson,
         backupContagem: sessao.backupContagem,
         observacaoAprovacao: sessao.observacaoAprovacao,
+        statusPorNota: sessao.statusPorNota,
       });
     }
 

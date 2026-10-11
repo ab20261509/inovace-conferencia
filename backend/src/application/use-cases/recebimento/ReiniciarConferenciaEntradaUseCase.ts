@@ -1,5 +1,5 @@
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
-import { SessaoConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
+import { SessaoConferenciaEntrada, StatusConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
 
 export interface ReiniciarConferenciaInput {
@@ -53,6 +53,14 @@ export class ReiniciarConferenciaEntradaUseCase {
     sessao.aprovadoEm = undefined;
     sessao.enviadoSankhyaEm = undefined;
     sessao.observacaoAprovacao = input.motivo ? `Reiniciada: ${input.motivo}` : 'Conferência reiniciada pelo gestor.';
+
+    // Resetar status de todas as notas vinculadas para Em Aberto
+    const statusResetado: Record<number, StatusConferenciaEntrada> = {};
+    for (const n of sessao.nunotas) {
+      statusResetado[n] = 'Em Aberto';
+    }
+    sessao.statusPorNota = statusResetado;
+    sessao.statusPorNotaJson = JSON.stringify(statusResetado);
 
     await this.conferenciaRepo.salvarSessao(sessao);
 

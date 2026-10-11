@@ -28,15 +28,18 @@ export class IniciarConferenciaEntradaUseCase {
         nivel = 1;
       }
     }
-    const nunotas = input.nunotas.filter(Boolean);
+    const nunotas = Array.from(new Set(input.nunotas.filter(Boolean)));
 
     if (nunotas.length === 0) {
       throw new Error('Nenhuma nota informada para iniciar a conferência.');
     }
 
-    // Verifica se já existe sessão ativa
+    // Busca sessões existentes que contenham qualquer uma das notas
     const sessoesExistentes = await this.conferenciaRepo.obterSessoesPorNunotas(nunotas);
-    const sessaoAtiva = sessoesExistentes.find((s) => s.status !== 'Conferido');
+    // Filtrar apenas sessões ativas (não finalizadas nem enviadas)
+    const sessoesAtivas = sessoesExistentes.filter(
+      (s) => s.status !== 'Conferido' && s.status !== 'Enviado ao Sankhya'
+    );
 
     const agora = new Date().toISOString();
     const statusPorNivel: Record<number, StatusConferenciaEntrada> = {
@@ -45,40 +48,102 @@ export class IniciarConferenciaEntradaUseCase {
       3: 'N3 em Andamento',
     };
 
-    if (sessaoAtiva) {
-      // Se a sessão já existe, preserva o nível em que ela se encontra
-      // Só altera o nível se input.nivel for explicitamente informado e diferente
-      if (input.nivel && [1, 2, 3].includes(input.nivel) && input.nivel !== sessaoAtiva.nivelAtual) {
-        sessaoAtiva.nivelAtual = input.nivel;
-        sessaoAtiva.status = statusPorNivel[input.nivel] || sessaoAtiva.status;
-      } else {
-        // Ao retomar conferência existente, ativa o status de andamento do nível corrente
-        if (sessaoAtiva.nivelAtual === 2) {
-          sessaoAtiva.status = 'N2 em Andamento';
-        } else if (sessaoAtiva.nivelAtual === 3) {
-          sessaoAtiva.status = 'N3 em Andamento';
-        } else if (sessaoAtiva.nivelAtual === 1) {
-          sessaoAtiva.status = 'N1 em Andamento';
-        }
+    // 1. Verifica se existe uma sessão ativa com match exato das notas solicitadas
+    const nunotasSorted = [...nunotas].sort((a, b) => a - b);
+    const sessaoExata = sessoesAtivas.find((s) => {
+      const sNunotasSorted = [...s.nunotas].sort((a, b) => a - b);
+      return (
+        sNunotasSorted.length === nunotasSorted.length &&
+        sNunotasSorted.every((n, i) => n === nunotasSorted[i])
+      );
+    });
+
+    let sessaoParaUsar: SessaoConferenciaEntrada;
+
+    if (sessaoExata) {
+      sessaoParaUsar = sessaoExata;
+    } else if (sessoesAtivas.length > 0) {
+      // 2. Se há sessões ativas com parte das notas:
+      // Identificar sessões com bipagens para priorizar a que tem histórico real
+      const contagemBipagensMap = new Map<string, number>();
+      for (const s of sessoesAtivas) {
+        const bips = await this.conferenciaRepo.listarBipagens(s.id);
+        contagemBipagensMap.set(s.id, bips.filter((b) => !b.anulado).length);
       }
 
-      sessaoAtiva.conferente = input.conferente || sessaoAtiva.conferente;
-      sessaoAtiva.atualizadoEm = agora;
-      await this.conferenciaRepo.salvarSessao(sessaoAtiva);
-      return sessaoAtiva;
+      // Ordena: primeiro a que tem mais bipagens, depois a que tem mais notas
+      sessoesAtivas.sort((a, b) => {
+        const cntB = contagemBipagensMap.get(b.id) || 0;
+        const cntA = contagemBipagensMap.get(a.id) || 0;
+        if (cntB !== cntA) return cntB - cntA;
+        return b.nunotas.length - a.nunotas.length;
+      });
+
+      sessaoParaUsar = sessoesAtivas[0];
+      sessaoParaUsar.nunotas = Array.from(new Set([...sessaoParaUsar.nunotas, ...nunotas]));
+
+      // Unifica as outras sessões ativas
+      for (let i = 1; i < sessoesAtivas.length; i++) {
+        const outraSessao = sessoesAtivas[i];
+        if (outraSessao.id !== sessaoParaUsar.id) {
+          const bipsOutra = contagemBipagensMap.get(outraSessao.id) || 0;
+          if (bipsOutra > 0) {
+            await this.conferenciaRepo.migrarBipagens(outraSessao.id, sessaoParaUsar.id);
+            outraSessao.status = 'Conferido';
+            outraSessao.observacaoAprovacao = `Agrupada na conferência ${sessaoParaUsar.id}`;
+            await this.conferenciaRepo.salvarSessao(outraSessao);
+          } else {
+            // Sessão vazia/fantasma: excluir para não gerar inconsistências
+            await this.conferenciaRepo.excluirSessao(outraSessao.id);
+          }
+        }
+      }
+    } else {
+      // 3. Nenhuma sessão ativa: verificar se já existe uma sessão concluída que cobre todas as notas solicitadas
+      const sessaoConcluidaExistente = sessoesExistentes.find((s) => {
+        const todasEstaoNesta = nunotas.every((n) => s.nunotas.includes(n));
+        const statusNotaOuGeral = s.status === 'Conferido' || s.status === 'Enviado ao Sankhya';
+        return todasEstaoNesta && statusNotaOuGeral;
+      });
+
+      // Se todas as notas solicitadas já foram conferidas na mesma conferência e não foi pedido avanço de nível, retorna ela mesma
+      if (sessaoConcluidaExistente && (!input.nivel || input.nivel === sessaoConcluidaExistente.nivelAtual)) {
+        return sessaoConcluidaExistente;
+      }
+
+      // 4. Cria uma nova sessão com todas as nunotas
+      const novaSessao: SessaoConferenciaEntrada = {
+        id: randomUUID(),
+        nunotas,
+        status: statusPorNivel[nivel] || 'N1 em Andamento',
+        nivelAtual: nivel,
+        criadoEm: agora,
+        atualizadoEm: agora,
+        conferente: input.conferente || 'Operador',
+      };
+
+      await this.conferenciaRepo.salvarSessao(novaSessao);
+      return novaSessao;
     }
 
-    const novaSessao: SessaoConferenciaEntrada = {
-      id: randomUUID(),
-      nunotas,
-      status: statusPorNivel[nivel] || 'N1 em Andamento',
-      nivelAtual: nivel,
-      criadoEm: agora,
-      atualizadoEm: agora,
-      conferente: input.conferente || 'Operador',
-    };
+    // Se já existe sessão (seja match exato ou unificada):
+    if (input.nivel && [1, 2, 3].includes(input.nivel) && input.nivel !== sessaoParaUsar.nivelAtual) {
+      sessaoParaUsar.nivelAtual = input.nivel;
+      sessaoParaUsar.status = statusPorNivel[input.nivel] || sessaoParaUsar.status;
+    } else {
+      // Ativa o status de andamento para o nível corrente
+      if (sessaoParaUsar.nivelAtual === 2) {
+        sessaoParaUsar.status = 'N2 em Andamento';
+      } else if (sessaoParaUsar.nivelAtual === 3) {
+        sessaoParaUsar.status = 'N3 em Andamento';
+      } else {
+        sessaoParaUsar.status = 'N1 em Andamento';
+      }
+    }
 
-    await this.conferenciaRepo.salvarSessao(novaSessao);
-    return novaSessao;
+    sessaoParaUsar.conferente = input.conferente || sessaoParaUsar.conferente;
+    sessaoParaUsar.atualizadoEm = agora;
+    await this.conferenciaRepo.salvarSessao(sessaoParaUsar);
+    return sessaoParaUsar;
   }
 }

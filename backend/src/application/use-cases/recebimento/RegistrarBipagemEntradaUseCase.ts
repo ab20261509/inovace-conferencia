@@ -19,6 +19,7 @@ export interface RegistrarBipagemEntradaOutput {
   descrprod: string;
   referencia: string;
   fatorAplicado: number;
+  statusSessao?: string;
 }
 
 export class RegistrarBipagemEntradaUseCase {
@@ -96,7 +97,47 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       fieldIndex[f.name.toUpperCase()] = idx;
     });
 
-    const targetRow = rows[0];
+    const nivelAtual = input.nivel || sessao.nivelAtual || 1;
+    let targetRow = rows[0];
+
+    // Se houver múltiplas ocorrências do produto na carga (ex: em notas diferentes da conferência conjunta),
+    // aloca na nota/linha que ainda possui saldo pendente de conferência no nível atual
+    if (rows.length > 1) {
+      const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
+      let melhorLinha = rows[0];
+      let encontrouComSaldo = false;
+
+      for (const row of rows) {
+        const rowNunota = Number(row[fieldIndex['NUNOTA']]);
+        const rowSeq = Number(row[fieldIndex['SEQUENCIA']]);
+        const rowCodprod = Number(row[fieldIndex['CODPROD']]);
+        const rowQtdNeg = Number(row[fieldIndex['QTDNEG']] || 0);
+
+        let conferidoNivel = 0;
+        for (const b of todasBipagens) {
+          if (
+            !b.anulado &&
+            b.nunota === rowNunota &&
+            b.sequencia === rowSeq &&
+            b.codprod === rowCodprod &&
+            b.nivel === nivelAtual
+          ) {
+            conferidoNivel += b.qtdConferida;
+          }
+        }
+
+        if (rowQtdNeg - conferidoNivel > 0) {
+          melhorLinha = row;
+          encontrouComSaldo = true;
+          break;
+        }
+      }
+
+      if (encontrouComSaldo) {
+        targetRow = melhorLinha;
+      }
+    }
+
     const nunota = Number(targetRow[fieldIndex['NUNOTA']]);
     const sequencia = Number(targetRow[fieldIndex['SEQUENCIA']]);
     const codprod = Number(targetRow[fieldIndex['CODPROD']]);
@@ -108,7 +149,6 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
 
     // 2. Se a conferência estiver no Nível 3 (Reconferência / Desempate),
     // validar se o item bipado é realmente divergente nos níveis anteriores
-    const nivelAtual = input.nivel || sessao.nivelAtual || 1;
     if (nivelAtual === 3) {
       const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
       let n1Item = 0;
@@ -161,11 +201,30 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
 
     await this.conferenciaRepo.salvarBipagem(novaBipagem);
 
+    // Garantir que a conferência reflita o status de andamento no nível corrente
+    const statusEsperado =
+      (novaBipagem.nivel === 2)
+        ? 'N2 em Andamento'
+        : (novaBipagem.nivel === 3)
+        ? 'N3 em Andamento'
+        : 'N1 em Andamento';
+
+    if (
+      sessao.status !== statusEsperado &&
+      sessao.status !== 'Conferido' &&
+      sessao.status !== 'Enviado ao Sankhya'
+    ) {
+      sessao.status = statusEsperado;
+      sessao.atualizadoEm = new Date().toISOString();
+      await this.conferenciaRepo.salvarSessao(sessao);
+    }
+
     return {
       bipagem: novaBipagem,
       descrprod,
       referencia,
       fatorAplicado: fator,
+      statusSessao: sessao.status,
     };
   }
 }

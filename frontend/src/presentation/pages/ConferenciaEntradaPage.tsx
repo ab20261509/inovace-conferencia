@@ -100,10 +100,22 @@ export function ConferenciaEntradaPage() {
         if (!resp.sessao) throw new Error('Sessão não encontrada.');
         sessaoAtual = resp.sessao;
 
-        // Se a sessão estiver com status "Aguardando N2" ou "Aguardando N3" e o operador entrou para conferir,
-        // ativa a sessão para andamento
-        if (sessaoAtual.status === 'Aguardando N2' || sessaoAtual.status === 'Aguardando N3') {
-          sessaoAtual = await recebimentoService.iniciarConferencia(sessaoAtual.nunotas, sessaoAtual.nivelAtual);
+        const notasFaltando = (navState.nunotas || []).filter((n) => !sessaoAtual.nunotas.includes(n));
+
+        // Se a sessão estiver como "Em Aberto", "Aguardando N2", "Aguardando N3" ou faltam notas passadas pela seleção:
+        if (
+          sessaoAtual.status === 'Em Aberto' ||
+          sessaoAtual.status === 'Aguardando N2' ||
+          sessaoAtual.status === 'Aguardando N3' ||
+          notasFaltando.length > 0
+        ) {
+          const nunotasParaIniciar = Array.from(new Set([...sessaoAtual.nunotas, ...(navState.nunotas || [])]));
+          sessaoAtual = await recebimentoService.iniciarConferencia(nunotasParaIniciar, sessaoAtual.nivelAtual);
+          const respAtualizada = await recebimentoService.obterItensConferencia(sessaoAtual.id);
+          setSessao(sessaoAtual);
+          setItens(respAtualizada.itens);
+          setBipagens(respAtualizada.bipagens);
+          return;
         }
 
         setSessao(sessaoAtual);
@@ -158,20 +170,39 @@ export function ConferenciaEntradaPage() {
       else if (nivelAtual === 3) totalConferidoNivel += item.qtdConferidaN3;
     });
 
-    const itensConferidosOk = itens.filter((i) => {
+    let itensComSobra = 0;
+    let itensExatos = 0;
+
+    itens.forEach((i) => {
       const conferido =
         nivelAtual === 1 ? i.qtdConferidaN1 : nivelAtual === 2 ? i.qtdConferidaN2 : i.qtdConferidaN3;
-      return i.qtdneg !== null ? conferido >= i.qtdneg : conferido > 0;
-    }).length;
+      if (i.qtdneg !== null) {
+        if (conferido === i.qtdneg) itensExatos++;
+        else if (conferido > i.qtdneg) itensComSobra++;
+      } else {
+        if (conferido > 0) itensExatos++;
+      }
+    });
+
+    const itensConferidosOk = itensExatos + itensComSobra;
 
     return {
       totalItensDistintos,
       totalEsperado,
       totalConferidoNivel,
       itensConferidosOk,
+      itensExatos,
+      itensComSobra,
       pendentes: Math.max(0, totalItensDistintos - itensConferidosOk),
     };
   }, [itens, nivelAtual]);
+
+  const numerosNFsUnicas = useMemo(() => {
+    const nfs = Array.from(new Set(itens.map((i) => i.numnota).filter(Boolean)));
+    if (nfs.length > 0) return nfs.map(String);
+    return sessao?.nunotas.map(String) || [];
+  }, [itens, sessao]);
+  const multiplasNotas = numerosNFsUnicas.length > 1;
 
   // Bloqueio de colar
   const handleTentativaColar = () => {
@@ -211,11 +242,24 @@ export function ConferenciaEntradaPage() {
       if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
       feedbackTimeoutRef.current = setTimeout(() => setFeedbackVisual(null), 2500);
 
+      // Atualiza status da sessão local se retornado ou se ainda estiver Em Aberto
+      if (resp.statusSessao) {
+        setSessao((prev) => (prev ? { ...prev, status: resp.statusSessao as any } : prev));
+      } else {
+        const statusEsperado =
+          nivelAtual === 2 ? 'N2 em Andamento' : nivelAtual === 3 ? 'N3 em Andamento' : 'N1 em Andamento';
+        setSessao((prev) => (prev && prev.status !== statusEsperado && prev.status !== 'Conferido' ? { ...prev, status: statusEsperado } : prev));
+      }
+
       // Atualiza lista de itens e bipagens
       setBipagens((prev) => [resp.bipagem, ...prev]);
       setItens((prev) =>
         prev.map((it) => {
-          if (it.codprod === resp.bipagem.codprod) {
+          if (
+            it.nunota === resp.bipagem.nunota &&
+            it.sequencia === resp.bipagem.sequencia &&
+            it.codprod === resp.bipagem.codprod
+          ) {
             const add = resp.bipagem.qtdConferida;
             return {
               ...it,
@@ -291,7 +335,11 @@ export function ConferenciaEntradaPage() {
 
       setItens((prev) =>
         prev.map((it) => {
-          if (it.codprod === bipagemParaEstornar.codprod) {
+          if (
+            it.nunota === bipagemParaEstornar.nunota &&
+            it.sequencia === bipagemParaEstornar.sequencia &&
+            it.codprod === bipagemParaEstornar.codprod
+          ) {
             const sub = bipagemParaEstornar.qtdConferida;
             return {
               ...it,
@@ -393,7 +441,13 @@ export function ConferenciaEntradaPage() {
         const esperado = item.qtdneg !== null ? item.qtdneg : null;
         const completo = esperado !== null ? conferido >= esperado : conferido > 0;
 
-        const ultimoBip = bipagensValidas.find((b) => b.codprod === item.codprod);
+        const ultimoBip =
+          bipagensValidas.find(
+            (b) =>
+              b.nunota === item.nunota &&
+              b.sequencia === item.sequencia &&
+              b.codprod === item.codprod
+          ) || bipagensValidas.find((b) => b.codprod === item.codprod);
 
         return {
           item,
@@ -441,7 +495,7 @@ export function ConferenciaEntradaPage() {
           <div className="header-info">
             <h1>Conferência #{sessao?.id.slice(0, 8)}</h1>
             <span className="nota-info">
-              Nota(s) {sessao?.nunotas.join(', ')} — Recebimento
+              NF(s) {numerosNFsUnicas.join(', ')} — Recebimento
             </span>
             <span className="badge-recontagem-header" title="Nível atual da conferência">
               N{nivelAtual}: {nivelAtual === 1 ? 'Contagem Cega' : nivelAtual === 2 ? 'Lote e Validade' : 'Desempate de Divergência'}
@@ -689,6 +743,22 @@ export function ConferenciaEntradaPage() {
                                 <div>
                                   <span className="produto-desc">{item.descrprod}</span>
                                   <span className="produto-barra">
+                                    {multiplasNotas && (
+                                      <span
+                                        style={{
+                                          display: 'inline-block',
+                                          background: '#e0f2fe',
+                                          color: '#0369a1',
+                                          fontWeight: 700,
+                                          fontSize: '0.70rem',
+                                          padding: '1px 5px',
+                                          borderRadius: '4px',
+                                          marginRight: '6px',
+                                        }}
+                                      >
+                                        NF {item.numnota || item.nunota}
+                                      </span>
+                                    )}
                                     Cód: {item.codprod} | Ref: {item.referencia || '—'}
                                   </span>
                                 </div>
@@ -739,6 +809,22 @@ export function ConferenciaEntradaPage() {
                           <div className="item-card-info">
                             <span className="produto-desc item-card-title">{item.descrprod}</span>
                             <span className="produto-barra item-card-sub">
+                              {multiplasNotas && (
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    fontWeight: 700,
+                                    fontSize: '0.70rem',
+                                    padding: '1px 5px',
+                                    borderRadius: '4px',
+                                    marginRight: '6px',
+                                  }}
+                                >
+                                  NF {item.numnota || item.nunota}
+                                </span>
+                              )}
                               Cód: {item.codprod} | Ref: {item.referencia || '—'}
                             </span>
                           </div>
@@ -816,6 +902,22 @@ export function ConferenciaEntradaPage() {
                               <div>
                                 <span className="produto-desc">{confItem.item.descrprod}</span>
                                 <span className="produto-barra">
+                                  {multiplasNotas && (
+                                    <span
+                                      style={{
+                                        display: 'inline-block',
+                                        background: '#e0f2fe',
+                                        color: '#0369a1',
+                                        fontWeight: 700,
+                                        fontSize: '0.70rem',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        marginRight: '6px',
+                                      }}
+                                    >
+                                      NF {confItem.item.numnota || confItem.item.nunota}
+                                    </span>
+                                  )}
                                   Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
                                 </span>
                               </div>
@@ -836,8 +938,29 @@ export function ConferenciaEntradaPage() {
                             )}
                           </td>
                           <td className="num-cell">{confItem.item.codvol || 'UN'}</td>
-                          <td className="num-cell" style={{ color: 'var(--emerald-600)', fontWeight: 800 }}>
+                          <td
+                            className="num-cell"
+                            style={{
+                              color:
+                                confItem.item.qtdneg !== null && confItem.conferido > confItem.item.qtdneg
+                                  ? 'var(--rose-600)'
+                                  : 'var(--emerald-600)',
+                              fontWeight: 800,
+                            }}
+                          >
                             {confItem.conferido}
+                            {confItem.item.qtdneg !== null && confItem.conferido > confItem.item.qtdneg && (
+                              <span
+                                style={{
+                                  display: 'block',
+                                  fontSize: '0.72rem',
+                                  color: 'var(--rose-600)',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Sobra (+{confItem.conferido - confItem.item.qtdneg})
+                              </span>
+                            )}
                           </td>
                           <td style={{ fontSize: '0.8rem', color: 'var(--slate-500)' }}>
                             {formatarDataHora(confItem.ultimoHorario)}
@@ -880,6 +1003,22 @@ export function ConferenciaEntradaPage() {
                         <div className="item-card-info">
                           <span className="produto-desc item-card-title">{confItem.item.descrprod}</span>
                           <span className="produto-barra item-card-sub">
+                            {multiplasNotas && (
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  background: '#e0f2fe',
+                                  color: '#0369a1',
+                                  fontWeight: 700,
+                                  fontSize: '0.70rem',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  marginRight: '6px',
+                                }}
+                              >
+                                NF {confItem.item.numnota || confItem.item.nunota}
+                              </span>
+                            )}
                             Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
                           </span>
                         </div>
@@ -903,7 +1042,20 @@ export function ConferenciaEntradaPage() {
                         </div>
                         <div className="item-card-metric-col">
                           <span className="item-metric-label">Qtd Conferida</span>
-                          <span className="item-metric-val val-conferido-ok">{confItem.conferido}</span>
+                          <span
+                            className={`item-metric-val ${
+                              confItem.item.qtdneg !== null && confItem.conferido > confItem.item.qtdneg
+                                ? 'text-danger'
+                                : 'val-conferido-ok'
+                            }`}
+                          >
+                            {confItem.conferido}
+                            {confItem.item.qtdneg !== null && confItem.conferido > confItem.item.qtdneg && (
+                              <small style={{ display: 'block', fontSize: '0.7rem', color: 'var(--rose-600)' }}>
+                                Sobra (+{confItem.conferido - confItem.item.qtdneg})
+                              </small>
+                            )}
+                          </span>
                         </div>
                         <div className="item-card-actions">
                           <button
@@ -996,6 +1148,21 @@ export function ConferenciaEntradaPage() {
             >
               <div><strong>Itens com Bipagem:</strong> {estatisticas.itensConferidosOk} de {estatisticas.totalItensDistintos}</div>
               <div><strong>Total de Unidades Bipadas:</strong> {estatisticas.totalConferidoNivel}</div>
+              {estatisticas.itensComSobra > 0 && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '8px 12px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '6px',
+                    color: '#dc2626',
+                    fontWeight: 600,
+                  }}
+                >
+                  ⚠️ <strong>Atenção:</strong> {estatisticas.itensComSobra} produto(s) possuem quantidade bipada <u>maior</u> que a nota fiscal (sobra). Se confirmar agora, a conferência será finalizada com status <strong>Divergente</strong>.
+                </div>
+              )}
               {nivelAtual === 1 && (
                 <div style={{ marginTop: '8px', color: 'var(--slate-600)', fontStyle: 'italic' }}>
                   ℹ️ O sistema comparará com as notas fiscais. Havendo divergência, o lote avançará para o Nível N2 (Recontagem).

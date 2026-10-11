@@ -136,6 +136,7 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   await garantirColuna(client, 'conferencias_entrada', 'observacao_aprovacao', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'resposta_sankhya_json', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'backup_contagem_json', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'status_por_nota_json', 'TEXT');
 
   // Executa migração dos arquivos JSON legados, se existirem
   await migrarDadosLegadosJson(client);
@@ -335,6 +336,8 @@ export const SCHEMA_DOCUMENTATION = {
         { nome: 'enviado_sankhya_em', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Timestamp ISO 8601 da sincronização/envio bem-sucedido ao Sankhya.' },
         { nome: 'observacao_aprovacao', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Justificativa ou parecer do gestor na aprovação da carga.' },
         { nome: 'resposta_sankhya_json', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Retorno serializado da gravação no Sankhya (TGFITE / TGFEST).' },
+        { nome: 'backup_contagem_json', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Backup da contagem anterior caso a sessão tenha sido reiniciada, permitindo restauração.' },
+        { nome: 'status_por_nota_json', tipo: 'TEXT', pk: false, notnull: false, descricao: 'JSON com status individual por NUNOTA em conferências agrupadas (ex: {"1349482":"Conferido","1349483":"Divergente"}).' },
       ],
     },
     {

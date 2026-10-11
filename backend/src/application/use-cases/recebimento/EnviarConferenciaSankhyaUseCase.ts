@@ -17,6 +17,7 @@ export interface ItemAssociacaoEnvio {
 
 export interface EnviarConferenciaSankhyaInput {
   conferenciaId: string;
+  nunotas?: number[];
   usuario: string;
   observacao?: string;
   nivelEscolhido?: number;
@@ -52,7 +53,8 @@ export class EnviarConferenciaSankhyaUseCase {
       throw new Error(`A conferência está com status "${sessao.status}" e não pode ser enviada ao Sankhya.`);
     }
 
-    const nunotasStr = sessao.nunotas.join(', ');
+    const nunotasParaEnvio = input.nunotas && input.nunotas.length > 0 ? input.nunotas : sessao.nunotas;
+    const nunotasStr = nunotasParaEnvio.join(', ');
 
     // 1. Buscar dados dos itens e empresa no Sankhya
     const sqlCab = `SELECT CODEMP FROM TGFCAB WHERE NUNOTA IN (${nunotasStr})`.trim();
@@ -309,11 +311,20 @@ export class EnviarConferenciaSankhyaUseCase {
     }
 
     // 5. Atualizar sessão local no SQLite/Turso
-    sessao.status = 'Enviado ao Sankhya';
+    sessao.statusPorNota = sessao.statusPorNota || {};
+    for (const n of nunotasParaEnvio) {
+      sessao.statusPorNota[n] = 'Enviado ao Sankhya';
+    }
+    sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
+
+    const todasEnviadas = sessao.nunotas.every((n) => sessao.statusPorNota?.[n] === 'Enviado ao Sankhya');
+    if (todasEnviadas) {
+      sessao.status = 'Enviado ao Sankhya';
+      sessao.enviadoSankhyaEm = agoraIso;
+    }
     sessao.atualizadoEm = agoraIso;
     sessao.aprovadoPor = input.usuario;
     sessao.aprovadoEm = agoraIso;
-    sessao.enviadoSankhyaEm = agoraIso;
     sessao.observacaoAprovacao = input.observacao || 'Conferência aprovada e enviada com sucesso ao Sankhya.';
     sessao.respostaSankhyaJson = JSON.stringify({
       itensAtualizados,

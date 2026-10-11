@@ -41,6 +41,7 @@ export interface CodigoAlternativoEntrada {
 
 export interface ItemNotaEntrada {
   nunota: number;
+  numnota?: number;
   sequencia: number;
   codprod: number;
   descrprod: string;
@@ -89,6 +90,8 @@ export interface SessaoConferenciaEntrada {
   respostaSankhyaJson?: string;
   backupContagemJson?: string;
   backupContagem?: BackupContagemEntrada;
+  statusPorNota?: Record<number, StatusConferenciaEntrada>;
+  statusPorNotaJson?: string;
 }
 
 export interface ConferenciaEntradaResumo {
@@ -110,6 +113,7 @@ export interface ConferenciaEntradaResumo {
   temBackupContagem: boolean;
   backupContagem?: BackupContagemEntrada;
   observacaoAprovacao?: string;
+  statusPorNota?: Record<number, StatusConferenciaEntrada>;
 }
 
 export interface BipagemEntrada {
@@ -142,6 +146,7 @@ export interface BiparResponse {
   descrprod: string;
   referencia: string;
   fatorAplicado: number;
+  statusSessao?: StatusConferenciaEntrada;
 }
 
 export interface FinalizarNivelResponse {
@@ -214,6 +219,7 @@ export interface EnviarSankhyaInput {
   observacao?: string;
   nivelEscolhido?: number;
   itensCustomizados?: ItemAssociacaoEnvio[];
+  nunotas?: number[];
 }
 
 export interface EnviarSankhyaResponse {

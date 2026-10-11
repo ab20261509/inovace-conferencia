@@ -28,6 +28,13 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       } catch {}
     }
 
+    let statusPorNota: Record<number, StatusConferenciaEntrada> | undefined = undefined;
+    if (row.status_por_nota_json) {
+      try {
+        statusPorNota = JSON.parse(String(row.status_por_nota_json));
+      } catch {}
+    }
+
     return {
       id: String(row.id),
       nunotas,
@@ -44,6 +51,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       respostaSankhyaJson: row.resposta_sankhya_json ? String(row.resposta_sankhya_json) : undefined,
       backupContagemJson: row.backup_contagem_json ? String(row.backup_contagem_json) : undefined,
       backupContagem,
+      statusPorNota,
+      statusPorNotaJson: row.status_por_nota_json ? String(row.status_por_nota_json) : undefined,
     };
   }
 
@@ -69,7 +78,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   async obterSessaoPorId(id: string): Promise<SessaoConferenciaEntrada | null> {
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
             FROM conferencias_entrada
             WHERE id = ?
             LIMIT 1`,
@@ -84,7 +93,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     // Busca todas as sessões e localiza a ativa primeiro, ou a última
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -104,7 +113,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -117,7 +126,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   async listarTodasSessoes(): Promise<SessaoConferenciaEntrada[]> {
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -131,9 +140,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     await this.client.execute({
       sql: `INSERT INTO conferencias_entrada (
               id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-              finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json
+              finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               nunotas_json = excluded.nunotas_json,
               status = excluded.status,
@@ -146,7 +155,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
               enviado_sankhya_em = excluded.enviado_sankhya_em,
               observacao_aprovacao = excluded.observacao_aprovacao,
               resposta_sankhya_json = excluded.resposta_sankhya_json,
-              backup_contagem_json = excluded.backup_contagem_json`,
+              backup_contagem_json = excluded.backup_contagem_json,
+              status_por_nota_json = excluded.status_por_nota_json`,
       args: [
         sessao.id,
         JSON.stringify(sessao.nunotas || []),
@@ -162,6 +172,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         sessao.observacaoAprovacao || null,
         sessao.respostaSankhyaJson || null,
         sessao.backupContagemJson || (sessao.backupContagem ? JSON.stringify(sessao.backupContagem) : null),
+        sessao.statusPorNotaJson || (sessao.statusPorNota ? JSON.stringify(sessao.statusPorNota) : null),
       ],
     });
   }
@@ -244,40 +255,91 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     return res.rowsAffected;
   }
 
+  async migrarBipagens(deConferenciaId: string, paraConferenciaId: string): Promise<number> {
+    const res = await this.client.execute({
+      sql: `UPDATE bipagens_entrada SET conferencia_id = ? WHERE conferencia_id = ?`,
+      args: [paraConferenciaId, deConferenciaId],
+    });
+    return res.rowsAffected;
+  }
+
+  async excluirSessao(id: string): Promise<void> {
+    await this.client.execute({
+      sql: `DELETE FROM bipagens_entrada WHERE conferencia_id = ?`,
+      args: [id],
+    });
+    const res = await this.client.execute({
+      sql: `DELETE FROM conferencias_entrada WHERE id = ?`,
+      args: [id],
+    });
+    if (this.auditService) {
+      await this.auditService.registrar({
+        usuario: 'Sistema',
+        acao: 'EXCLUIR_SESSAO_CONFERENCIA_ENTRADA',
+        recurso: `conferencia:${id}`,
+        detalhes: { conferenciaId: id, rowsAffected: res.rowsAffected },
+      });
+    }
+  }
+
   async obterMapaStatusNotas(
     nunotas: number[]
   ): Promise<Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number }>> {
     if (nunotas.length === 0) return {};
 
     const res = await this.client.execute({
-      sql: `SELECT id, nunotas_json, status, nivel_atual
-            FROM conferencias_entrada
-            ORDER BY atualizado_em DESC`,
+      sql: `SELECT c.id, c.nunotas_json, c.status, c.nivel_atual, c.status_por_nota_json, c.atualizado_em,
+                   (SELECT COUNT(*) FROM bipagens_entrada b WHERE b.conferencia_id = c.id AND b.anulado = 0) AS total_bipagens
+            FROM conferencias_entrada c
+            ORDER BY c.atualizado_em DESC`,
       args: [],
     });
 
-    const sessoes = res.rows.map((r) => this.mapSessao(r));
+    const sessoes = res.rows.map((r) => ({
+      sessao: this.mapSessao(r),
+      totalBipagens: Number(r.total_bipagens || 0),
+    }));
     const mapa: Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number }> = {};
 
     for (const nunota of nunotas) {
-      const ativa = sessoes.find((s) => s.nunotas.includes(nunota) && s.status !== 'Conferido');
-      if (ativa) {
-        mapa[nunota] = {
-          status: ativa.status,
-          id: ativa.id,
-          nivel: ativa.nivelAtual,
-        };
-        continue;
+      const sessoesDaNota = sessoes.filter((s) => s.sessao.nunotas.includes(nunota));
+      if (sessoesDaNota.length === 0) continue;
+
+      // 1. Procurar sessão finalizada/concluída
+      const concluida = sessoesDaNota.find((s) => {
+        const statusNota = s.sessao.statusPorNota?.[nunota] || s.sessao.status;
+        return statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya';
+      });
+
+      // 2. Procurar sessão em andamento COM contagens reais (> 0 bipagens)
+      const ativaComBipagens = sessoesDaNota.find((s) => {
+        const statusNota = s.sessao.statusPorNota?.[nunota] || s.sessao.status;
+        return statusNota !== 'Conferido' && statusNota !== 'Enviado ao Sankhya' && s.totalBipagens > 0;
+      });
+
+      // 3. Procurar qualquer sessão ativa
+      const ativaQualquer = sessoesDaNota.find((s) => {
+        const statusNota = s.sessao.statusPorNota?.[nunota] || s.sessao.status;
+        return statusNota !== 'Conferido' && statusNota !== 'Enviado ao Sankhya';
+      });
+
+      // Se existir uma sessão ativa com bipagens, ela é o trabalho em andamento prioritário
+      // Se não houver sessão ativa com bipagens, mas existir uma CONCLUÍDA, a concluída SEMPRE prevalece sobre sessões vazias (0 bipagens)
+      let escolhida = sessoesDaNota[0];
+      if (ativaComBipagens) {
+        escolhida = ativaComBipagens;
+      } else if (concluida) {
+        escolhida = concluida;
+      } else if (ativaQualquer) {
+        escolhida = ativaQualquer;
       }
 
-      const concluida = sessoes.find((s) => s.nunotas.includes(nunota));
-      if (concluida) {
-        mapa[nunota] = {
-          status: concluida.status,
-          id: concluida.id,
-          nivel: concluida.nivelAtual,
-        };
-      }
+      const statusNota = escolhida.sessao.statusPorNota?.[nunota] || escolhida.sessao.status;
+      mapa[nunota] = {
+        status: statusNota,
+        id: escolhida.sessao.id,
+        nivel: escolhida.sessao.nivelAtual,
+      };
     }
 
     return mapa;

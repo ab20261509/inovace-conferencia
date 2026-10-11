@@ -222,11 +222,12 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
-      const { observacao, itensCustomizados, nivelEscolhido } = req.body;
+      const { observacao, itensCustomizados, nivelEscolhido, nunotas } = req.body;
 
       const resultado = await this.enviarSankhyaUseCase.execute(
         {
           conferenciaId,
+          nunotas: Array.isArray(nunotas) ? nunotas.map(Number) : undefined,
           usuario,
           observacao,
           itensCustomizados,

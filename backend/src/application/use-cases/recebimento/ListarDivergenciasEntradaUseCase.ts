@@ -215,10 +215,25 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         return it.qtdN1 !== it.qtdEsperada;
       });
 
+      const mapaNumnotasPorNunota: Record<number, string> = {};
+      for (const r of rows) {
+        const nunotaItem = Number(r[fieldIndex['NUNOTA']]);
+        const numnota = String(r[fieldIndex['NUMNOTA']] || '');
+        if (numnota) mapaNumnotasPorNunota[nunotaItem] = numnota;
+      }
+      const nunotasComDivergencia = Array.from(new Set(itensDivergentes.map((it) => it.nunota)));
+      const numerosNotasDivergentes = nunotasComDivergencia
+        .map((n) => mapaNumnotasPorNunota[n])
+        .filter(Boolean);
+      const numerosNotasExibir =
+        numerosNotasDivergentes.length > 0
+          ? numerosNotasDivergentes.join(', ')
+          : Array.from(numerosNotasSet).join(', ') || nunotasStr;
+
       resultado.push({
         id,
         nunotas,
-        numerosNotas: Array.from(numerosNotasSet).join(', ') || nunotasStr,
+        numerosNotas: numerosNotasExibir,
         fornecedor,
         status: String(row.status),
         nivelAtual: Number(row.nivel_atual),

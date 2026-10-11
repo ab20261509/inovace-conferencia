@@ -91,93 +91,90 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
     let statusFinal: StatusConferenciaEntrada;
     let possuiDivergencias = false;
 
-    if (input.nivel === 1) {
-      const n2Param = this.configSistemaRepo
-        ? await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel2_ativo')
-        : 'true';
-      const usarNivel2 = n2Param !== 'false';
+    const n2Param = this.configSistemaRepo
+      ? await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel2_ativo')
+      : 'true';
+    const usarNivel2 = n2Param !== 'false';
 
-      if (!usarNivel2) {
-        // FLUXO DE NÍVEL ÚNICO: Compara N1 diretamente com a NF
-        for (const item of Object.values(mapTotais)) {
-          if (item.n1 !== item.esperado) {
-            possuiDivergencias = true;
+    const statusPorNota: Record<number, StatusConferenciaEntrada> = {};
+
+    for (const nunota of sessao.nunotas) {
+      let notaDivergente = false;
+      const itensDestaNota = Object.entries(mapTotais).filter(([key]) => key.startsWith(`${nunota}|`));
+
+      if (input.nivel === 1) {
+        if (!usarNivel2) {
+          // FLUXO DE NÍVEL ÚNICO: Compara N1 diretamente com a NF
+          for (const [, item] of itensDestaNota) {
+            if (item.n1 !== item.esperado) {
+              notaDivergente = true;
+              break;
+            }
+          }
+          statusPorNota[nunota] = notaDivergente ? 'Divergente' : 'Conferido';
+        } else {
+          // FLUXO EM 2 NÍVEIS (Padrão): Avança para Aguardando N2
+          statusPorNota[nunota] = 'Aguardando N2';
+        }
+      } else if (input.nivel === 2) {
+        const houveN1 = todasBipagens.some((b) => !b.anulado && b.nivel === 1 && b.nunota === nunota);
+        if (houveN1) {
+          // Comparar N1 x N2 x Esperado
+          for (const [, item] of itensDestaNota) {
+            if (item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2) {
+              notaDivergente = true;
+              break;
+            }
+          }
+        } else {
+          // FLUXO COM N1 INATIVADO: N2 é a contagem única direta comparada com a NF
+          for (const [, item] of itensDestaNota) {
+            if (item.n2 !== item.esperado) {
+              notaDivergente = true;
+              break;
+            }
+          }
+        }
+        statusPorNota[nunota] = notaDivergente ? 'Divergente' : 'Conferido';
+      } else {
+        // N3 é o nível final de conferência de desempate
+        const houveN1 = todasBipagens.some((b) => !b.anulado && b.nivel === 1 && b.nunota === nunota);
+        const houveN2 = todasBipagens.some((b) => !b.anulado && b.nivel === 2 && b.nunota === nunota);
+        for (const [, item] of itensDestaNota) {
+          let eraDivergente = false;
+          if (houveN1 && houveN2) {
+            eraDivergente = item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2;
+          } else if (houveN2) {
+            eraDivergente = item.n2 !== item.esperado;
+          } else {
+            eraDivergente = item.n1 !== item.esperado;
+          }
+
+          if (eraDivergente && item.n3 !== item.esperado) {
+            notaDivergente = true;
             break;
           }
         }
+        statusPorNota[nunota] = notaDivergente ? 'Divergente' : 'Conferido';
+      }
 
-        if (possuiDivergencias) {
-          statusFinal = 'Divergente';
-          sessao.nivelAtual = 3;
-          sessao.status = statusFinal;
-          sessao.atualizadoEm = agora;
-        } else {
-          statusFinal = 'Conferido';
-          sessao.status = statusFinal;
-          sessao.atualizadoEm = agora;
-          sessao.finalizadoEm = agora;
-        }
-      } else {
-        // FLUXO EM 2 NÍVEIS (Padrão): Avança para Aguardando N2
+      if (notaDivergente) {
+        possuiDivergencias = true;
+      }
+    }
+
+    sessao.statusPorNota = statusPorNota;
+    sessao.statusPorNotaJson = JSON.stringify(statusPorNota);
+
+    if (possuiDivergencias) {
+      statusFinal = 'Divergente';
+      sessao.nivelAtual = 3;
+      sessao.status = statusFinal;
+      sessao.atualizadoEm = agora;
+    } else {
+      if (input.nivel === 1 && usarNivel2) {
         statusFinal = 'Aguardando N2';
         sessao.nivelAtual = 2;
-        sessao.status = statusFinal;
-        sessao.atualizadoEm = agora;
-      }
-    } else if (input.nivel === 2) {
-      const houveN1 = todasBipagens.some((b) => !b.anulado && b.nivel === 1);
-      if (houveN1) {
-        // Comparar N1 x N2 x Esperado
-        for (const item of Object.values(mapTotais)) {
-          if (item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2) {
-            possuiDivergencias = true;
-            break;
-          }
-        }
-      } else {
-        // FLUXO COM N1 INATIVADO: N2 é a contagem única direta comparada com a NF
-        for (const item of Object.values(mapTotais)) {
-          if (item.n2 !== item.esperado) {
-            possuiDivergencias = true;
-            break;
-          }
-        }
-      }
-
-      if (possuiDivergencias) {
-        statusFinal = 'Divergente';
-        sessao.nivelAtual = 3;
-        sessao.status = statusFinal;
-        sessao.atualizadoEm = agora;
-      } else {
-        statusFinal = 'Conferido';
-        sessao.status = statusFinal;
-        sessao.atualizadoEm = agora;
-        sessao.finalizadoEm = agora;
-      }
-    } else {
-      // N3 é o nível final de conferência de desempate
-      const houveN1 = todasBipagens.some((b) => !b.anulado && b.nivel === 1);
-      const houveN2 = todasBipagens.some((b) => !b.anulado && b.nivel === 2);
-      for (const item of Object.values(mapTotais)) {
-        let eraDivergente = false;
-        if (houveN1 && houveN2) {
-          eraDivergente = item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2;
-        } else if (houveN2) {
-          eraDivergente = item.n2 !== item.esperado;
-        } else {
-          eraDivergente = item.n1 !== item.esperado;
-        }
-
-        // Se era divergente, verifica se a contagem do N3 bate com o faturado
-        if (eraDivergente && item.n3 !== item.esperado) {
-          possuiDivergencias = true;
-          break;
-        }
-      }
-
-      if (possuiDivergencias) {
-        statusFinal = 'Divergente';
         sessao.status = statusFinal;
         sessao.atualizadoEm = agora;
       } else {

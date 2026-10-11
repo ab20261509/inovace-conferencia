@@ -41,6 +41,7 @@ export interface CodigoAlternativoEntrada {
 
 export interface ItemNotaEntrada {
   nunota: number;
+  numnota?: number;
   sequencia: number;
   codprod: number;
   descrprod: string;
@@ -88,6 +89,8 @@ export interface SessaoConferenciaEntrada {
   respostaSankhyaJson?: string;
   backupContagemJson?: string;
   backupContagem?: BackupContagemEntrada;
+  statusPorNota?: Record<number, StatusConferenciaEntrada>;
+  statusPorNotaJson?: string;
 }
 
 export interface ConferenciaEntradaResumo {
@@ -109,6 +112,7 @@ export interface ConferenciaEntradaResumo {
   temBackupContagem: boolean;
   backupContagem?: BackupContagemEntrada;
   observacaoAprovacao?: string;
+  statusPorNota?: Record<number, StatusConferenciaEntrada>;
 }
 
 export interface BipagemEntrada {
