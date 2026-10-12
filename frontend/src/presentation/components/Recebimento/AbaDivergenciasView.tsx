@@ -139,6 +139,53 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                 </div>
               </div>
 
+              {/* Sugestão Inteligente de Decisão (Decision Assist) */}
+              {(() => {
+                const itensDiv = grupo.itensDivergentes || [];
+                const todosConcordamFalta =
+                  itensDiv.length > 0 &&
+                  itensDiv.every((i) => i.qtdN1 === i.qtdN2 && i.qtdN1 < i.qtdEsperada);
+                const todosConcordamSobra =
+                  itensDiv.length > 0 &&
+                  itensDiv.every((i) => i.qtdN1 === i.qtdN2 && i.qtdN1 > i.qtdEsperada);
+                const discordamN1N2 = itensDiv.some((i) => i.qtdN1 !== i.qtdN2);
+
+                if (todosConcordamFalta) {
+                  return (
+                    <div className="gestao-dica-decisao concordante">
+                      <span>💡</span>
+                      <div>
+                        <strong>Dica Gerencial (Consistência N1 = N2):</strong> Os conferentes contaram exatamente a mesma quantidade em todos os itens divergentes. Há forte indício de falta física originária da fábrica/fornecedor. Sugestão: <em>Aprovar Divergência</em> para liberar estoque ou acionar compras.
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (todosConcordamSobra) {
+                  return (
+                    <div className="gestao-dica-decisao concordante">
+                      <span>💡</span>
+                      <div>
+                        <strong>Dica Gerencial (Sobra Confirmada N1 = N2):</strong> Ambos os conferentes identificaram sobra física em relação à nota faturada. Sugestão: Verificar bonificação ou contatar fornecedor antes de aceitar.
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (discordamN1N2) {
+                  return (
+                    <div className="gestao-dica-decisao discordante">
+                      <span>⚠️</span>
+                      <div>
+                        <strong>Dica Gerencial (Discordância N1 ≠ N2):</strong> Houve discordância de contagem cega entre os conferentes N1 e N2. Sugestão: <em>Solicitar Reconferência N3</em> para um terceiro operador desempatar antes da aprovação.
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
+
               {/* Barra de Controle de Exibição / Esconder Itens */}
               <div className="gestao-rec-itens-header" style={{ marginTop: '10px' }}>
                 <div className="gestao-rec-itens-filtros">
@@ -245,8 +292,12 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                               <td>{item.qtdN2}</td>
                               {grupo.totalN3 > 0 && <td>{item.qtdN3}</td>}
                               <td>
-                                <span className={`diferenca-badge ${classeDif}`}>
-                                  {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                <span className={`pill-contagem-status ${classeDif}`}>
+                                  {diferenca < 0
+                                    ? `⚠️ ${diferenca} (Falta)`
+                                    : diferenca > 0
+                                    ? `+${diferenca} (Sobra)`
+                                    : '✓ OK'}
                                 </span>
                               </td>
                               <td>
@@ -310,8 +361,12 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 {item.codvol || 'UN'}
                               </div>
                             </div>
-                            <span className={`diferenca-badge ${classeDif}`}>
-                              {diferenca > 0 ? `+${diferenca}` : diferenca}
+                            <span className={`pill-contagem-status ${classeDif}`}>
+                              {diferenca < 0
+                                ? `⚠️ ${diferenca} (Falta)`
+                                : diferenca > 0
+                                ? `+${diferenca} (Sobra)`
+                                : '✓ OK'}
                             </span>
                           </div>
 

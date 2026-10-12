@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ConferenciaEntradaResumo,
   ObterItensConferenciaResponse,
@@ -57,6 +57,10 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
   onRecuperarContagem,
   onAbrirColetor,
 }) => {
+  const [filtroItensCards, setFiltroItensCards] = useState<
+    Record<string, 'todos' | 'divergentes' | 'semlote'>
+  >({});
+
   return (
     <div className="gestao-rec-lista">
       {/* Filtros e Barra de Busca */}
@@ -247,13 +251,113 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                 )}
               </div>
 
+              {/* Barra de Progresso Visual de Bipagem Cega */}
+              {conf.totalItens > 0 && (
+                <div className="gestao-progresso-bipagem">
+                  <div className="gestao-progresso-bipagem-header">
+                    <span>Progresso da Bipagem (N{conf.nivelAtual}):</span>
+                    <strong style={{ color: '#2563eb' }}>
+                      {conf.totalBipadoN1 || 0} de {conf.totalItens} unidades (
+                      {Math.min(100, Math.round(((conf.totalBipadoN1 || 0) / conf.totalItens) * 100))}%)
+                    </strong>
+                  </div>
+                  <div className="gestao-progresso-track">
+                    <div
+                      className="gestao-progresso-fill"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(((conf.totalBipadoN1 || 0) / conf.totalItens) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Tabela de Itens Expandida */}
               {isExpandido && (
                 <div style={{ marginTop: '8px' }}>
                   {isCarregandoDetalhes ? (
                     <SkeletonItens linhas={4} mensagem="Carregando dados dos itens e contagens..." />
                   ) : detalhes ? (
-                    <>
+                    (() => {
+                      const filtroItens = filtroItensCards[conf.id] || 'todos';
+                      const todosItens = detalhes.itens || [];
+                      const itensDivergentes = todosItens.filter((item) => {
+                        const qtdConf =
+                          (item.qtdConferidaN3 || 0) > 0
+                            ? item.qtdConferidaN3 || 0
+                            : (item.qtdConferidaN2 || 0) > 0
+                            ? item.qtdConferidaN2 || 0
+                            : item.qtdConferidaN1 || 0;
+                        const dif =
+                          item.diferenca !== undefined
+                            ? item.diferenca
+                            : qtdConf - (item.qtdneg || 0);
+                        return dif !== 0;
+                      });
+                      const itensSemLote = todosItens.filter((item) => !item.lote);
+                      const itensParaExibir =
+                        filtroItens === 'divergentes'
+                          ? itensDivergentes
+                          : filtroItens === 'semlote'
+                          ? itensSemLote
+                          : todosItens;
+
+                      return (
+                        <>
+                          {/* Barra de Mini-Filtros Rápidos dos Itens */}
+                          <div className="gestao-itens-mini-filtro-bar">
+                            <div className="gestao-itens-mini-chips">
+                              <button
+                                type="button"
+                                className={`gestao-mini-chip ${
+                                  filtroItens === 'todos' ? 'ativo' : ''
+                                }`}
+                                onClick={() =>
+                                  setFiltroItensCards((prev) => ({
+                                    ...prev,
+                                    [conf.id]: 'todos',
+                                  }))
+                                }
+                              >
+                                Todos ({todosItens.length})
+                              </button>
+                              <button
+                                type="button"
+                                className={`gestao-mini-chip ${
+                                  filtroItens === 'divergentes' ? 'ativo' : ''
+                                }`}
+                                onClick={() =>
+                                  setFiltroItensCards((prev) => ({
+                                    ...prev,
+                                    [conf.id]: 'divergentes',
+                                  }))
+                                }
+                              >
+                                ⚠️ Divergências ({itensDivergentes.length})
+                              </button>
+                              <button
+                                type="button"
+                                className={`gestao-mini-chip ${
+                                  filtroItens === 'semlote' ? 'ativo' : ''
+                                }`}
+                                onClick={() =>
+                                  setFiltroItensCards((prev) => ({
+                                    ...prev,
+                                    [conf.id]: 'semlote',
+                                  }))
+                                }
+                              >
+                                Sem Lote ({itensSemLote.length})
+                              </button>
+                            </div>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
+                              Exibindo <strong>{itensParaExibir.length}</strong> de{' '}
+                              {todosItens.length} itens
+                            </span>
+                          </div>
                       <div className="gestao-rec-tabela-desktop">
                         <table className="gestao-rec-tabela">
                           <thead>
@@ -275,17 +379,17 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                             </tr>
                           </thead>
                           <tbody>
-                            {detalhes.itens.length === 0 ? (
+                            {itensParaExibir.length === 0 ? (
                               <tr>
                                 <td
                                   colSpan={11}
                                   style={{ textAlign: 'center', color: 'var(--slate-400)' }}
                                 >
-                                  Nenhum item faturado encontrado para esta conferência.
+                                  Nenhum item encontrado para o filtro selecionado.
                                 </td>
                               </tr>
                             ) : (
-                              detalhes.itens.map((item) => {
+                              itensParaExibir.map((item) => {
                                 const diferenca =
                                   item.diferenca !== undefined
                                     ? item.diferenca
@@ -340,8 +444,12 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       <td>{item.qtdConferidaN3 || 0}</td>
                                     )}
                                     <td>
-                                      <span className={`diferenca-badge ${classeDif}`}>
-                                        {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                      <span className={`pill-contagem-status ${classeDif}`}>
+                                        {diferenca === 0
+                                          ? '✓ OK'
+                                          : diferenca < 0
+                                          ? `⚠️ ${diferenca}`
+                                          : `+${diferenca}`}
                                       </span>
                                     </td>
                                     <td>
@@ -386,7 +494,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
 
                       {/* Cards Mobile Padronizados (<= 1024px) */}
                       <div className="gestao-rec-itens-mobile" style={{ marginTop: '8px' }}>
-                        {detalhes.itens.length === 0 ? (
+                        {itensParaExibir.length === 0 ? (
                           <div
                             style={{
                               textAlign: 'center',
@@ -394,10 +502,10 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                               padding: '12px',
                             }}
                           >
-                            Nenhum item faturado encontrado para esta conferência.
+                            Nenhum item encontrado para o filtro selecionado.
                           </div>
                         ) : (
-                          detalhes.itens.map((item) => {
+                          itensParaExibir.map((item) => {
                             const diferenca =
                               item.diferenca !== undefined
                                 ? item.diferenca
@@ -430,8 +538,12 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       {item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
                                     </div>
                                   </div>
-                                  <span className={`diferenca-badge ${classeDif}`}>
-                                    {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                  <span className={`pill-contagem-status ${classeDif}`}>
+                                    {diferenca === 0
+                                      ? '✓ OK'
+                                      : diferenca < 0
+                                      ? `⚠️ ${diferenca}`
+                                      : `+${diferenca}`}
                                   </span>
                                 </div>
 
@@ -490,7 +602,9 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                         )}
                       </div>
                     </>
-                  ) : null}
+                  );
+                })()
+              ) : null}
                 </div>
               )}
 

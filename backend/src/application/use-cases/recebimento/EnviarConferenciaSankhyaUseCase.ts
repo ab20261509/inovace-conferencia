@@ -73,12 +73,21 @@ export class EnviarConferenciaSankhyaUseCase {
 
     const codemp = Number(respCab?.responseBody?.rows?.[0]?.[0]) || 1;
 
-    // Buscar itens na TGFITE
+    // Buscar itens na TGFITE com CODLOCALORIG
     const sqlIte = `
-      SELECT NUNOTA, SEQUENCIA, CODPROD, NVL(QTDNEG, 0) AS QTDNEG, NVL(CODLOCALORIG, 1) AS CODLOCAL
-      FROM TGFITE
-      WHERE NUNOTA IN (${nunotasStr})
-      ORDER BY NUNOTA, SEQUENCIA
+      SELECT 
+        ITE.NUNOTA, 
+        ITE.SEQUENCIA, 
+        ITE.CODPROD, 
+        NVL(ITE.QTDNEG, 0) AS QTDNEG, 
+        ITE.CODLOCALORIG,
+        PRO.DESCRPROD,
+        CAB.NUMNOTA
+      FROM TGFITE ITE
+      INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+      INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+      WHERE ITE.NUNOTA IN (${nunotasStr})
+      ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     `.trim();
 
     const respIte = await this.gateway.serviceCall<any>(
@@ -153,48 +162,100 @@ export class EnviarConferenciaSankhyaUseCase {
       }
     }
 
+    // 2.1 Validação Prévia de Local de Estoque (CODLOCALORIG)
+    // Se algum item da nota não tiver CODLOCALORIG definido na TGFITE, bloqueia e avisa o usuário
+    const itensSemLocal = iteRows.filter(
+      (r) => r[4] === null || r[4] === undefined || String(r[4]).trim() === ''
+    );
+    if (itensSemLocal.length > 0) {
+      const detalhesSemLocal = itensSemLocal
+        .map((r) => `NF ${r[6]} - Prod #${r[2]} (${r[5] || 'Sem descrição'})`)
+        .slice(0, 5)
+        .join('; ');
+      throw new Error(
+        `Impossível integrar: Os seguintes itens não possuem Local de Origem (CODLOCALORIG) definido na nota: ${detalhesSemLocal}. ` +
+        `Por favor, informe o Local de Estoque no Sankhya antes de finalizar o envio.`
+      );
+    }
+
+    // 2.2 Validação Prévia de Fracionamento de Lotes x Linhas da NF
+    // Se um produto possui mais de 1 lote e existe apenas 1 sequência para ele na NF, bloqueia e orienta o desmembramento
+    const contagemLinhasPorProd: Record<string, number> = {};
+    for (const r of iteRows) {
+      const key = `${r[0]}|${r[2]}`;
+      contagemLinhasPorProd[key] = (contagemLinhasPorProd[key] || 0) + 1;
+    }
+
+    for (const [key, lotes] of Object.entries(mapaLotesPorProd)) {
+      if (lotes.length > 1) {
+        const totalLinhasNaNota = contagemLinhasPorProd[key] || 0;
+        if (totalLinhasNaNota < lotes.length) {
+          const [nunotaStr, codprodStr] = key.split('|');
+          const itemRef = iteRows.find((r) => String(r[0]) === nunotaStr && String(r[2]) === codprodStr);
+          const descrprod = itemRef?.[5] || `Produto #${codprodStr}`;
+          const numnota = itemRef?.[6] || nunotaStr;
+          const resumoLotes = lotes.map((l) => `${l.lote} (${l.qtd} un)`).join(', ');
+          throw new Error(
+            `Atenção: Na NF ${numnota}, o produto "${descrprod}" possui ${lotes.length} lotes conferidos (${resumoLotes}), ` +
+            `mas possui apenas ${totalLinhasNaNota} linha(s) na nota fiscal. ` +
+            `Por favor, realize o desmembramento do item na nota pelo Sankhya para acomodar os lotes e clique em Atualizar para concluir o envio.`
+          );
+        }
+      }
+    }
+
+    // Função de sanitização e formatação de datas compatível com Oracle (DD/MM/YYYY)
+    const formatarDataOracle = (dataStr?: string | null): string => {
+      if (!dataStr) return 'NULL';
+      const limpo = dataStr.trim();
+      if (!limpo) return 'NULL';
+
+      // Se já estiver em YYYY-MM-DD
+      const matchIso = limpo.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (matchIso) {
+        const dia = matchIso[3];
+        const mes = matchIso[2];
+        const ano = matchIso[1];
+        return `TO_DATE('${dia}/${mes}/${ano}', 'DD/MM/YYYY')`;
+      }
+
+      // Se já estiver em DD/MM/YYYY
+      const matchBr = limpo.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (matchBr) {
+        return `TO_DATE('${matchBr[1]}/${matchBr[2]}/${matchBr[3]}', 'DD/MM/YYYY')`;
+      }
+
+      // Se estiver em YYYYMMDD
+      const matchNum = limpo.match(/^(\d{4})(\d{2})(\d{2})$/);
+      if (matchNum) {
+        return `TO_DATE('${matchNum[3]}/${matchNum[2]}/${matchNum[1]}', 'DD/MM/YYYY')`;
+      }
+
+      return 'NULL';
+    };
+
     let itensAtualizados = 0;
     let itensDivididos = 0;
     let estoqueAtualizado = 0;
     const agoraFormatada = new Date().toLocaleString('pt-BR');
     const agoraIso = new Date().toISOString();
 
-    // 3. Atualizar TGFITE e lançar na TGFLOT e TGFEST
+    // 3. Atualizar TGFITE e garantir dados na TGFEST
     for (const r of iteRows) {
       const nunota = Number(r[0]);
       const sequencia = Number(r[1]);
       const codprod = Number(r[2]);
-      const codlocal = Number(r[4]) || 1;
+      const codlocal = Number(r[4]);
 
       const key = `${nunota}|${codprod}`;
       const lotesDoItem = mapaLotesPorProd[key] || [];
 
-      // Múltiplos lotes para o mesmo item faturado -> Desmembramento
-      if (lotesDoItem.length > 1) {
-        itensDivididos++;
-        if (this.desmembrarItemService) {
-          await this.desmembrarItemService.desmembrarItemPorLote(
-            {
-              nunota,
-              sequenciaOriginal: sequencia,
-              codprod,
-              lotes: lotesDoItem.map((l) => ({
-                lote: l.lote,
-                validade: l.validade,
-                fabricacao: l.fabricacao,
-                quantidade: l.qtd,
-              })),
-              usuario: input.usuario,
-            },
-            correlationId
-          );
-        }
-      }
-
-      // Atualiza o primeiro lote na TGFITE
       if (lotesDoItem.length > 0) {
-        const primeiroLote = lotesDoItem[0];
-        const loteLimpo = primeiroLote.lote.trim();
+        // Se houver múltiplas sequências na nota para o mesmo produto, casa 1:1 por índice
+        const linhasDesteProd = iteRows.filter((it) => Number(it[0]) === nunota && Number(it[2]) === codprod);
+        const indiceSequencia = linhasDesteProd.findIndex((it) => Number(it[1]) === sequencia);
+        const loteParaEstaSequencia = lotesDoItem[indiceSequencia] || lotesDoItem[0];
+        const loteLimpo = loteParaEstaSequencia.lote.trim();
 
         const updateIteSql = `
           UPDATE TGFITE
@@ -209,56 +270,23 @@ export class EnviarConferenciaSankhyaUseCase {
         );
         itensAtualizados++;
 
-        // Garantir cada lote na TGFLOT e TGFEST
+        // Garantir cada lote conferido na TGFEST (Estoque por lote)
         for (const loteObj of lotesDoItem) {
           const lLimpo = loteObj.lote.trim();
           if (!lLimpo) continue;
 
-          const valFormatada = loteObj.validade ? loteObj.validade.replace(/-/g, '').slice(0, 8) : null;
-          const fabFormatada = loteObj.fabricacao ? loteObj.fabricacao.replace(/-/g, '').slice(0, 8) : null;
+          const validadeSql = formatarDataOracle(loteObj.validade);
+          const fabricacaoSql = formatarDataOracle(loteObj.fabricacao);
 
-          const validadeSql = valFormatada
-            ? `TO_DATE('${valFormatada}', 'YYYYMMDD')`
-            : loteObj.validade
-              ? `TO_DATE('${loteObj.validade}', 'YYYY-MM-DD')`
-              : 'NULL';
-
-          const fabricacaoSql = fabFormatada
-            ? `TO_DATE('${fabFormatada}', 'YYYYMMDD')`
-            : loteObj.fabricacao
-              ? `TO_DATE('${loteObj.fabricacao}', 'YYYY-MM-DD')`
-              : 'NULL';
-
-          // Garantir lote na TGFLOT (se a tabela existir)
-          const checkLotSql = `
-            SELECT COUNT(1) FROM TGFLOT WHERE CODPROD = ${codprod} AND CONTROLE = '${lLimpo}'
-          `.trim();
-          try {
-            const respLot = await this.gateway.serviceCall<any>(
-              'DbExplorerSP.executeQuery',
-              { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: checkLotSql } },
-              correlationId
-            );
-            const existeLot = Number(respLot?.responseBody?.rows?.[0]?.[0]) > 0;
-            if (!existeLot) {
-              const insertLotSql = `
-                INSERT INTO TGFLOT (CODPROD, CONTROLE, DTVAL, DTFABRICACAO)
-                VALUES (${codprod}, '${lLimpo}', ${validadeSql}, ${fabricacaoSql})
-              `.trim();
-              await this.gateway.serviceCall<any>(
-                'DbExplorerSP.executeQuery',
-                { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: insertLotSql } },
-                correlationId
-              );
-            }
-          } catch {
-            // Fallback silencioso caso TGFLOT não tenha permissão de insert direto
-          }
-
-          // Lançamento / Atualização na TGFEST (Estoque por lote)
+          // Verificar se já existe saldo/registro na TGFEST para esta chave
           const checkEstSql = `
             SELECT COUNT(1) FROM TGFEST
-            WHERE CODPROD = ${codprod} AND CODLOCAL = ${codlocal} AND CODEMP = ${codemp} AND CONTROLE = '${lLimpo}'
+            WHERE CODPROD = ${codprod} 
+              AND CODLOCAL = ${codlocal} 
+              AND CODEMP = ${codemp} 
+              AND CONTROLE = '${lLimpo}'
+              AND CODPARC = 0
+              AND TIPO = 'P'
           `.trim();
 
           try {
@@ -270,21 +298,36 @@ export class EnviarConferenciaSankhyaUseCase {
             const existeEst = Number(respEst?.responseBody?.rows?.[0]?.[0]) > 0;
 
             if (existeEst) {
-              const updateEstSql = `
-                UPDATE TGFEST
-                SET DTVAL = ${validadeSql}, DTFABRICACAO = ${fabricacaoSql}
-                WHERE CODPROD = ${codprod} AND CODLOCAL = ${codlocal} AND CODEMP = ${codemp} AND CONTROLE = '${lLimpo}'
-              `.trim();
-              await this.gateway.serviceCall<any>(
-                'DbExplorerSP.executeQuery',
-                { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: updateEstSql } },
-                correlationId
-              );
+              // Se já existe, atualiza APENAS DTVAL e DTFABRICACAO caso informadas, preservando o ESTOQUE real!
+              const setPartes: string[] = [];
+              if (validadeSql !== 'NULL') setPartes.push(`DTVAL = ${validadeSql}`);
+              if (fabricacaoSql !== 'NULL') setPartes.push(`DTFABRICACAO = ${fabricacaoSql}`);
+
+              if (setPartes.length > 0) {
+                const updateEstSql = `
+                  UPDATE TGFEST
+                  SET ${setPartes.join(', ')}
+                  WHERE CODPROD = ${codprod} 
+                    AND CODLOCAL = ${codlocal} 
+                    AND CODEMP = ${codemp} 
+                    AND CONTROLE = '${lLimpo}'
+                    AND CODPARC = 0
+                    AND TIPO = 'P'
+                `.trim();
+
+                await this.gateway.serviceCall<any>(
+                  'DbExplorerSP.executeQuery',
+                  { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: updateEstSql } },
+                  correlationId
+                );
+              }
             } else {
+              // Se não existe, insere o registro com ESTOQUE = 0 (saldo será alimentado na confirmação da TOP)
               const insertEstSql = `
                 INSERT INTO TGFEST (CODPROD, CODLOCAL, CODEMP, CODPARC, TIPO, CONTROLE, ESTOQUE, DTVAL, DTFABRICACAO)
                 VALUES (${codprod}, ${codlocal}, ${codemp}, 0, 'P', '${lLimpo}', 0, ${validadeSql}, ${fabricacaoSql})
               `.trim();
+
               await this.gateway.serviceCall<any>(
                 'DbExplorerSP.executeQuery',
                 { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: insertEstSql } },
@@ -292,8 +335,8 @@ export class EnviarConferenciaSankhyaUseCase {
               );
             }
             estoqueAtualizado++;
-          } catch {
-            // Ignora se regras de gatilho do Sankhya controlarem o estoque automaticamente
+          } catch (errEst: any) {
+            console.warn(`[TGFEST] Aviso ao registrar lote ${lLimpo} para o produto ${codprod}:`, errEst.message);
           }
         }
       }

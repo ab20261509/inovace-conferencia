@@ -73,7 +73,8 @@ SELECT
     NVL(PRO.REFERENCIA, ' ') AS REFERENCIA,
     NVL(PRO.REFFORN, ' ') AS REFFORN,
     NVL(ITE.CODVOL, 'UN') AS CODVOL,
-    NVL(ITE.QTDNEG, 0) AS QTDNEG
+    NVL(ITE.QTDNEG, 0) AS QTDNEG,
+    ITE.CODLOCALORIG
 FROM TGFITE ITE
 INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
 INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
@@ -276,6 +277,8 @@ WHERE BAR.CODPROD IN (
         conferenteN2: bip.conferenteN2,
         conferenteN3: bip.conferenteN3,
         diferenca,
+        codlocal: r[itensIndex['CODLOCALORIG']] !== null && r[itensIndex['CODLOCALORIG']] !== undefined ? Number(r[itensIndex['CODLOCALORIG']]) : undefined,
+        codlocalorig: r[itensIndex['CODLOCALORIG']] !== null && r[itensIndex['CODLOCALORIG']] !== undefined ? Number(r[itensIndex['CODLOCALORIG']]) : undefined,
       };
     });
 

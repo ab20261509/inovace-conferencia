@@ -56,6 +56,7 @@ export interface ItemNotaEntrada {
   codigosAlternativos: CodigoAlternativoEntrada[];
   divergente?: boolean;
   codlocal?: number;
+  codlocalorig?: number;
   lote?: string;
   validade?: string;
   fabricacao?: string;

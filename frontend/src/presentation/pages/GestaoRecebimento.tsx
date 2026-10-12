@@ -91,6 +91,9 @@ export function GestaoRecebimentoPage() {
     nunotas: number[];
   } | null>(null);
 
+  // Seleção múltipla para envio em lote (Aba 3)
+  const [selecionadasEnvio, setSelecionadasEnvio] = useState<Set<string>>(new Set());
+
   // Controle de exibição (esconder/exibir) e filtro por card de divergência (Aba 2)
   const [itensDivergenciaExpandidos, setItensDivergenciaExpandidos] = useState<Record<string, boolean>>({});
   const [filtroItensDivergencia, setFiltroItensDivergencia] = useState<Record<string, 'divergentes' | 'todos'>>({});
@@ -392,72 +395,118 @@ export function GestaoRecebimentoPage() {
           texto: 'Contagem restaurada com sucesso! As bipagens salvas e status anterior foram restabelecidos.',
         });
       } else if (modalAcao.tipo === 'ENVIAR_SANKHYA') {
-        const lotesCust = lotesCustomizadosPorConferencia[modalAcao.conferenciaId];
-        const nunotasEnvio = modalAcao.dadosExtras?.nunotas;
-        const resp = await recebimentoService.enviarSankhya(modalAcao.conferenciaId, {
-          observacao: observacaoModal,
-          nunotas: nunotasEnvio,
-          itensCustomizados: lotesCust
-            ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
-                const codprod = Number(codprodStr);
-                const itemRef = detalhesConferencias[modalAcao.conferenciaId]?.itens.find(
-                  (i) => i.codprod === codprod
-                );
-                const nunota = itemRef?.nunota || 0;
-                const sequencia = itemRef?.sequencia ?? 1;
-                return fracoes
-                  .filter((f) => f.lote?.trim())
-                  .map((f) => ({
-                    nunota,
-                    sequencia,
-                    codprod,
-                    lote: f.lote.trim(),
-                    validade: f.validade,
-                    fabricacao: f.fabricacao,
-                    qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
-                  }));
-              })
-            : undefined,
-        });
+        if (modalAcao.dadosExtras?.isLote) {
+          const grupos = modalAcao.dadosExtras.grupos as GrupoConferenciaPronta[];
+          let totalItensAtualizados = 0;
+          let totalEstoqueAtualizado = 0;
+          const protocolos: string[] = [];
 
-        // Montar comprovante detalhado de envio
-        const itensDaNota = (detalhesConferencias[modalAcao.conferenciaId]?.itens || []).filter(
-          (i) => !nunotasEnvio || nunotasEnvio.includes(i.nunota)
-        );
+          for (const grp of grupos) {
+            const lotesCust = lotesCustomizadosPorConferencia[grp.conferenciaId];
+            const resp = await recebimentoService.enviarSankhya(grp.conferenciaId, {
+              observacao: observacaoModal,
+              nunotas: grp.nunotas,
+              itensCustomizados: lotesCust
+                ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
+                    const codprod = Number(codprodStr);
+                    const itemRef = detalhesConferencias[grp.conferenciaId]?.itens.find(
+                      (i) => i.codprod === codprod
+                    );
+                    const nunota = itemRef?.nunota || 0;
+                    const sequencia = itemRef?.sequencia ?? 1;
+                    return fracoes
+                      .filter((f) => f.lote?.trim())
+                      .map((f) => ({
+                        nunota,
+                        sequencia,
+                        codprod,
+                        lote: f.lote.trim(),
+                        validade: f.validade,
+                        fabricacao: f.fabricacao,
+                        qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
+                      }));
+                  })
+                : undefined,
+            });
 
-        const itensComprovante = itensDaNota.map((it) => {
-          const lotesCustom = lotesCust?.[it.codprod];
-          const loteStr = lotesCustom && lotesCustom.length > 0
-            ? lotesCustom.map((l) => `${l.lote} (${l.qtd})`).join('; ')
-            : it.lote || '—';
-          const qtdEsperada = it.qtdneg ?? 0;
-          const qtdConferida = it.qtdConferidaN3 || it.qtdConferidaN2 || it.qtdConferidaN1 || qtdEsperada;
-          return {
-            codprod: it.codprod,
-            descrprod: it.descrprod || `Produto #${it.codprod}`,
-            qtdEsperada,
-            qtdConferida,
-            lote: loteStr,
-            validade: it.validade || undefined,
-            status: qtdConferida >= qtdEsperada ? 'Conferido OK' : 'Divergência Aceita',
-          };
-        });
+            totalItensAtualizados += resp.itensAtualizados || 0;
+            totalEstoqueAtualizado += resp.estoqueAtualizado || 0;
+            if (resp.protocolo) protocolos.push(resp.protocolo);
+          }
 
-        setComprovanteEnvio({
-          conferenciaId: modalAcao.conferenciaId,
-          numerosNotas: modalAcao.dadosExtras?.numerosNotas || modalAcao.conferenciaId,
-          protocolo: resp.protocolo || `REC-${Date.now()}`,
-          dataHora: new Date().toLocaleString('pt-BR'),
-          usuario: resp.sessao?.conferente || 'Gestor do Recebimento',
-          itensAtualizados: resp.itensAtualizados,
-          estoqueAtualizado: resp.estoqueAtualizado,
-          itens: itensComprovante,
-        });
+          setSelecionadasEnvio(new Set());
+          setFeedback({
+            tipo: 'sucesso',
+            texto: `Envio em lote concluído com sucesso ao Sankhya! ${grupos.length} notas processadas, ${totalItensAtualizados} itens da nota e ${totalEstoqueAtualizado} registros de estoque atualizados. Protocolos: ${protocolos.join(', ')}.`,
+          });
+        } else {
+          const lotesCust = lotesCustomizadosPorConferencia[modalAcao.conferenciaId];
+          const nunotasEnvio = modalAcao.dadosExtras?.nunotas;
+          const resp = await recebimentoService.enviarSankhya(modalAcao.conferenciaId, {
+            observacao: observacaoModal,
+            nunotas: nunotasEnvio,
+            itensCustomizados: lotesCust
+              ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
+                  const codprod = Number(codprodStr);
+                  const itemRef = detalhesConferencias[modalAcao.conferenciaId]?.itens.find(
+                    (i) => i.codprod === codprod
+                  );
+                  const nunota = itemRef?.nunota || 0;
+                  const sequencia = itemRef?.sequencia ?? 1;
+                  return fracoes
+                    .filter((f) => f.lote?.trim())
+                    .map((f) => ({
+                      nunota,
+                      sequencia,
+                      codprod,
+                      lote: f.lote.trim(),
+                      validade: f.validade,
+                      fabricacao: f.fabricacao,
+                      qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
+                    }));
+                })
+              : undefined,
+          });
 
-        setFeedback({
-          tipo: 'sucesso',
-          texto: `Envio concluído com sucesso ao Sankhya! ${resp.itensAtualizados} itens da nota e ${resp.estoqueAtualizado} registros de estoque atualizados. Protocolo: ${resp.protocolo || 'N/A'}.`,
-        });
+          // Montar comprovante detalhado de envio
+          const itensDaNota = (detalhesConferencias[modalAcao.conferenciaId]?.itens || []).filter(
+            (i) => !nunotasEnvio || nunotasEnvio.includes(i.nunota)
+          );
+
+          const itensComprovante = itensDaNota.map((it) => {
+            const lotesCustom = lotesCust?.[it.codprod];
+            const loteStr = lotesCustom && lotesCustom.length > 0
+              ? lotesCustom.map((l) => `${l.lote} (${l.qtd})`).join('; ')
+              : it.lote || '—';
+            const qtdEsperada = it.qtdneg ?? 0;
+            const qtdConferida = it.qtdConferidaN3 || it.qtdConferidaN2 || it.qtdConferidaN1 || qtdEsperada;
+            return {
+              codprod: it.codprod,
+              descrprod: it.descrprod || `Produto #${it.codprod}`,
+              qtdEsperada,
+              qtdConferida,
+              lote: loteStr,
+              validade: it.validade || undefined,
+              status: qtdConferida >= qtdEsperada ? 'Conferido OK' : 'Divergência Aceita',
+            };
+          });
+
+          setComprovanteEnvio({
+            conferenciaId: modalAcao.conferenciaId,
+            numerosNotas: modalAcao.dadosExtras?.numerosNotas || modalAcao.conferenciaId,
+            protocolo: resp.protocolo || `REC-${Date.now()}`,
+            dataHora: new Date().toLocaleString('pt-BR'),
+            usuario: resp.sessao?.conferente || 'Gestor do Recebimento',
+            itensAtualizados: resp.itensAtualizados,
+            estoqueAtualizado: resp.estoqueAtualizado,
+            itens: itensComprovante,
+          });
+
+          setFeedback({
+            tipo: 'sucesso',
+            texto: `Envio concluído com sucesso ao Sankhya! ${resp.itensAtualizados} itens da nota e ${resp.estoqueAtualizado} registros de estoque atualizados. Protocolo: ${resp.protocolo || 'N/A'}.`,
+          });
+        }
       }
 
       setModalAcao(null);
@@ -551,6 +600,50 @@ export function GestaoRecebimentoPage() {
     });
   }, [conferenciasProntas]);
 
+  const handleToggleSelecionarEnvio = (chave: string) => {
+    setSelecionadasEnvio((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(chave)) {
+        novo.delete(chave);
+      } else {
+        novo.add(chave);
+      }
+      return novo;
+    });
+  };
+
+  const handleToggleSelecionarTodasEnvio = () => {
+    const aptas = conferenciasProntasAgrupadas.filter((g) => g.status !== 'Enviado ao Sankhya');
+    if (aptas.length === 0) return;
+    const todasJaMarcadas = aptas.every((g) => selecionadasEnvio.has(g.key));
+    if (todasJaMarcadas) {
+      setSelecionadasEnvio(new Set());
+    } else {
+      setSelecionadasEnvio(new Set(aptas.map((g) => g.key)));
+    }
+  };
+
+  const handleAbrirModalEnvioLote = () => {
+    if (selecionadasEnvio.size === 0) return;
+    const gruposParaEnviar = conferenciasProntasAgrupadas.filter(
+      (g) => selecionadasEnvio.has(g.key) && g.status !== 'Enviado ao Sankhya'
+    );
+    if (gruposParaEnviar.length === 0) return;
+
+    const totalNotas = gruposParaEnviar.map((g) => g.numerosNotas).join(', ');
+    setModalAcao({
+      tipo: 'ENVIAR_SANKHYA',
+      conferenciaId: 'LOTE',
+      titulo: `Aprovar e Integrar em Lote ao Sankhya (${gruposParaEnviar.length} Notas)`,
+      descricao: `Confirma a integração dos lotes e atualização do estoque no Sankhya para as notas [${totalNotas}]? Todas as conferências selecionadas serão processadas em sequência.`,
+      placeholder: 'Observação opcional gravada nas notas do lote...',
+      dadosExtras: {
+        isLote: true,
+        grupos: gruposParaEnviar,
+      },
+    });
+  };
+
   if (!podeAcessar) {
     return (
       <AppLayout>
@@ -594,6 +687,94 @@ export function GestaoRecebimentoPage() {
                 {feedback.tipo === 'sucesso' ? '✓' : '⚠'} {feedback.texto}
               </div>
             )}
+
+            {/* 1. Cockpit de KPIs (Resumo Executivo Minimalista) */}
+            <div className="gestao-rec-kpis">
+              {/* Card 1: Em Conferência */}
+              <div
+                className="gestao-kpi-card"
+                onClick={() => {
+                  setAbaAtiva('conferencias');
+                  setFiltroStatus('em_andamento');
+                }}
+                title="Filtrar conferências ativas (N1 / N2 / N3)"
+              >
+                <div className="gestao-kpi-header">
+                  <span className="gestao-kpi-label">Em Conferência</span>
+                  <span className="gestao-kpi-tag azul">N1 / N2</span>
+                </div>
+                <div className="gestao-kpi-valor">{contagensFiltros.emAndamento}</div>
+                <div className="gestao-kpi-sub">
+                  <span>⏱️</span>
+                  <span>Cargas em contagem física</span>
+                </div>
+              </div>
+
+              {/* Card 2: Divergências */}
+              <div
+                className={`gestao-kpi-card ${divergencias.length > 0 ? 'alerta-ativo' : ''}`}
+                onClick={() => setAbaAtiva('divergencias')}
+                title="Acessar divergências pendentes de resolução gerencial"
+              >
+                <div className="gestao-kpi-header">
+                  <span className="gestao-kpi-label">Divergências</span>
+                  <span className={`gestao-kpi-tag ${divergencias.length > 0 ? 'ambar' : 'cinza'}`}>
+                    {divergencias.length > 0 ? 'Atenção' : 'Zero'}
+                  </span>
+                </div>
+                <div
+                  className="gestao-kpi-valor"
+                  style={{ color: divergencias.length > 0 ? '#b45309' : undefined }}
+                >
+                  {divergencias.length}
+                </div>
+                <div className="gestao-kpi-sub">
+                  <span>⚠️</span>
+                  <span>Aguardando decisão gerencial</span>
+                </div>
+              </div>
+
+              {/* Card 3: Prontas p/ Envio */}
+              <div
+                className="gestao-kpi-card"
+                onClick={() => setAbaAtiva('aprovacao_sankhya')}
+                title="Acessar notas concluídas e aptas para integração"
+              >
+                <div className="gestao-kpi-header">
+                  <span className="gestao-kpi-label">Prontas p/ Envio</span>
+                  <span className="gestao-kpi-tag verde">100% Aptas</span>
+                </div>
+                <div className="gestao-kpi-valor" style={{ color: '#15803d' }}>
+                  {conferenciasProntasAgrupadas.filter((g) => g.status !== 'Enviado ao Sankhya').length}
+                </div>
+                <div className="gestao-kpi-sub">
+                  <span>✓</span>
+                  <span>Aguardando envio ao ERP</span>
+                </div>
+              </div>
+
+              {/* Card 4: Integradas no ERP */}
+              <div
+                className="gestao-kpi-card"
+                onClick={() => {
+                  setAbaAtiva('conferencias');
+                  setFiltroStatus('concluidas');
+                }}
+                title="Visualizar notas já integradas ao Sankhya"
+              >
+                <div className="gestao-kpi-header">
+                  <span className="gestao-kpi-label">Integradas ERP</span>
+                  <span className="gestao-kpi-tag cinza">Hoje</span>
+                </div>
+                <div className="gestao-kpi-valor">
+                  {todasConferencias.filter((c) => c.status === 'Enviado ao Sankhya').length}
+                </div>
+                <div className="gestao-kpi-sub">
+                  <span>🚀</span>
+                  <span>Sincronizadas com o estoque</span>
+                </div>
+              </div>
+            </div>
 
             {/* Navegação de Abas Minimalista */}
             <div className="gestao-rec-nav-wrapper">
@@ -758,6 +939,10 @@ export function GestaoRecebimentoPage() {
                     conferenciasExpandidas={conferenciasExpandidas}
                     lotesCustomizadosPorConferencia={lotesCustomizadosPorConferencia}
                     origemExcelPorConferencia={origemExcelPorConferencia}
+                    selecionadasEnvio={selecionadasEnvio}
+                    onToggleSelecionar={handleToggleSelecionarEnvio}
+                    onToggleSelecionarTodas={handleToggleSelecionarTodasEnvio}
+                    onEnviarLote={handleAbrirModalEnvioLote}
                     carregarDetalhesConferencia={carregarDetalhesConferencia}
                     toggleDetalhesConferencia={toggleDetalhesConferencia}
                     onAbrirImportarExcel={(conferenciaId, nunotas) => {

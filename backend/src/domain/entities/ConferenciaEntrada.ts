@@ -62,6 +62,8 @@ export interface ItemNotaEntrada {
   conferenteN2?: string;
   conferenteN3?: string;
   diferenca?: number;
+  codlocal?: number;
+  codlocalorig?: number;
 }
 
 export interface BackupContagemEntrada {

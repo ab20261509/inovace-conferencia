@@ -32,6 +32,319 @@
 }
 
 /* ═══════════════════════════════════════════════════════
+   1. COCKPIT DE KPIS (RESUMO EXECUTIVO MINIMALISTA)
+   ═══════════════════════════════════════════════════════ */
+.gestao-rec-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.gestao-kpi-card {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  text-align: left;
+}
+
+.gestao-kpi-card:hover {
+  border-color: var(--slate-300);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+.gestao-kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gestao-kpi-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate-500);
+}
+
+.gestao-kpi-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.1;
+}
+
+.gestao-kpi-tag.azul {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.gestao-kpi-tag.ambar {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.gestao-kpi-tag.verde {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.gestao-kpi-tag.cinza {
+  background: var(--slate-100);
+  color: var(--slate-600);
+}
+
+.gestao-kpi-valor {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--slate-900);
+  line-height: 1.2;
+}
+
+.gestao-kpi-sub {
+  font-size: 0.76rem;
+  color: var(--slate-500);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gestao-kpi-card.alerta-ativo {
+  border-color: #fcd34d;
+  background: #fffdf5;
+}
+
+/* ═══════════════════════════════════════════════════════
+   2. BARRA DE AÇÕES EM LOTE (BULK SEND SANKHYA)
+   ═══════════════════════════════════════════════════════ */
+.gestao-rec-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.gestao-bulk-selecao-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: var(--slate-700);
+}
+
+.gestao-bulk-checkbox {
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  accent-color: var(--primary, #0f766e);
+}
+
+.gestao-btn-bulk-enviar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--primary, #0f766e);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.gestao-btn-bulk-enviar:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.gestao-btn-bulk-enviar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════
+   3. SUGESTÃO INTELIGENTE DE DECISÃO EM DIVERGÊNCIAS
+   ═══════════════════════════════════════════════════════ */
+.gestao-dica-decisao {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.80rem;
+  line-height: 1.4;
+  margin-top: 8px;
+}
+
+.gestao-dica-decisao.concordante {
+  background: #f0fdf4;
+  border-left: 3px solid #22c55e;
+  color: #14532d;
+}
+
+.gestao-dica-decisao.discordante {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  color: #78350f;
+}
+
+/* ═══════════════════════════════════════════════════════
+   4. PÍLULA COMPACTA DE STATUS/CONTAGEM (VER ITENS ONDA 1)
+   ═══════════════════════════════════════════════════════ */
+.pill-contagem-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pill-contagem-status.ok {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.pill-contagem-status.falta {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.pill-contagem-status.sobra {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+/* ═══════════════════════════════════════════════════════
+   5. BARRA DE PROGRESSO DE BIPAGEM E MINI-FILTROS DE ITENS
+   ═══════════════════════════════════════════════════════ */
+.gestao-progresso-bipagem {
+  margin-top: 10px;
+  background: var(--slate-50);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--slate-200);
+}
+
+.gestao-progresso-bipagem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.76rem;
+  color: var(--slate-600);
+  margin-bottom: 6px;
+}
+
+.gestao-progresso-track {
+  width: 100%;
+  height: 6px;
+  background: var(--slate-200);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.gestao-progresso-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+.gestao-itens-mini-filtro-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: var(--slate-50);
+  border-radius: 6px;
+  border: 1px solid var(--slate-200);
+  flex-wrap: wrap;
+}
+
+.gestao-itens-mini-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gestao-mini-chip {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--slate-600);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gestao-mini-chip:hover {
+  background: var(--slate-200);
+  color: var(--slate-900);
+}
+
+.gestao-mini-chip.ativo {
+  background: #ffffff;
+  color: var(--slate-900);
+  border-color: var(--slate-300);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════
+   6. CHECKLIST PRÉ-ENVIO VISUAL (SANKHYA)
+   ═══════════════════════════════════════════════════════ */
+.gestao-rec-checklist-pre-envio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+}
+
+.gestao-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.gestao-checklist-item.ok {
+  color: #15803d;
+}
+
+.gestao-checklist-item.alerta {
+  color: #b45309;
+}
+
+/* ═══════════════════════════════════════════════════════
    NAVEGAÇÃO DE ABAS (MINIMALISTA)
    ═══════════════════════════════════════════════════════ */
 .gestao-rec-nav-wrapper {

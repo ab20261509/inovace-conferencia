@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   NotaEntrada,
   ObterItensConferenciaResponse,
@@ -31,6 +31,10 @@ export interface AbaEnvioSankhyaViewProps {
     Record<number, FracaoLote[]>
   >;
   origemExcelPorConferencia: Record<string, Set<number>>;
+  selecionadasEnvio: Set<string>;
+  onToggleSelecionar: (chave: string) => void;
+  onToggleSelecionarTodas: () => void;
+  onEnviarLote: () => void;
   carregarDetalhesConferencia: (
     conferenciaId: string,
     nunotas: number[]
@@ -68,6 +72,10 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   conferenciasExpandidas,
   lotesCustomizadosPorConferencia,
   origemExcelPorConferencia,
+  selecionadasEnvio,
+  onToggleSelecionar,
+  onToggleSelecionarTodas,
+  onEnviarLote,
   carregarDetalhesConferencia,
   toggleDetalhesConferencia,
   onAbrirImportarExcel,
@@ -75,8 +83,56 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   onEnviarSankhya,
   obterLotesItem,
 }) => {
+  const [filtroItensEnvio, setFiltroItensEnvio] = useState<
+    Record<string, 'todos' | 'semlote' | 'excel' | 'coletor'>
+  >({});
+
+  const notasNaoEnviadas = conferenciasProntasAgrupadas.filter(
+    (g) => g.status !== 'Enviado ao Sankhya'
+  );
+  const todasAptasSelecionadas =
+    notasNaoEnviadas.length > 0 &&
+    notasNaoEnviadas.every((g) => selecionadasEnvio.has(g.key));
+
   return (
     <div className="gestao-rec-lista">
+      {/* Barra de Ações em Lote (Bulk Send) */}
+      {notasNaoEnviadas.length > 0 && (
+        <div className="gestao-rec-bulk-bar">
+          <div className="gestao-bulk-selecao-info">
+            <input
+              type="checkbox"
+              id="bulk-select-all"
+              className="gestao-bulk-checkbox"
+              checked={todasAptasSelecionadas}
+              onChange={onToggleSelecionarTodas}
+            />
+            <label htmlFor="bulk-select-all" style={{ fontWeight: 600, cursor: 'pointer' }}>
+              Selecionar todas as aptas ({notasNaoEnviadas.length} nota{notasNaoEnviadas.length > 1 ? 's' : ''})
+            </label>
+            {selecionadasEnvio.size > 0 && (
+              <span style={{ fontSize: '0.80rem', color: 'var(--primary, #0f766e)', fontWeight: 700 }}>
+                • {selecionadasEnvio.size} selecionada{selecionadasEnvio.size > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="gestao-btn-bulk-enviar"
+            disabled={selecionadasEnvio.size === 0}
+            onClick={onEnviarLote}
+            title={
+              selecionadasEnvio.size === 0
+                ? 'Selecione uma ou mais notas para envio'
+                : `Enviar ${selecionadasEnvio.size} notas selecionadas ao Sankhya`
+            }
+          >
+            <span>🚀 Enviar Selecionadas ao Sankhya ({selecionadasEnvio.size})</span>
+          </button>
+        </div>
+      )}
+
       {conferenciasProntasAgrupadas.length === 0 ? (
         <Container variant="default" padding="lg">
           <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--slate-500)' }}>
@@ -103,6 +159,23 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
 
           // Validação preventiva dos itens prontos para escrituração
           const totalItens = itensDoCard.length;
+          const itensSemLocal = itensDoCard.filter(
+            (i) => i.codlocalorig === undefined || i.codlocalorig === null
+          );
+          const todosLocaisOk = totalItens > 0 && itensSemLocal.length === 0;
+
+          // Validação de múltiplos lotes para a mesma sequência faturada
+          const contagemSeqPorProd: Record<number, number> = {};
+          itensDoCard.forEach((i) => {
+            contagemSeqPorProd[i.codprod] = (contagemSeqPorProd[i.codprod] || 0) + 1;
+          });
+
+          const itensMultiplosLotesNaoDesmembrados = itensDoCard.filter((i) => {
+            const lotes = obterLotesItem(grupo.conferenciaId, i, detalhes?.bipagens);
+            return lotes.length > 1 && (contagemSeqPorProd[i.codprod] || 1) < lotes.length;
+          });
+          const temBloqueioDesmembramento = itensMultiplosLotesNaoDesmembrados.length > 0;
+
           const itensComLote = itensDoCard.filter((i) => {
             const lotes = obterLotesItem(
               grupo.conferenciaId,
@@ -116,42 +189,78 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
           return (
             <div key={grupo.key} className="gestao-rec-card">
               <div className="gestao-rec-card-header">
-                <div className="gestao-rec-card-info">
-                  <div className="gestao-rec-card-notas">
-                    <span>📄 NF(s): {grupo.numerosNotas}</span>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  {!jaEnviado && (
+                    <input
+                      type="checkbox"
+                      className="gestao-bulk-checkbox"
+                      style={{ marginTop: '4px' }}
+                      checked={selecionadasEnvio.has(grupo.key)}
+                      onChange={() => onToggleSelecionar(grupo.key)}
+                      title="Selecionar esta nota para envio em lote"
+                    />
+                  )}
+                  <div className="gestao-rec-card-info">
+                    <div className="gestao-rec-card-notas">
+                      <span>📄 NF(s): {grupo.numerosNotas}</span>
+                    </div>
+                    <span className="gestao-rec-card-fornecedor">
+                      Fornecedor: {grupo.fornecedor}
+                    </span>
+                    <span className="gestao-rec-card-meta">
+                      Total de Itens Faturados:{' '}
+                      {grupo.notas.reduce((acc, n) => acc + (n.qtdItens || 0), 0)}
+                    </span>
                   </div>
-                  <span className="gestao-rec-card-fornecedor">
-                    Fornecedor: {grupo.fornecedor}
-                  </span>
-                  <span className="gestao-rec-card-meta">
-                    Total de Itens Faturados:{' '}
-                    {grupo.notas.reduce((acc, n) => acc + (n.qtdItens || 0), 0)}
-                  </span>
                 </div>
 
                 <div className="gestao-rec-card-badges">
                   {detalhes && totalItens > 0 && (
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        background: todosLotesOk ? '#f0fdf4' : '#fffbeb',
-                        color: todosLotesOk ? '#15803d' : '#b45309',
-                        border: `1px solid ${todosLotesOk ? '#bbf7d0' : '#fde68a'}`,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                      title={
-                        todosLotesOk
-                          ? 'Todos os itens conferidos possuem lote vinculado para o ERP'
-                          : `${totalItens - itensComLote} item(ns) ainda sem lote configurado`
-                      }
-                    >
-                      {todosLotesOk ? '✓ Lotes 100% Prontos' : `⚠️ ${totalItens - itensComLote} sem Lote`}
-                    </span>
+                    <>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: todosLocaisOk ? '#f0fdf4' : '#fef2f2',
+                          color: todosLocaisOk ? '#15803d' : '#b91c1c',
+                          border: `1px solid ${todosLocaisOk ? '#bbf7d0' : '#fecaca'}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        title={
+                          todosLocaisOk
+                            ? 'Todos os itens possuem Local de Origem definido na TGFITE'
+                            : `${itensSemLocal.length} item(ns) sem Local de Origem (CODLOCALORIG) na nota`
+                        }
+                      >
+                        {todosLocaisOk ? '✓ Local Definido' : `⚠️ ${itensSemLocal.length} sem Local`}
+                      </span>
+
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: todosLotesOk ? '#f0fdf4' : '#fffbeb',
+                          color: todosLotesOk ? '#15803d' : '#b45309',
+                          border: `1px solid ${todosLotesOk ? '#bbf7d0' : '#fde68a'}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        title={
+                          todosLotesOk
+                            ? 'Todos os itens conferidos possuem lote vinculado para o ERP'
+                            : `${totalItens - itensComLote} item(ns) ainda sem lote configurado`
+                        }
+                      >
+                        {todosLotesOk ? '✓ Lotes 100% Prontos' : `⚠️ ${totalItens - itensComLote} sem Lote`}
+                      </span>
+                    </>
                   )}
 
                   <span
@@ -166,6 +275,59 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                     {grupo.status}
                   </span>
                 </div>
+              </div>
+
+              {/* Checklist Pré-Envio Visual (Garante Integridade no ERP) */}
+              <div className="gestao-rec-checklist-pre-envio">
+                <div
+                  className={`gestao-checklist-item ${
+                    jaEnviado || grupo.status === 'Conferido' ? 'ok' : 'alerta'
+                  }`}
+                >
+                  <span>{jaEnviado || grupo.status === 'Conferido' ? '✓' : '⚠️'}</span>
+                  <span>
+                    {jaEnviado
+                      ? 'Integrado no Sankhya'
+                      : grupo.status === 'Conferido'
+                      ? 'Quantidades Físicas 100% OK'
+                      : 'Aguardando Aprovação Gerencial'}
+                  </span>
+                </div>
+                <div
+                  className={`gestao-checklist-item ${
+                    todosLotesOk || jaEnviado ? 'ok' : 'alerta'
+                  }`}
+                >
+                  <span>{todosLotesOk || jaEnviado ? '✓' : '⚠️'}</span>
+                  <span>
+                    {todosLotesOk || jaEnviado
+                      ? 'Lotes e Validades Configurados'
+                      : `${totalItens - itensComLote} Itens sem Lote`}
+                  </span>
+                </div>
+                <div
+                  className={`gestao-checklist-item ${
+                    todosLocaisOk || jaEnviado ? 'ok' : 'alerta'
+                  }`}
+                >
+                  <span>{todosLocaisOk || jaEnviado ? '✓' : '⚠️'}</span>
+                  <span>
+                    {todosLocaisOk || jaEnviado
+                      ? 'Locais de Estoque (TGFITE.CODLOCALORIG) OK'
+                      : `${itensSemLocal.length} Item(ns) sem Local de Estoque`}
+                  </span>
+                </div>
+                {temBloqueioDesmembramento && (
+                  <div
+                    className="gestao-checklist-item alerta"
+                    style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}
+                  >
+                    <span>⚠️</span>
+                    <span>
+                      {itensMultiplosLotesNaoDesmembrados.length} produto(s) requerem desmembramento de linha no Sankhya
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Seção de Itens / Cruzamento de Lotes e Importação Excel */}
@@ -228,7 +390,98 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                       mensagem="Carregando dados dos lotes e itens para envio..."
                     />
                   ) : detalhes && isExpandido ? (
-                    <>
+                    (() => {
+                      const filtroItens = filtroItensEnvio[grupo.key] || 'todos';
+                      const itensSemLote = itensDoCard.filter((item) => {
+                        const lotes = obterLotesItem(
+                          grupo.conferenciaId,
+                          item,
+                          detalhes.bipagens
+                        );
+                        return lotes.length === 0 && !item.lote;
+                      });
+                      const itensExcel = itensDoCard.filter((item) =>
+                        origemExcelPorConferencia[grupo.conferenciaId]?.has(item.codprod)
+                      );
+                      const itensColetor = itensDoCard.filter(
+                        (item) => !origemExcelPorConferencia[grupo.conferenciaId]?.has(item.codprod)
+                      );
+                      const itensParaExibir =
+                        filtroItens === 'semlote'
+                          ? itensSemLote
+                          : filtroItens === 'excel'
+                          ? itensExcel
+                          : filtroItens === 'coletor'
+                          ? itensColetor
+                          : itensDoCard;
+
+                      return (
+                        <>
+                          {/* Barra de Mini-Filtros Rápidos dos Itens para Envio */}
+                          <div className="gestao-itens-mini-filtro-bar">
+                            <div className="gestao-itens-mini-chips">
+                              <button
+                                type="button"
+                                className={`gestao-mini-chip ${
+                                  filtroItens === 'todos' ? 'ativo' : ''
+                                }`}
+                                onClick={() =>
+                                  setFiltroItensEnvio((prev) => ({
+                                    ...prev,
+                                    [grupo.key]: 'todos',
+                                  }))
+                                }
+                              >
+                                Todos ({itensDoCard.length})
+                              </button>
+                              <button
+                                type="button"
+                                className={`gestao-mini-chip ${
+                                  filtroItens === 'semlote' ? 'ativo' : ''
+                                }`}
+                                onClick={() =>
+                                  setFiltroItensEnvio((prev) => ({
+                                    ...prev,
+                                    [grupo.key]: 'semlote',
+                                  }))
+                                }
+                              >
+                                ⚠️ Sem Lote ({itensSemLote.length})
+                              </button>
+                              <button
+                                type="button"
+                                className={`gestao-mini-chip ${
+                                  filtroItens === 'excel' ? 'ativo' : ''
+                                }`}
+                                onClick={() =>
+                                  setFiltroItensEnvio((prev) => ({
+                                    ...prev,
+                                    [grupo.key]: 'excel',
+                                  }))
+                                }
+                              >
+                                📊 Excel ({itensExcel.length})
+                              </button>
+                              <button
+                                type="button"
+                                className={`gestao-mini-chip ${
+                                  filtroItens === 'coletor' ? 'ativo' : ''
+                                }`}
+                                onClick={() =>
+                                  setFiltroItensEnvio((prev) => ({
+                                    ...prev,
+                                    [grupo.key]: 'coletor',
+                                  }))
+                                }
+                              >
+                                📱 Coletor ({itensColetor.length})
+                              </button>
+                            </div>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
+                              Exibindo <strong>{itensParaExibir.length}</strong> de{' '}
+                              {itensDoCard.length} itens
+                            </span>
+                          </div>
                       {/* Tabela Desktop */}
                       <div className="gestao-rec-tabela-desktop">
                         <table className="gestao-rec-tabela">
@@ -243,6 +496,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                 (i) => (i.qtdConferidaN3 || 0) > 0
                               ) && <th>N3</th>}
                               <th>Diferença</th>
+                              <th>Local</th>
                               <th>Lote</th>
                               <th>Validade</th>
                               <th>Fabricação</th>
@@ -250,7 +504,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                             </tr>
                           </thead>
                           <tbody>
-                            {itensDoCard.map((item) => {
+                            {itensParaExibir.map((item) => {
                               const qtdNivel =
                                 (item.qtdConferidaN3 || 0) > 0
                                   ? item.qtdConferidaN3 || 0
@@ -326,10 +580,47 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                   ) && <td>{item.qtdConferidaN3 || 0}</td>}
                                   <td>
                                     <span
-                                      className={`diferenca-badge ${classeDif}`}
+                                      className={`pill-contagem-status ${classeDif}`}
                                     >
-                                      {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                      {diferenca === 0
+                                        ? '✓ OK'
+                                        : diferenca < 0
+                                        ? `⚠️ ${diferenca}`
+                                        : `+${diferenca}`}
                                     </span>
+                                  </td>
+                                  <td>
+                                    {item.codlocalorig !== undefined && item.codlocalorig !== null ? (
+                                      <span
+                                        style={{
+                                          fontSize: '0.8rem',
+                                          fontWeight: 600,
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          background: 'var(--slate-100)',
+                                          border: '1px solid var(--slate-200)',
+                                          color: 'var(--slate-800)',
+                                        }}
+                                        title={`Local de Estoque de Origem: ${item.codlocalorig}`}
+                                      >
+                                        📍 {item.codlocalorig}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          background: '#fef2f2',
+                                          border: '1px solid #fecaca',
+                                          color: '#b91c1c',
+                                        }}
+                                        title="Item sem Local de Origem na TGFITE. Necessário preencher no Sankhya antes do envio."
+                                      >
+                                        ⚠️ Sem Local
+                                      </span>
+                                    )}
                                   </td>
                                   <td>
                                     {temMultiplosLotes ? (
@@ -620,7 +911,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                         className="gestao-rec-itens-mobile"
                         style={{ marginTop: '8px' }}
                       >
-                        {itensDoCard.map((item) => {
+                        {itensParaExibir.map((item) => {
                           const qtdNivel =
                             (item.qtdConferidaN3 || 0) > 0
                               ? item.qtdConferidaN3 || 0
@@ -676,8 +967,14 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                       : ''}
                                   </div>
                                 </div>
-                                <span className={`diferenca-badge ${classeDif}`}>
-                                  {diferenca > 0 ? `+${diferenca}` : diferenca}
+                                <span
+                                  className={`pill-contagem-status ${classeDif}`}
+                                >
+                                  {diferenca === 0
+                                    ? '✓ OK'
+                                    : diferenca < 0
+                                    ? `⚠️ ${diferenca}`
+                                    : `+${diferenca}`}
                                 </span>
                               </div>
 
@@ -697,6 +994,14 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                     <strong>{item.qtdConferidaN3 || 0}</strong>
                                   </div>
                                 )}
+                                <div>
+                                  Local:{' '}
+                                  {item.codlocalorig !== undefined && item.codlocalorig !== null ? (
+                                    <strong style={{ color: 'var(--slate-800)' }}>📍 {item.codlocalorig}</strong>
+                                  ) : (
+                                    <strong style={{ color: '#b91c1c' }}>⚠️ Sem Local</strong>
+                                  )}
+                                </div>
                               </div>
 
                               <div
@@ -811,8 +1116,10 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                         })}
                       </div>
                     </>
-                  ) : null}
-                </div>
+                  );
+                })()
+              ) : null}
+            </div>
               )}
 
               {/* Ações de Envio */}
