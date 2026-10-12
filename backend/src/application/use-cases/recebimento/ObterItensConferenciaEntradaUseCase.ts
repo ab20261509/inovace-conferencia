@@ -172,6 +172,18 @@ WHERE BAR.CODPROD IN (
         conferenteN1?: string;
         conferenteN2?: string;
         conferenteN3?: string;
+        lotesMap: Record<
+          string,
+          {
+            lote: string;
+            validade?: string;
+            fabricacao?: string;
+            quantidade: number;
+            bipagemIds: string[];
+            ultimoHorario: string;
+            conferente?: string;
+          }
+        >;
       }
     > = {};
 
@@ -179,7 +191,7 @@ WHERE BAR.CODPROD IN (
       if (b.anulado) continue;
       const key = `${b.nunota}|${b.codprod}|${b.sequencia}`;
       if (!mapBipsDetalhadas[key]) {
-        mapBipsDetalhadas[key] = { n1: 0, n2: 0, n3: 0 };
+        mapBipsDetalhadas[key] = { n1: 0, n2: 0, n3: 0, lotesMap: {} };
       }
       const qtd = Number(b.qtdConferida) || 0;
       if (b.nivel === 1) {
@@ -191,6 +203,26 @@ WHERE BAR.CODPROD IN (
       } else if (b.nivel === 3) {
         mapBipsDetalhadas[key].n3 += qtd;
         if (b.conferente) mapBipsDetalhadas[key].conferenteN3 = b.conferente;
+      }
+
+      // Agrupamento estruturado por Lote + Validade + Fabricação
+      if (b.lote && b.lote.trim()) {
+        const lLimpo = b.lote.trim();
+        const subKey = `${lLimpo.toUpperCase()}|${b.validade || ''}|${b.fabricacao || ''}`;
+        if (!mapBipsDetalhadas[key].lotesMap[subKey]) {
+          mapBipsDetalhadas[key].lotesMap[subKey] = {
+            lote: lLimpo,
+            validade: b.validade?.trim() || undefined,
+            fabricacao: b.fabricacao?.trim() || undefined,
+            quantidade: 0,
+            bipagemIds: [],
+            ultimoHorario: b.timestamp,
+            conferente: b.conferente,
+          };
+        }
+        mapBipsDetalhadas[key].lotesMap[subKey].quantidade += qtd;
+        mapBipsDetalhadas[key].lotesMap[subKey].bipagemIds.push(b.id);
+        mapBipsDetalhadas[key].lotesMap[subKey].ultimoHorario = b.timestamp;
       }
 
       if (b.lote && !mapBipsDetalhadas[key].lote) mapBipsDetalhadas[key].lote = b.lote;
@@ -231,7 +263,7 @@ WHERE BAR.CODPROD IN (
       const rawQtd = Number(r[itensIndex['QTDNEG']] || 0);
 
       const key = `${nunota}|${codprod}|${sequencia}`;
-      const bip = mapBipsDetalhadas[key] || { n1: 0, n2: 0, n3: 0 };
+      const bip = mapBipsDetalhadas[key] || { n1: 0, n2: 0, n3: 0, lotesMap: {} };
 
       // Se houve contagem em N1 e N2, compara N1 x N2 x NF.
       // Se não houve N1 (iniciado direto em N2), compara N2 x NF.
@@ -254,6 +286,8 @@ WHERE BAR.CODPROD IN (
         codigosAlternativos = [];
       }
 
+      const lotesConferidos = Object.values(bip.lotesMap || {});
+
       return {
         nunota,
         numnota,
@@ -273,6 +307,7 @@ WHERE BAR.CODPROD IN (
         lote: bip.lote,
         validade: bip.validade,
         fabricacao: bip.fabricacao,
+        lotesConferidos,
         conferenteN1: bip.conferenteN1,
         conferenteN2: bip.conferenteN2,
         conferenteN3: bip.conferenteN3,

@@ -1,6 +1,65 @@
 # Registro de Progresso e Entregas - Conferência de Entrada & Gestão de Recebimento
 
-## Atualização: Integração de Divergências por NF, Rastreabilidade de Conferentes e Comprovante de Envio ERP
+## Atualização: Cockpit de KPIs, Envio em Lote ao ERP e Redesign Minimalista da Gestão de Recebimento
+
+### 1. Cockpit Executivo de KPIs no Topo da Tela
+- **Frontend** (`GestaoRecebimento.tsx`, `GestaoRecebimento.css`):
+  - **4 KPIs Operacionais Compactos:**
+    - 🚚 **Em Conferência:** Quantidade de notas em contagem e monitoramento de tempo de pátio.
+    - ⚠️ **Divergências:** Cargas bloqueadas aguardando decisão gerencial (N3 ou aceite).
+    - 📦 **Prontas p/ Envio:** Conferências 100% finalizadas e aptas para envio ao Sankhya ERP.
+    - ⚡ **Integradas ERP:** Total de notas sincronizadas com sucesso no dia.
+  - **Navegação Reativa:** Clicar em qualquer KPI alterna automaticamente para a aba correspondente com filtros pertinentes.
+
+### 2. Ações em Lote e Envio Consolidado ao Sankhya ERP (Bulk Actions)
+- **Frontend** (`GestaoRecebimento.tsx`, `AbaEnvioSankhyaView.tsx`, `GestaoRecebimento.css`):
+  - Checkboxes discretos em cada card de envio para seleção individual de conferências aptas.
+  - Barra de ações em lote flutuante/fixa com contagem dinâmica de notas selecionadas.
+  - Botão de seleção rápida *"Selecionar todas as aptas"*.
+  - Disparo de envio em lote sequencial resiliente em `handleConfirmarAcaoModal`, com feedback em tempo real e tratamento de erros por nota.
+
+### 3. Assistente de Decisão Inteligente e Badges de Severidade em Divergências
+- **Frontend** (`AbaDivergenciasView.tsx`, `GestaoRecebimento.css`):
+  - **Decision Assist (Sugestão de Decisão):**
+    - $N1 = N2 \neq \text{Nota}$: Alerta que os conferentes concordaram na contagem física e sugere falta/sobra de origem do fornecedor.
+    - $N1 \neq N2$: Identifica conflito entre conferentes e recomenda abertura de reconferência Nível 3 (N3).
+  - **Badges de Severidade Visual:** Indicadores padronizados de severidade em vermelho (`⚠️ -X Falta`) e verde/azul (`+X Sobra`) tanto no desktop quanto nos cards mobile.
+
+### 4. Checklist Pré-Envio Visual e Mini-Filtros em Envio Sankhya
+- **Frontend** (`AbaEnvioSankhyaView.tsx`, `GestaoRecebimento.css`):
+  - Validador visual de 3 etapas pré-envio nos cards:
+    1. Conferência Concluída / Fechada
+    2. Lotes e Validades (100% informados vs pendentes)
+    3. Nota Fiscal Ativa no ERP Sankhya
+  - Mini-filtros rápidos por card ao expandir itens: `Todos`, `⚠️ Sem Lote`, `📊 Excel`, `📱 Coletor`.
+
+### 5. Redesign Minimalista dos Cards e Itens da Lista de Conferência
+- **Frontend** (`AbaConferenciasView.tsx`, `GestaoRecebimento.css`):
+  - **Eliminação da Quádrupla Redundância de Backup:** Remoção do badge do header, banner amarelo gigante, caixa de métrica e botão roxo isolado. Substituído por um **Ribbon Minimalista no Topo** (`gestao-card-backup-ribbon`) com texto discreto e botão acoplado *"Restaurar Contagem"*.
+  - **Status por Nota Integrado:** Eliminada a faixa cinza separada. Status de notas agrupadas exibidos como micro-pills leves ao lado da numeração das NFs no cabeçalho.
+  - **Métricas & Progresso Unificados:**
+    - Fim da ambiguidade textual *"212 de 5 unidades"*.
+    - Separação clara entre mix de produtos e volume físico: `SKUs: 5 produtos • Bipado (N1): 212 un. • ✓ 100% Batendo`.
+    - Barra de progresso horizontal fina de 6px com cantos arredondados e transição suave.
+  - **Hierarquia de Ações (Regra 1 + N):**
+    - Ação primária evidente à esquerda: `🔍 Ver Itens (X) ▼` / `▲ Ocultar Itens`.
+    - Grupo de ações secundárias operacionais limpas à direita: `🔁 Recontar`, `📱 Coletor`, `↺ Reiniciar`.
+  - **Micro-pills de Rastreabilidade nos Itens:**
+    - Células de Lote com badges `🏷️ Lote: XXX` ou `⚠️ Sem Lote`.
+    - Validade e fabricação com tipografia mono compacta de alta leitura.
+  - **Densidade em Tela:** Redução de ~62% na altura do card, permitindo visualizar até 8 conferências simultâneas sem rolagem excessiva.
+
+### 6. Protótipos Interativos e Verificação Técnica
+- **Artefatos Generative UI Criados:**
+  - `gestao_recebimento_melhorias_ui.html`: Protótipo visual completo das 5 melhorias da gestão de recebimento.
+  - `ver_itens_minimalista_ondas.html`: Estratégia de ondas de implementação para inspeção de itens.
+  - `sugestao_minimalista_itens_lista.html`: Comparativo interativo antes vs depois do card e das linhas de produtos.
+- **Validação de Build:** `npm run build` (`tsc -b && vite build`) compilado com código de saída 0 e zero erros de tipagem.
+- **Diretriz Git:** Preservado sem commits/pushes automáticos.
+
+---
+
+## Atualização Anterior: Integração de Divergências por NF, Rastreabilidade de Conferentes e Comprovante de Envio ERP
 
 ### 1. Desmembramento e Tratamento Individual de Incidentes / Divergências por NF
 - **Backend**:

@@ -134,17 +134,57 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
 
           return (
             <div key={conf.id} className="gestao-rec-card">
+              {/* Ribbon Minimalista de Backup (se existir contagem anterior arquivada) */}
+              {conf.temBackupContagem && conf.backupContagem && (
+                <div className="gestao-card-backup-ribbon">
+                  <div className="gestao-backup-ribbon-texto">
+                    <span>
+                      💾 <strong>Backup disponível:</strong> Reiniciada por{' '}
+                      <em>{conf.backupContagem.reiniciadoPor}</em> em{' '}
+                      {new Date(conf.backupContagem.reiniciadoEm).toLocaleDateString('pt-BR')} às{' '}
+                      {new Date(conf.backupContagem.reiniciadoEm).toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      ({conf.backupContagem.totalBipagensAnuladas} bipagens guardadas).
+                      {conf.backupContagem.motivo && ` Motivo: "${conf.backupContagem.motivo}"`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="gestao-backup-ribbon-btn"
+                    onClick={() => onRecuperarContagem(conf)}
+                    title="Recuperar as bipagens arquivadas desta conferência"
+                  >
+                    Restaurar Contagem
+                  </button>
+                </div>
+              )}
+
               {/* Cabeçalho */}
               <div className="gestao-rec-card-header">
                 <div className="gestao-rec-card-info">
                   <div className="gestao-rec-card-notas">
-                    <span>📄 NF(s): {conf.numerosNotas}</span>
+                    <span className="gestao-rec-card-nf-badge">📄 NF(s): {conf.numerosNotas}</span>
+                    {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
+                      <div className="gestao-notas-status-inline">
+                        {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => (
+                          <span
+                            key={nunotaStr}
+                            className={`gestao-mini-nota-status badge-status-rec ${getStatusBadgeClass(st)}`}
+                            title={`Nota Fiscal ${nunotaStr}`}
+                          >
+                            NF {nunotaStr}: {st}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <span className="gestao-rec-card-fornecedor">
                     Fornecedor: {conf.fornecedor}
                   </span>
                   <span className="gestao-rec-card-meta">
-                    Conferente: {conf.conferente || '—'} • Iniciado em:{' '}
+                    Conferente: <strong>{conf.conferente || '—'}</strong> • Iniciado em:{' '}
                     {new Date(conf.criadoEm).toLocaleString('pt-BR')}
                     {conf.finalizadoEm &&
                       ` • Concluído em: ${new Date(conf.finalizadoEm).toLocaleString('pt-BR')}`}
@@ -156,124 +196,75 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                   <span className={`badge-status-rec ${statusClasse}`}>
                     {conf.status}
                   </span>
-                  {conf.temBackupContagem && (
-                    <span
-                      className="badge-backup-recuperavel"
-                      title={`Contagem anterior arquivada com ${conf.backupContagem?.totalBipagensAnuladas || 0} itens. Pode ser recuperada a qualquer momento.`}
-                    >
-                      💾 Backup Recuperável ({conf.backupContagem?.totalBipagensAnuladas || 0})
-                    </span>
-                  )}
                 </div>
               </div>
 
-              {/* Detalhamento de Status Individual por Nota (para conferências agrupadas) */}
-              {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '8px',
-                    padding: '8px 16px',
-                    background: 'var(--slate-50, #f8fafc)',
-                    borderBottom: '1px solid var(--slate-200, #e2e8f0)',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  <span style={{ fontWeight: 600, color: 'var(--slate-600, #475569)' }}>
-                    Status por Nota:
-                  </span>
-                  {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => (
-                    <span
-                      key={nunotaStr}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <span style={{ color: 'var(--slate-700, #334155)' }}>
-                        NUNOTA {nunotaStr}:
-                      </span>
-                      <span
-                        className={`badge-status-rec ${getStatusBadgeClass(st)}`}
-                        style={{ fontSize: '0.75rem', padding: '2px 6px' }}
+              {/* Progresso & Resumo de Contagem Unificado Minimalista */}
+              {conf.totalItens > 0 && (() => {
+                const totalBipadoNivel =
+                  conf.nivelAtual === 3
+                    ? conf.totalBipadoN3 || 0
+                    : conf.nivelAtual === 2
+                    ? conf.totalBipadoN2 || 0
+                    : conf.totalBipadoN1 || 0;
+                const isConferido =
+                  conf.status === 'Conferido' || conf.status === 'Enviado ao Sankhya';
+                const isDivergente =
+                  conf.status === 'Divergente' || conf.status === 'Em Reconferência';
+                const percentual = Math.min(
+                  100,
+                  Math.round(((totalBipadoNivel || 0) / conf.totalItens) * 100)
+                );
+
+                return (
+                  <div className="gestao-rec-progresso-unificado">
+                    <div className="gestao-progresso-topo">
+                      <div className="gestao-progresso-metricas-resumo">
+                        <span>
+                          SKUs: <strong>{conf.totalItens} produtos</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Bipado (N{conf.nivelAtual}): <strong>{totalBipadoNivel} un.</strong>
+                        </span>
+                        {(conf.totalBipadoN2 > 0 || conf.totalBipadoN3 > 0) && (
+                          <span style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
+                            (N1: {conf.totalBipadoN1}
+                            {conf.totalBipadoN2 > 0 && ` • N2: ${conf.totalBipadoN2}`}
+                            {conf.totalBipadoN3 > 0 && ` • N3: ${conf.totalBipadoN3}`})
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        className={`gestao-progresso-pct ${
+                          isConferido ? 'ok' : isDivergente ? 'alerta' : 'andamento'
+                        }`}
                       >
-                        {st}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              )}
+                        {isConferido
+                          ? '✓ 100% Batendo'
+                          : isDivergente
+                          ? '⚠️ Divergência Detectada'
+                          : `${percentual}% Bipado`}
+                      </div>
+                    </div>
 
-              {/* Aviso de Backup Disponível */}
-              {conf.temBackupContagem && conf.backupContagem && (
-                <div className="gestao-card-backup-aviso">
-                  <span style={{ fontSize: '1.2rem' }}>💾</span>
-                  <div>
-                    <strong>Backup de Contagem Disponível:</strong> Esta conferência foi reiniciada em{' '}
-                    {new Date(conf.backupContagem.reiniciadoEm).toLocaleString('pt-BR')} por{' '}
-                    <strong>{conf.backupContagem.reiniciadoPor}</strong>. Status anterior:{' '}
-                    <em>
-                      {conf.backupContagem.statusAnterior} (N{conf.backupContagem.nivelAnterior})
-                    </em>
-                    . Foram guardadas <strong>{conf.backupContagem.totalBipagensAnuladas} bipagens</strong>.
-                    {conf.backupContagem.motivo && (
-                      <div>Motivo registrado: "{conf.backupContagem.motivo}"</div>
-                    )}
+                    <div className="gestao-progresso-track-mini">
+                      <div
+                        className="gestao-progresso-fill-mini"
+                        style={{
+                          width: `${isConferido ? 100 : percentual}%`,
+                          background: isConferido
+                            ? '#10b981'
+                            : isDivergente
+                            ? '#f59e0b'
+                            : 'linear-gradient(90deg, #3b82f6, #2563eb)',
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Resumo de Contagem */}
-              <div className="gestao-rec-contagem-resumo">
-                <div className="contagem-box">
-                  <span className="contagem-rotulo">Itens Faturados</span>
-                  <span className="contagem-valor">{conf.totalItens}</span>
-                </div>
-                <div className="contagem-box">
-                  <span className="contagem-rotulo">Contagem N1</span>
-                  <span className="contagem-valor">{conf.totalBipadoN1}</span>
-                </div>
-                <div className="contagem-box">
-                  <span className="contagem-rotulo">Contagem N2</span>
-                  <span className="contagem-valor">{conf.totalBipadoN2}</span>
-                </div>
-                {conf.totalBipadoN3 > 0 && (
-                  <div className="contagem-box">
-                    <span className="contagem-rotulo">Contagem N3</span>
-                    <span className="contagem-valor">{conf.totalBipadoN3}</span>
-                  </div>
-                )}
-                {conf.temBackupContagem && conf.backupContagem && (
-                  <div className="contagem-box">
-                    <span className="contagem-rotulo">Itens em Backup</span>
-                    <span className="contagem-valor" style={{ color: '#854d0e' }}>
-                      {conf.backupContagem.totalBipagensAnuladas}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Barra de Progresso Visual de Bipagem Cega */}
-              {conf.totalItens > 0 && (
-                <div className="gestao-progresso-bipagem">
-                  <div className="gestao-progresso-bipagem-header">
-                    <span>Progresso da Bipagem (N{conf.nivelAtual}):</span>
-                    <strong style={{ color: '#2563eb' }}>
-                      {conf.totalBipadoN1 || 0} de {conf.totalItens} unidades (
-                      {Math.min(100, Math.round(((conf.totalBipadoN1 || 0) / conf.totalItens) * 100))}%)
-                    </strong>
-                  </div>
-                  <div className="gestao-progresso-track">
-                    <div
-                      className="gestao-progresso-fill"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round(((conf.totalBipadoN1 || 0) / conf.totalItens) * 100)
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Tabela de Itens Expandida */}
               {isExpandido && (
@@ -453,24 +444,63 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       </span>
                                     </td>
                                     <td>
-                                      {item.lote ? (
-                                        <span style={{ fontWeight: 600, color: 'var(--slate-800)' }}>
-                                          {item.lote}
+                                      {item.lotesConferidos && item.lotesConferidos.length > 1 ? (
+                                        <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '3px' }}>
+                                          <span
+                                            className="gestao-lote-pill"
+                                            style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
+                                            title={item.lotesConferidos.map((l) => `${l.lote} (${l.quantidade} un)`).join(', ')}
+                                          >
+                                            🏷️ {item.lotesConferidos.length} Lotes
+                                          </span>
+                                          <div style={{ fontSize: '0.70rem', color: 'var(--slate-600)' }}>
+                                            {item.lotesConferidos.map((l) => `${l.lote} (${l.quantidade})`).join(', ')}
+                                          </div>
+                                        </div>
+                                      ) : item.lotesConferidos && item.lotesConferidos.length === 1 ? (
+                                        <span className="gestao-lote-pill">
+                                          🏷️ {item.lotesConferidos[0].lote} ({item.lotesConferidos[0].quantidade} un)
+                                        </span>
+                                      ) : item.lote ? (
+                                        <span className="gestao-lote-pill">
+                                          🏷️ {item.lote}
+                                        </span>
+                                      ) : (
+                                        <span className="gestao-lote-pill sem-lote">
+                                          ⚠️ Sem Lote
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td>
+                                      {item.lotesConferidos && item.lotesConferidos.length > 1 ? (
+                                        <span style={{ fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {Array.from(new Set(item.lotesConferidos.map((l) => formatarDataSimples(l.validade)).filter((v) => v !== '—'))).join(', ') || '—'}
+                                        </span>
+                                      ) : item.lotesConferidos && item.lotesConferidos.length === 1 && item.lotesConferidos[0].validade ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(item.lotesConferidos[0].validade)}
+                                        </span>
+                                      ) : item.validade ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(item.validade)}
                                         </span>
                                       ) : (
                                         <span style={{ color: 'var(--slate-400)' }}>—</span>
                                       )}
                                     </td>
                                     <td>
-                                      {item.validade ? (
-                                        <span>{formatarDataSimples(item.validade)}</span>
-                                      ) : (
-                                        <span style={{ color: 'var(--slate-400)' }}>—</span>
-                                      )}
-                                    </td>
-                                    <td>
-                                      {item.fabricacao ? (
-                                        <span>{formatarDataSimples(item.fabricacao)}</span>
+                                      {item.lotesConferidos && item.lotesConferidos.length > 1 ? (
+                                        <span style={{ fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {Array.from(new Set(item.lotesConferidos.map((l) => formatarDataSimples(l.fabricacao)).filter((v) => v !== '—'))).join(', ') || '—'}
+                                        </span>
+                                      ) : item.lotesConferidos && item.lotesConferidos.length === 1 && item.lotesConferidos[0].fabricacao ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(item.lotesConferidos[0].fabricacao)}
+                                        </span>
+                                      ) : item.fabricacao ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(item.fabricacao)}
+                                        </span>
                                       ) : (
                                         <span style={{ color: 'var(--slate-400)' }}>—</span>
                                       )}
@@ -608,56 +638,44 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                 </div>
               )}
 
-              {/* Ações da Conferência */}
+              {/* Ações da Conferência - Hierarquia Minimalista 1 + N */}
               <div className="gestao-rec-card-acoes">
-                {/* 1. Solicitar Recontagem */}
                 <button
                   type="button"
-                  className="gestao-btn-acao gestao-btn-recontar"
-                  onClick={() => onSolicitarRecontagem(conf)}
-                >
-                  <span>🔁 Solicitar Recontagem</span>
-                </button>
-
-                {/* 2. Reiniciar Conferência */}
-                <button
-                  type="button"
-                  className="gestao-btn-acao gestao-btn-reiniciar"
-                  onClick={() => onReiniciar(conf)}
-                >
-                  <span>↺ Reiniciar</span>
-                </button>
-
-                {/* 3. Recuperar Contagem Anterior (se houver backup) */}
-                {conf.temBackupContagem && (
-                  <button
-                    type="button"
-                    className="gestao-btn-acao gestao-btn-recuperar"
-                    onClick={() => onRecuperarContagem(conf)}
-                  >
-                    <span>
-                      💾 Recuperar Contagem ({conf.backupContagem?.totalBipagensAnuladas})
-                    </span>
-                  </button>
-                )}
-
-                {/* 4. Ver / Ocultar Itens */}
-                <button
-                  type="button"
-                  className="gestao-btn-acao gestao-btn-csv"
+                  className={`gestao-btn-clean-toggle ${isExpandido ? 'ativo' : ''}`}
                   onClick={() => toggleDetalhesConferencia(conf.id, conf.nunotas)}
                 >
-                  <span>{isExpandido ? '▲ Ocultar Itens' : '🔍 Ver Bipagens'}</span>
+                  <span>{isExpandido ? '▲ Ocultar Itens' : `🔍 Ver Itens (${conf.totalItens})`}</span>
                 </button>
 
-                {/* 5. Abrir no Coletor */}
-                <button
-                  type="button"
-                  className="gestao-btn-acao gestao-btn-coletor"
-                  onClick={() => onAbrirColetor(conf)}
-                >
-                  <span>📱 Abrir no Coletor</span>
-                </button>
+                <div className="gestao-acoes-grupo-secundario">
+                  <button
+                    type="button"
+                    className="gestao-btn-clean-secundario"
+                    onClick={() => onSolicitarRecontagem(conf)}
+                    title="Solicitar que outro conferente realize recontagem (Nível 2)"
+                  >
+                    <span>🔁 Recontar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="gestao-btn-clean-secundario"
+                    onClick={() => onAbrirColetor(conf)}
+                    title="Abrir tela de contagem no coletor"
+                  >
+                    <span>📱 Coletor</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="gestao-btn-clean-secundario danger"
+                    onClick={() => onReiniciar(conf)}
+                    title="Reiniciar conferência (guarda backup automático das bipagens)"
+                  >
+                    <span>↺ Reiniciar</span>
+                  </button>
+                </div>
               </div>
             </div>
           );

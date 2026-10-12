@@ -36,6 +36,15 @@ interface ItemEntradaConferidoVisivel {
   lote?: string;
   validade?: string;
   fabricacao?: string;
+  lotesDetalhes: Array<{
+    lote: string;
+    validade?: string;
+    fabricacao?: string;
+    quantidade: number;
+    ultimoHorario?: string;
+    bipagemRecente?: BipagemEntrada;
+    bipagemIds: string[];
+  }>;
   ultimoHorario?: string;
   ultimoBip?: BipagemEntrada;
 }
@@ -67,6 +76,13 @@ export function ConferenciaEntradaPage() {
 
   // Navegação de Abas
   const [abaAtiva, setAbaAtiva] = useState<'pendentes' | 'conferidos'>('pendentes');
+  const [lotesExpandidos, setLotesExpandidos] = useState<Record<string, boolean>>({});
+  const [loteParaEstornar, setLoteParaEstornar] = useState<{
+    descrprod: string;
+    lote: string;
+    bipagemIds: string[];
+    quantidade: number;
+  } | null>(null);
 
   // Modais
   const [modalOcrAberto, setModalOcrAberto] = useState(false);
@@ -439,6 +455,41 @@ export function ConferenciaEntradaPage() {
     }
   };
 
+  // Estorno do Lote Específico Completo
+  const handleConfirmarEstornoLoteCompleto = async () => {
+    if (!loteParaEstornar || !sessao) return;
+    setEstornando(true);
+    setErro(null);
+
+    try {
+      // Anula todas as bipagens pertencentes a este lote
+      for (const id of loteParaEstornar.bipagemIds) {
+        await recebimentoService.anularBipagem(id);
+      }
+
+      tocarAlertaSucesso();
+      setSucesso(`Lote ${loteParaEstornar.lote} (${loteParaEstornar.quantidade} un) estornado com sucesso.`);
+
+      // Atualiza estado de bipagens
+      const idsAnulados = new Set(loteParaEstornar.bipagemIds);
+      setBipagens((prev) =>
+        prev.map((b) => (idsAnulados.has(b.id) ? { ...b, anulado: true } : b))
+      );
+
+      // Recarrega itens atualizados da conferência para garantir sincronia
+      const respAtualizada = await recebimentoService.obterItensConferencia(sessao.id);
+      setItens(respAtualizada.itens);
+      setBipagens(respAtualizada.bipagens);
+
+      setLoteParaEstornar(null);
+    } catch (err: any) {
+      tocarAlertaErro();
+      setErro(err.response?.data?.error || err.message || 'Erro ao anular lote.');
+    } finally {
+      setEstornando(false);
+    }
+  };
+
   // Finalizar nível
   const handleFinalizarNivel = async () => {
     if (!sessao) return;
@@ -524,22 +575,58 @@ export function ConferenciaEntradaPage() {
         const esperado = item.qtdneg !== null ? item.qtdneg : null;
         const completo = esperado !== null ? conferido >= esperado : conferido > 0;
 
-        const ultimoBip =
-          bipagensValidas.find(
-            (b) =>
-              b.nunota === item.nunota &&
-              b.sequencia === item.sequencia &&
-              b.codprod === item.codprod
-          ) || bipagensValidas.find((b) => b.codprod === item.codprod);
+        // Agrupar bipagens deste item por Lote + Validade + Fabricação
+        const bipsDesteItem = bipagensValidas.filter(
+          (b) =>
+            b.codprod === item.codprod &&
+            (b.nunota === item.nunota ? b.sequencia === item.sequencia : true)
+        );
+
+        const mapaLotesItem: Record<
+          string,
+          {
+            lote: string;
+            validade?: string;
+            fabricacao?: string;
+            quantidade: number;
+            ultimoHorario?: string;
+            bipagemRecente?: BipagemEntrada;
+            bipagemIds: string[];
+          }
+        > = {};
+
+        for (const b of bipsDesteItem) {
+          const lNome = (b.lote && b.lote.trim()) ? b.lote.trim() : 'Sem lote';
+          const subChave = `${lNome.toUpperCase()}|${b.validade || ''}|${b.fabricacao || ''}`;
+          if (!mapaLotesItem[subChave]) {
+            mapaLotesItem[subChave] = {
+              lote: lNome,
+              validade: b.validade?.trim() || undefined,
+              fabricacao: b.fabricacao?.trim() || undefined,
+              quantidade: 0,
+              ultimoHorario: b.timestamp,
+              bipagemRecente: b,
+              bipagemIds: [],
+            };
+          }
+          mapaLotesItem[subChave].quantidade += b.qtdConferida || 0;
+          mapaLotesItem[subChave].bipagemIds.push(b.id);
+          mapaLotesItem[subChave].ultimoHorario = b.timestamp;
+        }
+
+        const lotesDetalhes = Object.values(mapaLotesItem);
+
+        const ultimoBip = bipsDesteItem[0];
 
         return {
           item,
           conferido,
           esperado,
           completo,
-          lote: ultimoBip?.lote,
-          validade: ultimoBip?.validade,
-          fabricacao: ultimoBip?.fabricacao,
+          lote: lotesDetalhes.length === 1 ? lotesDetalhes[0].lote : ultimoBip?.lote,
+          validade: lotesDetalhes.length === 1 ? lotesDetalhes[0].validade : ultimoBip?.validade,
+          fabricacao: lotesDetalhes.length === 1 ? lotesDetalhes[0].fabricacao : ultimoBip?.fabricacao,
+          lotesDetalhes,
           ultimoHorario: ultimoBip?.timestamp,
           ultimoBip,
         };
@@ -1009,10 +1096,115 @@ export function ConferenciaEntradaPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="num-cell">
-                            {confItem.lote ? (
+                          <td className="num-cell" style={{ verticalAlign: 'top' }}>
+                            {confItem.lotesDetalhes.length > 1 ? (
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const chave = `${confItem.item.nunota}-${confItem.item.sequencia}`;
+                                    setLotesExpandidos((prev) => ({ ...prev, [chave]: !prev[chave] }));
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    background: '#eff6ff',
+                                    border: '1px solid #bfdbfe',
+                                    color: '#1d4ed8',
+                                    borderRadius: '6px',
+                                    padding: '3px 8px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <span>🏷️ {confItem.lotesDetalhes.length} Lotes</span>
+                                  <span>{lotesExpandidos[`${confItem.item.nunota}-${confItem.item.sequencia}`] ? '▲' : '▼'}</span>
+                                </button>
+
+                                {lotesExpandidos[`${confItem.item.nunota}-${confItem.item.sequencia}`] && (
+                                  <div
+                                    style={{
+                                      marginTop: '8px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '4px',
+                                      textAlign: 'left',
+                                      background: 'var(--slate-50)',
+                                      padding: '6px',
+                                      borderRadius: '6px',
+                                      border: '1px solid var(--slate-200)',
+                                    }}
+                                  >
+                                    {confItem.lotesDetalhes.map((ld, lIdx) => (
+                                      <div
+                                        key={lIdx}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          gap: '8px',
+                                          padding: '4px 6px',
+                                          background: '#ffffff',
+                                          borderRadius: '4px',
+                                          border: '1px solid var(--slate-200)',
+                                          fontSize: '0.74rem',
+                                        }}
+                                      >
+                                        <div>
+                                          <strong>{ld.lote}</strong>
+                                          <span style={{ color: 'var(--emerald-600)', fontWeight: 700, marginLeft: '6px' }}>
+                                            ({ld.quantidade} un)
+                                          </span>
+                                          {ld.validade && (
+                                            <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.70rem' }}>
+                                              Val: {ld.validade} {ld.fabricacao ? `• Fab: ${ld.fabricacao}` : ''}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          title="Estornar apenas as contagens deste lote"
+                                          onClick={() =>
+                                            setLoteParaEstornar({
+                                              descrprod: confItem.item.descrprod,
+                                              lote: ld.lote,
+                                              bipagemIds: ld.bipagemIds,
+                                              quantidade: ld.quantidade,
+                                            })
+                                          }
+                                          style={{
+                                            background: '#fef2f2',
+                                            border: '1px solid #fecaca',
+                                            color: '#dc2626',
+                                            borderRadius: '4px',
+                                            padding: '2px 5px',
+                                            fontSize: '0.68rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          ✕ Lote
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : confItem.lotesDetalhes.length === 1 ? (
                               <span>
-                                {confItem.lote}
+                                <strong>{confItem.lotesDetalhes[0].lote}</strong>
+                                {confItem.lotesDetalhes[0].validade ? (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', display: 'block' }}>
+                                    Val: {confItem.lotesDetalhes[0].validade}
+                                    {confItem.lotesDetalhes[0].fabricacao ? ` • Fab: ${confItem.lotesDetalhes[0].fabricacao}` : ''}
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : confItem.lote ? (
+                              <span>
+                                <strong>{confItem.lote}</strong>
                                 {confItem.validade ? (
                                   <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', display: 'block' }}>
                                     Val: {confItem.validade}
@@ -1052,21 +1244,43 @@ export function ConferenciaEntradaPage() {
                             {formatarDataHora(confItem.ultimoHorario)}
                           </td>
                           <td>
-                            <button
-                              type="button"
-                              className="btn-estornar-item"
-                              title="Estornar a última conferência deste item"
-                              disabled={!confItem.ultimoBip}
-                              onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                <line x1="10" y1="11" x2="10" y2="17"></line>
-                                <line x1="14" y1="11" x2="14" y2="17"></line>
-                              </svg>
-                              <span>Estornar</span>
-                            </button>
+                            <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '4px' }}>
+                              <button
+                                type="button"
+                                className="btn-estornar-item"
+                                title="Estornar a última bipagem registrada deste item"
+                                disabled={!confItem.ultimoBip}
+                                onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                                </svg>
+                                <span>Último Bip</span>
+                              </button>
+
+                              {confItem.lotesDetalhes.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="btn-estornar-item"
+                                  style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}
+                                  title="Estornar toda a contagem deste item neste nível"
+                                  onClick={() => {
+                                    const todosBipIds = confItem.lotesDetalhes.flatMap((l) => l.bipagemIds);
+                                    setLoteParaEstornar({
+                                      descrprod: confItem.item.descrprod,
+                                      lote: 'TODOS OS LOTES / TOTAL',
+                                      bipagemIds: todosBipIds,
+                                      quantidade: confItem.conferido,
+                                    });
+                                  }}
+                                >
+                                  <span>✕ Zerar Item</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1118,14 +1332,52 @@ export function ConferenciaEntradaPage() {
                       </div>
 
                       <div className="item-card-metrics">
-                        <div className="item-card-metric-col">
-                          <span className="item-metric-label">Lote</span>
-                          <span className="item-metric-val">{confItem.lote || '—'}</span>
+                        <div className="item-card-metric-col" style={{ flex: 1.5 }}>
+                          <span className="item-metric-label">Lote(s)</span>
+                          {confItem.lotesDetalhes.length > 1 ? (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const chave = `mob-${confItem.item.nunota}-${confItem.item.sequencia}`;
+                                  setLotesExpandidos((prev) => ({ ...prev, [chave]: !prev[chave] }));
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: '#eff6ff',
+                                  border: '1px solid #bfdbfe',
+                                  color: '#1d4ed8',
+                                  borderRadius: '4px',
+                                  padding: '2px 6px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                <span>🏷️ {confItem.lotesDetalhes.length} Lotes</span>
+                                <span>{lotesExpandidos[`mob-${confItem.item.nunota}-${confItem.item.sequencia}`] ? '▲' : '▼'}</span>
+                              </button>
+                            </div>
+                          ) : confItem.lotesDetalhes.length === 1 ? (
+                            <span className="item-metric-val">
+                              {confItem.lotesDetalhes[0].lote}
+                              {confItem.lotesDetalhes[0].validade ? (
+                                <small style={{ display: 'block', fontSize: '0.68rem', color: 'var(--slate-500)' }}>
+                                  Val: {confItem.lotesDetalhes[0].validade}
+                                </small>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <span className="item-metric-val">{confItem.lote || '—'}</span>
+                          )}
                         </div>
+
                         <div className="item-card-metric-col">
                           <span className="item-metric-label">Unidade</span>
                           <span className="item-metric-val">{confItem.item.codvol || 'UN'}</span>
                         </div>
+
                         <div className="item-card-metric-col">
                           <span className="item-metric-label">Qtd Conferida</span>
                           <span
@@ -1143,11 +1395,12 @@ export function ConferenciaEntradaPage() {
                             )}
                           </span>
                         </div>
+
                         <div className="item-card-actions">
                           <button
                             type="button"
                             className="btn-estornar-item btn-estornar-card"
-                            title="Estornar a última conferência deste item"
+                            title="Estornar a última bipagem deste item"
                             disabled={!confItem.ultimoBip}
                             onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
                           >
@@ -1157,10 +1410,105 @@ export function ConferenciaEntradaPage() {
                               <line x1="10" y1="11" x2="10" y2="17"></line>
                               <line x1="14" y1="11" x2="14" y2="17"></line>
                             </svg>
-                            <span>Estornar</span>
+                            <span>Último</span>
                           </button>
                         </div>
                       </div>
+
+                      {/* Dropdown Mobile de Lotes */}
+                      {confItem.lotesDetalhes.length > 1 && lotesExpandidos[`mob-${confItem.item.nunota}-${confItem.item.sequencia}`] && (
+                        <div
+                          style={{
+                            marginTop: '8px',
+                            background: 'var(--slate-50)',
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--slate-200)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-700)' }}>
+                              Detalhamento de Lotes Conferidos:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const todosBipIds = confItem.lotesDetalhes.flatMap((l) => l.bipagemIds);
+                                setLoteParaEstornar({
+                                  descrprod: confItem.item.descrprod,
+                                  lote: 'TODOS OS LOTES / TOTAL',
+                                  bipagemIds: todosBipIds,
+                                  quantidade: confItem.conferido,
+                                });
+                              }}
+                              style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                color: '#dc2626',
+                                borderRadius: '4px',
+                                padding: '2px 6px',
+                                fontSize: '0.70rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              ✕ Zerar Todos os Lotes
+                            </button>
+                          </div>
+
+                          {confItem.lotesDetalhes.map((ld, lIdx) => (
+                            <div
+                              key={lIdx}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: '#ffffff',
+                                padding: '6px 8px',
+                                borderRadius: '4px',
+                                border: '1px solid var(--slate-200)',
+                                fontSize: '0.75rem',
+                              }}
+                            >
+                              <div>
+                                <strong>🏷️ {ld.lote}</strong>
+                                <span style={{ color: 'var(--emerald-600)', fontWeight: 800, marginLeft: '6px' }}>
+                                  ({ld.quantidade} un)
+                                </span>
+                                {ld.validade && (
+                                  <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.70rem' }}>
+                                    Val: {ld.validade} {ld.fabricacao ? `• Fab: ${ld.fabricacao}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setLoteParaEstornar({
+                                    descrprod: confItem.item.descrprod,
+                                    lote: ld.lote,
+                                    bipagemIds: ld.bipagemIds,
+                                    quantidade: ld.quantidade,
+                                  })
+                                }
+                                style={{
+                                  background: '#fef2f2',
+                                  border: '1px solid #fecaca',
+                                  color: '#dc2626',
+                                  borderRadius: '4px',
+                                  padding: '3px 6px',
+                                  fontSize: '0.70rem',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                ✕ Estornar Lote
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1479,12 +1827,12 @@ export function ConferenciaEntradaPage() {
         </div>
       )}
 
-      {/* Modal Confirmar Estorno */}
+      {/* Modal Confirmar Estorno de Bipagem Única */}
       {bipagemParaEstornar && (
         <div className="modal-overlay" onClick={() => !estornando && setBipagemParaEstornar(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
-              <h2 className="modal-title" style={{ color: 'var(--rose-600)' }}>Estornar Bipagem</h2>
+              <h2 className="modal-title" style={{ color: 'var(--rose-600)' }}>Estornar Último Bip</h2>
               <button className="modal-close" onClick={() => setBipagemParaEstornar(null)} disabled={estornando}>×</button>
             </div>
             <p className="modal-subtitle">Deseja realmente anular esta bipagem?</p>
@@ -1501,6 +1849,7 @@ export function ConferenciaEntradaPage() {
             >
               <div><strong>Código:</strong> {bipagemParaEstornar.codbarra} (Cód: {bipagemParaEstornar.codprod})</div>
               <div><strong>Quantidade a Estornar:</strong> -{bipagemParaEstornar.qtdConferida}</div>
+              <div><strong>Lote:</strong> {bipagemParaEstornar.lote || 'Sem lote'}</div>
               <div><strong>Nível:</strong> N{bipagemParaEstornar.nivel}</div>
             </div>
             <div className="modal-actions">
@@ -1508,6 +1857,48 @@ export function ConferenciaEntradaPage() {
                 Cancelar
               </Botao>
               <Botao variant="danger" size="md" onClick={handleConfirmarEstorno} loading={estornando}>
+                Confirmar Estorno
+              </Botao>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar Estorno de Lote Específico / Zerar Item */}
+      {loteParaEstornar && (
+        <div className="modal-overlay" onClick={() => !estornando && setLoteParaEstornar(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h2 className="modal-title" style={{ color: 'var(--rose-600)' }}>
+                {loteParaEstornar.lote.startsWith('TODOS') ? 'Zerar Contagem do Item' : 'Estornar Lote Específico'}
+              </h2>
+              <button className="modal-close" onClick={() => setLoteParaEstornar(null)} disabled={estornando}>×</button>
+            </div>
+            <p className="modal-subtitle">
+              {loteParaEstornar.lote.startsWith('TODOS')
+                ? 'Todas as bipagens e lotes deste produto registradas neste nível serão anuladas.'
+                : 'Todas as bipagens registradas especificamente para este lote serão anuladas.'}
+            </p>
+            <div
+              style={{
+                background: 'var(--slate-50)',
+                border: '1px solid var(--slate-200)',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                margin: '16px 0',
+                fontSize: '0.85rem',
+                lineHeight: '1.6',
+              }}
+            >
+              <div><strong>Produto:</strong> {loteParaEstornar.descrprod}</div>
+              <div><strong>Lote:</strong> {loteParaEstornar.lote}</div>
+              <div><strong>Quantidade a Estornar:</strong> -{loteParaEstornar.quantidade} un ({loteParaEstornar.bipagemIds.length} bipagens)</div>
+            </div>
+            <div className="modal-actions">
+              <Botao variant="secondary" size="md" onClick={() => setLoteParaEstornar(null)} disabled={estornando}>
+                Cancelar
+              </Botao>
+              <Botao variant="danger" size="md" onClick={handleConfirmarEstornoLoteCompleto} loading={estornando}>
                 Confirmar Estorno
               </Botao>
             </div>

@@ -39,6 +39,16 @@ export interface CodigoAlternativoEntrada {
   quantidade: number;
 }
 
+export interface FracaoLoteItem {
+  lote: string;
+  validade?: string;
+  fabricacao?: string;
+  quantidade: number;
+  bipagemIds?: string[];
+  ultimoHorario?: string;
+  conferente?: string;
+}
+
 export interface ItemNotaEntrada {
   nunota: number;
   numnota?: number;
@@ -58,6 +68,7 @@ export interface ItemNotaEntrada {
   lote?: string;
   validade?: string;
   fabricacao?: string;
+  lotesConferidos?: FracaoLoteItem[];
   conferenteN1?: string;
   conferenteN2?: string;
   conferenteN3?: string;
