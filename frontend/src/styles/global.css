@@ -878,6 +878,127 @@ body {
 }
 
 /* ═══════════════════════════════════════
+   SUB-LINHA GAVETA DE LOTES (ACCORDION TABLE)
+   ═══════════════════════════════════════ */
+.subrow-lotes-drawer {
+  background: var(--slate-50) !important;
+}
+
+.subrow-lotes-drawer td {
+  padding: 0 !important;
+  border-bottom: 2px solid var(--slate-200) !important;
+}
+
+.drawer-lotes-wrapper {
+  padding: 10px 18px 14px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: drawerSlideIn 0.18s ease;
+}
+
+@keyframes drawerSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.drawer-lotes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--slate-600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mini-tabela-lotes {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.mini-tabela-lotes th {
+  background: var(--slate-100);
+  color: var(--slate-600);
+  font-size: 0.70rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--slate-200);
+  text-align: left;
+}
+
+.mini-tabela-lotes td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--slate-100);
+  font-size: 0.80rem;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.mini-tabela-lotes tr:last-child td {
+  border-bottom: none;
+}
+
+.chip-dropdown-lote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 3px;
+}
+
+.chip-dropdown-lote:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.chip-dropdown-lote.ativo {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.btn-estorno-lote-clean {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #e11d48;
+  font-size: 0.70rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-estorno-lote-clean:hover {
+  background: #fee2e2;
+  border-color: #fda4af;
+  color: #be123c;
+}
+
+/* ═══════════════════════════════════════
    TABELA VS CARDS RESPONSIVOS (MOBILE / TABLET)
    ═══════════════════════════════════════ */
 .itens-tabela-wrapper {

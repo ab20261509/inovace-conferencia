@@ -1,5 +1,29 @@
 # Registro de Progresso e Entregas - Conferência de Entrada & Gestão de Recebimento
 
+## Atualização: Tabela Padronizada de Conferência e Sub-Linha Gaveta com Lotes e Datas em Colunas Separadas
+
+### 1. Padronização das Colunas da Tabela de Itens Conferidos
+- **Frontend** (`ConferenciaEntradaPage.tsx`, `global.css`):
+  - **Estrutura de Colunas Unificada:**
+    - `PRODUTO`: Imagem, descrição do item, identificador de NF e código/referência.
+    - `VOLUME`: Unidade de medida (`codvol`, ex: `UN`, `FR`, `CX`).
+    - `ESPERADO`: Quantidade faturada na nota fiscal (`qtdneg` ou indicação de contagem cega).
+    - `CONFERIDO N{nível}`: Quantidade total física consolidada com destaque numérico verde e indicador de sobra se houver.
+    - `STATUS`: Badges padronizados (`✓ Conferido`, `Sobra (+X)` ou `Parcial`) integrados com ações rápidas de estorno (`↺ Bip`, `✕ Zerar`).
+
+### 2. Sub-Linha Gaveta (Accordion Drawer) para Múltiplos Lotes Bipados
+- **Frontend** (`ConferenciaEntradaPage.tsx`, `global.css`):
+  - **Fim da Deformação da Linha:** A linha principal permanece com altura fixa e padrão (~60px), sem esticar verticalmente.
+  - **Chip Expansível de Lotes:** Exibido abaixo da quantidade conferida (`🏷️ N Lotes ▲/▼`).
+  - **Colunas Separadas no Dropdown:** Ao abrir a gaveta (`subrow-lotes-drawer`), uma mini-tabela exibe cada informação em sua coluna própria:
+    - 🏷️ **Lote:** Tag estilizada em fonte mono.
+    - 📦 **Quantidade:** Quantidade conferida daquele lote específico com a unidade.
+    - 📅 **Data de Validade:** Data formatada (`DD/MM/AAAA`).
+    - 🏭 **Data de Fabricação:** Data formatada (`DD/MM/AAAA`).
+    - ✕ **Ação:** Botão de estorno cirúrgico por lote individual, permitindo anular apenas bips de um lote específico sem perder os outros.
+
+---
+
 ## Atualização: Cockpit de KPIs, Envio em Lote ao ERP e Redesign Minimalista da Gestão de Recebimento
 
 ### 1. Cockpit Executivo de KPIs no Topo da Tela
@@ -91,7 +115,35 @@
     - **📥 Baixar Planilha CSV (Excel)**: Gera arquivo `.csv` codificado com UTF-8 BOM (`\uFEFF`) para abertura nativa e sem distorção de caracteres no Excel em português.
     - **🖨️ Imprimir / Salvar PDF**: Estilos específicos via `@media print` que isolam o comprovante para emissão limpa via diálogo do navegador.
 
-### 4. Build e Git
-- **Frontend**: `tsc -b && vite build` aprovado sem erros.
-- **Backend**: `tsc` aprovado sem erros.
-- **Git**: Commit `a2dab56` enviado com sucesso para a branch `master` no repositório remoto.
+### 4. Visualização de Lotes Linha a Linha na Gestão de Recebimento (Modelo 1 - Gaveta Integrada)
+- **Eliminação de Textos Condensados**:
+  - Eliminado o antigo formato condensado onde múltiplos lotes eram espremidos em uma única célula separados por vírgula (`LOTE1 (60), LOTE2 (40)`).
+- **Implementação em Todas as Abas da Gestão de Recebimento**:
+  - `AbaConferenciasView.tsx`: Quando um item possui múltiplos lotes conferidos, a linha principal exibe o chip interativo `🏷️ N Lotes (Expandir/Recolher)`. Ao clicar, uma sub-linha gaveta (`.subrow-lotes-drawer`) abre logo abaixo exibindo uma tabela dedicada onde cada lote possui sua linha individual com: `Lote`, `Quantidade Conferida`, `Data de Validade`, `Data de Fabricação` e `Conferente / Horário`.
+  - `AbaEnvioSankhyaView.tsx`: Aplicado o mesmo padrão para as frações de lote destinadas à escrituração no Sankhya, integrando a origem (`📱 Coletor` vs `📊 Excel`) e botão para gerenciar/dividir frações diretamente por lote.
+  - `AbaDivergenciasView.tsx`: Aplicado o suporte a gaveta expansível para itens divergentes com múltiplos lotes registrados.
+- **Responsividade Mobile**:
+  - Em telas menores (cards), o resumo compacto de cada produto permite expandir a lista de lotes, exibindo cada fração como um mini-bloco com lote, quantidade e datas formatadas.
+- **Estilização**:
+  - Classes `.subrow-lotes-drawer`, `.drawer-lotes-wrapper`, `.mini-tabela-lotes` e `.chip-dropdown-lote` adicionadas em `GestaoRecebimento.css`.
+
+### 5. Unificação Minimalista dos Status Operacionais e Botões (Envio ao Sankhya)
+- **Preservação Integral dos 4 Pilares de Validação Operacional**:
+  - **1. Quantidades Físicas**: `✓ Quantidades Físicas OK` (100% conferidas vs faturadas) ou `⚠️ Aguardando Aprovação Gerencial`.
+  - **2. Lotes e Validades**: `✓ Lotes & Validades OK` ou `⚠️ X sem Lote`.
+  - **3. Locais de Estoque TGFITE**: `✓ Locais TGFITE OK` ou `⚠️ X sem Local TGFITE` (`TGFITE.CODLOCALORIG`).
+  - **4. Status ERP Sankhya**: `✓ Integrado no Sankhya` (lilás) ou `🟢 Pronto p/ Envio` / `Aguardando Aprovação`.
+- **Faixa de Status Minimalista (Inline Status Strip)**:
+  - Substituição da antiga grade volumosa de 3 colunas e dos badges duplicados no cabeçalho por uma **Linha Única de Micro-Chips** (`.gestao-rec-status-strip` e `.gestao-micro-chip-status`).
+  - Eliminação de alertas contraditórios: notas já integradas (`jaEnviado === true`) agora apresentam todos os micro-chips validados em estado positivo sem falsos alarmes de "⚠️ 4 sem lote".
+- **Alinhamento e Hierarquia dos Botões**:
+  - `Ver Itens e Lotes (N) ▼`: Botão limpo com contador e seta indicativa de estado.
+  - `📥 Importar Excel`: Botão discreto e secundário, exibido apenas quando a nota ainda não foi integrada.
+  - `🚀 Aprovar & Enviar ao Sankhya`: Ação primária posicionada na extremidade direita do card.
+  - Eliminação de repetições desnecessárias no rodapé para notas já sincronizadas.
+
+### 6. Build e Verificação
+- **Frontend**: `tsc -b && vite build` aprovado com sucesso (exit code 0).
+- **Git**: Alterações mantidas no working tree local (sem commits nem pushes).
+
+

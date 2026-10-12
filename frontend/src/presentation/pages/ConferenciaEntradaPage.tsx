@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, FormEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, FormEvent, Fragment } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { RecebimentoApiService } from '../../infrastructure/api/RecebimentoApiService';
@@ -21,6 +21,21 @@ function formatarDataHora(val?: string | null): string {
     const d = new Date(val);
     if (!isNaN(d.getTime())) {
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+  } catch {
+    // fallback
+  }
+  return val;
+}
+
+function formatarDataApenas(val?: string | null): string {
+  if (!val) return '—';
+  try {
+    if (val.includes('-')) {
+      const partes = val.split('T')[0].split('-');
+      if (partes.length === 3) {
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
     }
   } catch {
     // fallback
@@ -1048,242 +1063,254 @@ export function ConferenciaEntradaPage() {
             ) : (
               <>
                 {/* Visualização Desktop: Tabela */}
+                {/* Visualização Desktop: Tabela Padronizada com Colunas: Produto | Volume | Esperado | Conferido N{nivel} | Status */}
                 <div className="itens-tabela-wrapper">
                   <table className="tabela-itens">
                     <thead>
                       <tr>
                         <th>Produto</th>
-                        <th>Lote</th>
-                        <th>Unidade</th>
-                        <th>Qtd Conferida</th>
-                        <th>Horário</th>
-                        <th>Ações</th>
+                        <th>Volume</th>
+                        <th>Esperado</th>
+                        <th>Conferido N{nivelAtual}</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {itensConferidosVisiveis.map((confItem) => (
-                        <tr key={`${confItem.item.nunota}-${confItem.item.sequencia}`} className="row-ok">
-                          <td>
-                            <div className="produto-cell">
-                              <img
-                                src={`/api/crud/produto/${confItem.item.codprod}/imagem`}
-                                alt={confItem.item.descrprod}
-                                className="produto-img"
-                                onClick={() => setImagemAmpliada(`/api/crud/produto/${confItem.item.codprod}/imagem`)}
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
-                              <div>
-                                <span className="produto-desc">{confItem.item.descrprod}</span>
-                                <span className="produto-barra">
-                                  {multiplasNotas && (
-                                    <span
-                                      style={{
-                                        display: 'inline-block',
-                                        background: '#e0f2fe',
-                                        color: '#0369a1',
-                                        fontWeight: 700,
-                                        fontSize: '0.70rem',
-                                        padding: '1px 5px',
-                                        borderRadius: '4px',
-                                        marginRight: '6px',
-                                      }}
-                                    >
-                                      NF {confItem.item.numnota || confItem.item.nunota}
-                                    </span>
-                                  )}
-                                  Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="num-cell" style={{ verticalAlign: 'top' }}>
-                            {confItem.lotesDetalhes.length > 1 ? (
-                              <div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const chave = `${confItem.item.nunota}-${confItem.item.sequencia}`;
-                                    setLotesExpandidos((prev) => ({ ...prev, [chave]: !prev[chave] }));
-                                  }}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    background: '#eff6ff',
-                                    border: '1px solid #bfdbfe',
-                                    color: '#1d4ed8',
-                                    borderRadius: '6px',
-                                    padding: '3px 8px',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  <span>🏷️ {confItem.lotesDetalhes.length} Lotes</span>
-                                  <span>{lotesExpandidos[`${confItem.item.nunota}-${confItem.item.sequencia}`] ? '▲' : '▼'}</span>
-                                </button>
+                      {itensConferidosVisiveis.map((confItem) => {
+                        const chave = `${confItem.item.nunota}-${confItem.item.sequencia}`;
+                        const isExpandido = !!lotesExpandidos[chave];
+                        const esperado = confItem.item.qtdneg !== null ? confItem.item.qtdneg : null;
+                        const conferido = confItem.conferido;
+                        const temSobra = esperado !== null && conferido > esperado;
+                        const temFalta = esperado !== null && conferido < esperado;
+                        const temLotes = confItem.lotesDetalhes && confItem.lotesDetalhes.length > 0;
 
-                                {lotesExpandidos[`${confItem.item.nunota}-${confItem.item.sequencia}`] && (
-                                  <div
-                                    style={{
-                                      marginTop: '8px',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      gap: '4px',
-                                      textAlign: 'left',
-                                      background: 'var(--slate-50)',
-                                      padding: '6px',
-                                      borderRadius: '6px',
-                                      border: '1px solid var(--slate-200)',
-                                    }}
-                                  >
-                                    {confItem.lotesDetalhes.map((ld, lIdx) => (
-                                      <div
-                                        key={lIdx}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'space-between',
-                                          gap: '8px',
-                                          padding: '4px 6px',
-                                          background: '#ffffff',
-                                          borderRadius: '4px',
-                                          border: '1px solid var(--slate-200)',
-                                          fontSize: '0.74rem',
-                                        }}
-                                      >
-                                        <div>
-                                          <strong>{ld.lote}</strong>
-                                          <span style={{ color: 'var(--emerald-600)', fontWeight: 700, marginLeft: '6px' }}>
-                                            ({ld.quantidade} un)
-                                          </span>
-                                          {ld.validade && (
-                                            <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.70rem' }}>
-                                              Val: {ld.validade} {ld.fabricacao ? `• Fab: ${ld.fabricacao}` : ''}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <button
-                                          type="button"
-                                          title="Estornar apenas as contagens deste lote"
-                                          onClick={() =>
-                                            setLoteParaEstornar({
-                                              descrprod: confItem.item.descrprod,
-                                              lote: ld.lote,
-                                              bipagemIds: ld.bipagemIds,
-                                              quantidade: ld.quantidade,
-                                            })
-                                          }
+                        return (
+                          <Fragment key={`frag-conf-${confItem.item.nunota}-${confItem.item.sequencia}`}>
+                            <tr className="row-ok">
+                              <td>
+                                <div className="produto-cell">
+                                  <img
+                                    src={`/api/crud/produto/${confItem.item.codprod}/imagem`}
+                                    alt={confItem.item.descrprod}
+                                    className="produto-img"
+                                    onClick={() => setImagemAmpliada(`/api/crud/produto/${confItem.item.codprod}/imagem`)}
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                  <div>
+                                    <span className="produto-desc">{confItem.item.descrprod}</span>
+                                    <span className="produto-barra">
+                                      {multiplasNotas && (
+                                        <span
                                           style={{
-                                            background: '#fef2f2',
-                                            border: '1px solid #fecaca',
-                                            color: '#dc2626',
+                                            display: 'inline-block',
+                                            background: '#e0f2fe',
+                                            color: '#0369a1',
+                                            fontWeight: 700,
+                                            fontSize: '0.70rem',
+                                            padding: '1px 5px',
                                             borderRadius: '4px',
-                                            padding: '2px 5px',
-                                            fontSize: '0.68rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
+                                            marginRight: '6px',
                                           }}
                                         >
-                                          ✕ Lote
-                                        </button>
-                                      </div>
-                                    ))}
+                                          NF {confItem.item.numnota || confItem.item.nunota}
+                                        </span>
+                                      )}
+                                      Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
+                                    </span>
                                   </div>
-                                )}
-                              </div>
-                            ) : confItem.lotesDetalhes.length === 1 ? (
-                              <span>
-                                <strong>{confItem.lotesDetalhes[0].lote}</strong>
-                                {confItem.lotesDetalhes[0].validade ? (
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', display: 'block' }}>
-                                    Val: {confItem.lotesDetalhes[0].validade}
-                                    {confItem.lotesDetalhes[0].fabricacao ? ` • Fab: ${confItem.lotesDetalhes[0].fabricacao}` : ''}
-                                  </span>
-                                ) : null}
-                              </span>
-                            ) : confItem.lote ? (
-                              <span>
-                                <strong>{confItem.lote}</strong>
-                                {confItem.validade ? (
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', display: 'block' }}>
-                                    Val: {confItem.validade}
-                                  </span>
-                                ) : null}
-                              </span>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td className="num-cell">{confItem.item.codvol || 'UN'}</td>
-                          <td
-                            className="num-cell"
-                            style={{
-                              color:
-                                confItem.item.qtdneg !== null && confItem.conferido > confItem.item.qtdneg
-                                  ? 'var(--rose-600)'
-                                  : 'var(--emerald-600)',
-                              fontWeight: 800,
-                            }}
-                          >
-                            {confItem.conferido}
-                            {confItem.item.qtdneg !== null && confItem.conferido > confItem.item.qtdneg && (
-                              <span
+                                </div>
+                              </td>
+
+                              <td className="num-cell">{confItem.item.codvol || 'UN'}</td>
+
+                              <td className="num-cell">{esperado !== null ? esperado : '— (Cega)'}</td>
+
+                              <td
+                                className="num-cell"
                                 style={{
-                                  display: 'block',
-                                  fontSize: '0.72rem',
-                                  color: 'var(--rose-600)',
-                                  fontWeight: 600,
+                                  color: temSobra ? 'var(--rose-600)' : 'var(--emerald-600)',
+                                  fontWeight: 800,
                                 }}
                               >
-                                Sobra (+{confItem.conferido - confItem.item.qtdneg})
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: '0.8rem', color: 'var(--slate-500)' }}>
-                            {formatarDataHora(confItem.ultimoHorario)}
-                          </td>
-                          <td>
-                            <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '4px' }}>
-                              <button
-                                type="button"
-                                className="btn-estornar-item"
-                                title="Estornar a última bipagem registrada deste item"
-                                disabled={!confItem.ultimoBip}
-                                onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6"></polyline>
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                  <line x1="10" y1="11" x2="10" y2="17"></line>
-                                  <line x1="14" y1="11" x2="14" y2="17"></line>
-                                </svg>
-                                <span>Último Bip</span>
-                              </button>
+                                <div>
+                                  <span style={{ fontSize: '1.05rem' }}>{conferido}</span>
+                                  {temSobra && (
+                                    <span
+                                      style={{
+                                        display: 'block',
+                                        fontSize: '0.70rem',
+                                        color: 'var(--rose-600)',
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      Sobra (+{conferido - esperado!})
+                                    </span>
+                                  )}
+                                  {temLotes && (
+                                    <div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setLotesExpandidos((prev) => ({ ...prev, [chave]: !prev[chave] }))
+                                        }
+                                        className={`chip-dropdown-lote ${isExpandido ? 'ativo' : ''}`}
+                                        title="Clique para ver ou ocultar os lotes, validades e fabricações"
+                                      >
+                                        <span>
+                                          🏷️ {confItem.lotesDetalhes.length}{' '}
+                                          {confItem.lotesDetalhes.length > 1 ? 'Lotes' : 'Lote'}
+                                        </span>
+                                        <span>{isExpandido ? '▲' : '▼'}</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
 
-                              {confItem.lotesDetalhes.length > 0 && (
-                                <button
-                                  type="button"
-                                  className="btn-estornar-item"
-                                  style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}
-                                  title="Estornar toda a contagem deste item neste nível"
-                                  onClick={() => {
-                                    const todosBipIds = confItem.lotesDetalhes.flatMap((l) => l.bipagemIds);
-                                    setLoteParaEstornar({
-                                      descrprod: confItem.item.descrprod,
-                                      lote: 'TODOS OS LOTES / TOTAL',
-                                      bipagemIds: todosBipIds,
-                                      quantidade: confItem.conferido,
-                                    });
-                                  }}
-                                >
-                                  <span>✕ Zerar Item</span>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                  {temSobra ? (
+                                    <span className="status-parcial" style={{ background: '#ffe4e6', color: '#be123c' }}>
+                                      Sobra (+{conferido - esperado!})
+                                    </span>
+                                  ) : temFalta ? (
+                                    <span className="status-parcial">
+                                      Parcial ({conferido}/{esperado})
+                                    </span>
+                                  ) : (
+                                    <span className="status-ok">✓ Conferido</span>
+                                  )}
+
+                                  <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                    <button
+                                      type="button"
+                                      className="btn-estornar-item"
+                                      style={{ padding: '3px 8px', fontSize: '0.72rem' }}
+                                      title="Estornar a última bipagem registrada deste item"
+                                      disabled={!confItem.ultimoBip}
+                                      onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
+                                    >
+                                      <span>↺ Bip</span>
+                                    </button>
+
+                                    {confItem.conferido > 0 && (
+                                      <button
+                                        type="button"
+                                        className="btn-estornar-item"
+                                        style={{
+                                          padding: '3px 8px',
+                                          fontSize: '0.72rem',
+                                          background: '#fff1f2',
+                                          borderColor: '#fecdd3',
+                                          color: '#dc2626',
+                                        }}
+                                        title="Estornar toda a contagem deste item neste nível"
+                                        onClick={() => {
+                                          const todosBipIds = confItem.lotesDetalhes.flatMap((l) => l.bipagemIds);
+                                          setLoteParaEstornar({
+                                            descrprod: confItem.item.descrprod,
+                                            lote: 'TODOS OS LOTES / TOTAL',
+                                            bipagemIds: todosBipIds,
+                                            quantidade: confItem.conferido,
+                                          });
+                                        }}
+                                      >
+                                        <span>✕ Zerar</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* Sub-linha Gaveta (Dropdown Accordion) com Colunas Separadas: Lote | Quantidade | Validade | Fabricação | Ações */}
+                            {isExpandido && temLotes && (
+                              <tr className="subrow-lotes-drawer">
+                                <td colSpan={5}>
+                                  <div className="drawer-lotes-wrapper">
+                                    <div className="drawer-lotes-header">
+                                      <span>
+                                        Detalhamento dos Lotes ({confItem.lotesDetalhes.length}{' '}
+                                        {confItem.lotesDetalhes.length > 1 ? 'Lotes' : 'Lote'} • Total:{' '}
+                                        {confItem.conferido} {confItem.item.codvol || 'UN'})
+                                      </span>
+                                      <span style={{ fontSize: '0.70rem', color: 'var(--slate-500)', textTransform: 'none' }}>
+                                        Última bipagem: {formatarDataHora(confItem.ultimoHorario)}
+                                      </span>
+                                    </div>
+
+                                    <table className="mini-tabela-lotes">
+                                      <thead>
+                                        <tr>
+                                          <th style={{ width: '25%' }}>Lote</th>
+                                          <th style={{ width: '20%' }}>Quantidade</th>
+                                          <th style={{ width: '25%' }}>Data de Validade</th>
+                                          <th style={{ width: '20%' }}>Data de Fabricação</th>
+                                          <th style={{ width: '10%', textAlign: 'right' }}>Ação</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {confItem.lotesDetalhes.map((ld, lIdx) => (
+                                          <tr key={lIdx}>
+                                            <td>
+                                              <span
+                                                style={{
+                                                  fontFamily: 'JetBrains Mono, monospace',
+                                                  fontWeight: 700,
+                                                  color: 'var(--slate-900)',
+                                                  background: '#f1f5f9',
+                                                  padding: '2px 6px',
+                                                  borderRadius: '4px',
+                                                  border: '1px solid var(--slate-200)',
+                                                }}
+                                              >
+                                                🏷️ {ld.lote}
+                                              </span>
+                                            </td>
+                                            <td>
+                                              <strong style={{ color: 'var(--emerald-600)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                                {ld.quantidade} {confItem.item.codvol || 'UN'}
+                                              </strong>
+                                            </td>
+                                            <td>
+                                              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.76rem' }}>
+                                                {ld.validade ? `📅 ${formatarDataApenas(ld.validade)}` : '—'}
+                                              </span>
+                                            </td>
+                                            <td>
+                                              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.76rem' }}>
+                                                {ld.fabricacao ? `🏭 ${formatarDataApenas(ld.fabricacao)}` : '—'}
+                                              </span>
+                                            </td>
+                                            <td style={{ textAlign: 'right' }}>
+                                              <button
+                                                type="button"
+                                                className="btn-estorno-lote-clean"
+                                                title={`Estornar as contagens do Lote ${ld.lote}`}
+                                                onClick={() =>
+                                                  setLoteParaEstornar({
+                                                    descrprod: confItem.item.descrprod,
+                                                    lote: ld.lote,
+                                                    bipagemIds: ld.bipagemIds,
+                                                    quantidade: ld.quantidade,
+                                                  })
+                                                }
+                                              >
+                                                ✕ Estornar
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

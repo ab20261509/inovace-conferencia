@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ConferenciaDivergenciaGrupo } from '../../../domain/models/ConferenciaEntrada';
 import { Container } from '../Container/Container';
 import {
@@ -30,6 +30,15 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   onReconferirN3,
   onReiniciar,
 }) => {
+  const [lotesExpandidosDiv, setLotesExpandidosDiv] = useState<Record<string, boolean>>({});
+
+  const toggleLotesDiv = (itemKey: string) => {
+    setLotesExpandidosDiv((prev) => ({
+      ...prev,
+      [itemKey]: !prev[itemKey],
+    }));
+  };
+
   return (
     <div className="gestao-rec-lista">
       {divergencias.length === 0 ? (
@@ -254,85 +263,186 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       </thead>
                       <tbody>
                         {itensParaExibir.map((item) => {
+                          const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
+                          const lotesConferidos: any[] = (item as any).lotesConferidos || [];
+                          const temMultiplosLotes = lotesConferidos.length > 1;
+                          const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
+                          const temN3 = grupo.totalN3 > 0;
+                          const totalColunasDiv = temN3 ? 11 : 10;
+
                           const diferenca = item.diferenca;
                           const classeDif =
                             diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
                           return (
-                            <tr key={`${item.nunota}-${item.codprod}-${item.sequencia}`}>
-                              <td>
-                                <div
-                                  style={{
-                                    fontWeight: 600,
-                                    color: 'var(--slate-900)',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    maxWidth: '280px',
-                                  }}
-                                  title={item.descrprod}
-                                >
-                                  {item.descrprod || `Produto ${item.codprod}`}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: '0.72rem',
-                                    color: 'var(--slate-500)',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  Cód: {item.codprod}
-                                  {item.referencia ? ` • Ref: ${item.referencia}` : ''}
-                                </div>
-                              </td>
-                              <td>{item.codvol || 'UN'}</td>
-                              <td>
-                                <strong>{item.qtdEsperada}</strong>
-                              </td>
-                              <td>{item.qtdN1}</td>
-                              <td>{item.qtdN2}</td>
-                              {grupo.totalN3 > 0 && <td>{item.qtdN3}</td>}
-                              <td>
-                                <span className={`pill-contagem-status ${classeDif}`}>
-                                  {diferenca < 0
-                                    ? `⚠️ ${diferenca} (Falta)`
-                                    : diferenca > 0
-                                    ? `+${diferenca} (Sobra)`
-                                    : '✓ OK'}
-                                </span>
-                              </td>
-                              <td>
-                                {item.lote ? (
-                                  <span style={{ fontWeight: 600, color: 'var(--slate-800)' }}>
-                                    {item.lote}
+                            <React.Fragment key={`div-frag-${itemKey}`}>
+                              <tr key={`div-${itemKey}`}>
+                                <td>
+                                  <div
+                                    style={{
+                                      fontWeight: 600,
+                                      color: 'var(--slate-900)',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      maxWidth: '280px',
+                                    }}
+                                    title={item.descrprod}
+                                  >
+                                    {item.descrprod || `Produto ${item.codprod}`}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      color: 'var(--slate-500)',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    Cód: {item.codprod}
+                                    {item.referencia ? ` • Ref: ${item.referencia}` : ''}
+                                  </div>
+                                </td>
+                                <td>{item.codvol || 'UN'}</td>
+                                <td>
+                                  <strong>{item.qtdEsperada}</strong>
+                                </td>
+                                <td>{item.qtdN1}</td>
+                                <td>{item.qtdN2}</td>
+                                {temN3 && <td>{item.qtdN3}</td>}
+                                <td>
+                                  <span className={`pill-contagem-status ${classeDif}`}>
+                                    {diferenca < 0
+                                      ? `⚠️ ${diferenca} (Falta)`
+                                      : diferenca > 0
+                                      ? `+${diferenca} (Sobra)`
+                                      : '✓ OK'}
                                   </span>
-                                ) : (
-                                  <span style={{ color: 'var(--slate-400)' }}>—</span>
-                                )}
-                              </td>
-                              <td>
-                                {item.validade ? (
-                                  <span>{formatarDataSimples(item.validade)}</span>
-                                ) : (
-                                  <span style={{ color: 'var(--slate-400)' }}>—</span>
-                                )}
-                              </td>
-                              <td>
-                                {item.fabricacao ? (
-                                  <span>{formatarDataSimples(item.fabricacao)}</span>
-                                ) : (
-                                  <span style={{ color: 'var(--slate-400)' }}>—</span>
-                                )}
-                              </td>
-                              <td
-                                style={{
-                                  fontSize: '0.75rem',
-                                  color: 'var(--slate-600)',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {formatarConferentes(item)}
-                              </td>
-                            </tr>
+                                </td>
+                                <td>
+                                  {temMultiplosLotes ? (
+                                    <button
+                                      type="button"
+                                      className={`chip-dropdown-lote ${isLotesAberto ? 'ativo' : ''}`}
+                                      onClick={() => toggleLotesDiv(itemKey)}
+                                      title={isLotesAberto ? 'Recolher gaveta de lotes' : 'Expandir lotes linha a linha'}
+                                    >
+                                      <span>🏷️ {lotesConferidos.length} Lotes</span>
+                                      <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
+                                    </button>
+                                  ) : item.lote ? (
+                                    <span className="gestao-lote-pill">
+                                      🏷️ {item.lote}
+                                    </span>
+                                  ) : (
+                                    <span className="gestao-lote-pill sem-lote">
+                                      ⚠️ Sem Lote
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  {temMultiplosLotes ? (
+                                    <span
+                                      style={{
+                                        fontSize: '0.74rem',
+                                        color: 'var(--primary, #0f766e)',
+                                        cursor: 'pointer',
+                                        fontStyle: 'italic',
+                                        fontWeight: 600,
+                                      }}
+                                      onClick={() => toggleLotesDiv(itemKey)}
+                                    >
+                                      {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
+                                    </span>
+                                  ) : item.validade ? (
+                                    <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                      {formatarDataSimples(item.validade)}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                  )}
+                                </td>
+                                <td>
+                                  {temMultiplosLotes ? (
+                                    <span
+                                      style={{
+                                        fontSize: '0.74rem',
+                                        color: 'var(--primary, #0f766e)',
+                                        cursor: 'pointer',
+                                        fontStyle: 'italic',
+                                        fontWeight: 600,
+                                      }}
+                                      onClick={() => toggleLotesDiv(itemKey)}
+                                    >
+                                      {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
+                                    </span>
+                                  ) : item.fabricacao ? (
+                                    <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                      {formatarDataSimples(item.fabricacao)}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                  )}
+                                </td>
+                                <td
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    color: 'var(--slate-600)',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {formatarConferentes(item)}
+                                </td>
+                              </tr>
+
+                              {/* Sub-Linha Gaveta: Lotes Linha a Linha (Modelo 1) */}
+                              {temMultiplosLotes && isLotesAberto && (
+                                <tr key={`div-lotes-${itemKey}`} className="subrow-lotes-drawer">
+                                  <td colSpan={totalColunasDiv}>
+                                    <div className="drawer-lotes-wrapper">
+                                      <div className="drawer-lotes-header">
+                                        <span>📦 Frações de Lote Registradas ({lotesConferidos.length} lotes):</span>
+                                        <span style={{ color: 'var(--slate-500)', fontWeight: 500, textTransform: 'none' }}>
+                                          Total: <strong>{lotesConferidos.reduce((acc, l) => acc + (l.quantidade || 0), 0)} {item.codvol || 'UN'}</strong>
+                                        </span>
+                                      </div>
+                                      <table className="mini-tabela-lotes">
+                                        <thead>
+                                          <tr>
+                                            <th>Lote</th>
+                                            <th style={{ textAlign: 'center' }}>Quantidade</th>
+                                            <th>Data de Validade</th>
+                                            <th>Data de Fabricação</th>
+                                            <th>Conferente</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {lotesConferidos.map((fracao, fIdx) => (
+                                            <tr key={`div-f-${itemKey}-${fracao.lote}-${fIdx}`}>
+                                              <td>
+                                                <span className="gestao-lote-pill" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                                                  🏷️ {fracao.lote}
+                                                </span>
+                                              </td>
+                                              <td style={{ textAlign: 'center' }}>
+                                                <strong>{fracao.quantidade}</strong> {item.codvol || 'UN'}
+                                              </td>
+                                              <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
+                                                {formatarDataSimples(fracao.validade)}
+                                              </td>
+                                              <td style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-600)' }}>
+                                                {formatarDataSimples(fracao.fabricacao)}
+                                              </td>
+                                              <td style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
+                                                {fracao.conferente ? `👤 ${fracao.conferente}` : '—'}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           );
                         })}
                       </tbody>
@@ -342,12 +452,17 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                   {/* Cards Mobile (<= 1024px) */}
                   <div className="gestao-rec-itens-mobile" style={{ marginTop: '8px' }}>
                     {itensParaExibir.map((item) => {
+                      const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
+                      const lotesConferidos: any[] = (item as any).lotesConferidos || [];
+                      const temMultiplosLotes = lotesConferidos.length > 1;
+                      const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
+
                       const diferenca = item.diferenca;
                       const classeDif =
                         diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
                       return (
                         <div
-                          key={`mob-${item.nunota}-${item.codprod}-${item.sequencia}`}
+                          key={`mob-${itemKey}`}
                           className="gestao-item-card-mobile"
                         >
                           <div className="gestao-item-mobile-header">
@@ -391,22 +506,86 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                             className="gestao-item-mobile-lote-info"
                             style={{
                               display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              flexWrap: 'wrap',
-                              gap: '4px',
+                              flexDirection: 'column',
+                              gap: '6px',
                             }}
                           >
-                            <div>
-                              {item.lote ? `Lote: ${item.lote}` : 'Sem lote'}
-                              {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}
-                              {item.fabricacao
-                                ? ` • Fab: ${formatarDataSimples(item.fabricacao)}`
-                                : ''}
-                            </div>
-                            {(item.conferenteN1 || item.conferenteN2 || item.conferenteN3) && (
-                              <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)' }}>
-                                {formatarConferentes(item)}
+                            {temMultiplosLotes ? (
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    className={`chip-dropdown-lote ${isLotesAberto ? 'ativo' : ''}`}
+                                    onClick={() => toggleLotesDiv(itemKey)}
+                                  >
+                                    <span>🏷️ {lotesConferidos.length} Lotes</span>
+                                    <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲ recolher' : '▼ expandir'}</span>
+                                  </button>
+                                  {(item.conferenteN1 || item.conferenteN2 || item.conferenteN3) && (
+                                    <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)' }}>
+                                      {formatarConferentes(item)}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {isLotesAberto && (
+                                  <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {lotesConferidos.map((fracao, fIdx) => (
+                                      <div
+                                        key={`mob-div-${itemKey}-${fracao.lote}-${fIdx}`}
+                                        style={{
+                                          background: '#ffffff',
+                                          border: '1px solid var(--slate-200)',
+                                          borderRadius: '6px',
+                                          padding: '6px 8px',
+                                          fontSize: '0.72rem',
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
+                                          <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-900)' }}>
+                                            🏷️ {fracao.lote}
+                                          </span>
+                                          <span style={{ background: 'var(--slate-100)', padding: '1px 5px', borderRadius: '4px' }}>
+                                            {fracao.quantidade} {item.codvol || 'UN'}
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          <span>Val: {formatarDataSimples(fracao.validade)}</span>
+                                          <span>Fab: {formatarDataSimples(fracao.fabricacao)}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  flexWrap: 'wrap',
+                                  gap: '4px',
+                                }}
+                              >
+                                <div>
+                                  {item.lote ? (
+                                    <>
+                                      Lote: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.lote}</strong>
+                                      {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}
+                                      {item.fabricacao
+                                        ? ` • Fab: ${formatarDataSimples(item.fabricacao)}`
+                                        : ''}
+                                    </>
+                                  ) : (
+                                    <span style={{ color: 'var(--slate-400)' }}>Sem lote</span>
+                                  )}
+                                </div>
+                                {(item.conferenteN1 || item.conferenteN2 || item.conferenteN3) && (
+                                  <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)' }}>
+                                    {formatarConferentes(item)}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

@@ -315,8 +315,63 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   6. CHECKLIST PRÉ-ENVIO VISUAL (SANKHYA)
+   6. CHECKLIST E STATUS STRIP MINIMALISTA (SANKHYA)
    ═══════════════════════════════════════════════════════ */
+.gestao-rec-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-top: 1px solid var(--slate-100);
+  border-bottom: 1px solid var(--slate-100);
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.gestao-micro-chip-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.35;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.gestao-micro-chip-status.ok {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.gestao-micro-chip-status.alerta {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.gestao-micro-chip-status.perigo {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.gestao-micro-chip-status.neutro {
+  background: var(--slate-100);
+  color: var(--slate-600);
+  border-color: var(--slate-200);
+}
+
+.gestao-micro-chip-status.enviado {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+
 .gestao-rec-checklist-pre-envio {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1434,5 +1489,97 @@
     display: none !important;
   }
 }
+
+/* ═══════════════════════════════════════
+   SUB-LINHA GAVETA DE LOTES (GESTAO RECEBIMENTO)
+   ═══════════════════════════════════════ */
+.gestao-rec-tabela .subrow-lotes-drawer {
+  background: var(--slate-50) !important;
+}
+
+.gestao-rec-tabela .subrow-lotes-drawer td {
+  padding: 0 !important;
+  border-bottom: 2px solid var(--border) !important;
+}
+
+.drawer-lotes-wrapper {
+  padding: 8px 16px 12px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: drawerSlideIn 0.18s ease;
+}
+
+.drawer-lotes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--slate-600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mini-tabela-lotes {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.mini-tabela-lotes th {
+  background: var(--slate-100);
+  color: var(--slate-700);
+  font-size: 0.70rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.mini-tabela-lotes td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--slate-100);
+  font-size: 0.78rem;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.mini-tabela-lotes tr:last-child td {
+  border-bottom: none;
+}
+
+.chip-dropdown-lote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chip-dropdown-lote:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.chip-dropdown-lote.ativo {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
 
 

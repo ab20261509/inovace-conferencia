@@ -86,6 +86,16 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   const [filtroItensEnvio, setFiltroItensEnvio] = useState<
     Record<string, 'todos' | 'semlote' | 'excel' | 'coletor'>
   >({});
+  const [lotesExpandidosEnvio, setLotesExpandidosEnvio] = useState<
+    Record<string, boolean>
+  >({});
+
+  const toggleLotesItemEnvio = (itemKey: string) => {
+    setLotesExpandidosEnvio((prev) => ({
+      ...prev,
+      [itemKey]: !prev[itemKey],
+    }));
+  };
 
   const notasNaoEnviadas = conferenciasProntasAgrupadas.filter(
     (g) => g.status !== 'Enviado ao Sankhya'
@@ -215,54 +225,6 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                 </div>
 
                 <div className="gestao-rec-card-badges">
-                  {detalhes && totalItens > 0 && (
-                    <>
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          background: todosLocaisOk ? '#f0fdf4' : '#fef2f2',
-                          color: todosLocaisOk ? '#15803d' : '#b91c1c',
-                          border: `1px solid ${todosLocaisOk ? '#bbf7d0' : '#fecaca'}`,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                        title={
-                          todosLocaisOk
-                            ? 'Todos os itens possuem Local de Origem definido na TGFITE'
-                            : `${itensSemLocal.length} item(ns) sem Local de Origem (CODLOCALORIG) na nota`
-                        }
-                      >
-                        {todosLocaisOk ? '✓ Local Definido' : `⚠️ ${itensSemLocal.length} sem Local`}
-                      </span>
-
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          background: todosLotesOk ? '#f0fdf4' : '#fffbeb',
-                          color: todosLotesOk ? '#15803d' : '#b45309',
-                          border: `1px solid ${todosLotesOk ? '#bbf7d0' : '#fde68a'}`,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                        title={
-                          todosLotesOk
-                            ? 'Todos os itens conferidos possuem lote vinculado para o ERP'
-                            : `${totalItens - itensComLote} item(ns) ainda sem lote configurado`
-                        }
-                      >
-                        {todosLotesOk ? '✓ Lotes 100% Prontos' : `⚠️ ${totalItens - itensComLote} sem Lote`}
-                      </span>
-                    </>
-                  )}
-
                   <span
                     className={`badge-status-rec ${
                       jaEnviado
@@ -277,111 +239,200 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                 </div>
               </div>
 
-              {/* Checklist Pré-Envio Visual (Garante Integridade no ERP) */}
-              <div className="gestao-rec-checklist-pre-envio">
-                <div
-                  className={`gestao-checklist-item ${
+              {/* Linha Única de Micro-Chips de Validação Operacional (Status Strip Minimalista) */}
+              <div className="gestao-rec-status-strip">
+                {/* 1. Quantidades Físicas */}
+                <span
+                  className={`gestao-micro-chip-status ${
                     jaEnviado || grupo.status === 'Conferido' ? 'ok' : 'alerta'
                   }`}
+                  title={
+                    jaEnviado
+                      ? 'Conferência sincronizada com sucesso no Sankhya'
+                      : grupo.status === 'Conferido'
+                      ? 'Quantidades físicas 100% conferidas e correspondentes à NF'
+                      : 'Conferência ainda pendente ou aguardando aprovação gerencial'
+                  }
                 >
                   <span>{jaEnviado || grupo.status === 'Conferido' ? '✓' : '⚠️'}</span>
                   <span>
                     {jaEnviado
-                      ? 'Integrado no Sankhya'
+                      ? 'Quantidades Físicas OK'
                       : grupo.status === 'Conferido'
                       ? 'Quantidades Físicas 100% OK'
-                      : 'Aguardando Aprovação Gerencial'}
+                      : 'Aguardando Aprovação'}
                   </span>
-                </div>
-                <div
-                  className={`gestao-checklist-item ${
-                    todosLotesOk || jaEnviado ? 'ok' : 'alerta'
+                </span>
+
+                {/* 2. Lotes e Validades */}
+                <span
+                  className={`gestao-micro-chip-status ${
+                    jaEnviado || (detalhes && todosLotesOk)
+                      ? 'ok'
+                      : detalhes && !todosLotesOk
+                      ? 'alerta'
+                      : 'ok'
                   }`}
+                  title={
+                    jaEnviado
+                      ? 'Lotes e validades já integrados no ERP'
+                      : detalhes
+                      ? todosLotesOk
+                        ? 'Todos os itens conferidos possuem lote vinculado para o ERP'
+                        : `${totalItens - itensComLote} item(ns) ainda sem lote configurado`
+                      : 'Lotes e validades configurados'
+                  }
                 >
-                  <span>{todosLotesOk || jaEnviado ? '✓' : '⚠️'}</span>
+                  <span>{jaEnviado || !detalhes || todosLotesOk ? '✓' : '⚠️'}</span>
                   <span>
-                    {todosLotesOk || jaEnviado
-                      ? 'Lotes e Validades Configurados'
-                      : `${totalItens - itensComLote} Itens sem Lote`}
+                    {jaEnviado
+                      ? 'Lotes & Validades Integrados'
+                      : detalhes
+                      ? todosLotesOk
+                        ? 'Lotes & Validades OK'
+                        : `${totalItens - itensComLote} sem Lote`
+                      : 'Lotes & Validades OK'}
                   </span>
-                </div>
-                <div
-                  className={`gestao-checklist-item ${
-                    todosLocaisOk || jaEnviado ? 'ok' : 'alerta'
+                </span>
+
+                {/* 3. Locais de Estoque TGFITE */}
+                <span
+                  className={`gestao-micro-chip-status ${
+                    jaEnviado || (detalhes && todosLocaisOk)
+                      ? 'ok'
+                      : detalhes && !todosLocaisOk
+                      ? 'perigo'
+                      : 'ok'
                   }`}
+                  title={
+                    jaEnviado
+                      ? 'Locais de origem da TGFITE gravados com sucesso'
+                      : detalhes
+                      ? todosLocaisOk
+                        ? 'Todos os itens possuem Local de Origem definido na TGFITE'
+                        : `${itensSemLocal.length} item(ns) sem Local de Origem (CODLOCALORIG) na nota`
+                      : 'Locais de Estoque TGFITE OK'
+                  }
                 >
-                  <span>{todosLocaisOk || jaEnviado ? '✓' : '⚠️'}</span>
+                  <span>{jaEnviado || !detalhes || todosLocaisOk ? '✓' : '⚠️'}</span>
                   <span>
-                    {todosLocaisOk || jaEnviado
-                      ? 'Locais de Estoque (TGFITE.CODLOCALORIG) OK'
-                      : `${itensSemLocal.length} Item(ns) sem Local de Estoque`}
+                    {jaEnviado
+                      ? 'Locais TGFITE OK'
+                      : detalhes
+                      ? todosLocaisOk
+                        ? 'Locais TGFITE OK'
+                        : `${itensSemLocal.length} sem Local TGFITE`
+                      : 'Locais TGFITE OK'}
                   </span>
-                </div>
-                {temBloqueioDesmembramento && (
-                  <div
-                    className="gestao-checklist-item alerta"
-                    style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}
+                </span>
+
+                {/* 4. Alerta de Desmembramento (quando aplicável) */}
+                {!jaEnviado && temBloqueioDesmembramento && (
+                  <span
+                    className="gestao-micro-chip-status perigo"
+                    title="Existem múltiplos lotes para a mesma sequência de produto sem desmembramento no Sankhya"
                   >
                     <span>⚠️</span>
                     <span>
-                      {itensMultiplosLotesNaoDesmembrados.length} produto(s) requerem desmembramento de linha no Sankhya
+                      {itensMultiplosLotesNaoDesmembrados.length} produto(s) requerem desmembramento Sankhya
                     </span>
-                  </div>
+                  </span>
                 )}
               </div>
 
-              {/* Seção de Itens / Cruzamento de Lotes e Importação Excel */}
+              {/* Barra de Ações Minimalista e Alinhada */}
               {grupo.conferenciaId && (
-                <div style={{ marginTop: '10px' }}>
+                <div style={{ marginTop: '6px' }}>
                   <div
                     style={{
                       display: 'flex',
-                      gap: '8px',
                       alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
                       flexWrap: 'wrap',
                       marginBottom: '8px',
                     }}
                   >
-                    <button
-                      type="button"
-                      className="gestao-btn-acao gestao-btn-csv"
-                      onClick={async () => {
-                        if (!detalhes && !isCarregandoDetalhes) {
-                          await carregarDetalhesConferencia(
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className={`gestao-btn-clean-toggle ${isExpandido ? 'ativo' : ''}`}
+                        onClick={async () => {
+                          if (!detalhes && !isCarregandoDetalhes) {
+                            await carregarDetalhesConferencia(
+                              grupo.conferenciaId,
+                              grupo.nunotas
+                            );
+                          }
+                          toggleDetalhesConferencia(
                             grupo.conferenciaId,
-                            grupo.nunotas
+                            grupo.nunotas,
+                            grupo.key
                           );
-                        }
-                        toggleDetalhesConferencia(
-                          grupo.conferenciaId,
-                          grupo.nunotas,
-                          grupo.key
-                        );
-                      }}
-                    >
-                      <span>
-                        {detalhes && isExpandido
-                          ? '▲ Ocultar Itens da NF'
-                          : '🔍 Ver Cruzamento de Lotes & Itens da NF'}
-                      </span>
-                    </button>
+                        }}
+                      >
+                        <span>
+                          {detalhes && isExpandido
+                            ? '▲ Ocultar Itens e Lotes'
+                            : `Ver Itens e Lotes (${
+                                totalItens ||
+                                grupo.notas.reduce((acc, n) => acc + (n.qtdItens || 0), 0)
+                              })`}
+                        </span>
+                        <span style={{ fontSize: '0.70rem' }}>{isExpandido ? '▲' : '▼'}</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      className="gestao-btn-acao gestao-btn-csv"
-                      style={{ borderColor: '#3b82f6', color: '#1d4ed8' }}
-                      onClick={async () => {
-                        if (!detalhes) {
-                          await carregarDetalhesConferencia(
-                            grupo.conferenciaId,
-                            grupo.nunotas
-                          );
-                        }
-                        onAbrirImportarExcel(grupo.conferenciaId, grupo.nunotas);
-                      }}
-                    >
-                      <span>📥 Importar Lotes (Excel)</span>
-                    </button>
+                      {!jaEnviado && (
+                        <button
+                          type="button"
+                          className="gestao-btn-clean-secundario"
+                          onClick={async () => {
+                            if (!detalhes) {
+                              await carregarDetalhesConferencia(
+                                grupo.conferenciaId,
+                                grupo.nunotas
+                              );
+                            }
+                            onAbrirImportarExcel(grupo.conferenciaId, grupo.nunotas);
+                          }}
+                          title="Importar lotes e validades a partir de planilha Excel"
+                        >
+                          <span>📥 Importar Excel</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
+                      {!jaEnviado ? (
+                        <button
+                          type="button"
+                          className="gestao-btn-acao gestao-btn-enviar-sankhya"
+                          style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+                          onClick={() =>
+                            onEnviarSankhya(
+                              grupo.conferenciaId,
+                              grupo.numerosNotas,
+                              grupo.nunotas
+                            )
+                          }
+                        >
+                          <span>🚀 Aprovar & Enviar ao Sankhya</span>
+                        </button>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '0.80rem',
+                            color: '#6d28d9',
+                            fontWeight: 600,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>✓</span> <span>Integrado com sucesso ao Sankhya</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {isCarregandoDetalhes ? (
@@ -505,6 +556,12 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                           </thead>
                           <tbody>
                             {itensParaExibir.map((item) => {
+                              const itemKey = `${grupo.conferenciaId}-${item.nunota}-${item.codprod}-${item.sequencia}`;
+                              const temN3 = itensDoCard.some(
+                                (i) => (i.qtdConferidaN3 || 0) > 0
+                              );
+                              const totalColunasEnvio = temN3 ? 12 : 11;
+
                               const qtdNivel =
                                 (item.qtdConferidaN3 || 0) > 0
                                   ? item.qtdConferidaN3 || 0
@@ -528,378 +585,464 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                 detalhes.bipagens
                               );
                               const temMultiplosLotes = lotesDoItem.length > 1;
+                              const isLotesAberto = Boolean(lotesExpandidosEnvio[itemKey]);
                               const isVeioExcel = origemExcelPorConferencia[
                                 grupo.conferenciaId
                               ]?.has(item.codprod);
 
                               return (
-                                <tr
-                                  key={`sankhya-${item.nunota}-${item.codprod}-${item.sequencia}`}
-                                >
-                                  <td>
-                                    <div
-                                      style={{
-                                        fontWeight: 600,
-                                        color: 'var(--slate-900)',
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        maxWidth: '280px',
-                                      }}
-                                      title={item.descrprod}
-                                    >
-                                      {item.descrprod ||
-                                        `Produto ${item.codprod}`}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: '0.72rem',
-                                        color: 'var(--slate-500)',
-                                        whiteSpace: 'nowrap',
-                                      }}
-                                    >
-                                      Cód: {item.codprod}
-                                      {item.refforn
-                                        ? ` • Ref: ${item.refforn}`
-                                        : item.referencia
-                                        ? ` • Ref: ${item.referencia}`
-                                        : ''}
-                                      {item.codbarra
-                                        ? ` • EAN: ${item.codbarra}`
-                                        : ''}
-                                    </div>
-                                  </td>
-                                  <td>{item.codvol || 'UN'}</td>
-                                  <td>
-                                    <strong>{item.qtdneg ?? '—'}</strong>
-                                  </td>
-                                  <td>{item.qtdConferidaN1 || 0}</td>
-                                  <td>{item.qtdConferidaN2 || 0}</td>
-                                  {itensDoCard.some(
-                                    (i) => (i.qtdConferidaN3 || 0) > 0
-                                  ) && <td>{item.qtdConferidaN3 || 0}</td>}
-                                  <td>
-                                    <span
-                                      className={`pill-contagem-status ${classeDif}`}
-                                    >
-                                      {diferenca === 0
-                                        ? '✓ OK'
-                                        : diferenca < 0
-                                        ? `⚠️ ${diferenca}`
-                                        : `+${diferenca}`}
-                                    </span>
-                                  </td>
-                                  <td>
-                                    {item.codlocalorig !== undefined && item.codlocalorig !== null ? (
-                                      <span
+                                <React.Fragment key={`sankhya-frag-${itemKey}`}>
+                                  <tr
+                                    key={`sankhya-${itemKey}`}
+                                  >
+                                    <td>
+                                      <div
                                         style={{
-                                          fontSize: '0.8rem',
                                           fontWeight: 600,
-                                          padding: '2px 6px',
-                                          borderRadius: '4px',
-                                          background: 'var(--slate-100)',
-                                          border: '1px solid var(--slate-200)',
-                                          color: 'var(--slate-800)',
+                                          color: 'var(--slate-900)',
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          maxWidth: '280px',
                                         }}
-                                        title={`Local de Estoque de Origem: ${item.codlocalorig}`}
+                                        title={item.descrprod}
                                       >
-                                        📍 {item.codlocalorig}
-                                      </span>
-                                    ) : (
-                                      <span
+                                        {item.descrprod ||
+                                          `Produto ${item.codprod}`}
+                                      </div>
+                                      <div
                                         style={{
                                           fontSize: '0.72rem',
-                                          fontWeight: 700,
-                                          padding: '2px 6px',
-                                          borderRadius: '4px',
-                                          background: '#fef2f2',
-                                          border: '1px solid #fecaca',
-                                          color: '#b91c1c',
+                                          color: 'var(--slate-500)',
+                                          whiteSpace: 'nowrap',
                                         }}
-                                        title="Item sem Local de Origem na TGFITE. Necessário preencher no Sankhya antes do envio."
                                       >
-                                        ⚠️ Sem Local
+                                        Cód: {item.codprod}
+                                        {item.refforn
+                                          ? ` • Ref: ${item.refforn}`
+                                          : item.referencia
+                                          ? ` • Ref: ${item.referencia}`
+                                          : ''}
+                                        {item.codbarra
+                                          ? ` • EAN: ${item.codbarra}`
+                                          : ''}
+                                      </div>
+                                    </td>
+                                    <td>{item.codvol || 'UN'}</td>
+                                    <td>
+                                      <strong>{item.qtdneg ?? '—'}</strong>
+                                    </td>
+                                    <td>{item.qtdConferidaN1 || 0}</td>
+                                    <td>{item.qtdConferidaN2 || 0}</td>
+                                    {temN3 && <td>{item.qtdConferidaN3 || 0}</td>}
+                                    <td>
+                                      <span
+                                        className={`pill-contagem-status ${classeDif}`}
+                                      >
+                                        {diferenca === 0
+                                          ? '✓ OK'
+                                          : diferenca < 0
+                                          ? `⚠️ ${diferenca}`
+                                          : `+${diferenca}`}
                                       </span>
-                                    )}
-                                  </td>
-                                  <td>
-                                    {temMultiplosLotes ? (
-                                      <div
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '5px',
-                                        }}
-                                      >
+                                    </td>
+                                    <td>
+                                      {item.codlocalorig !== undefined && item.codlocalorig !== null ? (
                                         <span
-                                          title={
-                                            isVeioExcel
-                                              ? 'Importado via Excel'
-                                              : 'Conferido pelo coletor'
-                                          }
+                                          style={{
+                                            fontSize: '0.8rem',
+                                            fontWeight: 600,
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            background: 'var(--slate-100)',
+                                            border: '1px solid var(--slate-200)',
+                                            color: 'var(--slate-800)',
+                                          }}
+                                          title={`Local de Estoque de Origem: ${item.codlocalorig}`}
                                         >
-                                          {isVeioExcel ? '📊' : '📱'}
+                                          📍 {item.codlocalorig}
                                         </span>
+                                      ) : (
                                         <span
-                                          className="badge-status-rec enviado"
                                           style={{
                                             fontSize: '0.72rem',
-                                            padding: '1px 5px',
+                                            fontWeight: 700,
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            background: '#fef2f2',
+                                            border: '1px solid #fecaca',
+                                            color: '#b91c1c',
                                           }}
-                                          title={lotesDoItem
-                                            .map(
-                                              (l) => `${l.lote} (${l.qtd} un)`
-                                            )
-                                            .join(', ')}
+                                          title="Item sem Local de Origem na TGFITE. Necessário preencher no Sankhya antes do envio."
                                         >
-                                          ✂️ {lotesDoItem.length} lotes
+                                          ⚠️ Sem Local
                                         </span>
-                                        <button
-                                          type="button"
-                                          className="gestao-rec-btn-refresh"
+                                      )}
+                                    </td>
+                                    <td>
+                                      {temMultiplosLotes ? (
+                                        <div
                                           style={{
-                                            padding: '1px 5px',
-                                            fontSize: '0.70rem',
-                                            lineHeight: 1,
-                                          }}
-                                          title="Gerenciar / Dividir lotes"
-                                          onClick={() =>
-                                            onEditarLotesItem({
-                                              nunota: item.nunota,
-                                              sequencia: item.sequencia,
-                                              codprod: item.codprod,
-                                              descrprod:
-                                                item.descrprod ||
-                                                `Produto ${item.codprod}`,
-                                              qtdEsperada: item.qtdneg || 0,
-                                              conferenciaId:
-                                                grupo.conferenciaId,
-                                            })
-                                          }
-                                        >
-                                          ✂️
-                                        </button>
-                                      </div>
-                                    ) : lotesDoItem.length === 1 ? (
-                                      <div
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '5px',
-                                        }}
-                                      >
-                                        <span
-                                          title={
-                                            isVeioExcel
-                                              ? 'Importado via Excel'
-                                              : 'Conferido pelo coletor'
-                                          }
-                                        >
-                                          {isVeioExcel ? '📊' : '📱'}
-                                        </span>
-                                        <strong
-                                          style={{ color: 'var(--slate-800)' }}
-                                        >
-                                          {lotesDoItem[0].lote}
-                                        </strong>
-                                        <button
-                                          type="button"
-                                          className="gestao-rec-btn-refresh"
-                                          style={{
-                                            padding: '1px 5px',
-                                            fontSize: '0.70rem',
-                                            lineHeight: 1,
-                                          }}
-                                          title="Dividir lote ou alterar"
-                                          onClick={() =>
-                                            onEditarLotesItem({
-                                              nunota: item.nunota,
-                                              sequencia: item.sequencia,
-                                              codprod: item.codprod,
-                                              descrprod:
-                                                item.descrprod ||
-                                                `Produto ${item.codprod}`,
-                                              qtdEsperada: item.qtdneg || 0,
-                                              conferenciaId:
-                                                grupo.conferenciaId,
-                                            })
-                                          }
-                                        >
-                                          ✂️
-                                        </button>
-                                      </div>
-                                    ) : item.lote ? (
-                                      <div
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '5px',
-                                        }}
-                                      >
-                                        <span
-                                          title={
-                                            isVeioExcel
-                                              ? 'Importado via Excel'
-                                              : 'Conferido pelo coletor'
-                                          }
-                                        >
-                                          {isVeioExcel ? '📊' : '📱'}
-                                        </span>
-                                        <strong
-                                          style={{ color: 'var(--slate-800)' }}
-                                        >
-                                          {item.lote}
-                                        </strong>
-                                        <button
-                                          type="button"
-                                          className="gestao-rec-btn-refresh"
-                                          style={{
-                                            padding: '1px 5px',
-                                            fontSize: '0.70rem',
-                                            lineHeight: 1,
-                                          }}
-                                          title="Dividir lote ou alterar"
-                                          onClick={() =>
-                                            onEditarLotesItem({
-                                              nunota: item.nunota,
-                                              sequencia: item.sequencia,
-                                              codprod: item.codprod,
-                                              descrprod:
-                                                item.descrprod ||
-                                                `Produto ${item.codprod}`,
-                                              qtdEsperada: item.qtdneg || 0,
-                                              conferenciaId:
-                                                grupo.conferenciaId,
-                                            })
-                                          }
-                                        >
-                                          ✂️
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '5px',
-                                        }}
-                                      >
-                                        <span
-                                          style={{
-                                            color: 'var(--slate-400)',
-                                            fontSize: '0.8rem',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
                                           }}
                                         >
-                                          Sem lote
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="gestao-rec-btn-refresh"
-                                          style={{
-                                            padding: '1px 5px',
-                                            fontSize: '0.70rem',
-                                            lineHeight: 1,
-                                          }}
-                                          title="Adicionar lote / Dividir item"
-                                          onClick={() =>
-                                            onEditarLotesItem({
-                                              nunota: item.nunota,
-                                              sequencia: item.sequencia,
-                                              codprod: item.codprod,
-                                              descrprod:
-                                                item.descrprod ||
-                                                `Produto ${item.codprod}`,
-                                              qtdEsperada: item.qtdneg || 0,
-                                              conferenciaId:
-                                                grupo.conferenciaId,
-                                            })
-                                          }
-                                        >
-                                          + Lote
-                                        </button>
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td>
-                                    {temMultiplosLotes ? (
-                                      <span style={{ fontSize: '0.78rem' }}>
-                                        {Array.from(
-                                          new Set(
-                                            lotesDoItem
-                                              .map((l) =>
-                                                formatarDataSimples(l.validade)
-                                              )
-                                              .filter((v) => v !== '—')
-                                          )
-                                        ).join(', ') || (
                                           <span
-                                            style={{ color: 'var(--slate-400)' }}
+                                            title={
+                                              isVeioExcel
+                                                ? 'Importado via Excel'
+                                                : 'Conferido pelo coletor'
+                                            }
                                           >
-                                            —
+                                            {isVeioExcel ? '📊' : '📱'}
                                           </span>
-                                        )}
-                                      </span>
-                                    ) : lotesDoItem.length === 1 ? (
-                                      <span>
-                                        {formatarDataSimples(
-                                          lotesDoItem[0].validade
-                                        )}
-                                      </span>
-                                    ) : item.validade ? (
-                                      <span>
-                                        {formatarDataSimples(item.validade)}
-                                      </span>
-                                    ) : (
-                                      <span style={{ color: 'var(--slate-400)' }}>
-                                        —
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td>
-                                    {temMultiplosLotes ? (
-                                      <span style={{ fontSize: '0.78rem' }}>
-                                        {Array.from(
-                                          new Set(
-                                            lotesDoItem
-                                              .map((l) =>
-                                                formatarDataSimples(l.fabricacao)
-                                              )
-                                              .filter((v) => v !== '—')
-                                          )
-                                        ).join(', ') || (
+                                          <button
+                                            type="button"
+                                            className={`chip-dropdown-lote ${isLotesAberto ? 'ativo' : ''}`}
+                                            onClick={() => toggleLotesItemEnvio(itemKey)}
+                                            title={isLotesAberto ? 'Recolher gaveta de lotes' : 'Expandir lotes linha a linha'}
+                                          >
+                                            <span>✂️ {lotesDoItem.length} Lotes</span>
+                                            <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="gestao-rec-btn-refresh"
+                                            style={{
+                                              padding: '1px 5px',
+                                              fontSize: '0.70rem',
+                                              lineHeight: 1,
+                                            }}
+                                            title="Gerenciar / Dividir lotes"
+                                            onClick={() =>
+                                              onEditarLotesItem({
+                                                nunota: item.nunota,
+                                                sequencia: item.sequencia,
+                                                codprod: item.codprod,
+                                                descrprod:
+                                                  item.descrprod ||
+                                                  `Produto ${item.codprod}`,
+                                                qtdEsperada: item.qtdneg || 0,
+                                                conferenciaId:
+                                                  grupo.conferenciaId,
+                                              })
+                                            }
+                                          >
+                                            ✂️
+                                          </button>
+                                        </div>
+                                      ) : lotesDoItem.length === 1 ? (
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                          }}
+                                        >
                                           <span
-                                            style={{ color: 'var(--slate-400)' }}
+                                            title={
+                                              isVeioExcel
+                                                ? 'Importado via Excel'
+                                                : 'Conferido pelo coletor'
+                                            }
                                           >
-                                            —
+                                            {isVeioExcel ? '📊' : '📱'}
                                           </span>
-                                        )}
-                                      </span>
-                                    ) : lotesDoItem.length === 1 ? (
-                                      <span>
-                                        {formatarDataSimples(
-                                          lotesDoItem[0].fabricacao
-                                        )}
-                                      </span>
-                                    ) : item.fabricacao ? (
-                                      <span>
-                                        {formatarDataSimples(item.fabricacao)}
-                                      </span>
-                                    ) : (
-                                      <span style={{ color: 'var(--slate-400)' }}>
-                                        —
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td
-                                    style={{
-                                      fontSize: '0.75rem',
-                                      color: 'var(--slate-600)',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                  >
-                                    {formatarConferentes(item)}
-                                  </td>
-                                </tr>
+                                          <strong
+                                            style={{ color: 'var(--slate-800)', fontFamily: 'JetBrains Mono, monospace' }}
+                                          >
+                                            {lotesDoItem[0].lote}
+                                          </strong>
+                                          <button
+                                            type="button"
+                                            className="gestao-rec-btn-refresh"
+                                            style={{
+                                              padding: '1px 5px',
+                                              fontSize: '0.70rem',
+                                              lineHeight: 1,
+                                            }}
+                                            title="Dividir lote ou alterar"
+                                            onClick={() =>
+                                              onEditarLotesItem({
+                                                nunota: item.nunota,
+                                                sequencia: item.sequencia,
+                                                codprod: item.codprod,
+                                                descrprod:
+                                                  item.descrprod ||
+                                                  `Produto ${item.codprod}`,
+                                                qtdEsperada: item.qtdneg || 0,
+                                                conferenciaId:
+                                                  grupo.conferenciaId,
+                                              })
+                                            }
+                                          >
+                                            ✂️
+                                          </button>
+                                        </div>
+                                      ) : item.lote ? (
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                          }}
+                                        >
+                                          <span
+                                            title={
+                                              isVeioExcel
+                                                ? 'Importado via Excel'
+                                                : 'Conferido pelo coletor'
+                                            }
+                                          >
+                                            {isVeioExcel ? '📊' : '📱'}
+                                          </span>
+                                          <strong
+                                            style={{ color: 'var(--slate-800)', fontFamily: 'JetBrains Mono, monospace' }}
+                                          >
+                                            {item.lote}
+                                          </strong>
+                                          <button
+                                            type="button"
+                                            className="gestao-rec-btn-refresh"
+                                            style={{
+                                              padding: '1px 5px',
+                                              fontSize: '0.70rem',
+                                              lineHeight: 1,
+                                            }}
+                                            title="Dividir lote ou alterar"
+                                            onClick={() =>
+                                              onEditarLotesItem({
+                                                nunota: item.nunota,
+                                                sequencia: item.sequencia,
+                                                codprod: item.codprod,
+                                                descrprod:
+                                                  item.descrprod ||
+                                                  `Produto ${item.codprod}`,
+                                                qtdEsperada: item.qtdneg || 0,
+                                                conferenciaId:
+                                                  grupo.conferenciaId,
+                                              })
+                                            }
+                                          >
+                                            ✂️
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              color: 'var(--slate-400)',
+                                              fontSize: '0.8rem',
+                                            }}
+                                          >
+                                            Sem lote
+                                          </span>
+                                          <button
+                                            type="button"
+                                            className="gestao-rec-btn-refresh"
+                                            style={{
+                                              padding: '1px 5px',
+                                              fontSize: '0.70rem',
+                                              lineHeight: 1,
+                                            }}
+                                            title="Adicionar lote / Dividir item"
+                                            onClick={() =>
+                                              onEditarLotesItem({
+                                                nunota: item.nunota,
+                                                sequencia: item.sequencia,
+                                                codprod: item.codprod,
+                                                descrprod:
+                                                  item.descrprod ||
+                                                  `Produto ${item.codprod}`,
+                                                qtdEsperada: item.qtdneg || 0,
+                                                conferenciaId:
+                                                  grupo.conferenciaId,
+                                              })
+                                            }
+                                          >
+                                            + Lote
+                                          </button>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td>
+                                      {temMultiplosLotes ? (
+                                        <span
+                                          style={{
+                                            fontSize: '0.74rem',
+                                            color: 'var(--primary, #0f766e)',
+                                            cursor: 'pointer',
+                                            fontStyle: 'italic',
+                                            fontWeight: 600,
+                                          }}
+                                          onClick={() => toggleLotesItemEnvio(itemKey)}
+                                          title="Clique para ver os lotes e validades linha a linha"
+                                        >
+                                          {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
+                                        </span>
+                                      ) : lotesDoItem.length === 1 ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(
+                                            lotesDoItem[0].validade
+                                          )}
+                                        </span>
+                                      ) : item.validade ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(item.validade)}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: 'var(--slate-400)' }}>
+                                          —
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td>
+                                      {temMultiplosLotes ? (
+                                        <span
+                                          style={{
+                                            fontSize: '0.74rem',
+                                            color: 'var(--primary, #0f766e)',
+                                            cursor: 'pointer',
+                                            fontStyle: 'italic',
+                                            fontWeight: 600,
+                                          }}
+                                          onClick={() => toggleLotesItemEnvio(itemKey)}
+                                          title="Clique para ver os lotes e fabricações linha a linha"
+                                        >
+                                          {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
+                                        </span>
+                                      ) : lotesDoItem.length === 1 ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(
+                                            lotesDoItem[0].fabricacao
+                                          )}
+                                        </span>
+                                      ) : item.fabricacao ? (
+                                        <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
+                                          {formatarDataSimples(item.fabricacao)}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: 'var(--slate-400)' }}>
+                                          —
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td
+                                      style={{
+                                        fontSize: '0.75rem',
+                                        color: 'var(--slate-600)',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {formatarConferentes(item)}
+                                    </td>
+                                  </tr>
+
+                                  {/* Sub-Linha Gaveta: Frações de Lote para Envio ao Sankhya (Modelo 1) */}
+                                  {temMultiplosLotes && isLotesAberto && (
+                                    <tr key={`sankhya-lotes-${itemKey}`} className="subrow-lotes-drawer">
+                                      <td colSpan={totalColunasEnvio}>
+                                        <div className="drawer-lotes-wrapper">
+                                          <div className="drawer-lotes-header">
+                                            <span>📦 Frações de Lote Desmembradas para o Sankhya ({lotesDoItem.length} lotes):</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                              <span style={{ color: 'var(--slate-500)', fontWeight: 500, textTransform: 'none' }}>
+                                                Total: <strong>{lotesDoItem.reduce((acc, l) => acc + (l.qtd || 0), 0)} {item.codvol || 'UN'}</strong>
+                                              </span>
+                                              <button
+                                                type="button"
+                                                className="gestao-btn-clean-secundario"
+                                                style={{ padding: '2px 8px', fontSize: '0.72rem' }}
+                                                onClick={() =>
+                                                  onEditarLotesItem({
+                                                    nunota: item.nunota,
+                                                    sequencia: item.sequencia,
+                                                    codprod: item.codprod,
+                                                    descrprod:
+                                                      item.descrprod ||
+                                                      `Produto ${item.codprod}`,
+                                                    qtdEsperada: item.qtdneg || 0,
+                                                    conferenciaId:
+                                                      grupo.conferenciaId,
+                                                  })
+                                                }
+                                              >
+                                                ✂️ Gerenciar Frações
+                                              </button>
+                                            </div>
+                                          </div>
+                                          <table className="mini-tabela-lotes">
+                                            <thead>
+                                              <tr>
+                                                <th>Lote</th>
+                                                <th style={{ textAlign: 'center' }}>Quantidade</th>
+                                                <th>Data de Validade</th>
+                                                <th>Data de Fabricação</th>
+                                                <th>Origem</th>
+                                                <th style={{ textAlign: 'right' }}>Ação</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {lotesDoItem.map((fracao, fIdx) => (
+                                                <tr key={`fe-${itemKey}-${fracao.lote}-${fIdx}`}>
+                                                  <td>
+                                                    <span className="gestao-lote-pill" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                                                      🏷️ {fracao.lote}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ textAlign: 'center' }}>
+                                                    <strong>{fracao.qtd}</strong> {item.codvol || 'UN'}
+                                                  </td>
+                                                  <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
+                                                    {formatarDataSimples(fracao.validade)}
+                                                  </td>
+                                                  <td style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-600)' }}>
+                                                    {formatarDataSimples(fracao.fabricacao)}
+                                                  </td>
+                                                  <td>
+                                                    <span className="gestao-mini-chip" style={{ fontSize: '0.70rem', padding: '1px 6px' }}>
+                                                      {isVeioExcel ? '📊 Excel' : '📱 Coletor'}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ textAlign: 'right' }}>
+                                                    <button
+                                                      type="button"
+                                                      className="gestao-btn-clean-secundario"
+                                                      style={{ padding: '2px 6px', fontSize: '0.70rem' }}
+                                                      onClick={() =>
+                                                        onEditarLotesItem({
+                                                          nunota: item.nunota,
+                                                          sequencia: item.sequencia,
+                                                          codprod: item.codprod,
+                                                          descrprod:
+                                                            item.descrprod ||
+                                                            `Produto ${item.codprod}`,
+                                                          qtdEsperada: item.qtdneg || 0,
+                                                          conferenciaId:
+                                                            grupo.conferenciaId,
+                                                        })
+                                                      }
+                                                      title="Editar ou redistribuir este lote"
+                                                    >
+                                                      Editar
+                                                    </button>
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
                               );
                             })}
                           </tbody>
@@ -935,13 +1078,15 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                             detalhes.bipagens
                           );
                           const temMultiplosLotes = lotesDoItem.length > 1;
+                          const itemKey = `${grupo.conferenciaId}-${item.nunota}-${item.codprod}-${item.sequencia}`;
+                          const isLotesAberto = Boolean(lotesExpandidosEnvio[itemKey]);
                           const isVeioExcel = origemExcelPorConferencia[
                             grupo.conferenciaId
                           ]?.has(item.codprod);
 
                           return (
                             <div
-                              key={`sankhya-mob-${item.nunota}-${item.codprod}-${item.sequencia}`}
+                              key={`sankhya-mob-${itemKey}`}
                               className="gestao-item-card-mobile"
                             >
                               <div className="gestao-item-mobile-header">
@@ -1008,94 +1153,142 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                 className="gestao-item-mobile-lote-info"
                                 style={{
                                   display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  flexWrap: 'wrap',
+                                  flexDirection: 'column',
                                   gap: '6px',
                                 }}
                               >
-                                <div
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  <span
-                                    title={
-                                      isVeioExcel
-                                        ? 'Importado via Excel'
-                                        : 'Conferido pelo coletor'
-                                    }
-                                  >
-                                    {isVeioExcel ? '📊' : '📱'}
-                                  </span>
-                                  {temMultiplosLotes ? (
-                                    <span>
-                                      {lotesDoItem.length} lotes (
-                                      {lotesDoItem.map((l) => l.lote).join(', ')})
-                                    </span>
-                                  ) : lotesDoItem.length === 1 ? (
-                                    <span>
-                                      Lote: {lotesDoItem[0].lote}
-                                      {lotesDoItem[0].validade
-                                        ? ` • Val: ${formatarDataSimples(
-                                            lotesDoItem[0].validade
-                                          )}`
-                                        : ''}
-                                      {lotesDoItem[0].fabricacao
-                                        ? ` • Fab: ${formatarDataSimples(
-                                            lotesDoItem[0].fabricacao
-                                          )}`
-                                        : ''}
-                                    </span>
-                                  ) : item.lote ? (
-                                    <span>
-                                      Lote: {item.lote}
-                                      {item.validade
-                                        ? ` • Val: ${formatarDataSimples(
-                                            item.validade
-                                          )}`
-                                        : ''}
-                                      {item.fabricacao
-                                        ? ` • Fab: ${formatarDataSimples(
-                                            item.fabricacao
-                                          )}`
-                                        : ''}
-                                    </span>
-                                  ) : (
-                                    <span style={{ color: 'var(--slate-400)' }}>
-                                      Sem lote
-                                    </span>
-                                  )}
-                                </div>
+                                {temMultiplosLotes ? (
+                                  <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <span>{isVeioExcel ? '📊' : '📱'}</span>
+                                        <button
+                                          type="button"
+                                          className={`chip-dropdown-lote ${isLotesAberto ? 'ativo' : ''}`}
+                                          onClick={() => toggleLotesItemEnvio(itemKey)}
+                                        >
+                                          <span>✂️ {lotesDoItem.length} Lotes no Sankhya</span>
+                                          <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲ recolher' : '▼ expandir'}</span>
+                                        </button>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="gestao-btn-clean-secundario"
+                                        style={{ padding: '2px 6px', fontSize: '0.70rem' }}
+                                        onClick={() =>
+                                          onEditarLotesItem({
+                                            nunota: item.nunota,
+                                            sequencia: item.sequencia,
+                                            codprod: item.codprod,
+                                            descrprod:
+                                              item.descrprod ||
+                                              `Produto ${item.codprod}`,
+                                            qtdEsperada: item.qtdneg || 0,
+                                            conferenciaId: grupo.conferenciaId,
+                                          })
+                                        }
+                                      >
+                                        ✂️ Gerenciar
+                                      </button>
+                                    </div>
 
-                                <button
-                                  type="button"
-                                  className="gestao-rec-btn-refresh"
-                                  style={{
-                                    padding: '2px 8px',
-                                    fontSize: '0.74rem',
-                                  }}
-                                  onClick={() =>
-                                    onEditarLotesItem({
-                                      nunota: item.nunota,
-                                      sequencia: item.sequencia,
-                                      codprod: item.codprod,
-                                      descrprod:
-                                        item.descrprod ||
-                                        `Produto ${item.codprod}`,
-                                      qtdEsperada: item.qtdneg || 0,
-                                      conferenciaId: grupo.conferenciaId,
-                                    })
-                                  }
-                                >
-                                  ✂️{' '}
-                                  {temMultiplosLotes
-                                    ? 'Gerenciar'
-                                    : 'Dividir / Lote'}
-                                </button>
+                                    {isLotesAberto && (
+                                      <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {lotesDoItem.map((fracao, fIdx) => (
+                                          <div
+                                            key={`mob-fe-${itemKey}-${fracao.lote}-${fIdx}`}
+                                            style={{
+                                              background: '#ffffff',
+                                              border: '1px solid var(--slate-200)',
+                                              borderRadius: '6px',
+                                              padding: '6px 8px',
+                                              fontSize: '0.72rem',
+                                            }}
+                                          >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
+                                              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-900)' }}>
+                                                🏷️ {fracao.lote}
+                                              </span>
+                                              <span style={{ background: 'var(--slate-100)', padding: '1px 5px', borderRadius: '4px' }}>
+                                                {fracao.qtd} {item.codvol || 'UN'}
+                                              </span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
+                                              <span>Val: {formatarDataSimples(fracao.validade)}</span>
+                                              <span>Fab: {formatarDataSimples(fracao.fabricacao)}</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      flexWrap: 'wrap',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                      <span>{isVeioExcel ? '📊' : '📱'}</span>
+                                      {lotesDoItem.length === 1 ? (
+                                        <span>
+                                          Lote: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{lotesDoItem[0].lote}</strong> ({lotesDoItem[0].qtd} un)
+                                          {lotesDoItem[0].validade
+                                            ? ` • Val: ${formatarDataSimples(
+                                                lotesDoItem[0].validade
+                                              )}`
+                                            : ''}
+                                          {lotesDoItem[0].fabricacao
+                                            ? ` • Fab: ${formatarDataSimples(
+                                                lotesDoItem[0].fabricacao
+                                              )}`
+                                            : ''}
+                                        </span>
+                                      ) : item.lote ? (
+                                        <span>
+                                          Lote: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.lote}</strong>
+                                          {item.validade
+                                            ? ` • Val: ${formatarDataSimples(
+                                                item.validade
+                                              )}`
+                                            : ''}
+                                          {item.fabricacao
+                                            ? ` • Fab: ${formatarDataSimples(
+                                                item.fabricacao
+                                              )}`
+                                            : ''}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: 'var(--slate-400)' }}>
+                                          Sem lote
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="gestao-btn-clean-secundario"
+                                      style={{ padding: '2px 6px', fontSize: '0.70rem' }}
+                                      onClick={() =>
+                                        onEditarLotesItem({
+                                          nunota: item.nunota,
+                                          sequencia: item.sequencia,
+                                          codprod: item.codprod,
+                                          descrprod:
+                                            item.descrprod ||
+                                            `Produto ${item.codprod}`,
+                                          qtdEsperada: item.qtdneg || 0,
+                                          conferenciaId: grupo.conferenciaId,
+                                        })
+                                      }
+                                    >
+                                      {lotesDoItem.length === 0 && !item.lote ? '+ Lote' : '✂️ Lote'}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
 
                               {(item.conferenteN1 ||
@@ -1122,12 +1315,13 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
             </div>
               )}
 
-              {/* Ações de Envio */}
-              <div className="gestao-rec-card-acoes">
-                {!jaEnviado ? (
+              {/* Ação secundária de envio no rodapé se a lista de itens estiver aberta */}
+              {!jaEnviado && isExpandido && (
+                <div className="gestao-rec-card-acoes" style={{ justifyContent: 'flex-end', paddingTop: '8px' }}>
                   <button
                     type="button"
                     className="gestao-btn-acao gestao-btn-enviar-sankhya"
+                    style={{ padding: '8px 16px', fontSize: '0.84rem' }}
                     onClick={() =>
                       onEnviarSankhya(
                         grupo.conferenciaId,
@@ -1138,18 +1332,8 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                   >
                     <span>🚀 Aprovar & Enviar ao Sankhya</span>
                   </button>
-                ) : (
-                  <div
-                    style={{
-                      fontSize: '0.85rem',
-                      color: '#6d28d9',
-                      fontWeight: 600,
-                    }}
-                  >
-                    ✓ Esta conferência já foi sincronizada com o ERP Sankhya com sucesso.
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           );
         })
