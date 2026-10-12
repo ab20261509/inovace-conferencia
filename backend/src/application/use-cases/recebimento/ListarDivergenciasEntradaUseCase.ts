@@ -23,12 +23,18 @@ export interface ItemDivergenciaResumo {
 
 export interface ConferênciaDivergenciaGrupo {
   id: string;
+  conferenciaId: string;
+  nunota: number;
+  numnota: number;
   nunotas: number[];
   numerosNotas: string;
   fornecedor: string;
   status: string;
   nivelAtual: number;
   conferente: string;
+  conferentesN1: string[];
+  conferentesN2: string[];
+  conferentesN3: string[];
   criadoEm: string;
   atualizadoEm: string;
   totalN1: number;
@@ -46,13 +52,14 @@ export class ListarDivergenciasEntradaUseCase {
   ) {}
 
   async execute(correlationId?: string): Promise<ConferênciaDivergenciaGrupo[]> {
-    // 1. Buscar todas as sessões no SQLite que estão como Divergente ou Em Reconferência ou N3
-    // Como o repo tem obterSessoesPorNunotas, vamos fazer query via repo ou todas as conferências
+    // 1. Buscar todas as sessões no SQLite que estão como Divergente, Em Reconferência, N3 ou com statusPorNota divergente
     const todasSessoes = await (this.conferenciaRepo as any).client?.execute(
       `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-              aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json
+              aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json,
+              status_por_nota_json
        FROM conferencias_entrada
        WHERE status IN ('Divergente', 'Em Reconferência', 'Aguardando N3', 'N3 em Andamento')
+          OR status_por_nota_json LIKE '%Divergente%'
        ORDER BY atualizado_em DESC`
     );
 
@@ -70,6 +77,11 @@ export class ListarDivergenciasEntradaUseCase {
         nunotas = [];
       }
       if (nunotas.length === 0) continue;
+
+      let statusPorNota: Record<number, string> = {};
+      try {
+        statusPorNota = JSON.parse(String(row.status_por_nota_json || '{}'));
+      } catch {}
 
       const nunotasStr = nunotas.join(', ');
 
@@ -149,19 +161,16 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         }
       }
 
-      let fornecedor = 'FORNECEDOR';
-      const numerosNotasSet = new Set<string>();
-      const todosItens: ItemDivergenciaResumo[] = [];
-      let totalN1 = 0;
-      let totalN2 = 0;
-      let totalN3 = 0;
-      let totalEsperado = 0;
+      // Mapeamento de itens por nota fiscal individual
+      const itensPorNota: Record<number, ItemDivergenciaResumo[]> = {};
+      const fornecedorPorNota: Record<number, string> = {};
+      const numnotaPorNota: Record<number, number> = {};
 
       for (const r of rows) {
         const nunotaItem = Number(r[fieldIndex['NUNOTA']]);
-        const numnota = String(r[fieldIndex['NUMNOTA']] || '');
-        if (numnota) numerosNotasSet.add(numnota);
-        fornecedor = String(r[fieldIndex['NOMEPARC']] || fornecedor);
+        const numnota = Number(r[fieldIndex['NUMNOTA']] || 0);
+        numnotaPorNota[nunotaItem] = numnota;
+        fornecedorPorNota[nunotaItem] = String(r[fieldIndex['NOMEPARC']] || 'FORNECEDOR');
 
         const codprod = Number(r[fieldIndex['CODPROD']]);
         const sequencia = Number(r[fieldIndex['SEQUENCIA']]);
@@ -173,16 +182,10 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         const key = `${nunotaItem}|${codprod}|${sequencia}`;
         const bips = mapBips[key] || { n1: 0, n2: 0, n3: 0 };
 
-        totalN1 += bips.n1;
-        totalN2 += bips.n2;
-        totalN3 += bips.n3;
-        totalEsperado += qtdEsperada;
-
-        // Se houve contagem no N3, a contagem final é N3; senão se houve N2, é N2; senão N1
         const contagemFinal = bips.n3 > 0 ? bips.n3 : bips.n2 > 0 ? bips.n2 : bips.n1;
         const diferenca = contagemFinal - qtdEsperada;
 
-        todosItens.push({
+        const itemResumo: ItemDivergenciaResumo = {
           nunota: nunotaItem,
           codprod,
           sequencia,
@@ -200,53 +203,80 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           conferenteN1: bips.conferenteN1,
           conferenteN2: bips.conferenteN2,
           conferenteN3: bips.conferenteN3,
+        };
+
+        if (!itensPorNota[nunotaItem]) {
+          itensPorNota[nunotaItem] = [];
+        }
+        itensPorNota[nunotaItem].push(itemResumo);
+      }
+
+      // Gerar um cartão de incidente independente para cada nota divergente
+      for (const nunotaItem of nunotas) {
+        const itensDestaNota = itensPorNota[nunotaItem] || [];
+        if (itensDestaNota.length === 0) continue;
+
+        const statusNota = statusPorNota[nunotaItem] || String(row.status);
+        // Se a nota já estiver 100% aprovada ou enviada, não deve aparecer em divergências!
+        if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {
+          continue;
+        }
+
+        let totalN1Nota = 0;
+        let totalN2Nota = 0;
+        let totalN3Nota = 0;
+        let totalEsperadoNota = 0;
+        const confN1Set = new Set<string>();
+        const confN2Set = new Set<string>();
+        const confN3Set = new Set<string>();
+
+        itensDestaNota.forEach((it) => {
+          totalN1Nota += it.qtdN1;
+          totalN2Nota += it.qtdN2;
+          totalN3Nota += it.qtdN3;
+          totalEsperadoNota += it.qtdEsperada;
+          if (it.conferenteN1) confN1Set.add(it.conferenteN1);
+          if (it.conferenteN2) confN2Set.add(it.conferenteN2);
+          if (it.conferenteN3) confN3Set.add(it.conferenteN3);
         });
+
+        // Filtrar itens divergentes da nota
+        const itensDivergentesNota = itensDestaNota.filter((it) => {
+          if (it.qtdN3 > 0) return it.qtdN3 !== it.qtdEsperada;
+          if (totalN1Nota > 0 && totalN2Nota > 0) return it.qtdN1 !== it.qtdN2 || it.qtdN2 !== it.qtdEsperada;
+          if (totalN2Nota > 0) return it.qtdN2 !== it.qtdEsperada;
+          return it.qtdN1 !== it.qtdEsperada;
+        });
+
+        // Se a nota tiver divergências ou seu status for expressamente Divergente/Aguardando N3
+        if (itensDivergentesNota.length > 0 || statusNota === 'Divergente' || statusNota === 'Aguardando N3' || statusNota === 'N3 em Andamento') {
+          const numnotaFinal = numnotaPorNota[nunotaItem] || nunotaItem;
+
+          resultado.push({
+            id: `${id}_${nunotaItem}`,
+            conferenciaId: id,
+            nunota: nunotaItem,
+            numnota: numnotaFinal,
+            nunotas: [nunotaItem],
+            numerosNotas: String(numnotaFinal),
+            fornecedor: fornecedorPorNota[nunotaItem] || 'FORNECEDOR',
+            status: statusNota,
+            nivelAtual: Number(row.nivel_atual),
+            conferente: String(row.conferente || 'Operador'),
+            conferentesN1: Array.from(confN1Set),
+            conferentesN2: Array.from(confN2Set),
+            conferentesN3: Array.from(confN3Set),
+            criadoEm: String(row.criado_em),
+            atualizadoEm: String(row.atualizado_em),
+            totalN1: totalN1Nota,
+            totalN2: totalN2Nota,
+            totalN3: totalN3Nota,
+            totalEsperado: totalEsperadoNota,
+            itensDivergentes: itensDivergentesNota,
+            todosItens: itensDestaNota,
+          });
+        }
       }
-
-      // Itens divergentes são aqueles onde:
-      // Se houve N3: N3 != esperado
-      // Se houve N1 e N2: N1 != N2 OU N2 != esperado
-      // Se houve N2 sem N1: N2 != esperado
-      // Senão: N1 != esperado
-      const itensDivergentes = todosItens.filter((it) => {
-        if (it.qtdN3 > 0) return it.qtdN3 !== it.qtdEsperada;
-        if (totalN1 > 0 && totalN2 > 0) return it.qtdN1 !== it.qtdN2 || it.qtdN2 !== it.qtdEsperada;
-        if (totalN2 > 0) return it.qtdN2 !== it.qtdEsperada;
-        return it.qtdN1 !== it.qtdEsperada;
-      });
-
-      const mapaNumnotasPorNunota: Record<number, string> = {};
-      for (const r of rows) {
-        const nunotaItem = Number(r[fieldIndex['NUNOTA']]);
-        const numnota = String(r[fieldIndex['NUMNOTA']] || '');
-        if (numnota) mapaNumnotasPorNunota[nunotaItem] = numnota;
-      }
-      const nunotasComDivergencia = Array.from(new Set(itensDivergentes.map((it) => it.nunota)));
-      const numerosNotasDivergentes = nunotasComDivergencia
-        .map((n) => mapaNumnotasPorNunota[n])
-        .filter(Boolean);
-      const numerosNotasExibir =
-        numerosNotasDivergentes.length > 0
-          ? numerosNotasDivergentes.join(', ')
-          : Array.from(numerosNotasSet).join(', ') || nunotasStr;
-
-      resultado.push({
-        id,
-        nunotas,
-        numerosNotas: numerosNotasExibir,
-        fornecedor,
-        status: String(row.status),
-        nivelAtual: Number(row.nivel_atual),
-        conferente: String(row.conferente),
-        criadoEm: String(row.criado_em),
-        atualizadoEm: String(row.atualizado_em),
-        totalN1,
-        totalN2,
-        totalN3,
-        totalEsperado,
-        itensDivergentes,
-        todosItens,
-      });
     }
 
     return resultado;

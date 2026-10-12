@@ -6,6 +6,7 @@ import {
   SessaoConferenciaEntrada,
   ItemNotaEntrada,
   BipagemEntrada,
+  FinalizarNivelResponse,
 } from '../../domain/models/ConferenciaEntrada';
 import { Botao, Campo, Container, Label, Painel, ModalCameraScanner } from '../components';
 import { Loading } from '../components/Loading/Loading';
@@ -72,6 +73,9 @@ export function ConferenciaEntradaPage() {
   const [textoOcrBruto, setTextoOcrBruto] = useState('');
   const [campoOcrAlvo, setCampoOcrAlvo] = useState<'lote' | 'fabricacao' | 'validade'>('lote');
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
+  const [cienteItensFaltantes, setCienteItensFaltantes] = useState(false);
+  const [resultadoFinalizacao, setResultadoFinalizacao] = useState<FinalizarNivelResponse | null>(null);
+  const [modalResultadoAberto, setModalResultadoAberto] = useState(false);
   const [bipagemParaEstornar, setBipagemParaEstornar] = useState<BipagemEntrada | null>(null);
   const [estornando, setEstornando] = useState(false);
   const [imagemAmpliada, setImagemAmpliada] = useState<string | null>(null);
@@ -155,7 +159,7 @@ export function ConferenciaEntradaPage() {
 
   const nivelAtual = sessao?.nivelAtual || 1;
 
-  // Estatísticas
+  // Estatísticas consolidadas e por nota
   const estatisticas = useMemo(() => {
     const totalItensDistintos = itens.length;
     let totalEsperado = 0;
@@ -172,6 +176,8 @@ export function ConferenciaEntradaPage() {
 
     let itensComSobra = 0;
     let itensExatos = 0;
+    let itensSemBipagem = 0;
+    let itensComFalta = 0;
 
     itens.forEach((i) => {
       const conferido =
@@ -179,12 +185,78 @@ export function ConferenciaEntradaPage() {
       if (i.qtdneg !== null) {
         if (conferido === i.qtdneg) itensExatos++;
         else if (conferido > i.qtdneg) itensComSobra++;
+        else {
+          itensComFalta++;
+          if (conferido === 0) itensSemBipagem++;
+        }
       } else {
         if (conferido > 0) itensExatos++;
+        else itensSemBipagem++;
       }
     });
 
     const itensConferidosOk = itensExatos + itensComSobra;
+
+    // Estatísticas por Nota Fiscal individual
+    const notasMap: Record<number, {
+      nunota: number;
+      numnota: number;
+      totalItens: number;
+      totalEsperado: number;
+      totalConferido: number;
+      itensOk: number;
+      itensComSobra: number;
+      itensSemBipagem: number;
+      itensComFalta: number;
+      percentualConferido: number;
+    }> = {};
+
+    itens.forEach((it) => {
+      const nunota = it.nunota;
+      const numnota = it.numnota || nunota;
+      if (!notasMap[nunota]) {
+        notasMap[nunota] = {
+          nunota,
+          numnota,
+          totalItens: 0,
+          totalEsperado: 0,
+          totalConferido: 0,
+          itensOk: 0,
+          itensComSobra: 0,
+          itensSemBipagem: 0,
+          itensComFalta: 0,
+          percentualConferido: 0,
+        };
+      }
+      const conferido =
+        nivelAtual === 1 ? it.qtdConferidaN1 : nivelAtual === 2 ? it.qtdConferidaN2 : it.qtdConferidaN3;
+      const esperado = it.qtdneg !== null ? it.qtdneg : 0;
+
+      notasMap[nunota].totalItens++;
+      notasMap[nunota].totalEsperado += esperado;
+      notasMap[nunota].totalConferido += conferido;
+
+      if (it.qtdneg !== null) {
+        if (conferido === esperado) {
+          notasMap[nunota].itensOk++;
+        } else if (conferido > esperado) {
+          notasMap[nunota].itensComSobra++;
+        } else {
+          notasMap[nunota].itensComFalta++;
+          if (conferido === 0) {
+            notasMap[nunota].itensSemBipagem++;
+          }
+        }
+      } else {
+        if (conferido > 0) notasMap[nunota].itensOk++;
+        else notasMap[nunota].itensSemBipagem++;
+      }
+    });
+
+    const porNota = Object.values(notasMap).map((n) => ({
+      ...n,
+      percentualConferido: n.totalEsperado > 0 ? Math.min(100, Math.round((n.totalConferido / n.totalEsperado) * 100)) : 0,
+    }));
 
     return {
       totalItensDistintos,
@@ -193,7 +265,10 @@ export function ConferenciaEntradaPage() {
       itensConferidosOk,
       itensExatos,
       itensComSobra,
+      itensSemBipagem,
+      itensComFalta,
       pendentes: Math.max(0, totalItensDistintos - itensConferidosOk),
+      porNota,
     };
   }, [itens, nivelAtual]);
 
@@ -373,41 +448,35 @@ export function ConferenciaEntradaPage() {
     try {
       const res = await recebimentoService.finalizarNivel(sessao.id, nivelAtual);
       setModalFinalizarAberto(false);
+      setResultadoFinalizacao(res);
+      setModalResultadoAberto(true);
 
-      if (res.statusFinal === 'Conferido') {
-        tocarAlertaSucesso();
-        navigate('/recebimento', {
-          state: {
-            mensagem: `✅ Conferência finalizada com sucesso! Carga de ${res.totalItens} itens aprovada.`,
-          },
-        });
-      } else if (nivelAtual === 1) {
-        tocarAlertaSucesso();
-        navigate('/recebimento', {
-          state: {
-            mensagem: `✅ 1ª Contagem (N1) finalizada com sucesso! A nota agora está na lista aguardando a 2ª Contagem (N2).`,
-          },
-        });
-      } else if (nivelAtual === 2) {
-        tocarAlertaSucesso();
-        navigate('/recebimento', {
-          state: {
-            mensagem: res.possuiDivergencias
-              ? `⚠️ 2ª Contagem (N2) finalizada com divergências! A nota avançou para a Auditoria (N3).`
-              : `✅ 2ª Contagem (N2) finalizada com sucesso!`,
-          },
-        });
+      if (res.possuiDivergencias) {
+        tocarAlertaErro();
       } else {
         tocarAlertaSucesso();
-        navigate('/recebimento', {
-          state: {
-            mensagem: `✅ Contagem finalizada com sucesso!`,
-          },
-        });
       }
     } catch (err: any) {
       tocarAlertaErro();
       setErro(err.response?.data?.error || err.message || 'Erro ao finalizar nível.');
+    } finally {
+      setProcessando(false);
+    }
+  };
+
+  // Avançar diretamente para o próximo nível a partir do modal de resultado
+  const handleAvancarParaNivel = async (novoNivel: number) => {
+    if (!sessao) return;
+    setProcessando(true);
+    setErro(null);
+    try {
+      await recebimentoService.iniciarConferencia(sessao.nunotas, novoNivel);
+      setModalResultadoAberto(false);
+      await inicializar();
+      tocarAlertaSucesso();
+    } catch (err: any) {
+      tocarAlertaErro();
+      setErro(err.response?.data?.error || err.message || `Erro ao avançar para N${novoNivel}.`);
     } finally {
       setProcessando(false);
     }
@@ -420,17 +489,31 @@ export function ConferenciaEntradaPage() {
 
   const itensPendentesVisiveis = useMemo(() => {
     return itens.filter((item) => {
+      // No Nível 3, se uma nota já estiver aprovada/conferida, seus itens não aparecem para conferência
+      if (nivelAtual === 3 && sessao?.statusPorNota) {
+        const statusNota = sessao.statusPorNota[item.nunota];
+        if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {
+          return false;
+        }
+      }
       const conferido =
         nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
       const esperado = item.qtdneg !== null ? item.qtdneg : null;
       const completo = esperado !== null ? conferido >= esperado : conferido > 0;
       return !completo;
     });
-  }, [itens, nivelAtual]);
+  }, [itens, nivelAtual, sessao]);
 
   const itensConferidosVisiveis = useMemo<ItemEntradaConferidoVisivel[]>(() => {
     return itens
       .filter((item) => {
+        // No Nível 3, não polui a visualização com itens de notas que já foram aprovadas
+        if (nivelAtual === 3 && sessao?.statusPorNota) {
+          const statusNota = sessao.statusPorNota[item.nunota];
+          if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {
+            return false;
+          }
+        }
         const conferido =
           nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
         return conferido > 0;
@@ -520,7 +603,10 @@ export function ConferenciaEntradaPage() {
           <Botao
             variant="success"
             size="sm"
-            onClick={() => setModalFinalizarAberto(true)}
+            onClick={() => {
+              setCienteItensFaltantes(false);
+              setModalFinalizarAberto(true);
+            }}
             disabled={processando || estatisticas.totalConferidoNivel === 0}
           >
             Finalizar N{nivelAtual}
@@ -1127,55 +1213,267 @@ export function ConferenciaEntradaPage() {
       {/* Modal Finalizar Nível */}
       {modalFinalizarAberto && (
         <div className="modal-overlay" onClick={() => !processando && setModalFinalizarAberto(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
               <h2 className="modal-title">Finalizar Nível N{nivelAtual}</h2>
               <button className="modal-close" onClick={() => setModalFinalizarAberto(false)} disabled={processando}>×</button>
             </div>
             <p className="modal-subtitle">
-              Deseja concluir a contagem física do <strong>Nível N{nivelAtual}</strong>?
+              Confira o resumo da contagem física do <strong>Nível N{nivelAtual}</strong> antes de confirmar o fechamento:
             </p>
+
+            {/* Resumo consolidado */}
             <div
               style={{
                 background: 'var(--slate-50)',
                 border: '1px solid var(--slate-200)',
                 borderRadius: '8px',
-                padding: '14px',
-                margin: '16px 0',
+                padding: '12px 14px',
+                margin: '12px 0 8px 0',
                 fontSize: '0.85rem',
                 lineHeight: '1.6',
               }}
             >
-              <div><strong>Itens com Bipagem:</strong> {estatisticas.itensConferidosOk} de {estatisticas.totalItensDistintos}</div>
-              <div><strong>Total de Unidades Bipadas:</strong> {estatisticas.totalConferidoNivel}</div>
-              {estatisticas.itensComSobra > 0 && (
-                <div
-                  style={{
-                    marginTop: '10px',
-                    padding: '8px 12px',
-                    background: '#fef2f2',
-                    border: '1px solid #fecaca',
-                    borderRadius: '6px',
-                    color: '#dc2626',
-                    fontWeight: 600,
-                  }}
-                >
-                  ⚠️ <strong>Atenção:</strong> {estatisticas.itensComSobra} produto(s) possuem quantidade bipada <u>maior</u> que a nota fiscal (sobra). Se confirmar agora, a conferência será finalizada com status <strong>Divergente</strong>.
-                </div>
-              )}
-              {nivelAtual === 1 && (
-                <div style={{ marginTop: '8px', color: 'var(--slate-600)', fontStyle: 'italic' }}>
-                  ℹ️ O sistema comparará com as notas fiscais. Havendo divergência, o lote avançará para o Nível N2 (Recontagem).
-                </div>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span><strong>Itens com Bipagem:</strong> {estatisticas.itensConferidosOk} de {estatisticas.totalItensDistintos}</span>
+                <span><strong>Total de Unidades Bipadas:</strong> {estatisticas.totalConferidoNivel}</span>
+              </div>
             </div>
-            <div className="modal-actions">
+
+            {/* Resumo individual por Nota Fiscal */}
+            {estatisticas.porNota.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '10px 0' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--slate-600)', textTransform: 'uppercase' }}>
+                  Detalhamento por Nota Fiscal ({estatisticas.porNota.length}):
+                </div>
+                {estatisticas.porNota.map((nota) => {
+                  const is100Ok = nota.itensOk === nota.totalItens && nota.itensComSobra === 0;
+                  const temSobra = nota.itensComSobra > 0;
+                  const temFalta = nota.itensComFalta > 0;
+
+                  return (
+                    <div
+                      key={nota.nunota}
+                      style={{
+                        background: is100Ok ? '#f0fdf4' : temSobra ? '#fef2f2' : '#fffbeb',
+                        border: `1px solid ${is100Ok ? '#bbf7d0' : temSobra ? '#fecaca' : '#fde68a'}`,
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--slate-800)' }}>
+                          Nota {nota.numnota} <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--slate-500)' }}>(#{nota.nunota})</span>
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            background: is100Ok ? '#dcfce7' : temSobra ? '#fee2e2' : '#fef3c7',
+                            color: is100Ok ? '#166534' : temSobra ? '#991b1b' : '#92400e',
+                          }}
+                        >
+                          {is100Ok ? '✅ 100% OK' : temSobra ? '⚠️ Com Sobra' : `⏳ ${nota.itensComFalta} pendente(s)`}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--slate-600)', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                        <span>Itens: <strong>{nota.itensOk}/{nota.totalItens} OK</strong></span>
+                        <span>Unidades: <strong>{nota.totalConferido}/{nota.totalEsperado}</strong></span>
+                        {nota.itensSemBipagem > 0 && (
+                          <span style={{ color: '#d97706', fontWeight: 600 }}>Zero bipagens: {nota.itensSemBipagem}</span>
+                        )}
+                        {nota.itensComSobra > 0 && (
+                          <span style={{ color: '#dc2626', fontWeight: 600 }}>Sobras: {nota.itensComSobra}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Alerta de Itens Sem Bipagem (Falta Física) */}
+            {estatisticas.itensSemBipagem > 0 && (
+              <div
+                style={{
+                  margin: '10px 0',
+                  padding: '10px 12px',
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: '8px',
+                  color: '#92400e',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: '6px' }}>
+                  ⚠️ Atenção: {estatisticas.itensSemBipagem} produto(s) não receberam nenhuma bipagem e serão apontados como FALTA física.
+                </div>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', marginTop: '6px' }}>
+                  <input
+                    type="checkbox"
+                    checked={cienteItensFaltantes}
+                    onChange={(e) => setCienteItensFaltantes(e.target.checked)}
+                    style={{ marginTop: '2px', cursor: 'pointer', width: '16px', height: '16px' }}
+                  />
+                  <span style={{ fontSize: '0.8rem', color: 'var(--slate-800)', fontWeight: 500 }}>
+                    Estou ciente de que existem itens não conferidos e confirmo o encerramento da contagem com falta.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* Alerta de Sobra */}
+            {estatisticas.itensComSobra > 0 && (
+              <div
+                style={{
+                  margin: '8px 0',
+                  padding: '8px 12px',
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '6px',
+                  color: '#dc2626',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                }}
+              >
+                ⚠️ <strong>Atenção:</strong> {estatisticas.itensComSobra} produto(s) possuem quantidade bipada <u>maior</u> que a nota fiscal (sobra). Se confirmar agora, a conferência dessa nota será finalizada com status <strong>Divergente</strong>.
+              </div>
+            )}
+
+            {nivelAtual === 1 && (
+              <div style={{ margin: '8px 0', color: 'var(--slate-600)', fontStyle: 'italic', fontSize: '0.8rem' }}>
+                ℹ️ O sistema comparará com as notas fiscais. Havendo divergência, a nota avançará para o Nível N2 (Recontagem).
+              </div>
+            )}
+
+            <div className="modal-actions" style={{ marginTop: '14px' }}>
               <Botao variant="secondary" size="md" onClick={() => setModalFinalizarAberto(false)} disabled={processando}>
                 Cancelar
               </Botao>
-              <Botao variant="success" size="md" onClick={handleFinalizarNivel} loading={processando}>
+              <Botao
+                variant="success"
+                size="md"
+                onClick={handleFinalizarNivel}
+                loading={processando}
+                disabled={processando || (estatisticas.itensSemBipagem > 0 && !cienteItensFaltantes)}
+              >
                 Confirmar Fechamento
               </Botao>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Resultado Pós-Fechamento */}
+      {modalResultadoAberto && resultadoFinalizacao && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h2 className="modal-title">
+                {resultadoFinalizacao.possuiDivergencias
+                  ? '⚠️ Fechamento com Divergências'
+                  : resultadoFinalizacao.statusFinal === 'Conferido'
+                  ? '✅ Carga Aprovada com Sucesso!'
+                  : `✅ Nível N${nivelAtual} Concluído`}
+              </h2>
+            </div>
+            <p className="modal-subtitle">
+              {resultadoFinalizacao.statusFinal === 'Conferido'
+                ? 'Todas as notas foram conferidas com 100% de exatidão e estão liberadas para envio ao ERP Sankhya.'
+                : resultadoFinalizacao.statusFinal === 'Aguardando N2'
+                ? 'A 1ª Contagem (N1) foi finalizada. As notas estão prontas para a 2ª Contagem física (N2 com Lote e Validade).'
+                : 'Identificamos divergências físicas. Veja o status atribuído a cada nota abaixo:'}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '14px 0' }}>
+              {(resultadoFinalizacao.resumoPorNota || []).map((resNota) => {
+                const isAprovada = resNota.status === 'Conferido';
+                const isDivergente = resNota.status === 'Divergente';
+                return (
+                  <div
+                    key={resNota.nunota}
+                    style={{
+                      background: isAprovada ? '#f0fdf4' : isDivergente ? '#fef2f2' : '#eff6ff',
+                      border: `1px solid ${isAprovada ? '#bbf7d0' : isDivergente ? '#fecaca' : '#bfdbfe'}`,
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--slate-800)' }}>
+                        Nota {resNota.numnota} <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--slate-500)' }}>(#{resNota.nunota})</span>
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          background: isAprovada ? '#dcfce7' : isDivergente ? '#fee2e2' : '#dbeafe',
+                          color: isAprovada ? '#166534' : isDivergente ? '#991b1b' : '#1e40af',
+                        }}
+                      >
+                        {isAprovada ? '✅ Aprovada / 100% OK' : isDivergente ? '⚠️ Divergente → Auditoria N3' : '⏳ Aguardando N2'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--slate-600)', marginTop: '4px' }}>
+                      Itens Corretos: <strong>{resNota.itensConferidosOk} de {resNota.totalItens}</strong>
+                      {resNota.itensComSobra > 0 && <span style={{ color: '#dc2626' }}> • {resNota.itensComSobra} com sobra</span>}
+                      {resNota.itensPendentes > 0 && <span style={{ color: '#d97706' }}> • {resNota.itensPendentes} pendentes/falta</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
+              <Botao
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  setModalResultadoAberto(false);
+                  navigate('/recebimento');
+                }}
+              >
+                Voltar ao Recebimento
+              </Botao>
+              {resultadoFinalizacao.possuiDivergencias && (
+                <Botao
+                  variant="danger"
+                  size="md"
+                  onClick={() => handleAvancarParaNivel(3)}
+                  loading={processando}
+                >
+                  🔍 Iniciar Auditoria N3 Agora
+                </Botao>
+              )}
+              {resultadoFinalizacao.statusFinal === 'Aguardando N2' && (
+                <Botao
+                  variant="primary"
+                  size="md"
+                  onClick={() => handleAvancarParaNivel(2)}
+                  loading={processando}
+                >
+                  Iniciar 2ª Contagem (N2)
+                </Botao>
+              )}
+              {resultadoFinalizacao.statusFinal === 'Conferido' && (
+                <Botao
+                  variant="success"
+                  size="md"
+                  onClick={() => {
+                    setModalResultadoAberto(false);
+                    navigate('/recebimento');
+                  }}
+                >
+                  Concluir
+                </Botao>
+              )}
             </div>
           </div>
         </div>

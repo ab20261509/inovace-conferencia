@@ -292,14 +292,23 @@ WHERE BAR.CODPROD IN (
     }
 
     // Se a conferência estiver no Nível 3 (Reconferência / Desempate),
-    // o conferente deve receber APENAS os itens que divergiram nos níveis anteriores!
+    // o conferente deve receber APENAS os itens que divergiram nos níveis anteriores
+    // E apenas de notas que ainda estão pendentes/divergentes (ocultando notas já 100% aprovadas)
     const ehNivel3 =
       sessao?.nivelAtual === 3 ||
       sessao?.status === 'Aguardando N3' ||
       sessao?.status === 'N3 em Andamento' ||
       sessao?.status === 'Divergente';
 
-    const itensRetornados = ehNivel3 ? itens.filter((i) => i.divergente) : itens;
+    const itensRetornados = ehNivel3
+      ? itens.filter((i) => {
+          const statusNota = sessao?.statusPorNota?.[i.nunota];
+          if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {
+            return false;
+          }
+          return i.divergente;
+        })
+      : itens;
 
     // Enriquecer bipagens com dados descritivos do produto
     const bipagensEnriquecidas = bipagens.map((b) => {

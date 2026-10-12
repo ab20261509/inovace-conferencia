@@ -173,10 +173,11 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
-      const { acao, observacao } = req.body;
+      const { acao, observacao, nunota } = req.body;
 
       const sessao = await this.resolverDivergenciaUseCase.execute({
         conferenciaId,
+        nunota: nunota ? Number(nunota) : undefined,
         usuario,
         acao,
         observacao,

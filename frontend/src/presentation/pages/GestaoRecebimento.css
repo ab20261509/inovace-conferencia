@@ -828,3 +828,79 @@
   color: var(--slate-500);
 }
 
+/* ═══════════════════════════════════════════════════════
+   SKELETON DE CARREGAMENTO DOS ITENS
+   ═══════════════════════════════════════════════════════ */
+.gestao-skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  width: 100%;
+}
+
+.gestao-skeleton-linha {
+  height: 40px;
+  background: linear-gradient(
+    90deg,
+    var(--slate-100) 25%,
+    var(--slate-200) 50%,
+    var(--slate-100) 75%
+  );
+  background-size: 200% 100%;
+  animation: gestao-skeleton-shimmer 1.5s infinite;
+  border-radius: 6px;
+  border: 1px solid var(--slate-200);
+}
+
+@keyframes gestao-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes gestao-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   ESTILOS DE IMPRESSÃO / PDF PARA COMPROVANTE
+   ═══════════════════════════════════════════════════════ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #comprovante-envio-modal,
+  #comprovante-envio-modal * {
+    visibility: visible;
+  }
+  #comprovante-envio-modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+  .gestao-modal-overlay {
+    background: transparent !important;
+    position: static !important;
+    padding: 0 !important;
+  }
+  .gestao-modal-acoes,
+  button {
+    display: none !important;
+  }
+}
+
+

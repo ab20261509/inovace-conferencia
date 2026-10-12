@@ -11,12 +11,25 @@ export interface FinalizarNivelEntradaInput {
   nivel: number;
 }
 
+export interface ResumoNotaFinalizacao {
+  nunota: number;
+  numnota: number;
+  status: StatusConferenciaEntrada;
+  totalItens: number;
+  itensConferidosOk: number;
+  itensPendentes: number;
+  itensComSobra: number;
+  itensSemBipagem: number;
+  possuiDivergencias: boolean;
+}
+
 export interface FinalizarNivelEntradaOutput {
   sessao: SessaoConferenciaEntrada;
   statusFinal: StatusConferenciaEntrada;
   possuiDivergencias: boolean;
   totalItens: number;
   totalConferidos: number;
+  resumoPorNota: ResumoNotaFinalizacao[];
 }
 
 export class FinalizarNivelEntradaUseCase {
@@ -37,14 +50,16 @@ export class FinalizarNivelEntradaUseCase {
 
     const nunotasStr = sessao.nunotas.join(', ');
 
-    // 1. Buscar itens esperados na nota fiscal
+    // 1. Buscar itens esperados na nota fiscal com NUMNOTA
     const sql = `
 SELECT
     ITE.NUNOTA,
     ITE.SEQUENCIA,
     ITE.CODPROD,
-    NVL(ITE.QTDNEG, 0) AS QTDNEG
+    NVL(ITE.QTDNEG, 0) AS QTDNEG,
+    CAB.NUMNOTA
 FROM TGFITE ITE
+INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
 WHERE ITE.NUNOTA IN (${nunotasStr})
     `.trim();
 
@@ -61,6 +76,8 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       fieldIndex[f.name.toUpperCase()] = idx;
     });
 
+    const numnotaPorNunota: Record<number, number> = {};
+
     // 2. Buscar todas as bipagens
     const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
 
@@ -71,6 +88,8 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       const codprod = Number(r[fieldIndex['CODPROD']]);
       const sequencia = Number(r[fieldIndex['SEQUENCIA']]);
       const esperado = Number(r[fieldIndex['QTDNEG']] || 0);
+      const numnota = Number(r[fieldIndex['NUMNOTA']] || 0);
+      numnotaPorNunota[nunota] = numnota;
 
       const key = `${nunota}|${codprod}|${sequencia}`;
       mapTotais[key] = { n1: 0, n2: 0, n3: 0, esperado };
@@ -97,10 +116,31 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
     const usarNivel2 = n2Param !== 'false';
 
     const statusPorNota: Record<number, StatusConferenciaEntrada> = {};
+    const resumoPorNota: ResumoNotaFinalizacao[] = [];
 
     for (const nunota of sessao.nunotas) {
       let notaDivergente = false;
       const itensDestaNota = Object.entries(mapTotais).filter(([key]) => key.startsWith(`${nunota}|`));
+      const numnota = numnotaPorNunota[nunota] || nunota;
+
+      let itensOk = 0;
+      let itensPendentes = 0;
+      let itensComSobra = 0;
+      let itensSemBipagem = 0;
+
+      for (const [, item] of itensDestaNota) {
+        const conferidoNivel = input.nivel === 1 ? item.n1 : input.nivel === 2 ? item.n2 : item.n3;
+        if (conferidoNivel === item.esperado) {
+          itensOk++;
+        } else if (conferidoNivel > item.esperado) {
+          itensComSobra++;
+        } else {
+          itensPendentes++;
+          if (conferidoNivel === 0) {
+            itensSemBipagem++;
+          }
+        }
+      }
 
       if (input.nivel === 1) {
         if (!usarNivel2) {
@@ -161,6 +201,18 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       if (notaDivergente) {
         possuiDivergencias = true;
       }
+
+      resumoPorNota.push({
+        nunota,
+        numnota,
+        status: statusPorNota[nunota],
+        totalItens: itensDestaNota.length,
+        itensConferidosOk: itensOk,
+        itensPendentes,
+        itensComSobra,
+        itensSemBipagem,
+        possuiDivergencias: notaDivergente,
+      });
     }
 
     sessao.statusPorNota = statusPorNota;
@@ -193,6 +245,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       possuiDivergencias,
       totalItens: Object.keys(mapTotais).length,
       totalConferidos: Object.values(mapTotais).filter((i) => i.n1 > 0 || i.n2 > 0 || i.n3 > 0).length,
+      resumoPorNota,
     };
   }
 }

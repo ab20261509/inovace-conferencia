@@ -4,6 +4,7 @@ import { AuditService } from '../../../infrastructure/database/AuditService.js';
 
 export interface ResolverDivergenciaInput {
   conferenciaId: string;
+  nunota?: number;
   usuario: string;
   acao?: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3';
   observacao?: string;
@@ -22,26 +23,51 @@ export class ResolverDivergenciaUseCase {
     }
 
     const agora = new Date().toISOString();
+    sessao.statusPorNota = sessao.statusPorNota || {};
 
     if (input.acao === 'RECONFERIR_N3') {
-      sessao.status = 'Aguardando N3';
+      if (input.nunota) {
+        sessao.statusPorNota[input.nunota] = 'Aguardando N3';
+      } else {
+        sessao.nunotas.forEach((n) => {
+          sessao.statusPorNota![n] = 'Aguardando N3';
+        });
+      }
+      sessao.status = 'Divergente';
       sessao.nivelAtual = 3;
       sessao.atualizadoEm = agora;
       sessao.observacaoAprovacao = input.observacao
-        ? `Reconferência N3: ${input.observacao}`
-        : 'Reconferência Nível 3 solicitada pelo gestor.';
+        ? `Reconferência N3${input.nunota ? ` (Nota #${input.nunota})` : ''}: ${input.observacao}`
+        : `Reconferência Nível 3 solicitada pelo gestor${input.nunota ? ` para a nota #${input.nunota}` : ''}.`;
       sessao.aprovadoPor = undefined;
       sessao.aprovadoEm = undefined;
     } else {
       // APROVAR_DIVERGENCIA (padrão)
-      sessao.status = 'Aguardando Aprovação';
+      if (input.nunota) {
+        sessao.statusPorNota[input.nunota] = 'Conferido';
+      } else {
+        sessao.nunotas.forEach((n) => {
+          sessao.statusPorNota![n] = 'Conferido';
+        });
+      }
+
+      // Se todas as notas estiverem como 'Conferido' ou 'Enviado ao Sankhya', a sessão inteira é finalizada como 'Conferido'
+      const todasConferidas = sessao.nunotas.every(
+        (n) => sessao.statusPorNota?.[n] === 'Conferido' || sessao.statusPorNota?.[n] === 'Enviado ao Sankhya'
+      );
+
+      if (todasConferidas) {
+        sessao.status = 'Conferido';
+        sessao.finalizadoEm = agora;
+      }
+
       sessao.atualizadoEm = agora;
-      sessao.finalizadoEm = agora;
       sessao.aprovadoPor = input.usuario;
       sessao.aprovadoEm = agora;
-      sessao.observacaoAprovacao = input.observacao || 'Divergência resolvida e aprovada pelo gestor.';
+      sessao.observacaoAprovacao = input.observacao || `Divergência${input.nunota ? ` da nota #${input.nunota}` : ''} resolvida e aprovada pelo gestor.`;
     }
 
+    sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
     await this.conferenciaRepo.salvarSessao(sessao);
 
     if (this.audit) {
@@ -51,6 +77,7 @@ export class ResolverDivergenciaUseCase {
         recurso: 'conferencias_entrada',
         detalhes: {
           conferenciaId: sessao.id,
+          nunota: input.nunota,
           nunotas: sessao.nunotas,
           observacao: sessao.observacaoAprovacao,
         },

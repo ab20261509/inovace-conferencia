@@ -49,12 +49,19 @@ export class EnviarConferenciaSankhyaUseCase {
       throw new Error('Sessão de conferência não encontrada.');
     }
 
-    if (sessao.status !== 'Conferido' && sessao.status !== 'Divergente') {
-      throw new Error(`A conferência está com status "${sessao.status}" e não pode ser enviada ao Sankhya.`);
-    }
-
     const nunotasParaEnvio = input.nunotas && input.nunotas.length > 0 ? input.nunotas : sessao.nunotas;
     const nunotasStr = nunotasParaEnvio.join(', ');
+
+    // Validação de status por nota: permite envio individual de qualquer nota aprovada ('Conferido')
+    // ou aprovada pelo gestor ('Divergente'), mesmo que outra nota da mesma conferência ainda esteja em N3
+    for (const nunota of nunotasParaEnvio) {
+      const statusNota = sessao.statusPorNota?.[nunota] || sessao.status;
+      if (statusNota !== 'Conferido' && statusNota !== 'Divergente') {
+        throw new Error(
+          `A nota fiscal #${nunota} está com status "${statusNota}" e ainda não foi conferida/aprovada para envio.`
+        );
+      }
+    }
 
     // 1. Buscar dados dos itens e empresa no Sankhya
     const sqlCab = `SELECT CODEMP FROM TGFCAB WHERE NUNOTA IN (${nunotasStr})`.trim();

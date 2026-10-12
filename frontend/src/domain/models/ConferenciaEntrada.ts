@@ -149,12 +149,25 @@ export interface BiparResponse {
   statusSessao?: StatusConferenciaEntrada;
 }
 
+export interface ResumoNotaFinalizacao {
+  nunota: number;
+  numnota: number;
+  status: StatusConferenciaEntrada;
+  totalItens: number;
+  itensConferidosOk: number;
+  itensPendentes: number;
+  itensComSobra: number;
+  itensSemBipagem: number;
+  possuiDivergencias: boolean;
+}
+
 export interface FinalizarNivelResponse {
   sessao: SessaoConferenciaEntrada;
   statusFinal: StatusConferenciaEntrada;
   possuiDivergencias: boolean;
   totalItens: number;
   totalConferidos: number;
+  resumoPorNota?: ResumoNotaFinalizacao[];
 }
 
 export interface ItemDivergenciaResumo {
@@ -179,12 +192,18 @@ export interface ItemDivergenciaResumo {
 
 export interface ConferenciaDivergenciaGrupo {
   id: string;
+  conferenciaId?: string;
+  nunota?: number;
+  numnota?: number;
   nunotas: number[];
   numerosNotas: string;
   fornecedor: string;
   status: string;
   nivelAtual: number;
   conferente: string;
+  conferentesN1?: string[];
+  conferentesN2?: string[];
+  conferentesN3?: string[];
   criadoEm: string;
   atualizadoEm: string;
   totalN1: number;
@@ -198,6 +217,7 @@ export interface ConferenciaDivergenciaGrupo {
 export interface ResolverDivergenciaInput {
   acao: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3';
   observacao?: string;
+  nunota?: number;
 }
 
 export interface ReiniciarConferenciaInput {
