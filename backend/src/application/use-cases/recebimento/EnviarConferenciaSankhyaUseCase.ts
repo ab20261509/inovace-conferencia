@@ -204,34 +204,31 @@ export class EnviarConferenciaSankhyaUseCase {
       }
     }
 
-    // Função de sanitização e formatação de datas compatível com Oracle (DD/MM/YYYY)
-    const formatarDataOracle = (dataStr?: string | null): string => {
-      if (!dataStr) return 'NULL';
+    // Função de sanitização e formatação de datas compatível com DatasetSP.save (DD/MM/YYYY)
+    const formatarDataSankhya = (dataStr?: string | null): string | undefined => {
+      if (!dataStr) return undefined;
       const limpo = dataStr.trim();
-      if (!limpo) return 'NULL';
+      if (!limpo) return undefined;
 
       // Se já estiver em YYYY-MM-DD
       const matchIso = limpo.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (matchIso) {
-        const dia = matchIso[3];
-        const mes = matchIso[2];
-        const ano = matchIso[1];
-        return `TO_DATE('${dia}/${mes}/${ano}', 'DD/MM/YYYY')`;
+        return `${matchIso[3]}/${matchIso[2]}/${matchIso[1]}`;
       }
 
       // Se já estiver em DD/MM/YYYY
       const matchBr = limpo.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
       if (matchBr) {
-        return `TO_DATE('${matchBr[1]}/${matchBr[2]}/${matchBr[3]}', 'DD/MM/YYYY')`;
+        return `${matchBr[1]}/${matchBr[2]}/${matchBr[3]}`;
       }
 
       // Se estiver em YYYYMMDD
       const matchNum = limpo.match(/^(\d{4})(\d{2})(\d{2})$/);
       if (matchNum) {
-        return `TO_DATE('${matchNum[3]}/${matchNum[2]}/${matchNum[1]}', 'DD/MM/YYYY')`;
+        return `${matchNum[3]}/${matchNum[2]}/${matchNum[1]}`;
       }
 
-      return 'NULL';
+      return undefined;
     };
 
     let itensAtualizados = 0;
@@ -240,7 +237,7 @@ export class EnviarConferenciaSankhyaUseCase {
     const agoraFormatada = new Date().toLocaleString('pt-BR');
     const agoraIso = new Date().toISOString();
 
-    // 3. Atualizar TGFITE e garantir dados na TGFEST
+    // 3. Atualizar TGFITE (ItemNota) e garantir dados na TGFEST (Estoque) via DatasetSP.save
     for (const r of iteRows) {
       const nunota = Number(r[0]);
       const sequencia = Number(r[1]);
@@ -257,26 +254,39 @@ export class EnviarConferenciaSankhyaUseCase {
         const loteParaEstaSequencia = lotesDoItem[indiceSequencia] || lotesDoItem[0];
         const loteLimpo = loteParaEstaSequencia.lote.trim();
 
-        const updateIteSql = `
-          UPDATE TGFITE
-          SET CONTROLE = '${loteLimpo}'
-          WHERE NUNOTA = ${nunota} AND SEQUENCIA = ${sequencia}
-        `.trim();
-
+        // 3.1 Atualizar ItemNota (TGFITE) via DatasetSP.save
         await this.gateway.serviceCall<any>(
-          'DbExplorerSP.executeQuery',
-          { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: updateIteSql } },
+          'DatasetSP.save',
+          {
+            serviceName: 'DatasetSP.save',
+            requestBody: {
+              entityName: 'ItemNota',
+              standAlone: false,
+              fields: ['CONTROLE'],
+              records: [
+                {
+                  pk: {
+                    NUNOTA: String(nunota),
+                    SEQUENCIA: String(sequencia),
+                  },
+                  values: {
+                    '0': loteLimpo,
+                  },
+                },
+              ],
+            },
+          },
           correlationId
         );
         itensAtualizados++;
 
-        // Garantir cada lote conferido na TGFEST (Estoque por lote)
+        // 3.2 Garantir cada lote conferido na TGFEST (Estoque) via DatasetSP.save
         for (const loteObj of lotesDoItem) {
           const lLimpo = loteObj.lote.trim();
           if (!lLimpo) continue;
 
-          const validadeSql = formatarDataOracle(loteObj.validade);
-          const fabricacaoSql = formatarDataOracle(loteObj.fabricacao);
+          const validadeFormatada = formatarDataSankhya(loteObj.validade);
+          const fabricacaoFormatada = formatarDataSankhya(loteObj.fabricacao);
 
           // Verificar se já existe saldo/registro na TGFEST para esta chave
           const checkEstSql = `
@@ -298,39 +308,86 @@ export class EnviarConferenciaSankhyaUseCase {
             const existeEst = Number(respEst?.responseBody?.rows?.[0]?.[0]) > 0;
 
             if (existeEst) {
-              // Se já existe, atualiza APENAS DTVAL e DTFABRICACAO caso informadas, preservando o ESTOQUE real!
-              const setPartes: string[] = [];
-              if (validadeSql !== 'NULL') setPartes.push(`DTVAL = ${validadeSql}`);
-              if (fabricacaoSql !== 'NULL') setPartes.push(`DTFABRICACAO = ${fabricacaoSql}`);
+              // Se já existe, atualiza apenas DTVAL e/ou DTFABRICACAO, preservando o ESTOQUE real!
+              const fieldsUpdate: string[] = [];
+              const valuesUpdate: Record<string, string | number> = {};
+              let fIdx = 0;
+              if (validadeFormatada) {
+                fieldsUpdate.push('DTVAL');
+                valuesUpdate[String(fIdx++)] = validadeFormatada;
+              }
+              if (fabricacaoFormatada) {
+                fieldsUpdate.push('DTFABRICACAO');
+                valuesUpdate[String(fIdx++)] = fabricacaoFormatada;
+              }
 
-              if (setPartes.length > 0) {
-                const updateEstSql = `
-                  UPDATE TGFEST
-                  SET ${setPartes.join(', ')}
-                  WHERE CODPROD = ${codprod} 
-                    AND CODLOCAL = ${codlocal} 
-                    AND CODEMP = ${codemp} 
-                    AND CONTROLE = '${lLimpo}'
-                    AND CODPARC = 0
-                    AND TIPO = 'P'
-                `.trim();
-
+              if (fieldsUpdate.length > 0) {
                 await this.gateway.serviceCall<any>(
-                  'DbExplorerSP.executeQuery',
-                  { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: updateEstSql } },
+                  'DatasetSP.save',
+                  {
+                    serviceName: 'DatasetSP.save',
+                    requestBody: {
+                      entityName: 'Estoque',
+                      standAlone: false,
+                      fields: fieldsUpdate,
+                      records: [
+                        {
+                          pk: {
+                            CODPROD: String(codprod),
+                            CODLOCAL: codlocal,
+                            CODEMP: String(codemp),
+                            CODPARC: '0',
+                            TIPO: 'P',
+                            CONTROLE: lLimpo,
+                          },
+                          values: valuesUpdate,
+                        },
+                      ],
+                    },
+                  },
                   correlationId
                 );
               }
             } else {
-              // Se não existe, insere o registro com ESTOQUE = 0 (saldo será alimentado na confirmação da TOP)
-              const insertEstSql = `
-                INSERT INTO TGFEST (CODPROD, CODLOCAL, CODEMP, CODPARC, TIPO, CONTROLE, ESTOQUE, DTVAL, DTFABRICACAO)
-                VALUES (${codprod}, ${codlocal}, ${codemp}, 0, 'P', '${lLimpo}', 0, ${validadeSql}, ${fabricacaoSql})
-              `.trim();
+              // Se não existe, cria novo registro com ESTOQUE = 0 e RESERVADO = 0 via foreignKey
+              const fieldsInsert = ['CODLOCAL', 'CONTROLE', 'TIPO', 'ESTOQUE', 'RESERVADO'];
+              const valuesInsert: Record<string, string | number> = {
+                '0': codlocal,
+                '1': lLimpo,
+                '2': 'P',
+                '3': 0,
+                '4': 0,
+              };
+              let fIdx = 5;
+              if (validadeFormatada) {
+                fieldsInsert.push('DTVAL');
+                valuesInsert[String(fIdx++)] = validadeFormatada;
+              }
+              if (fabricacaoFormatada) {
+                fieldsInsert.push('DTFABRICACAO');
+                valuesInsert[String(fIdx++)] = fabricacaoFormatada;
+              }
 
               await this.gateway.serviceCall<any>(
-                'DbExplorerSP.executeQuery',
-                { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: insertEstSql } },
+                'DatasetSP.save',
+                {
+                  serviceName: 'DatasetSP.save',
+                  requestBody: {
+                    entityName: 'Estoque',
+                    standAlone: false,
+                    fields: fieldsInsert,
+                    records: [
+                      {
+                        foreignKey: {
+                          CODPROD: String(codprod),
+                          CODEMP: String(codemp),
+                          CODPARC: '0',
+                        },
+                        values: valuesInsert,
+                      },
+                    ],
+                  },
+                },
                 correlationId
               );
             }
@@ -342,22 +399,35 @@ export class EnviarConferenciaSankhyaUseCase {
       }
     }
 
-    // 4. Atualizar TGFCAB com log de conferência e protocolo
+    // 4. Atualizar TGFCAB (CabecalhoNota) com log de conferência e protocolo via DatasetSP.save
     const obsTexto = `[ConferCheck] Conferência de Entrada aprovada por ${input.usuario} em ${agoraFormatada}. Protocolo: ${sessao.id.slice(0, 8)}. ${input.observacao ? `Obs: ${input.observacao}` : ''}`.trim();
-    const updateCabSql = `
-      UPDATE TGFCAB
-      SET OBSERVACAO = SUBSTR(NVL(OBSERVACAO, '') || ' | ' || '${obsTexto.replace(/'/g, "''")}', 1, 1000)
-      WHERE NUNOTA IN (${nunotasStr})
-    `.trim();
-
-    try {
-      await this.gateway.serviceCall<any>(
-        'DbExplorerSP.executeQuery',
-        { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: updateCabSql } },
-        correlationId
-      );
-    } catch {
-      // Fallback
+    for (const n of nunotasParaEnvio) {
+      try {
+        await this.gateway.serviceCall<any>(
+          'DatasetSP.save',
+          {
+            serviceName: 'DatasetSP.save',
+            requestBody: {
+              entityName: 'CabecalhoNota',
+              standAlone: false,
+              fields: ['OBSERVACAO'],
+              records: [
+                {
+                  pk: {
+                    NUNOTA: String(n),
+                  },
+                  values: {
+                    '0': obsTexto,
+                  },
+                },
+              ],
+            },
+          },
+          correlationId
+        );
+      } catch (errCab: any) {
+        console.warn(`[TGFCAB] Aviso ao atualizar observação da nota #${n}:`, errCab.message);
+      }
     }
 
     // 5. Atualizar sessão local no SQLite/Turso

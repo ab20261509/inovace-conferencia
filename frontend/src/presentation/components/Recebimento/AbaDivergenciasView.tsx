@@ -316,6 +316,24 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       ? `+${diferenca} (Sobra)`
                                       : '✓ OK'}
                                   </span>
+                                  {(item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao) && (
+                                    <span
+                                      style={{
+                                        background: '#fef2f2',
+                                        color: '#dc2626',
+                                        border: '1px solid #fca5a5',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        fontSize: '0.66rem',
+                                        fontWeight: 700,
+                                        display: 'block',
+                                        marginTop: '3px',
+                                        textAlign: 'center',
+                                      }}
+                                    >
+                                      ⚠️ Lote/Data Divergente
+                                    </span>
+                                  )}
                                 </td>
                                 <td>
                                   {temMultiplosLotes ? (
@@ -328,6 +346,15 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       <span>🏷️ {lotesConferidos.length} Lotes</span>
                                       <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
                                     </button>
+                                  ) : item.divergenciaLote ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <span className="gestao-lote-pill" style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>
+                                        🏷️ Bip: {item.lote || 'Sem lote'}
+                                      </span>
+                                      <span style={{ fontSize: '0.68rem', color: '#dc2626', fontWeight: 600 }}>
+                                        NF: {item.controleOriginal}
+                                      </span>
+                                    </div>
                                   ) : item.lote ? (
                                     <span className="gestao-lote-pill">
                                       🏷️ {item.lote}
@@ -352,6 +379,15 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                     >
                                       {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                     </span>
+                                  ) : item.divergenciaValidade ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <span style={{ fontSize: '0.78rem', color: '#991b1b', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
+                                        Bip: {formatarDataSimples(item.validade)}
+                                      </span>
+                                      <span style={{ fontSize: '0.68rem', color: '#dc2626' }}>
+                                        Orig: {item.validadeOriginal}
+                                      </span>
+                                    </div>
                                   ) : item.validade ? (
                                     <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
                                       {formatarDataSimples(item.validade)}
@@ -374,6 +410,15 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                     >
                                       {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                     </span>
+                                  ) : item.divergenciaFabricacao ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <span style={{ fontSize: '0.78rem', color: '#991b1b', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
+                                        Bip: {formatarDataSimples(item.fabricacao)}
+                                      </span>
+                                      <span style={{ fontSize: '0.68rem', color: '#dc2626' }}>
+                                        Orig: {item.fabricacaoOriginal}
+                                      </span>
+                                    </div>
                                   ) : item.fabricacao ? (
                                     <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
                                       {formatarDataSimples(item.fabricacao)}
@@ -569,7 +614,28 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 }}
                               >
                                 <div>
-                                  {item.lote ? (
+                                  {item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao ? (
+                                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '4px', padding: '4px 6px', marginTop: '2px' }}>
+                                      <div style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.70rem' }}>
+                                        ⚠️ Divergência Fiscal/Cadastro:
+                                      </div>
+                                      {item.divergenciaLote && (
+                                        <div style={{ fontSize: '0.68rem', color: '#991b1b' }}>
+                                          Lote Bip: <strong>{item.lote || 'Sem lote'}</strong> (NF: {item.controleOriginal})
+                                        </div>
+                                      )}
+                                      {item.divergenciaValidade && (
+                                        <div style={{ fontSize: '0.68rem', color: '#991b1b' }}>
+                                          Val Bip: <strong>{formatarDataSimples(item.validade)}</strong> (Orig: {item.validadeOriginal})
+                                        </div>
+                                      )}
+                                      {item.divergenciaFabricacao && (
+                                        <div style={{ fontSize: '0.68rem', color: '#991b1b' }}>
+                                          Fab Bip: <strong>{formatarDataSimples(item.fabricacao)}</strong> (Orig: {item.fabricacaoOriginal})
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : item.lote ? (
                                     <>
                                       Lote: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.lote}</strong>
                                       {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}

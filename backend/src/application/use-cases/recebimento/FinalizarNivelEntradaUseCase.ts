@@ -50,16 +50,24 @@ export class FinalizarNivelEntradaUseCase {
 
     const nunotasStr = sessao.nunotas.join(', ');
 
-    // 1. Buscar itens esperados na nota fiscal com NUMNOTA
+    // 1. Buscar itens esperados na nota fiscal com NUMNOTA, CONTROLE e datas pré-existentes
     const sql = `
 SELECT
     ITE.NUNOTA,
     ITE.SEQUENCIA,
     ITE.CODPROD,
     NVL(ITE.QTDNEG, 0) AS QTDNEG,
-    CAB.NUMNOTA
+    CAB.NUMNOTA,
+    ITE.CONTROLE,
+    TO_CHAR(EST.DTVAL, 'DD/MM/YYYY') AS DTVAL,
+    TO_CHAR(EST.DTFABRICACAO, 'DD/MM/YYYY') AS DTFABRICACAO
 FROM TGFITE ITE
 INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+LEFT JOIN TGFEST EST ON EST.CODPROD = ITE.CODPROD 
+                    AND EST.CONTROLE = ITE.CONTROLE 
+                    AND EST.CODEMP = CAB.CODEMP
+                    AND EST.TIPO = 'P'
+                    AND EST.CODPARC = 0
 WHERE ITE.NUNOTA IN (${nunotasStr})
     `.trim();
 
@@ -81,19 +89,46 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
     // 2. Buscar todas as bipagens
     const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
 
-    // Mapear totais por item e nível
-    const mapTotais: Record<string, { n1: number; n2: number; n3: number; esperado: number }> = {};
+    // Mapear totais e metadados fiscais pré-existentes por item
+    const mapTotais: Record<
+      string,
+      {
+        n1: number;
+        n2: number;
+        n3: number;
+        esperado: number;
+        controleOriginal?: string;
+        validadeOriginal?: string;
+        fabricacaoOriginal?: string;
+      }
+    > = {};
+
     for (const r of rows) {
       const nunota = Number(r[fieldIndex['NUNOTA']]);
       const codprod = Number(r[fieldIndex['CODPROD']]);
       const sequencia = Number(r[fieldIndex['SEQUENCIA']]);
       const esperado = Number(r[fieldIndex['QTDNEG']] || 0);
       const numnota = Number(r[fieldIndex['NUMNOTA']] || 0);
+      const controleOriginal = r[fieldIndex['CONTROLE']] ? String(r[fieldIndex['CONTROLE']]).trim() : undefined;
+      const validadeOriginal = r[fieldIndex['DTVAL']] ? String(r[fieldIndex['DTVAL']]).trim() : undefined;
+      const fabricacaoOriginal = r[fieldIndex['DTFABRICACAO']] ? String(r[fieldIndex['DTFABRICACAO']]).trim() : undefined;
+
       numnotaPorNunota[nunota] = numnota;
 
       const key = `${nunota}|${codprod}|${sequencia}`;
-      mapTotais[key] = { n1: 0, n2: 0, n3: 0, esperado };
+      mapTotais[key] = {
+        n1: 0,
+        n2: 0,
+        n3: 0,
+        esperado,
+        controleOriginal,
+        validadeOriginal,
+        fabricacaoOriginal,
+      };
     }
+
+    // Mapa de bipagens por item e nível para checagem de lote/validade
+    const bipsPorItemNivel: Record<string, Array<{ lote?: string; validade?: string; fabricacao?: string }>> = {};
 
     for (const b of todasBipagens) {
       if (b.anulado) continue;
@@ -104,7 +139,26 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       if (b.nivel === 1) mapTotais[key].n1 += b.qtdConferida;
       else if (b.nivel === 2) mapTotais[key].n2 += b.qtdConferida;
       else if (b.nivel === 3) mapTotais[key].n3 += b.qtdConferida;
+
+      const keyNivel = `${key}|${b.nivel}`;
+      if (!bipsPorItemNivel[keyNivel]) {
+        bipsPorItemNivel[keyNivel] = [];
+      }
+      bipsPorItemNivel[keyNivel].push({
+        lote: b.lote?.trim(),
+        validade: b.validade?.trim(),
+        fabricacao: b.fabricacao?.trim(),
+      });
     }
+
+    const normalizarDataBr = (dt?: string): string => {
+      if (!dt) return '';
+      const mIso = dt.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (mIso) return `${mIso[3]}/${mIso[2]}/${mIso[1]}`;
+      const mBr = dt.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (mBr) return `${mBr[1]}/${mBr[2]}/${mBr[3]}`;
+      return dt;
+    };
 
     const agora = new Date().toISOString();
     let statusFinal: StatusConferenciaEntrada;
@@ -128,7 +182,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       let itensComSobra = 0;
       let itensSemBipagem = 0;
 
-      for (const [, item] of itensDestaNota) {
+      for (const [key, item] of itensDestaNota) {
         const conferidoNivel = input.nivel === 1 ? item.n1 : input.nivel === 2 ? item.n2 : item.n3;
         if (conferidoNivel === item.esperado) {
           itensOk++;
@@ -138,6 +192,43 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
           itensPendentes++;
           if (conferidoNivel === 0) {
             itensSemBipagem++;
+          }
+        }
+
+        // Validação de Lote / Validade / Fabricação Pré-existentes na Nota (quando conferido > 0)
+        if (conferidoNivel > 0) {
+          const bipsDoNivel = bipsPorItemNivel[`${key}|${input.nivel}`] || [];
+
+          // Se a nota já possuía CONTROLE preenchido
+          if (item.controleOriginal) {
+            for (const b of bipsDoNivel) {
+              if (b.lote && b.lote.toUpperCase() !== item.controleOriginal.toUpperCase()) {
+                notaDivergente = true;
+                break;
+              }
+            }
+          }
+
+          // Se a nota/estoque já possuía Validade preenchida
+          if (item.validadeOriginal) {
+            const valOrigNorm = normalizarDataBr(item.validadeOriginal);
+            for (const b of bipsDoNivel) {
+              if (b.validade && normalizarDataBr(b.validade) !== valOrigNorm) {
+                notaDivergente = true;
+                break;
+              }
+            }
+          }
+
+          // Se a nota/estoque já possuía Fabricação preenchida
+          if (item.fabricacaoOriginal) {
+            const fabOrigNorm = normalizarDataBr(item.fabricacaoOriginal);
+            for (const b of bipsDoNivel) {
+              if (b.fabricacao && normalizarDataBr(b.fabricacao) !== fabOrigNorm) {
+                notaDivergente = true;
+                break;
+              }
+            }
           }
         }
       }

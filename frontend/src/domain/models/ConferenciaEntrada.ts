@@ -197,6 +197,12 @@ export interface ItemDivergenciaResumo {
   lote?: string;
   validade?: string;
   fabricacao?: string;
+  controleOriginal?: string;
+  validadeOriginal?: string;
+  fabricacaoOriginal?: string;
+  divergenciaLote?: boolean;
+  divergenciaValidade?: boolean;
+  divergenciaFabricacao?: boolean;
   conferenteN1?: string;
   conferenteN2?: string;
   conferenteN3?: string;

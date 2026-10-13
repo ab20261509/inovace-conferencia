@@ -16,6 +16,12 @@ export interface ItemDivergenciaResumo {
   lote?: string;
   validade?: string;
   fabricacao?: string;
+  controleOriginal?: string;
+  validadeOriginal?: string;
+  fabricacaoOriginal?: string;
+  divergenciaLote?: boolean;
+  divergenciaValidade?: boolean;
+  divergenciaFabricacao?: boolean;
   conferenteN1?: string;
   conferenteN2?: string;
   conferenteN3?: string;
@@ -85,7 +91,7 @@ export class ListarDivergenciasEntradaUseCase {
 
       const nunotasStr = nunotas.join(', ');
 
-      // Buscar cabeçalho e itens no Sankhya
+      // Buscar cabeçalho e itens no Sankhya incluindo CONTROLE e datas pré-existentes
       const sql = `
 SELECT
     CAB.NUNOTA,
@@ -96,11 +102,19 @@ SELECT
     NVL(PRO.DESCRPROD, 'PRODUTO SEM DESCRIÇÃO') AS DESCRPROD,
     NVL(PRO.REFERENCIA, ' ') AS REFERENCIA,
     NVL(ITE.CODVOL, 'UN') AS CODVOL,
-    NVL(ITE.QTDNEG, 0) AS QTDNEG
+    NVL(ITE.QTDNEG, 0) AS QTDNEG,
+    ITE.CONTROLE,
+    TO_CHAR(EST.DTVAL, 'DD/MM/YYYY') AS DTVAL,
+    TO_CHAR(EST.DTFABRICACAO, 'DD/MM/YYYY') AS DTFABRICACAO
 FROM TGFCAB CAB
 LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
 INNER JOIN TGFITE ITE ON ITE.NUNOTA = CAB.NUNOTA
 INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+LEFT JOIN TGFEST EST ON EST.CODPROD = ITE.CODPROD 
+                    AND EST.CONTROLE = ITE.CONTROLE 
+                    AND EST.CODEMP = CAB.CODEMP
+                    AND EST.TIPO = 'P'
+                    AND EST.CODPARC = 0
 WHERE CAB.NUNOTA IN (${nunotasStr})
 ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       `.trim();
@@ -161,6 +175,15 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         }
       }
 
+      const normalizarDataBr = (dt?: string): string => {
+        if (!dt) return '';
+        const mIso = dt.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (mIso) return `${mIso[3]}/${mIso[2]}/${mIso[1]}`;
+        const mBr = dt.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (mBr) return `${mBr[1]}/${mBr[2]}/${mBr[3]}`;
+        return dt;
+      };
+
       // Mapeamento de itens por nota fiscal individual
       const itensPorNota: Record<number, ItemDivergenciaResumo[]> = {};
       const fornecedorPorNota: Record<number, string> = {};
@@ -178,12 +201,31 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         const referencia = String(r[fieldIndex['REFERENCIA']] || '').trim();
         const codvol = String(r[fieldIndex['CODVOL']] || 'UN');
         const qtdEsperada = Number(r[fieldIndex['QTDNEG']] || 0);
+        const controleOriginal = r[fieldIndex['CONTROLE']] ? String(r[fieldIndex['CONTROLE']]).trim() : undefined;
+        const validadeOriginal = r[fieldIndex['DTVAL']] ? String(r[fieldIndex['DTVAL']]).trim() : undefined;
+        const fabricacaoOriginal = r[fieldIndex['DTFABRICACAO']] ? String(r[fieldIndex['DTFABRICACAO']]).trim() : undefined;
 
         const key = `${nunotaItem}|${codprod}|${sequencia}`;
         const bips = mapBips[key] || { n1: 0, n2: 0, n3: 0 };
 
         const contagemFinal = bips.n3 > 0 ? bips.n3 : bips.n2 > 0 ? bips.n2 : bips.n1;
         const diferenca = contagemFinal - qtdEsperada;
+
+        let divergenciaLote = false;
+        let divergenciaValidade = false;
+        let divergenciaFabricacao = false;
+
+        if (contagemFinal > 0) {
+          if (controleOriginal && bips.lote && bips.lote.toUpperCase() !== controleOriginal.toUpperCase()) {
+            divergenciaLote = true;
+          }
+          if (validadeOriginal && bips.validade && normalizarDataBr(bips.validade) !== normalizarDataBr(validadeOriginal)) {
+            divergenciaValidade = true;
+          }
+          if (fabricacaoOriginal && bips.fabricacao && normalizarDataBr(bips.fabricacao) !== normalizarDataBr(fabricacaoOriginal)) {
+            divergenciaFabricacao = true;
+          }
+        }
 
         const itemResumo: ItemDivergenciaResumo = {
           nunota: nunotaItem,
@@ -200,6 +242,12 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           lote: bips.lote,
           validade: bips.validade,
           fabricacao: bips.fabricacao,
+          controleOriginal,
+          validadeOriginal,
+          fabricacaoOriginal,
+          divergenciaLote,
+          divergenciaValidade,
+          divergenciaFabricacao,
           conferenteN1: bips.conferenteN1,
           conferenteN2: bips.conferenteN2,
           conferenteN3: bips.conferenteN3,
@@ -240,8 +288,9 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           if (it.conferenteN3) confN3Set.add(it.conferenteN3);
         });
 
-        // Filtrar itens divergentes da nota
+        // Filtrar itens divergentes da nota (por quantidade ou por lote/datas fiscais)
         const itensDivergentesNota = itensDestaNota.filter((it) => {
+          if (it.divergenciaLote || it.divergenciaValidade || it.divergenciaFabricacao) return true;
           if (it.qtdN3 > 0) return it.qtdN3 !== it.qtdEsperada;
           if (totalN1Nota > 0 && totalN2Nota > 0) return it.qtdN1 !== it.qtdN2 || it.qtdN2 !== it.qtdEsperada;
           if (totalN2Nota > 0) return it.qtdN2 !== it.qtdEsperada;
