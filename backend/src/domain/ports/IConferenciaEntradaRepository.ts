@@ -14,7 +14,7 @@ export interface IConferenciaEntradaRepository {
   salvarBipagem(bipagem: BipagemEntrada): Promise<void>;
   anularBipagem(bipagemId: string): Promise<void>;
   restaurarBipagens(conferenciaId: string): Promise<number>;
-  migrarBipagens(deConferenciaId: string, paraConferenciaId: string): Promise<number>;
+  migrarBipagens(deConferenciaId: string, paraConferenciaId: string, nunotas?: number[]): Promise<number>;
   excluirSessao(id: string): Promise<void>;
   obterMapaStatusNotas(nunotas: number[]): Promise<Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number }>>;
 }

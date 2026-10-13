@@ -199,12 +199,13 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
-      const { motivo } = req.body;
+      const { motivo, nunota } = req.body;
 
       const sessao = await this.reiniciarConferenciaUseCase.execute({
         conferenciaId,
         usuario,
         motivo,
+        nunota: nunota ? Number(nunota) : undefined,
       });
 
       res.status(200).json({ success: true, sessao });

@@ -63,41 +63,50 @@ export class IniciarConferenciaEntradaUseCase {
     if (sessaoExata) {
       sessaoParaUsar = sessaoExata;
     } else if (sessoesAtivas.length > 0) {
-      // 2. Se há sessões ativas com parte das notas:
-      // Identificar sessões com bipagens para priorizar a que tem histórico real
-      const contagemBipagensMap = new Map<string, number>();
-      for (const s of sessoesAtivas) {
-        const bips = await this.conferenciaRepo.listarBipagens(s.id);
-        contagemBipagensMap.set(s.id, bips.filter((b) => !b.anulado).length);
-      }
+      // 2. Se há sessões ativas com notas diferentes das solicitadas:
+      // A seleção atual do operador é soberana.
+      // Desmembra as notas solicitadas criando uma nova sessão exclusiva
+      // e migra apenas as bipagens dessas notas para a nova sessão.
+      const novaSessao: SessaoConferenciaEntrada = {
+        id: randomUUID(),
+        nunotas: nunotasSorted,
+        status: statusPorNivel[nivel] || 'N2 em Andamento',
+        nivelAtual: nivel,
+        criadoEm: agora,
+        atualizadoEm: agora,
+        conferente: input.conferente || 'Operador',
+      };
 
-      // Ordena: primeiro a que tem mais bipagens, depois a que tem mais notas
-      sessoesAtivas.sort((a, b) => {
-        const cntB = contagemBipagensMap.get(b.id) || 0;
-        const cntA = contagemBipagensMap.get(a.id) || 0;
-        if (cntB !== cntA) return cntB - cntA;
-        return b.nunotas.length - a.nunotas.length;
-      });
+      // Salva a nova sessão para satisfazer FK antes da migração de bipagens
+      await this.conferenciaRepo.salvarSessao(novaSessao);
 
-      sessaoParaUsar = sessoesAtivas[0];
-      sessaoParaUsar.nunotas = Array.from(new Set([...sessaoParaUsar.nunotas, ...nunotas]));
+      for (const sAntiga of sessoesAtivas) {
+        const notasDestaSessao = nunotasSorted.filter((n) => sAntiga.nunotas.includes(n));
+        if (notasDestaSessao.length > 0) {
+          // Migra apenas as bipagens das notas selecionadas
+          await this.conferenciaRepo.migrarBipagens(sAntiga.id, novaSessao.id, notasDestaSessao);
 
-      // Unifica as outras sessões ativas
-      for (let i = 1; i < sessoesAtivas.length; i++) {
-        const outraSessao = sessoesAtivas[i];
-        if (outraSessao.id !== sessaoParaUsar.id) {
-          const bipsOutra = contagemBipagensMap.get(outraSessao.id) || 0;
-          if (bipsOutra > 0) {
-            await this.conferenciaRepo.migrarBipagens(outraSessao.id, sessaoParaUsar.id);
-            outraSessao.status = 'Conferido';
-            outraSessao.observacaoAprovacao = `Agrupada na conferência ${sessaoParaUsar.id}`;
-            await this.conferenciaRepo.salvarSessao(outraSessao);
+          // Remove as notas migradas da sessão antiga
+          sAntiga.nunotas = sAntiga.nunotas.filter((n) => !notasDestaSessao.includes(n));
+
+          if (sAntiga.statusPorNota) {
+            for (const n of notasDestaSessao) {
+              delete sAntiga.statusPorNota[n];
+            }
+            sAntiga.statusPorNotaJson = JSON.stringify(sAntiga.statusPorNota);
+          }
+
+          if (sAntiga.nunotas.length === 0) {
+            await this.conferenciaRepo.excluirSessao(sAntiga.id);
           } else {
-            // Sessão vazia/fantasma: excluir para não gerar inconsistências
-            await this.conferenciaRepo.excluirSessao(outraSessao.id);
+            sAntiga.atualizadoEm = agora;
+            await this.conferenciaRepo.salvarSessao(sAntiga);
           }
         }
       }
+
+      await this.conferenciaRepo.salvarSessao(novaSessao);
+      return novaSessao;
     } else {
       // 3. Nenhuma sessão ativa: verificar se já existe uma sessão concluída que cobre todas as notas solicitadas
       const sessaoConcluidaExistente = sessoesExistentes.find((s) => {
@@ -114,8 +123,8 @@ export class IniciarConferenciaEntradaUseCase {
       // 4. Cria uma nova sessão com todas as nunotas
       const novaSessao: SessaoConferenciaEntrada = {
         id: randomUUID(),
-        nunotas,
-        status: statusPorNivel[nivel] || 'N1 em Andamento',
+        nunotas: nunotasSorted,
+        status: statusPorNivel[nivel] || 'N2 em Andamento',
         nivelAtual: nivel,
         criadoEm: agora,
         atualizadoEm: agora,

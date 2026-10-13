@@ -255,7 +255,16 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     return res.rowsAffected;
   }
 
-  async migrarBipagens(deConferenciaId: string, paraConferenciaId: string): Promise<number> {
+  async migrarBipagens(deConferenciaId: string, paraConferenciaId: string, nunotas?: number[]): Promise<number> {
+    if (nunotas && nunotas.length > 0) {
+      const placeholders = nunotas.map(() => '?').join(', ');
+      const res = await this.client.execute({
+        sql: `UPDATE bipagens_entrada SET conferencia_id = ? WHERE conferencia_id = ? AND nunota IN (${placeholders})`,
+        args: [paraConferenciaId, deConferenciaId, ...nunotas],
+      });
+      return res.rowsAffected;
+    }
+
     const res = await this.client.execute({
       sql: `UPDATE bipagens_entrada SET conferencia_id = ? WHERE conferencia_id = ?`,
       args: [paraConferenciaId, deConferenciaId],

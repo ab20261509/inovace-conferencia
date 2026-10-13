@@ -238,6 +238,7 @@ export function GestaoRecebimentoPage() {
   } | null>(null);
 
   const [nivelRecontagemModal, setNivelRecontagemModal] = useState<number>(2);
+  const [nunotaReiniciarModal, setNunotaReiniciarModal] = useState<number | undefined>(undefined);
   const [observacaoModal, setObservacaoModal] = useState('');
   const [processandoAcao, setProcessandoAcao] = useState(false);
 
@@ -374,10 +375,13 @@ export function GestaoRecebimentoPage() {
           texto: `Reconferência Nível 3 (N3) solicitada com sucesso para a NF ${modalAcao.dadosExtras?.numnota || ''}!`,
         });
       } else if (modalAcao.tipo === 'REINICIAR') {
-        await recebimentoService.reiniciarConferencia(confIdReal, observacaoModal);
+        const nunotaParaReiniciar = nunotaReiniciarModal !== undefined ? nunotaReiniciarModal : modalAcao.dadosExtras?.nunota;
+        await recebimentoService.reiniciarConferencia(confIdReal, observacaoModal, nunotaParaReiniciar);
         setFeedback({
           tipo: 'sucesso',
-          texto: 'Conferência reiniciada! Bipagens anteriores foram arquivadas em backup de segurança e a sessão voltou ao início.',
+          texto: nunotaParaReiniciar
+            ? `Nota desmembrada e reiniciada com sucesso! Uma conferência individual exclusiva foi iniciada no Nível 2.`
+            : 'Conferência reiniciada! Bipagens anteriores foram arquivadas em backup de segurança e a sessão voltou ao início.',
         });
       } else if (modalAcao.tipo === 'SOLICITAR_RECONTAGEM') {
         await recebimentoService.solicitarRecontagem(modalAcao.conferenciaId, {
@@ -847,12 +851,20 @@ export function GestaoRecebimentoPage() {
                       });
                     }}
                     onReiniciar={(conf) => {
+                      setNunotaReiniciarModal(undefined);
                       setModalAcao({
                         tipo: 'REINICIAR',
                         conferenciaId: conf.id,
                         titulo: 'Reiniciar Conferência (com Backup de Segurança)',
-                        descricao: `ATENÇÃO: Todas as bipagens ativas da(s) nota(s) ${conf.numerosNotas} serão arquivadas em um backup seguro e a conferência voltará ao Nível 1. Você poderá recuperar esta contagem a qualquer momento usando a opção "Recuperar Contagem".`,
+                        descricao: conf.nunotas.length > 1
+                          ? `Esta conferência contém ${conf.nunotas.length} notas conjuntas (${conf.numerosNotas}). Escolha abaixo se deseja reiniciar todas as notas juntas ou desmembrar e reiniciar apenas uma nota específica:`
+                          : `ATENÇÃO: Todas as bipagens ativas da nota ${conf.numerosNotas} serão arquivadas em um backup seguro e a conferência voltará ao Nível 2. Você poderá recuperar esta contagem a qualquer momento usando a opção "Recuperar Contagem".`,
                         placeholder: 'Motivo obrigatório do reinício...',
+                        dadosExtras: {
+                          conferenciaIdOrig: conf.id,
+                          nunotas: conf.nunotas,
+                          numerosNotas: conf.numerosNotas,
+                        },
                       });
                     }}
                     onRecuperarContagem={(conf) => {
@@ -914,11 +926,12 @@ export function GestaoRecebimentoPage() {
                       });
                     }}
                     onReiniciar={(grupo) => {
+                      setNunotaReiniciarModal(grupo.nunota);
                       setModalAcao({
                         tipo: 'REINICIAR',
                         conferenciaId: grupo.conferenciaId || grupo.id,
                         titulo: `Reiniciar Conferência (NF ${grupo.numnota || grupo.numerosNotas})`,
-                        descricao: `ATENÇÃO: As bipagens registradas nos Níveis 1, 2 e 3 da nota ${grupo.numnota || grupo.numerosNotas} serão salvas em backup e a conferência voltará ao início (Nível 1).`,
+                        descricao: `ATENÇÃO: As bipagens registradas da nota ${grupo.numnota || grupo.numerosNotas} serão salvas em backup e ela voltará ao início (Nível 2). Se ela fazia parte de uma conferência conjunta, será desmembrada para uma sessão individual exclusiva.`,
                         placeholder: 'Motivo obrigatório do cancelamento e reinício...',
                         dadosExtras: {
                           conferenciaIdOrig: grupo.conferenciaId || grupo.id,
@@ -1063,6 +1076,69 @@ export function GestaoRecebimentoPage() {
                           <span>Para casos onde N1 e N2 divergiram e necessita de um 3º conferente para desempate.</span>
                         </div>
                       </label>
+                    </div>
+                  )}
+
+                  {/* Opções de Escopo para Reiniciar Conferência Conjunta */}
+                  {modalAcao.tipo === 'REINICIAR' && modalAcao.dadosExtras?.nunotas && modalAcao.dadosExtras.nunotas.length > 1 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '12px 0' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--slate-700)' }}>
+                        Selecione o escopo do reinício:
+                      </div>
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: `1px solid ${nunotaReiniciarModal === undefined ? 'var(--blue-500)' : 'var(--slate-200)'}`,
+                          background: nunotaReiniciarModal === undefined ? '#eff6ff' : 'var(--slate-50)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="opcaoReiniciar"
+                          checked={nunotaReiniciarModal === undefined}
+                          onChange={() => setNunotaReiniciarModal(undefined)}
+                        />
+                        <div>
+                          <strong>Reiniciar toda a conferência conjunta</strong>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)' }}>
+                            Mantém todas as {modalAcao.dadosExtras.nunotas.length} notas juntas e zera as contagens de todas.
+                          </div>
+                        </div>
+                      </label>
+
+                      {modalAcao.dadosExtras.nunotas.map((n: number) => (
+                        <label
+                          key={n}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: `1px solid ${nunotaReiniciarModal === n ? 'var(--blue-500)' : 'var(--slate-200)'}`,
+                            background: nunotaReiniciarModal === n ? '#eff6ff' : 'var(--slate-50)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="opcaoReiniciar"
+                            checked={nunotaReiniciarModal === n}
+                            onChange={() => setNunotaReiniciarModal(n)}
+                          />
+                          <div>
+                            <strong>Desmembrar e reiniciar apenas a NF #{n}</strong>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)' }}>
+                              Separa esta nota em uma conferência própria zerada, mantendo as outras notas na conferência atual.
+                            </div>
+                          </div>
+                        </label>
+                      ))}
                     </div>
                   )}
 
