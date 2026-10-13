@@ -617,6 +617,77 @@
   color: var(--slate-400);
 }
 
+.gestao-rec-card-header-direita {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gestao-mini-metricas-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  padding: 3px 6px;
+  border-radius: 8px;
+}
+
+.gestao-mini-metrica-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  min-width: 54px;
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  line-height: 1.15;
+}
+
+.gestao-mini-metrica-rotulo {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--slate-500);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.gestao-mini-metrica-valor {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--slate-800);
+  margin-top: 1px;
+}
+
+.gestao-mini-metrica-box.divergente {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.gestao-mini-metrica-box.divergente .gestao-mini-metrica-rotulo {
+  color: #dc2626;
+}
+
+.gestao-mini-metrica-box.divergente .gestao-mini-metrica-valor {
+  color: #dc2626;
+}
+
+.gestao-mini-metrica-box.ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.gestao-mini-metrica-box.ok .gestao-mini-metrica-rotulo {
+  color: #166534;
+}
+
+.gestao-mini-metrica-box.ok .gestao-mini-metrica-valor {
+  color: #166534;
+}
+
 .gestao-rec-card-badges {
   display: flex;
   align-items: center;

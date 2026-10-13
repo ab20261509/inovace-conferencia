@@ -90,6 +90,32 @@ export class ReiniciarConferenciaEntradaUseCase {
       }
       sessao.atualizadoEm = agora;
 
+      // 4. Recalcula o status geral da sessão original com base nas notas restantes
+      if (sessao.nunotas.length > 0 && sessao.statusPorNota) {
+        const todasRestantesConferidas = sessao.nunotas.every(
+          (n) => sessao.statusPorNota?.[n] === 'Conferido' || sessao.statusPorNota?.[n] === 'Enviado ao Sankhya'
+        );
+        const temDivergente = sessao.nunotas.some(
+          (n) => sessao.statusPorNota?.[n] === 'Divergente' || sessao.statusPorNota?.[n] === 'Aguardando N3'
+        );
+        const temAguardandoN2 = sessao.nunotas.some(
+          (n) => sessao.statusPorNota?.[n] === 'Aguardando N2'
+        );
+
+        if (todasRestantesConferidas) {
+          sessao.status = 'Conferido';
+          if (!sessao.finalizadoEm) {
+            sessao.finalizadoEm = agora;
+          }
+        } else if (temDivergente) {
+          sessao.status = 'Divergente';
+        } else if (temAguardandoN2) {
+          sessao.status = 'Aguardando N2';
+        } else if (sessao.nunotas.every((n) => sessao.statusPorNota?.[n] === 'Em Aberto')) {
+          sessao.status = 'Em Aberto';
+        }
+      }
+
       await this.conferenciaRepo.salvarSessao(novaSessao);
       await this.conferenciaRepo.salvarSessao(sessao);
 

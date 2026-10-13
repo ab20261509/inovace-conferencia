@@ -106,45 +106,48 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                   </span>
                 </div>
 
-                <div className="gestao-rec-card-badges">
-                  <span className="badge-nivel-rec">Nível Atual: {grupo.nivelAtual}</span>
-                  <span
-                    className={`badge-status-rec ${
-                      grupo.status === 'Divergente'
-                        ? 'divergente'
-                        : grupo.status.includes('Reconferência')
-                        ? 'reconferencia'
-                        : 'aguardando'
-                    }`}
-                  >
-                    {grupo.status}
-                  </span>
-                </div>
-              </div>
-
-              {/* Resumo Quantitativo de Contagem */}
-              <div className="gestao-rec-contagem-resumo">
-                <div className="contagem-box">
-                  <span className="contagem-rotulo">Faturado (NF)</span>
-                  <span className="contagem-valor">{grupo.totalEsperado}</span>
-                </div>
-                <div className="contagem-box">
-                  <span className="contagem-rotulo">Contagem N1</span>
-                  <span className="contagem-valor">{grupo.totalN1}</span>
-                </div>
-                <div className="contagem-box">
-                  <span className="contagem-rotulo">Contagem N2</span>
-                  <span className="contagem-valor">{grupo.totalN2}</span>
-                </div>
-                {grupo.totalN3 > 0 && (
-                  <div className="contagem-box">
-                    <span className="contagem-rotulo">Contagem N3</span>
-                    <span className="contagem-valor">{grupo.totalN3}</span>
+                <div className="gestao-rec-card-header-direita">
+                  {/* Mini-cards minimalistas de contagem */}
+                  <div className="gestao-mini-metricas-header">
+                    <div className="gestao-mini-metrica-box">
+                      <span className="gestao-mini-metrica-rotulo">Faturado</span>
+                      <span className="gestao-mini-metrica-valor">{grupo.totalEsperado}</span>
+                    </div>
+                    <div className="gestao-mini-metrica-box">
+                      <span className="gestao-mini-metrica-rotulo">N1</span>
+                      <span className="gestao-mini-metrica-valor">{grupo.totalN1}</span>
+                    </div>
+                    <div className="gestao-mini-metrica-box">
+                      <span className="gestao-mini-metrica-rotulo">N2</span>
+                      <span className="gestao-mini-metrica-valor">{grupo.totalN2}</span>
+                    </div>
+                    {grupo.totalN3 > 0 && (
+                      <div className="gestao-mini-metrica-box">
+                        <span className="gestao-mini-metrica-rotulo">N3</span>
+                        <span className="gestao-mini-metrica-valor">{grupo.totalN3}</span>
+                      </div>
+                    )}
+                    <div className={`gestao-mini-metrica-box ${grupo.itensDivergentes.length > 0 ? 'divergente' : 'ok'}`}>
+                      <span className="gestao-mini-metrica-rotulo">Divergentes</span>
+                      <span className="gestao-mini-metrica-valor">{grupo.itensDivergentes.length}</span>
+                    </div>
                   </div>
-                )}
-                <div className="contagem-box divergente">
-                  <span className="contagem-rotulo">Itens Divergentes</span>
-                  <span className="contagem-valor">{grupo.itensDivergentes.length}</span>
+
+                  {/* Badges de Nível e Status */}
+                  <div className="gestao-rec-card-badges">
+                    <span className="badge-nivel-rec">Nível Atual: {grupo.nivelAtual}</span>
+                    <span
+                      className={`badge-status-rec ${
+                        grupo.status === 'Divergente'
+                          ? 'divergente'
+                          : grupo.status.includes('Reconferência')
+                          ? 'reconferencia'
+                          : 'aguardando'
+                      }`}
+                    >
+                      {grupo.status}
+                    </span>
+                  </div>
                 </div>
               </div>
 
