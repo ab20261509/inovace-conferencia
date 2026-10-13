@@ -177,6 +177,8 @@ export interface FinalizarNivelResponse {
   sessao: SessaoConferenciaEntrada;
   statusFinal: StatusConferenciaEntrada;
   possuiDivergencias: boolean;
+  possuiDivergenciasQtd?: boolean;
+  possuiDivergenciasLote?: boolean;
   totalItens: number;
   totalConferidos: number;
   resumoPorNota?: ResumoNotaFinalizacao[];

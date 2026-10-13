@@ -27,6 +27,8 @@ export interface FinalizarNivelEntradaOutput {
   sessao: SessaoConferenciaEntrada;
   statusFinal: StatusConferenciaEntrada;
   possuiDivergencias: boolean;
+  possuiDivergenciasQtd?: boolean;
+  possuiDivergenciasLote?: boolean;
   totalItens: number;
   totalConferidos: number;
   resumoPorNota: ResumoNotaFinalizacao[];
@@ -163,6 +165,8 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
     const agora = new Date().toISOString();
     let statusFinal: StatusConferenciaEntrada;
     let possuiDivergencias = false;
+    let possuiDivergenciasQtd = false;
+    let possuiDivergenciasLote = false;
 
     const n2Param = this.configSistemaRepo
       ? await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel2_ativo')
@@ -173,7 +177,8 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
     const resumoPorNota: ResumoNotaFinalizacao[] = [];
 
     for (const nunota of sessao.nunotas) {
-      let notaDivergente = false;
+      let notaDivergenteQtd = false;
+      let notaDivergenteLote = false;
       const itensDestaNota = Object.entries(mapTotais).filter(([key]) => key.startsWith(`${nunota}|`));
       const numnota = numnotaPorNunota[nunota] || nunota;
 
@@ -203,7 +208,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
           if (item.controleOriginal) {
             for (const b of bipsDoNivel) {
               if (b.lote && b.lote.toUpperCase() !== item.controleOriginal.toUpperCase()) {
-                notaDivergente = true;
+                notaDivergenteLote = true;
                 break;
               }
             }
@@ -214,7 +219,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
             const valOrigNorm = normalizarDataBr(item.validadeOriginal);
             for (const b of bipsDoNivel) {
               if (b.validade && normalizarDataBr(b.validade) !== valOrigNorm) {
-                notaDivergente = true;
+                notaDivergenteLote = true;
                 break;
               }
             }
@@ -225,7 +230,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
             const fabOrigNorm = normalizarDataBr(item.fabricacaoOriginal);
             for (const b of bipsDoNivel) {
               if (b.fabricacao && normalizarDataBr(b.fabricacao) !== fabOrigNorm) {
-                notaDivergente = true;
+                notaDivergenteLote = true;
                 break;
               }
             }
@@ -238,11 +243,11 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
           // FLUXO DE NÍVEL ÚNICO: Compara N1 diretamente com a NF
           for (const [, item] of itensDestaNota) {
             if (item.n1 !== item.esperado) {
-              notaDivergente = true;
+              notaDivergenteQtd = true;
               break;
             }
           }
-          statusPorNota[nunota] = notaDivergente ? 'Divergente' : 'Conferido';
+          statusPorNota[nunota] = (notaDivergenteQtd || notaDivergenteLote) ? 'Divergente' : 'Conferido';
         } else {
           // FLUXO EM 2 NÍVEIS (Padrão): Avança para Aguardando N2
           statusPorNota[nunota] = 'Aguardando N2';
@@ -253,7 +258,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
           // Comparar N1 x N2 x Esperado
           for (const [, item] of itensDestaNota) {
             if (item.n1 !== item.esperado || item.n2 !== item.esperado || item.n1 !== item.n2) {
-              notaDivergente = true;
+              notaDivergenteQtd = true;
               break;
             }
           }
@@ -261,12 +266,12 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
           // FLUXO COM N1 INATIVADO: N2 é a contagem única direta comparada com a NF
           for (const [, item] of itensDestaNota) {
             if (item.n2 !== item.esperado) {
-              notaDivergente = true;
+              notaDivergenteQtd = true;
               break;
             }
           }
         }
-        statusPorNota[nunota] = notaDivergente ? 'Divergente' : 'Conferido';
+        statusPorNota[nunota] = (notaDivergenteQtd || notaDivergenteLote) ? 'Divergente' : 'Conferido';
       } else {
         // N3 é o nível final de conferência de desempate
         const houveN1 = todasBipagens.some((b) => !b.anulado && b.nivel === 1 && b.nunota === nunota);
@@ -282,13 +287,20 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
           }
 
           if (eraDivergente && item.n3 !== item.esperado) {
-            notaDivergente = true;
+            notaDivergenteQtd = true;
             break;
           }
         }
-        statusPorNota[nunota] = notaDivergente ? 'Divergente' : 'Conferido';
+        statusPorNota[nunota] = (notaDivergenteQtd || notaDivergenteLote) ? 'Divergente' : 'Conferido';
       }
 
+      const notaDivergente = notaDivergenteQtd || notaDivergenteLote;
+      if (notaDivergenteQtd) {
+        possuiDivergenciasQtd = true;
+      }
+      if (notaDivergenteLote) {
+        possuiDivergenciasLote = true;
+      }
       if (notaDivergente) {
         possuiDivergencias = true;
       }
@@ -309,23 +321,31 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
     sessao.statusPorNota = statusPorNota;
     sessao.statusPorNotaJson = JSON.stringify(statusPorNota);
 
-    if (possuiDivergencias) {
+    if (input.nivel === 1 && usarNivel2) {
+      statusFinal = 'Aguardando N2';
+      sessao.nivelAtual = 2;
+      sessao.status = statusFinal;
+      sessao.atualizadoEm = agora;
+    } else if (possuiDivergenciasQtd) {
+      // Divergência de quantidade (falta, sobra ou contagens desencontradas) -> vai para reconferência N3 no coletor
       statusFinal = 'Divergente';
       sessao.nivelAtual = 3;
       sessao.status = statusFinal;
       sessao.atualizadoEm = agora;
+    } else if (possuiDivergenciasLote) {
+      // Quantidade 100% conferida e bate com a NF, mas lote/validade divergem do XML/cadastro da nota.
+      // NÃO vai para reconferência física N3 no coletor!
+      // Fica com status 'Divergente' aguardando liberação do gestor na Gerência de Recebimento.
+      statusFinal = 'Divergente';
+      sessao.nivelAtual = input.nivel; // Mantém no nível conferido (ex: 2)
+      sessao.status = statusFinal;
+      sessao.atualizadoEm = agora;
+      sessao.finalizadoEm = agora;
     } else {
-      if (input.nivel === 1 && usarNivel2) {
-        statusFinal = 'Aguardando N2';
-        sessao.nivelAtual = 2;
-        sessao.status = statusFinal;
-        sessao.atualizadoEm = agora;
-      } else {
-        statusFinal = 'Conferido';
-        sessao.status = statusFinal;
-        sessao.atualizadoEm = agora;
-        sessao.finalizadoEm = agora;
-      }
+      statusFinal = 'Conferido';
+      sessao.status = statusFinal;
+      sessao.atualizadoEm = agora;
+      sessao.finalizadoEm = agora;
     }
 
     await this.conferenciaRepo.salvarSessao(sessao);
@@ -334,6 +354,8 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       sessao,
       statusFinal,
       possuiDivergencias,
+      possuiDivergenciasQtd,
+      possuiDivergenciasLote,
       totalItens: Object.keys(mapTotais).length,
       totalConferidos: Object.values(mapTotais).filter((i) => i.n1 > 0 || i.n2 > 0 || i.n3 > 0).length,
       resumoPorNota,

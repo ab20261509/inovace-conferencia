@@ -168,7 +168,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo, configSistemaRepo);
   const listarDivergenciasEntradaUseCase = new ListarDivergenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(conferenciaEntradaRepo);
-  const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo, auditService);
+  const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo, auditService, configSistemaRepo);
   const desmembrarItemService = new SankhyaDesmembrarItemService(gatewayAdapter);
   const enviarConferenciaSankhyaUseCase = new EnviarConferenciaSankhyaUseCase(
     gatewayAdapter,

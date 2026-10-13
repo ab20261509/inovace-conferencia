@@ -335,8 +335,7 @@ WHERE BAR.CODPROD IN (
     const ehNivel3 =
       sessao?.nivelAtual === 3 ||
       sessao?.status === 'Aguardando N3' ||
-      sessao?.status === 'N3 em Andamento' ||
-      sessao?.status === 'Divergente';
+      sessao?.status === 'N3 em Andamento';
 
     const itensRetornados = ehNivel3
       ? itens.filter((i) => {

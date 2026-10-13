@@ -2,6 +2,8 @@ import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenci
 import { SessaoConferenciaEntrada, StatusConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
 
+import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
+
 export interface ReiniciarConferenciaInput {
   conferenciaId: string;
   usuario: string;
@@ -11,7 +13,8 @@ export interface ReiniciarConferenciaInput {
 export class ReiniciarConferenciaEntradaUseCase {
   constructor(
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
-    private readonly audit?: AuditService
+    private readonly audit?: AuditService,
+    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository
   ) {}
 
   async execute(input: ReiniciarConferenciaInput): Promise<SessaoConferenciaEntrada> {
@@ -44,9 +47,18 @@ export class ReiniciarConferenciaEntradaUseCase {
       await this.conferenciaRepo.anularBipagem(b.id);
     }
 
-    // 3. Retornar status da sessão para Em Aberto e nível para 1
+    // Determinar nível inicial com base na configuração do sistema (se N1 estiver desativado, inicia em N2)
+    let nivelInicial = 1;
+    if (this.configSistemaRepo) {
+      const n1Param = await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel1_ativo');
+      if (n1Param === 'false') {
+        nivelInicial = 2;
+      }
+    }
+
+    // 3. Retornar status da sessão para Em Aberto e nível para o nível configurado
     sessao.status = 'Em Aberto';
-    sessao.nivelAtual = 1;
+    sessao.nivelAtual = nivelInicial;
     sessao.atualizadoEm = agora;
     sessao.finalizadoEm = undefined;
     sessao.aprovadoPor = undefined;

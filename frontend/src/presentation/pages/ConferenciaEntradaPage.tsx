@@ -1762,13 +1762,17 @@ export function ConferenciaEntradaPage() {
                 ? 'Todas as notas foram conferidas com 100% de exatidão e estão liberadas para envio ao ERP Sankhya.'
                 : resultadoFinalizacao.statusFinal === 'Aguardando N2'
                 ? 'A 1ª Contagem (N1) foi finalizada. As notas estão prontas para a 2ª Contagem física (N2 com Lote e Validade).'
-                : 'Identificamos divergências físicas. Veja o status atribuído a cada nota abaixo:'}
+                : resultadoFinalizacao.possuiDivergenciasQtd
+                ? 'Identificamos divergências físicas de quantidade. Veja o status atribuído a cada nota abaixo:'
+                : 'Quantidade física 100% conferida, porém com divergência de Lote/Validade em relação ao cadastro da nota. Encaminhado para a Gerência de Recebimento para autorização do gestor.'}
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '14px 0' }}>
               {(resultadoFinalizacao.resumoPorNota || []).map((resNota) => {
                 const isAprovada = resNota.status === 'Conferido';
                 const isDivergente = resNota.status === 'Divergente';
+                const isLotePuro = isDivergente && resNota.itensComSobra === 0 && resNota.itensPendentes === 0;
+
                 return (
                   <div
                     key={resNota.nunota}
@@ -1793,13 +1797,20 @@ export function ConferenciaEntradaPage() {
                           color: isAprovada ? '#166534' : isDivergente ? '#991b1b' : '#1e40af',
                         }}
                       >
-                        {isAprovada ? '✅ Aprovada / 100% OK' : isDivergente ? '⚠️ Divergente → Auditoria N3' : '⏳ Aguardando N2'}
+                        {isAprovada
+                          ? '✅ Aprovada / 100% OK'
+                          : isDivergente
+                          ? isLotePuro
+                            ? '⚠️ Lote Divergente → Gerência'
+                            : '⚠️ Divergente → Auditoria N3'
+                          : '⏳ Aguardando N2'}
                       </span>
                     </div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--slate-600)', marginTop: '4px' }}>
                       Itens Corretos: <strong>{resNota.itensConferidosOk} de {resNota.totalItens}</strong>
                       {resNota.itensComSobra > 0 && <span style={{ color: '#dc2626' }}> • {resNota.itensComSobra} com sobra</span>}
                       {resNota.itensPendentes > 0 && <span style={{ color: '#d97706' }}> • {resNota.itensPendentes} pendentes/falta</span>}
+                      {isLotePuro && <span style={{ color: '#b45309' }}> • Divergência de Lote/Validade</span>}
                     </div>
                   </div>
                 );
@@ -1817,7 +1828,7 @@ export function ConferenciaEntradaPage() {
               >
                 Voltar ao Recebimento
               </Botao>
-              {resultadoFinalizacao.possuiDivergencias && (
+              {resultadoFinalizacao.possuiDivergenciasQtd && (
                 <Botao
                   variant="danger"
                   size="md"
@@ -1825,6 +1836,18 @@ export function ConferenciaEntradaPage() {
                   loading={processando}
                 >
                   🔍 Iniciar Auditoria N3 Agora
+                </Botao>
+              )}
+              {!resultadoFinalizacao.possuiDivergenciasQtd && resultadoFinalizacao.possuiDivergenciasLote && (
+                <Botao
+                  variant="primary"
+                  size="md"
+                  onClick={() => {
+                    setModalResultadoAberto(false);
+                    navigate('/recebimento');
+                  }}
+                >
+                  🏢 Ir para Gerência de Recebimento
                 </Botao>
               )}
               {resultadoFinalizacao.statusFinal === 'Aguardando N2' && (
