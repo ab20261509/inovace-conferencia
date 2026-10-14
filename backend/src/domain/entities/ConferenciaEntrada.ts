@@ -104,6 +104,17 @@ export interface SessaoConferenciaEntrada {
   backupContagem?: BackupContagemEntrada;
   statusPorNota?: Record<number, StatusConferenciaEntrada>;
   statusPorNotaJson?: string;
+  decisoesFiscais?: Record<string, DecisaoFiscalItem>;
+  decisoesFiscaisJson?: string;
+}
+
+export interface DecisaoFiscalItem {
+  nunota: number;
+  codprod: number;
+  sequencia: number;
+  lote?: 'ERP' | 'BIP';
+  validade?: 'ERP' | 'BIP';
+  fabricacao?: 'ERP' | 'BIP';
 }
 
 export interface ConferenciaEntradaResumo {
@@ -126,6 +137,7 @@ export interface ConferenciaEntradaResumo {
   backupContagem?: BackupContagemEntrada;
   observacaoAprovacao?: string;
   statusPorNota?: Record<number, StatusConferenciaEntrada>;
+  notasDetalhadas?: Array<{ nunota: number; numnota: number }>;
 }
 
 export interface BipagemEntrada {

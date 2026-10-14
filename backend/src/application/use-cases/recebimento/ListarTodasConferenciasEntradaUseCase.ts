@@ -96,6 +96,7 @@ WHERE CAB.NUNOTA IN (${nunotasStr})
       const numerosNotasArr: number[] = [];
       const fornecedoresSet = new Set<string>();
       let totalItens = 0;
+      const notasDetalhadas: Array<{ nunota: number; numnota: number }> = [];
 
       for (const nunota of sessao.nunotas) {
         const info = mapaNotasSankhya[nunota];
@@ -103,8 +104,10 @@ WHERE CAB.NUNOTA IN (${nunotasStr})
           if (info.numnota) numerosNotasArr.push(info.numnota);
           if (info.fornecedor) fornecedoresSet.add(info.fornecedor);
           totalItens += info.qtdItens;
+          notasDetalhadas.push({ nunota, numnota: info.numnota || nunota });
         } else {
           numerosNotasArr.push(nunota);
+          notasDetalhadas.push({ nunota, numnota: nunota });
         }
       }
 
@@ -133,6 +136,7 @@ WHERE CAB.NUNOTA IN (${nunotasStr})
         backupContagem: sessao.backupContagem,
         observacaoAprovacao: sessao.observacaoAprovacao,
         statusPorNota: sessao.statusPorNota,
+        notasDetalhadas,
       });
     }
 

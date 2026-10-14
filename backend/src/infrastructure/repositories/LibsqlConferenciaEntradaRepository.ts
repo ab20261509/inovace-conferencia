@@ -35,6 +35,13 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       } catch {}
     }
 
+    let decisoesFiscais: Record<string, any> | undefined = undefined;
+    if (row.decisoes_fiscais_json) {
+      try {
+        decisoesFiscais = JSON.parse(String(row.decisoes_fiscais_json));
+      } catch {}
+    }
+
     return {
       id: String(row.id),
       nunotas,
@@ -53,6 +60,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       backupContagem,
       statusPorNota,
       statusPorNotaJson: row.status_por_nota_json ? String(row.status_por_nota_json) : undefined,
+      decisoesFiscais,
+      decisoesFiscaisJson: row.decisoes_fiscais_json ? String(row.decisoes_fiscais_json) : undefined,
     };
   }
 
@@ -140,9 +149,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     await this.client.execute({
       sql: `INSERT INTO conferencias_entrada (
               id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-              finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
+              finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               nunotas_json = excluded.nunotas_json,
               status = excluded.status,
@@ -156,7 +165,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
               observacao_aprovacao = excluded.observacao_aprovacao,
               resposta_sankhya_json = excluded.resposta_sankhya_json,
               backup_contagem_json = excluded.backup_contagem_json,
-              status_por_nota_json = excluded.status_por_nota_json`,
+              status_por_nota_json = excluded.status_por_nota_json,
+              decisoes_fiscais_json = excluded.decisoes_fiscais_json`,
       args: [
         sessao.id,
         JSON.stringify(sessao.nunotas || []),
@@ -173,6 +183,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         sessao.respostaSankhyaJson || null,
         sessao.backupContagemJson || (sessao.backupContagem ? JSON.stringify(sessao.backupContagem) : null),
         sessao.statusPorNotaJson || (sessao.statusPorNota ? JSON.stringify(sessao.statusPorNota) : null),
+        sessao.decisoesFiscaisJson || (sessao.decisoesFiscais ? JSON.stringify(sessao.decisoesFiscais) : null),
       ],
     });
   }

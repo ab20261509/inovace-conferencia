@@ -1,5 +1,5 @@
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
-import { SessaoConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
+import { SessaoConferenciaEntrada, DecisaoFiscalItem } from '../../../domain/entities/ConferenciaEntrada.js';
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
 
 export interface ResolverDivergenciaInput {
@@ -8,6 +8,7 @@ export interface ResolverDivergenciaInput {
   usuario: string;
   acao?: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3';
   observacao?: string;
+  decisoesFiscais?: Record<string, DecisaoFiscalItem>;
 }
 
 export class ResolverDivergenciaUseCase {
@@ -24,6 +25,11 @@ export class ResolverDivergenciaUseCase {
 
     const agora = new Date().toISOString();
     sessao.statusPorNota = sessao.statusPorNota || {};
+
+    if (input.decisoesFiscais) {
+      sessao.decisoesFiscais = { ...(sessao.decisoesFiscais || {}), ...input.decisoesFiscais };
+      sessao.decisoesFiscaisJson = JSON.stringify(sessao.decisoesFiscais);
+    }
 
     if (input.acao === 'RECONFERIR_N3') {
       if (input.nunota) {

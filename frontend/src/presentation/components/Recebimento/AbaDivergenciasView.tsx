@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { ConferenciaDivergenciaGrupo } from '../../../domain/models/ConferenciaEntrada';
+import {
+  ConferenciaDivergenciaGrupo,
+  DecisaoFiscalItem,
+} from '../../../domain/models/ConferenciaEntrada';
 import { Container } from '../Container/Container';
 import {
   getStatusBadgeClass,
@@ -15,7 +18,10 @@ export interface AbaDivergenciasViewProps {
   setFiltroItensDivergencia: React.Dispatch<
     React.SetStateAction<Record<string, 'divergentes' | 'todos'>>
   >;
-  onResolverDivergencia: (grupo: ConferenciaDivergenciaGrupo) => void;
+  onResolverDivergencia: (
+    grupo: ConferenciaDivergenciaGrupo,
+    decisoesFiscais?: Record<string, DecisaoFiscalItem>
+  ) => void;
   onReconferirN3: (grupo: ConferenciaDivergenciaGrupo) => void;
   onReiniciar: (grupo: ConferenciaDivergenciaGrupo) => void;
 }
@@ -31,12 +37,119 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   onReiniciar,
 }) => {
   const [lotesExpandidosDiv, setLotesExpandidosDiv] = useState<Record<string, boolean>>({});
+  const [decisoesFiscaisPorGrupo, setDecisoesFiscaisPorGrupo] = useState<
+    Record<string, Record<string, DecisaoFiscalItem>>
+  >({});
+  const [itensSelecionadosPorGrupo, setItensSelecionadosPorGrupo] = useState<
+    Record<string, Set<string>>
+  >({});
 
   const toggleLotesDiv = (itemKey: string) => {
     setLotesExpandidosDiv((prev) => ({
       ...prev,
       [itemKey]: !prev[itemKey],
     }));
+  };
+
+  const toggleSelecionarItem = (grupoId: string, itemKey: string) => {
+    setItensSelecionadosPorGrupo((prev) => {
+      const atual = new Set(prev[grupoId] || []);
+      if (atual.has(itemKey)) {
+        atual.delete(itemKey);
+      } else {
+        atual.add(itemKey);
+      }
+      return {
+        ...prev,
+        [grupoId]: atual,
+      };
+    });
+  };
+
+  const toggleSelecionarTodos = (grupoId: string, todosItemKeys: string[]) => {
+    setItensSelecionadosPorGrupo((prev) => {
+      const atual = prev[grupoId] || new Set();
+      const todosJaEstao = todosItemKeys.length > 0 && todosItemKeys.every((k) => atual.has(k));
+      return {
+        ...prev,
+        [grupoId]: todosJaEstao ? new Set() : new Set(todosItemKeys),
+      };
+    });
+  };
+
+  const handleSetDecisao = (
+    grupoId: string,
+    itemKey: string,
+    itemInfo: { nunota: number; codprod: number; sequencia: number },
+    campo: 'lote' | 'validade' | 'fabricacao',
+    opcao: 'ERP' | 'BIP'
+  ) => {
+    setDecisoesFiscaisPorGrupo((prev) => {
+      const grupoDecisoes = prev[grupoId] || {};
+      const decisaoAtual = grupoDecisoes[itemKey] || {
+        nunota: itemInfo.nunota,
+        codprod: itemInfo.codprod,
+        sequencia: itemInfo.sequencia,
+      };
+
+      return {
+        ...prev,
+        [grupoId]: {
+          ...grupoDecisoes,
+          [itemKey]: {
+            ...decisaoAtual,
+            [campo]: opcao,
+          },
+        },
+      };
+    });
+  };
+
+  const handleAplicarDecisaoEmMassa = (
+    grupoId: string,
+    campo: 'lote' | 'validade' | 'fabricacao',
+    opcao: 'ERP' | 'BIP',
+    itensAlvo: any[]
+  ) => {
+    const selecionados = itensSelecionadosPorGrupo[grupoId];
+    const temSelecao = Boolean(selecionados && selecionados.size > 0);
+
+    setDecisoesFiscaisPorGrupo((prev) => {
+      const grupoDecisoes = { ...(prev[grupoId] || {}) };
+
+      for (const item of itensAlvo) {
+        const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
+        // Se houver itens selecionados via checkbox, aplica exclusivamente a eles
+        if (temSelecao && !selecionados!.has(itemKey)) {
+          continue;
+        }
+
+        // Aplica apenas aos itens que de fato possuem divergência cadastral/fiscal no campo
+        const possuiDivCampo =
+          campo === 'lote'
+            ? item.divergenciaLote
+            : campo === 'validade'
+            ? item.divergenciaValidade
+            : item.divergenciaFabricacao;
+
+        if (possuiDivCampo) {
+          const decisaoAtual = grupoDecisoes[itemKey] || {
+            nunota: item.nunota,
+            codprod: item.codprod,
+            sequencia: item.sequencia,
+          };
+          grupoDecisoes[itemKey] = {
+            ...decisaoAtual,
+            [campo]: opcao,
+          };
+        }
+      }
+
+      return {
+        ...prev,
+        [grupoId]: grupoDecisoes,
+      };
+    });
   };
 
   return (
@@ -67,6 +180,27 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
           const houveN2 = grupo.totalN2 > 0 || ((grupo.conferentesN2?.length ?? 0) > 0);
           const exibirN1 = grupo.nivel1Ativo !== undefined ? (grupo.nivel1Ativo || houveN1) : houveN1;
           const exibirN2 = grupo.nivel2Ativo !== undefined ? (grupo.nivel2Ativo || houveN2) : true;
+
+          const decisoesDoGrupo = decisoesFiscaisPorGrupo[grupo.id] || {};
+          const itensFiscais = (grupo.itensDivergentes || []).filter(
+            (i) => i.divergenciaLote || i.divergenciaValidade || i.divergenciaFabricacao
+          );
+          const totalItensFiscais = itensFiscais.length;
+          const totalFiscaisPendentes = itensFiscais.filter((i) => {
+            const k = `${i.nunota}-${i.codprod}-${i.sequencia}`;
+            const d = decisoesDoGrupo[k];
+            const pL = Boolean(i.divergenciaLote && !d?.lote);
+            const pV = Boolean(i.divergenciaValidade && !d?.validade);
+            const pF = Boolean(i.divergenciaFabricacao && !d?.fabricacao);
+            return pL || pV || pF;
+          }).length;
+          const podeResolverDivergencia = totalFiscaisPendentes === 0;
+
+          const selecionadosDoGrupo = itensSelecionadosPorGrupo[grupo.id] || new Set();
+          const todosItemKeys = itensParaExibir.map((i) => `${i.nunota}-${i.codprod}-${i.sequencia}`);
+          const qtdSelecionados = selecionadosDoGrupo.size;
+          const todosSelecionados =
+            todosItemKeys.length > 0 && todosItemKeys.every((k) => selecionadosDoGrupo.has(k));
 
           return (
             <div key={grupo.id} className="gestao-rec-card">
@@ -140,9 +274,15 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                         <span className="gestao-mini-metrica-valor">{grupo.totalN3}</span>
                       </div>
                     )}
-                    <div className={`gestao-mini-metrica-box ${grupo.itensDivergentes.length > 0 ? 'divergente' : 'ok'}`}>
-                      <span className="gestao-mini-metrica-rotulo">Divergentes</span>
-                      <span className="gestao-mini-metrica-valor">{grupo.itensDivergentes.length}</span>
+                    <div className={`gestao-mini-metrica-box ${totalFiscaisPendentes > 0 ? 'divergente' : 'ok'}`}>
+                      <span className="gestao-mini-metrica-rotulo">
+                        {totalItensFiscais > 0 ? (totalFiscaisPendentes > 0 ? 'Pendentes' : 'Decididos') : 'Divergentes'}
+                      </span>
+                      <span className="gestao-mini-metrica-valor">
+                        {totalItensFiscais > 0
+                          ? `${grupo.itensDivergentes.length} (${totalFiscaisPendentes} pend)`
+                          : grupo.itensDivergentes.length}
+                      </span>
                     </div>
                   </div>
 
@@ -308,7 +448,11 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                     }
                   >
                     <span>⚠️ Divergentes</span>
-                    <span className="chip-count">{grupo.itensDivergentes.length}</span>
+                    <span className="chip-count">
+                      {totalFiscaisPendentes > 0
+                        ? `${grupo.itensDivergentes.length} (${totalFiscaisPendentes} pend)`
+                        : grupo.itensDivergentes.length}
+                    </span>
                   </button>
                   {todosDisponiveis && (
                     <button
@@ -342,11 +486,39 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
 
               {isExpandido && (
                 <>
+                  {qtdSelecionados > 0 && (
+                    <div className="toolbar-massa-aviso">
+                      <span>
+                        ☑️ <strong>{qtdSelecionados}</strong> produto(s) selecionado(s) para aplicação em massa.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setItensSelecionadosPorGrupo((prev) => ({
+                            ...prev,
+                            [grupo.id]: new Set(),
+                          }))
+                        }
+                      >
+                        Limpar seleção
+                      </button>
+                    </div>
+                  )}
+
                   {/* Tabela Desktop (> 1024px) */}
                   <div className="gestao-rec-tabela-desktop" style={{ marginTop: '8px' }}>
                     <table className="gestao-rec-tabela">
                       <thead>
                         <tr>
+                          <th style={{ width: '38px', textAlign: 'center', padding: '6px 4px' }}>
+                            <input
+                              type="checkbox"
+                              className="gestao-checkbox-select"
+                              title={todosSelecionados ? 'Desmarcar todos' : 'Selecionar todos os itens'}
+                              checked={todosSelecionados}
+                              onChange={() => toggleSelecionarTodos(grupo.id, todosItemKeys)}
+                            />
+                          </th>
                           <th>Produto</th>
                           <th>Vol.</th>
                           <th>Nota</th>
@@ -354,9 +526,75 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           {exibirN2 && <th>N2</th>}
                           {grupo.totalN3 > 0 && <th>N3</th>}
                           <th>Diferença</th>
-                          <th>Lote</th>
-                          <th>Validade</th>
-                          <th>Fabricação</th>
+                          <th className="th-col-com-acoes-em-massa">
+                            <div className="th-header-inner">
+                              <span>Lote</span>
+                              <div className="grupo-botoes-em-massa">
+                                <button
+                                  type="button"
+                                  className="btn-header-massa-erp"
+                                  title="Aplicar ERP em massa para Lote (nos itens selecionados ou em todos com divergência)"
+                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'ERP', itensParaExibir)}
+                                >
+                                  ERP
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-header-massa-bip"
+                                  title="Aplicar BIP em massa para Lote (nos itens selecionados ou em todos com divergência)"
+                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'BIP', itensParaExibir)}
+                                >
+                                  BIP
+                                </button>
+                              </div>
+                            </div>
+                          </th>
+                          <th className="th-col-com-acoes-em-massa">
+                            <div className="th-header-inner">
+                              <span>Validade</span>
+                              <div className="grupo-botoes-em-massa">
+                                <button
+                                  type="button"
+                                  className="btn-header-massa-erp"
+                                  title="Aplicar ERP em massa para Validade (nos itens selecionados ou em todos com divergência)"
+                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'ERP', itensParaExibir)}
+                                >
+                                  ERP
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-header-massa-bip"
+                                  title="Aplicar BIP em massa para Validade (nos itens selecionados ou em todos com divergência)"
+                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'BIP', itensParaExibir)}
+                                >
+                                  BIP
+                                </button>
+                              </div>
+                            </div>
+                          </th>
+                          <th className="th-col-com-acoes-em-massa">
+                            <div className="th-header-inner">
+                              <span>Fabricação</span>
+                              <div className="grupo-botoes-em-massa">
+                                <button
+                                  type="button"
+                                  className="btn-header-massa-erp"
+                                  title="Aplicar ERP em massa para Fabricação (nos itens selecionados ou em todos com divergência)"
+                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'ERP', itensParaExibir)}
+                                >
+                                  ERP
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-header-massa-bip"
+                                  title="Aplicar BIP em massa para Fabricação (nos itens selecionados ou em todos com divergência)"
+                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'BIP', itensParaExibir)}
+                                >
+                                  BIP
+                                </button>
+                              </div>
+                            </div>
+                          </th>
                           <th>Conferentes</th>
                         </tr>
                       </thead>
@@ -367,7 +605,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const temMultiplosLotes = lotesConferidos.length > 1;
                           const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
                           const temN3 = grupo.totalN3 > 0;
-                          let totalColunasDiv = 8;
+                          let totalColunasDiv = 9;
                           if (exibirN1) totalColunasDiv++;
                           if (exibirN2) totalColunasDiv++;
                           if (temN3) totalColunasDiv++;
@@ -375,9 +613,35 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const diferenca = item.diferenca;
                           const classeDif =
                             diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+
+                          const temDivergenciaFiscal = Boolean(
+                            item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao
+                          );
+                          const decisaoItem = decisoesDoGrupo[itemKey];
+                          const pendenteLote = Boolean(item.divergenciaLote && !decisaoItem?.lote);
+                          const pendenteValidade = Boolean(item.divergenciaValidade && !decisaoItem?.validade);
+                          const pendenteFabricacao = Boolean(item.divergenciaFabricacao && !decisaoItem?.fabricacao);
+                          const isItemPendente = temDivergenciaFiscal && (pendenteLote || pendenteValidade || pendenteFabricacao);
+                          const isItemDecidido = temDivergenciaFiscal && !isItemPendente;
+
+                          const classeLinhaDecisao = isItemPendente
+                            ? 'linha-pendente-decisao'
+                            : isItemDecidido
+                            ? 'linha-decisao-concluida'
+                            : '';
+
                           return (
                             <React.Fragment key={`div-frag-${itemKey}`}>
-                              <tr key={`div-${itemKey}`}>
+                              <tr key={`div-${itemKey}`} className={classeLinhaDecisao}>
+                                <td style={{ textAlign: 'center', width: '38px', padding: '6px 4px' }}>
+                                  <input
+                                    type="checkbox"
+                                    className="gestao-checkbox-select"
+                                    checked={selecionadosDoGrupo.has(itemKey)}
+                                    onChange={() => toggleSelecionarItem(grupo.id, itemKey)}
+                                    title="Selecionar produto para ação em massa"
+                                  />
+                                </td>
                                 <td>
                                   <div
                                     style={{
@@ -418,7 +682,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       ? `+${diferenca} (Sobra)`
                                       : '✓ OK'}
                                   </span>
-                                  {(item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao) && (
+                                  {temDivergenciaFiscal && (
                                     <span
                                       style={{
                                         background: '#fef2f2',
@@ -436,6 +700,16 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       ⚠️ Lote/Data Divergente
                                     </span>
                                   )}
+                                  {isItemPendente && (
+                                    <span className="badge-pendente-aviso">
+                                      ⚠️ Pendente de Decisão
+                                    </span>
+                                  )}
+                                  {isItemDecidido && (
+                                    <span className="badge-decidido-ok">
+                                      ✓ Decisão Definida
+                                    </span>
+                                  )}
                                 </td>
                                 <td>
                                   {temMultiplosLotes ? (
@@ -449,13 +723,31 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
                                     </button>
                                   ) : item.divergenciaLote ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       <span className="gestao-lote-pill" style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>
                                         🏷️ Bip: {item.lote || 'Sem lote'}
                                       </span>
                                       <span style={{ fontSize: '0.68rem', color: '#dc2626', fontWeight: 600 }}>
                                         NF: {item.controleOriginal}
                                       </span>
+                                      <div className="grupo-botoes-decisao-fiscal">
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${decisaoItem?.lote === 'ERP' ? 'ativo-erp' : ''}`}
+                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'lote', 'ERP')}
+                                          title={`Manter o lote original do ERP (${item.controleOriginal})`}
+                                        >
+                                          {decisaoItem?.lote === 'ERP' && '✓ '}ERP
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${decisaoItem?.lote === 'BIP' ? 'ativo-bip' : ''}`}
+                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'lote', 'BIP')}
+                                          title={`Adotar o lote bipado no coletor (${item.lote})`}
+                                        >
+                                          {decisaoItem?.lote === 'BIP' && '✓ '}BIP
+                                        </button>
+                                      </div>
                                     </div>
                                   ) : item.lote ? (
                                     <span className="gestao-lote-pill">
@@ -482,13 +774,31 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                     </span>
                                   ) : item.divergenciaValidade ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       <span style={{ fontSize: '0.78rem', color: '#991b1b', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
                                         Bip: {formatarDataSimples(item.validade)}
                                       </span>
                                       <span style={{ fontSize: '0.68rem', color: '#dc2626' }}>
                                         Orig: {item.validadeOriginal}
                                       </span>
+                                      <div className="grupo-botoes-decisao-fiscal">
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${decisaoItem?.validade === 'ERP' ? 'ativo-erp' : ''}`}
+                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'ERP')}
+                                          title={`Manter a validade original do ERP (${item.validadeOriginal})`}
+                                        >
+                                          {decisaoItem?.validade === 'ERP' && '✓ '}ERP
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${decisaoItem?.validade === 'BIP' ? 'ativo-bip' : ''}`}
+                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'BIP')}
+                                          title={`Adotar a validade bipada no coletor (${formatarDataSimples(item.validade)})`}
+                                        >
+                                          {decisaoItem?.validade === 'BIP' && '✓ '}BIP
+                                        </button>
+                                      </div>
                                     </div>
                                   ) : item.validade ? (
                                     <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -513,13 +823,31 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                     </span>
                                   ) : item.divergenciaFabricacao ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                       <span style={{ fontSize: '0.78rem', color: '#991b1b', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
                                         Bip: {formatarDataSimples(item.fabricacao)}
                                       </span>
                                       <span style={{ fontSize: '0.68rem', color: '#dc2626' }}>
                                         Orig: {item.fabricacaoOriginal}
                                       </span>
+                                      <div className="grupo-botoes-decisao-fiscal">
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${decisaoItem?.fabricacao === 'ERP' ? 'ativo-erp' : ''}`}
+                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'ERP')}
+                                          title={`Manter a fabricação original do ERP (${item.fabricacaoOriginal})`}
+                                        >
+                                          {decisaoItem?.fabricacao === 'ERP' && '✓ '}ERP
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${decisaoItem?.fabricacao === 'BIP' ? 'ativo-bip' : ''}`}
+                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'BIP')}
+                                          title={`Adotar a fabricação bipada no coletor (${formatarDataSimples(item.fabricacao)})`}
+                                        >
+                                          {decisaoItem?.fabricacao === 'BIP' && '✓ '}BIP
+                                        </button>
+                                      </div>
                                     </div>
                                   ) : item.fabricacao ? (
                                     <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -607,12 +935,37 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       const diferenca = item.diferenca;
                       const classeDif =
                         diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+                      const temDivergenciaFiscal = Boolean(
+                        item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao
+                      );
+                      const decisaoItem = decisoesDoGrupo[itemKey];
+                      const pendenteLote = Boolean(item.divergenciaLote && !decisaoItem?.lote);
+                      const pendenteValidade = Boolean(item.divergenciaValidade && !decisaoItem?.validade);
+                      const pendenteFabricacao = Boolean(item.divergenciaFabricacao && !decisaoItem?.fabricacao);
+                      const isItemPendente = temDivergenciaFiscal && (pendenteLote || pendenteValidade || pendenteFabricacao);
+                      const isItemDecidido = temDivergenciaFiscal && !isItemPendente;
+
+                      const classeCardMobile = isItemPendente
+                        ? 'card-mobile-pendente-decisao'
+                        : isItemDecidido
+                        ? 'card-mobile-decisao-concluida'
+                        : '';
+
                       return (
                         <div
                           key={`mob-${itemKey}`}
-                          className="gestao-item-card-mobile"
+                          className={`gestao-item-card-mobile ${classeCardMobile}`}
                         >
                           <div className="gestao-item-mobile-header">
+                            <div style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
+                              <input
+                                type="checkbox"
+                                className="gestao-checkbox-select"
+                                checked={selecionadosDoGrupo.has(itemKey)}
+                                onChange={() => toggleSelecionarItem(grupo.id, itemKey)}
+                                title="Selecionar produto para ação em massa"
+                              />
+                            </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div className="gestao-item-mobile-descr">
                                 {item.descrprod || `Produto ${item.codprod}`}
@@ -622,6 +975,16 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 {item.referencia ? ` • Ref: ${item.referencia}` : ''} • Vol:{' '}
                                 {item.codvol || 'UN'}
                               </div>
+                              {isItemPendente && (
+                                <span className="badge-pendente-aviso">
+                                  ⚠️ Pendente de Decisão
+                                </span>
+                              )}
+                              {isItemDecidido && (
+                                <span className="badge-decidido-ok">
+                                  ✓ Decisão Definida
+                                </span>
+                              )}
                             </div>
                             <span className={`pill-contagem-status ${classeDif}`}>
                               {diferenca < 0
@@ -726,18 +1089,66 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                         ⚠️ Divergência Fiscal/Cadastro:
                                       </div>
                                       {item.divergenciaLote && (
-                                        <div style={{ fontSize: '0.68rem', color: '#991b1b' }}>
-                                          Lote Bip: <strong>{item.lote || 'Sem lote'}</strong> (NF: {item.controleOriginal})
+                                        <div style={{ fontSize: '0.68rem', color: '#991b1b', marginTop: '2px' }}>
+                                          <div>Lote Bip: <strong>{item.lote || 'Sem lote'}</strong> (NF: {item.controleOriginal})</div>
+                                          <div className="grupo-botoes-decisao-fiscal">
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.lote === 'ERP' ? 'ativo-erp' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'lote', 'ERP')}
+                                            >
+                                              {decisaoItem?.lote === 'ERP' && '✓ '}ERP
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.lote === 'BIP' ? 'ativo-bip' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'lote', 'BIP')}
+                                            >
+                                              {decisaoItem?.lote === 'BIP' && '✓ '}BIP
+                                            </button>
+                                          </div>
                                         </div>
                                       )}
                                       {item.divergenciaValidade && (
-                                        <div style={{ fontSize: '0.68rem', color: '#991b1b' }}>
-                                          Val Bip: <strong>{formatarDataSimples(item.validade)}</strong> (Orig: {item.validadeOriginal})
+                                        <div style={{ fontSize: '0.68rem', color: '#991b1b', marginTop: '4px' }}>
+                                          <div>Val Bip: <strong>{formatarDataSimples(item.validade)}</strong> (Orig: {item.validadeOriginal})</div>
+                                          <div className="grupo-botoes-decisao-fiscal">
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.validade === 'ERP' ? 'ativo-erp' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'ERP')}
+                                            >
+                                              {decisaoItem?.validade === 'ERP' && '✓ '}ERP
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.validade === 'BIP' ? 'ativo-bip' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'BIP')}
+                                            >
+                                              {decisaoItem?.validade === 'BIP' && '✓ '}BIP
+                                            </button>
+                                          </div>
                                         </div>
                                       )}
                                       {item.divergenciaFabricacao && (
-                                        <div style={{ fontSize: '0.68rem', color: '#991b1b' }}>
-                                          Fab Bip: <strong>{formatarDataSimples(item.fabricacao)}</strong> (Orig: {item.fabricacaoOriginal})
+                                        <div style={{ fontSize: '0.68rem', color: '#991b1b', marginTop: '4px' }}>
+                                          <div>Fab Bip: <strong>{formatarDataSimples(item.fabricacao)}</strong> (Orig: {item.fabricacaoOriginal})</div>
+                                          <div className="grupo-botoes-decisao-fiscal">
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.fabricacao === 'ERP' ? 'ativo-erp' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'ERP')}
+                                            >
+                                              {decisaoItem?.fabricacao === 'ERP' && '✓ '}ERP
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.fabricacao === 'BIP' ? 'ativo-bip' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'BIP')}
+                                            >
+                                              {decisaoItem?.fabricacao === 'BIP' && '✓ '}BIP
+                                            </button>
+                                          </div>
                                         </div>
                                       )}
                                     </div>
@@ -772,10 +1183,20 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
               <div className="gestao-rec-card-acoes">
                 <button
                   type="button"
-                  className="gestao-btn-acao gestao-btn-resolver"
-                  onClick={() => onResolverDivergencia(grupo)}
+                  className={`gestao-btn-acao gestao-btn-resolver ${!podeResolverDivergencia ? 'disabled' : ''}`}
+                  disabled={!podeResolverDivergencia}
+                  onClick={() => onResolverDivergencia(grupo, decisoesDoGrupo)}
+                  title={
+                    !podeResolverDivergencia
+                      ? `Defina a decisão fiscal (ERP ou BIP) para os ${totalFiscaisPendentes} item(ns) pendente(s) antes de resolver.`
+                      : 'Resolver e aprovar divergência'
+                  }
                 >
-                  <span>✓ Resolver Divergência</span>
+                  <span>
+                    {podeResolverDivergencia
+                      ? '✓ Resolver Divergência'
+                      : `⚠️ Resolver Divergência (${totalFiscaisPendentes} pendente${totalFiscaisPendentes > 1 ? 's' : ''})`}
+                  </span>
                 </button>
 
                 <button

@@ -180,15 +180,28 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                     <span className="gestao-rec-card-nf-badge">📄 NF(s): {conf.numerosNotas}</span>
                     {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
                       <div className="gestao-notas-status-inline">
-                        {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => (
-                          <span
-                            key={nunotaStr}
-                            className={`gestao-mini-nota-status badge-status-rec ${getStatusBadgeClass(st)}`}
-                            title={`Nota Fiscal ${nunotaStr}`}
-                          >
-                            NF {nunotaStr}: {st}
-                          </span>
-                        ))}
+                        {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => {
+                          const numnotaReal =
+                            conf.notasDetalhadas?.find((nd) => nd.nunota === Number(nunotaStr))?.numnota ||
+                            (() => {
+                              const idx = conf.nunotas.indexOf(Number(nunotaStr));
+                              if (idx !== -1 && conf.numerosNotas) {
+                                const nums = conf.numerosNotas.split(',').map((s) => s.trim());
+                                if (nums[idx]) return nums[idx];
+                              }
+                              return nunotaStr;
+                            })();
+
+                          return (
+                            <span
+                              key={nunotaStr}
+                              className={`gestao-mini-nota-status badge-status-rec ${getStatusBadgeClass(st)}`}
+                              title={`Nota Fiscal ${numnotaReal}`}
+                            >
+                              NF #{numnotaReal}: {st}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

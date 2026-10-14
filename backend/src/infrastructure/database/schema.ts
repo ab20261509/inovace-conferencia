@@ -137,6 +137,7 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   await garantirColuna(client, 'conferencias_entrada', 'resposta_sankhya_json', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'backup_contagem_json', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'status_por_nota_json', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'decisoes_fiscais_json', 'TEXT');
 
   // Executa migração dos arquivos JSON legados, se existirem
   await migrarDadosLegadosJson(client);

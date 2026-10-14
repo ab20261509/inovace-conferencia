@@ -126,6 +126,7 @@ export interface ConferenciaEntradaResumo {
   backupContagem?: BackupContagemEntrada;
   observacaoAprovacao?: string;
   statusPorNota?: Record<number, StatusConferenciaEntrada>;
+  notasDetalhadas?: Array<{ nunota: number; numnota: number }>;
 }
 
 export interface BipagemEntrada {
@@ -236,10 +237,20 @@ export interface ConferenciaDivergenciaGrupo {
   todosItens: ItemDivergenciaResumo[];
 }
 
+export interface DecisaoFiscalItem {
+  nunota: number;
+  codprod: number;
+  sequencia: number;
+  lote?: 'ERP' | 'BIP';
+  validade?: 'ERP' | 'BIP';
+  fabricacao?: 'ERP' | 'BIP';
+}
+
 export interface ResolverDivergenciaInput {
   acao: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3';
   observacao?: string;
   nunota?: number;
+  decisoesFiscais?: Record<string, DecisaoFiscalItem>;
 }
 
 export interface ReiniciarConferenciaInput {

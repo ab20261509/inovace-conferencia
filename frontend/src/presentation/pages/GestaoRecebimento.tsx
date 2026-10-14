@@ -377,6 +377,7 @@ export function GestaoRecebimentoPage() {
           acao: 'APROVAR_DIVERGENCIA',
           observacao: observacaoModal,
           nunota: nunotaExtra,
+          decisoesFiscais: modalAcao.dadosExtras?.decisoesFiscais,
         });
         setFeedback({
           tipo: 'sucesso',
@@ -882,6 +883,7 @@ export function GestaoRecebimentoPage() {
                           conferenciaIdOrig: conf.id,
                           nunotas: conf.nunotas,
                           numerosNotas: conf.numerosNotas,
+                          notasDetalhadas: conf.notasDetalhadas,
                         },
                       });
                     }}
@@ -917,17 +919,18 @@ export function GestaoRecebimentoPage() {
                     filtroItensDivergencia={filtroItensDivergencia}
                     toggleItensDivergencia={toggleItensDivergencia}
                     setFiltroItensDivergencia={setFiltroItensDivergencia}
-                    onResolverDivergencia={(grupo) => {
+                    onResolverDivergencia={(grupo, decisoesFiscais) => {
                       setModalAcao({
                         tipo: 'APROVAR_DIVERGENCIA',
                         conferenciaId: grupo.conferenciaId || grupo.id,
                         titulo: `Resolver e Aceitar Divergência (NF ${grupo.numnota || grupo.numerosNotas})`,
-                        descricao: `Você está prestes a aprovar a conferência da nota fiscal ${grupo.numnota || grupo.numerosNotas} aceitando a contagem física atual como definitiva para o estoque.`,
+                        descricao: `Você está prestes a aprovar a conferência da nota fiscal ${grupo.numnota || grupo.numerosNotas} aceitando a contagem física atual como definitiva para o estoque com as decisões fiscais selecionadas.`,
                         placeholder: 'Insira a justificativa gerencial para aprovar esta divergência (ex: fornecedor confirmou envio a menor com carta de correção)...',
                         dadosExtras: {
                           conferenciaIdOrig: grupo.conferenciaId || grupo.id,
                           nunota: grupo.nunota,
                           numnota: grupo.numnota || grupo.numerosNotas,
+                          decisoesFiscais,
                         },
                       });
                     }}
@@ -1133,34 +1136,51 @@ export function GestaoRecebimentoPage() {
                         </div>
                       </label>
 
-                      {modalAcao.dadosExtras.nunotas.map((n: number) => (
-                        <label
-                          key={n}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '10px 12px',
-                            borderRadius: '8px',
-                            border: `1px solid ${nunotaReiniciarModal === n ? 'var(--blue-500)' : 'var(--slate-200)'}`,
-                            background: nunotaReiniciarModal === n ? '#eff6ff' : 'var(--slate-50)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="opcaoReiniciar"
-                            checked={nunotaReiniciarModal === n}
-                            onChange={() => setNunotaReiniciarModal(n)}
-                          />
-                          <div>
-                            <strong>Desmembrar e reiniciar apenas a NF #{n}</strong>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)' }}>
-                              Separa esta nota em uma conferência própria zerada, mantendo as outras notas na conferência atual.
+                      {(() => {
+                        const listaNotas: Array<{ nunota: number; numnota: number }> =
+                          modalAcao.dadosExtras.notasDetalhadas &&
+                          modalAcao.dadosExtras.notasDetalhadas.length > 0
+                            ? modalAcao.dadosExtras.notasDetalhadas
+                            : (() => {
+                                const nums = String(modalAcao.dadosExtras.numerosNotas || '')
+                                  .split(',')
+                                  .map((s) => Number(s.trim()))
+                                  .filter((n) => !isNaN(n) && n > 0);
+                                return modalAcao.dadosExtras.nunotas.map((n: number, idx: number) => ({
+                                  nunota: n,
+                                  numnota: nums[idx] || n,
+                                }));
+                              })();
+
+                        return listaNotas.map((item) => (
+                          <label
+                            key={item.nunota}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: `1px solid ${nunotaReiniciarModal === item.nunota ? 'var(--blue-500)' : 'var(--slate-200)'}`,
+                              background: nunotaReiniciarModal === item.nunota ? '#eff6ff' : 'var(--slate-50)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="opcaoReiniciar"
+                              checked={nunotaReiniciarModal === item.nunota}
+                              onChange={() => setNunotaReiniciarModal(item.nunota)}
+                            />
+                            <div>
+                              <strong>Desmembrar e reiniciar apenas a NF #{item.numnota}</strong>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)' }}>
+                                Separa esta nota em uma conferência própria zerada, mantendo as outras notas na conferência atual.
+                              </div>
                             </div>
-                          </div>
-                        </label>
-                      ))}
+                          </label>
+                        ));
+                      })()}
                     </div>
                   )}
 

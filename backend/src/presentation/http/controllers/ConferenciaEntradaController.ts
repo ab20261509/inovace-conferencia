@@ -173,7 +173,7 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
-      const { acao, observacao, nunota } = req.body;
+      const { acao, observacao, nunota, decisoesFiscais } = req.body;
 
       const sessao = await this.resolverDivergenciaUseCase.execute({
         conferenciaId,
@@ -181,6 +181,7 @@ export class ConferenciaEntradaController {
         usuario,
         acao,
         observacao,
+        decisoesFiscais,
       });
 
       res.status(200).json({ success: true, sessao });

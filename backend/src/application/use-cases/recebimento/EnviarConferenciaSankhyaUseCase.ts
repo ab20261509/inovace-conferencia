@@ -141,6 +141,17 @@ export class EnviarConferenciaSankhyaUseCase {
       for (const b of bipsParaUso) {
         if (!b.lote) continue;
         const key = `${b.nunota}|${b.codprod}`;
+        const itemKey = `${b.nunota}-${b.codprod}-${b.sequencia}`;
+        const decisao = sessao.decisoesFiscais?.[itemKey] || sessao.decisoesFiscais?.[String(b.codprod)];
+
+        // Se a decisão do gestor for manter o lote original do ERP, não envia o lote conferido
+        if (decisao?.lote === 'ERP') {
+          continue;
+        }
+
+        const validadeParaUso = decisao?.validade === 'ERP' ? undefined : b.validade?.trim();
+        const fabricacaoParaUso = decisao?.fabricacao === 'ERP' ? undefined : b.fabricacao?.trim();
+
         if (!mapaLotesPorProd[key]) {
           mapaLotesPorProd[key] = [];
         }
@@ -149,13 +160,13 @@ export class EnviarConferenciaSankhyaUseCase {
         );
         if (loteExistente) {
           loteExistente.qtd += b.qtdConferida;
-          if (b.validade && !loteExistente.validade) loteExistente.validade = b.validade;
-          if (b.fabricacao && !loteExistente.fabricacao) loteExistente.fabricacao = b.fabricacao;
+          if (validadeParaUso && !loteExistente.validade) loteExistente.validade = validadeParaUso;
+          if (fabricacaoParaUso && !loteExistente.fabricacao) loteExistente.fabricacao = fabricacaoParaUso;
         } else {
           mapaLotesPorProd[key].push({
             lote: b.lote.trim(),
-            validade: b.validade?.trim(),
-            fabricacao: b.fabricacao?.trim(),
+            validade: validadeParaUso,
+            fabricacao: fabricacaoParaUso,
             qtd: b.qtdConferida,
           });
         }
