@@ -220,32 +220,12 @@ export function GestaoRecebimentoPage() {
   // Estados de feedback e modais
   const [feedback, setFeedback] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
   const [modalAcao, setModalAcao] = useState<{
-    tipo: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3' | 'REINICIAR' | 'SOLICITAR_RECONTAGEM' | 'RECUPERAR_CONTAGEM' | 'ENVIAR_SANKHYA';
+    tipo: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3' | 'REINICIAR' | 'SOLICITAR_RECONTAGEM' | 'RECUPERAR_CONTAGEM';
     conferenciaId: string;
     titulo: string;
     descricao: string;
     placeholder: string;
     dadosExtras?: any;
-  } | null>(null);
-
-  // Estado para Comprovante de Envio ao Sankhya
-  const [comprovanteEnvio, setComprovanteEnvio] = useState<{
-    conferenciaId: string;
-    numerosNotas: string;
-    protocolo: string;
-    dataHora: string;
-    usuario: string;
-    itensAtualizados: number;
-    estoqueAtualizado: number;
-    itens: Array<{
-      codprod: number;
-      descrprod: string;
-      qtdEsperada: number;
-      qtdConferida: number;
-      lote?: string;
-      validade?: string;
-      status: string;
-    }>;
   } | null>(null);
 
   const [nivelRecontagemModal, setNivelRecontagemModal] = useState<number>(2);
@@ -282,21 +262,94 @@ export function GestaoRecebimentoPage() {
   };
 
   const handleExecutarEnvioImediato = async (nota: DadosNotaEnvioImediato) => {
+    if (nota.isLote && nota.grupos) {
+      let totalItensAtualizados = 0;
+      let totalEstoqueAtualizado = 0;
+      const protocolos: string[] = [];
+
+      for (const grp of nota.grupos) {
+        const lotesCust = lotesCustomizadosPorConferencia[grp.conferenciaId];
+        let detalhes = detalhesConferencias[grp.conferenciaId];
+        if (!detalhes || !detalhes.itens || detalhes.itens.length === 0) {
+          try {
+            detalhes = await recebimentoService.obterItensConferencia(grp.conferenciaId, grp.nunotas);
+            setDetalhesConferencias((prev) => ({ ...prev, [grp.conferenciaId]: detalhes }));
+          } catch (e) {
+            // prossegue
+          }
+        }
+
+        const resp = await recebimentoService.enviarSankhya(grp.conferenciaId, {
+          observacao: 'Envio em lote pelo gestor do recebimento.',
+          nunotas: grp.nunotas,
+          itensCustomizados: lotesCust
+            ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
+                const codprod = Number(codprodStr);
+                const itemRef = detalhes?.itens.find((i) => i.codprod === codprod);
+                const nunota = itemRef?.nunota || 0;
+                const sequencia = itemRef?.sequencia ?? 1;
+                return fracoes
+                  .filter((f) => f.lote?.trim())
+                  .map((f) => ({
+                    nunota,
+                    sequencia,
+                    codprod,
+                    lote: f.lote.trim(),
+                    validade: f.validade,
+                    fabricacao: f.fabricacao,
+                    qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
+                  }));
+              })
+            : undefined,
+        });
+
+        totalItensAtualizados += resp.itensAtualizados || 0;
+        totalEstoqueAtualizado += resp.estoqueAtualizado || 0;
+        if (resp.protocolo) protocolos.push(resp.protocolo);
+      }
+
+      setSelecionadasEnvio(new Set());
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `Envio em lote concluído com sucesso ao Sankhya! ${nota.grupos.length} notas processadas, ${totalItensAtualizados} itens da nota e ${totalEstoqueAtualizado} registros de estoque atualizados.`,
+      });
+      await carregarDados();
+
+      return {
+        protocolos,
+        protocolo: protocolos[0],
+        itensAtualizados: totalItensAtualizados,
+        estoqueAtualizado: totalEstoqueAtualizado,
+        totalNotasProcessadas: nota.grupos.length,
+      };
+    }
+
+    // Envio individual
+    const nunotasEnvio =
+      nota.nunotas && nota.nunotas.length > 0
+        ? nota.nunotas
+        : nota.nunota
+        ? [nota.nunota]
+        : undefined;
+
     let detalhes = detalhesConferencias[nota.conferenciaId];
     if (!detalhes || !detalhes.itens || detalhes.itens.length === 0) {
-      detalhes = await recebimentoService.obterItensConferencia(nota.conferenciaId, [nota.nunota]);
+      detalhes = await recebimentoService.obterItensConferencia(
+        nota.conferenciaId,
+        nunotasEnvio || []
+      );
       setDetalhesConferencias((prev) => ({ ...prev, [nota.conferenciaId]: detalhes }));
     }
 
     const lotesCust = lotesCustomizadosPorConferencia[nota.conferenciaId];
     const resp = await recebimentoService.enviarSankhya(nota.conferenciaId, {
-      observacao: 'Envio imediato após resolução de divergência pelo gestor.',
-      nunotas: [nota.nunota],
+      observacao: 'Envio para o Sankhya pelo gestor do recebimento.',
+      nunotas: nunotasEnvio,
       itensCustomizados: lotesCust
         ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
             const codprod = Number(codprodStr);
             const itemRef = detalhes?.itens.find((i) => i.codprod === codprod);
-            const nunota = itemRef?.nunota || nota.nunota;
+            const nunota = itemRef?.nunota || (nunotasEnvio ? nunotasEnvio[0] : 0);
             const sequencia = itemRef?.sequencia ?? 1;
             return fracoes
               .filter((f) => f.lote?.trim())
@@ -313,46 +366,17 @@ export function GestaoRecebimentoPage() {
         : undefined,
     });
 
-    const itensDaNota = (detalhes?.itens || []).filter((i) => i.nunota === nota.nunota);
-    const itensComprovante = itensDaNota.map((it) => {
-      const lotesCustom = lotesCust?.[it.codprod];
-      const loteStr =
-        lotesCustom && lotesCustom.length > 0
-          ? lotesCustom.map((l) => `${l.lote} (${l.qtd})`).join('; ')
-          : it.lote || '—';
-      const qtdEsperada = it.qtdneg ?? 0;
-      const qtdConferida =
-        it.qtdConferidaN3 || it.qtdConferidaN2 || it.qtdConferidaN1 || qtdEsperada;
-      return {
-        codprod: it.codprod,
-        descrprod: it.descrprod || `Produto #${it.codprod}`,
-        qtdEsperada,
-        qtdConferida,
-        lote: loteStr,
-        validade: it.validade || undefined,
-        status: qtdConferida >= qtdEsperada ? 'Conferido OK' : 'Divergência Aceita',
-      };
+    setFeedback({
+      tipo: 'sucesso',
+      texto: `Envio concluído com sucesso ao Sankhya! ${resp.itensAtualizados || 0} itens da nota e ${resp.estoqueAtualizado || 0} registros de estoque atualizados. Protocolo: ${resp.protocolo || 'N/A'}.`,
     });
 
-    const comprovante = {
-      conferenciaId: nota.conferenciaId,
-      numerosNotas: String(nota.numnota),
-      protocolo: resp.protocolo || `REC-${Date.now()}`,
-      dataHora: new Date().toLocaleString('pt-BR'),
-      usuario: resp.sessao?.conferente || 'Gestor do Recebimento',
-      itensAtualizados: resp.itensAtualizados || 0,
-      estoqueAtualizado: resp.estoqueAtualizado || 0,
-      itens: itensComprovante,
-    };
-
-    setComprovanteEnvio(comprovante);
     await carregarDados();
 
     return {
       protocolo: resp.protocolo || `REC-${Date.now()}`,
       itensAtualizados: resp.itensAtualizados || 0,
       estoqueAtualizado: resp.estoqueAtualizado || 0,
-      comprovante,
     };
   };
 
@@ -513,32 +537,6 @@ export function GestaoRecebimentoPage() {
     setConferenciasExpandidas((prev) => ({ ...prev, [key]: true }));
   };
 
-  const handleBaixarCSVComprovante = () => {
-    if (!comprovanteEnvio) return;
-    const cabecalho = 'CODIGO;DESCRICAO;QTD_ESPERADA;QTD_CONFERIDA;LOTE;VALIDADE;STATUS\n';
-    const linhas = comprovanteEnvio.itens.map((item) => {
-      const descr = item.descrprod.replace(/;/g, ' ');
-      const lote = (item.lote || '').replace(/;/g, ' ');
-      const val = item.validade || '';
-      return `${item.codprod};"${descr}";${item.qtdEsperada};${item.qtdConferida};"${lote}";"${val}";"${item.status}"`;
-    }).join('\n');
-
-    const csvContent = '\uFEFF' + cabecalho + linhas;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `comprovante_envio_sankhya_NF_${comprovanteEnvio.numerosNotas.replace(/[\s,]+/g, '_')}_${comprovanteEnvio.protocolo}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImprimirComprovante = () => {
-    window.print();
-  };
-
   const handleConfirmarAcaoModal = async () => {
     if (!modalAcao) return;
     setProcessandoAcao(true);
@@ -602,119 +600,6 @@ export function GestaoRecebimentoPage() {
           tipo: 'sucesso',
           texto: 'Contagem restaurada com sucesso! As bipagens salvas e status anterior foram restabelecidos.',
         });
-      } else if (modalAcao.tipo === 'ENVIAR_SANKHYA') {
-        if (modalAcao.dadosExtras?.isLote) {
-          const grupos = modalAcao.dadosExtras.grupos as GrupoConferenciaPronta[];
-          let totalItensAtualizados = 0;
-          let totalEstoqueAtualizado = 0;
-          const protocolos: string[] = [];
-
-          for (const grp of grupos) {
-            const lotesCust = lotesCustomizadosPorConferencia[grp.conferenciaId];
-            const resp = await recebimentoService.enviarSankhya(grp.conferenciaId, {
-              observacao: observacaoModal,
-              nunotas: grp.nunotas,
-              itensCustomizados: lotesCust
-                ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
-                    const codprod = Number(codprodStr);
-                    const itemRef = detalhesConferencias[grp.conferenciaId]?.itens.find(
-                      (i) => i.codprod === codprod
-                    );
-                    const nunota = itemRef?.nunota || 0;
-                    const sequencia = itemRef?.sequencia ?? 1;
-                    return fracoes
-                      .filter((f) => f.lote?.trim())
-                      .map((f) => ({
-                        nunota,
-                        sequencia,
-                        codprod,
-                        lote: f.lote.trim(),
-                        validade: f.validade,
-                        fabricacao: f.fabricacao,
-                        qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
-                      }));
-                  })
-                : undefined,
-            });
-
-            totalItensAtualizados += resp.itensAtualizados || 0;
-            totalEstoqueAtualizado += resp.estoqueAtualizado || 0;
-            if (resp.protocolo) protocolos.push(resp.protocolo);
-          }
-
-          setSelecionadasEnvio(new Set());
-          setFeedback({
-            tipo: 'sucesso',
-            texto: `Envio em lote concluído com sucesso ao Sankhya! ${grupos.length} notas processadas, ${totalItensAtualizados} itens da nota e ${totalEstoqueAtualizado} registros de estoque atualizados. Protocolos: ${protocolos.join(', ')}.`,
-          });
-        } else {
-          const lotesCust = lotesCustomizadosPorConferencia[modalAcao.conferenciaId];
-          const nunotasEnvio = modalAcao.dadosExtras?.nunotas;
-          const resp = await recebimentoService.enviarSankhya(modalAcao.conferenciaId, {
-            observacao: observacaoModal,
-            nunotas: nunotasEnvio,
-            itensCustomizados: lotesCust
-              ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
-                  const codprod = Number(codprodStr);
-                  const itemRef = detalhesConferencias[modalAcao.conferenciaId]?.itens.find(
-                    (i) => i.codprod === codprod
-                  );
-                  const nunota = itemRef?.nunota || 0;
-                  const sequencia = itemRef?.sequencia ?? 1;
-                  return fracoes
-                    .filter((f) => f.lote?.trim())
-                    .map((f) => ({
-                      nunota,
-                      sequencia,
-                      codprod,
-                      lote: f.lote.trim(),
-                      validade: f.validade,
-                      fabricacao: f.fabricacao,
-                      qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
-                    }));
-                })
-              : undefined,
-          });
-
-          // Montar comprovante detalhado de envio
-          const itensDaNota = (detalhesConferencias[modalAcao.conferenciaId]?.itens || []).filter(
-            (i) => !nunotasEnvio || nunotasEnvio.includes(i.nunota)
-          );
-
-          const itensComprovante = itensDaNota.map((it) => {
-            const lotesCustom = lotesCust?.[it.codprod];
-            const loteStr = lotesCustom && lotesCustom.length > 0
-              ? lotesCustom.map((l) => `${l.lote} (${l.qtd})`).join('; ')
-              : it.lote || '—';
-            const qtdEsperada = it.qtdneg ?? 0;
-            const qtdConferida = it.qtdConferidaN3 || it.qtdConferidaN2 || it.qtdConferidaN1 || qtdEsperada;
-            return {
-              codprod: it.codprod,
-              descrprod: it.descrprod || `Produto #${it.codprod}`,
-              qtdEsperada,
-              qtdConferida,
-              lote: loteStr,
-              validade: it.validade || undefined,
-              status: qtdConferida >= qtdEsperada ? 'Conferido OK' : 'Divergência Aceita',
-            };
-          });
-
-          setComprovanteEnvio({
-            conferenciaId: modalAcao.conferenciaId,
-            numerosNotas: modalAcao.dadosExtras?.numerosNotas || modalAcao.conferenciaId,
-            protocolo: resp.protocolo || `REC-${Date.now()}`,
-            dataHora: new Date().toLocaleString('pt-BR'),
-            usuario: resp.sessao?.conferente || 'Gestor do Recebimento',
-            itensAtualizados: resp.itensAtualizados,
-            estoqueAtualizado: resp.estoqueAtualizado,
-            itens: itensComprovante,
-          });
-
-          setFeedback({
-            tipo: 'sucesso',
-            texto: `Envio concluído com sucesso ao Sankhya! ${resp.itensAtualizados} itens da nota e ${resp.estoqueAtualizado} registros de estoque atualizados. Protocolo: ${resp.protocolo || 'N/A'}.`,
-          });
-        }
       }
 
       setModalAcao(null);
@@ -839,17 +724,13 @@ export function GestaoRecebimentoPage() {
     );
     if (gruposParaEnviar.length === 0) return;
 
-    const totalNotas = gruposParaEnviar.map((g) => g.numerosNotas).join(', ');
-    setModalAcao({
-      tipo: 'ENVIAR_SANKHYA',
+    setNotaParaEnvioImediato({
       conferenciaId: 'LOTE',
-      titulo: `Aprovar e Integrar em Lote ao Sankhya (${gruposParaEnviar.length} Notas)`,
-      descricao: `Confirma a integração dos lotes e atualização do estoque no Sankhya para as notas [${totalNotas}]? Todas as conferências selecionadas serão processadas em sequência.`,
-      placeholder: 'Observação opcional gravada nas notas do lote...',
-      dadosExtras: {
-        isLote: true,
-        grupos: gruposParaEnviar,
-      },
+      isLote: true,
+      totalNotas: gruposParaEnviar.length,
+      numnota: gruposParaEnviar.map((g) => g.numerosNotas).join(', '),
+      numerosNotas: gruposParaEnviar.map((g) => g.numerosNotas).join(', '),
+      grupos: gruposParaEnviar,
     });
   };
 
@@ -1179,13 +1060,14 @@ export function GestaoRecebimentoPage() {
                       setModalGerenciarLotesAberto(true);
                     }}
                     onEnviarSankhya={(conferenciaId, numerosNotas, nunotas) => {
-                      setModalAcao({
-                        tipo: 'ENVIAR_SANKHYA',
+                      const conf = todasConferencias?.find((c) => c.id === conferenciaId);
+                      setNotaParaEnvioImediato({
                         conferenciaId,
-                        titulo: 'Aprovar e Integrar ao Sankhya',
-                        descricao: `Confirma a integração dos lotes e atualização do estoque (TGFITE / TGFLOT / TGFEST) da(s) nota(s) ${numerosNotas}?`,
-                        placeholder: 'Observação opcional gravada na nota do Sankhya...',
-                        dadosExtras: { nunotas, numerosNotas },
+                        numnota: numerosNotas,
+                        numerosNotas,
+                        nunotas,
+                        nunota: nunotas && nunotas.length === 1 ? nunotas[0] : undefined,
+                        fornecedor: conf?.fornecedor,
                       });
                     }}
                     onRecuperarContagem={(conf) => {
@@ -1431,191 +1313,6 @@ export function GestaoRecebimentoPage() {
               </div>
             )}
 
-            {/* Modal de Comprovante de Envio ao Sankhya */}
-            {comprovanteEnvio && (
-              <div className="gestao-modal-overlay">
-                <div
-                  className="gestao-modal-card"
-                  id="comprovante-envio-modal"
-                  style={{ maxWidth: '780px', width: '95%' }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      borderBottom: '1px solid var(--border)',
-                      paddingBottom: '12px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '1.6rem' }}>📄</span>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--slate-800)' }}>
-                          Comprovante de Conferência e Integração ERP
-                        </h3>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--slate-500)' }}>
-                          Protocolo Sankhya: <strong>{comprovanteEnvio.protocolo}</strong>
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setComprovanteEnvio(null)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        fontSize: '1.2rem',
-                        cursor: 'pointer',
-                        color: 'var(--slate-400)',
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                      gap: '12px',
-                      background: 'var(--slate-50)',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--slate-200)',
-                      marginTop: '12px',
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    <div>
-                      <span style={{ color: 'var(--slate-500)', display: 'block' }}>Nota(s) Fiscal(is):</span>
-                      <strong>NF {comprovanteEnvio.numerosNotas}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--slate-500)', display: 'block' }}>Data e Hora:</span>
-                      <strong>{comprovanteEnvio.dataHora}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--slate-500)', display: 'block' }}>Responsável Envio:</span>
-                      <strong>{comprovanteEnvio.usuario}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--slate-500)', display: 'block' }}>Atualizações ERP:</span>
-                      <strong>{comprovanteEnvio.itensAtualizados} itens / {comprovanteEnvio.estoqueAtualizado} estoques</strong>
-                    </div>
-                  </div>
-
-                  {/* Tabela de Itens do Comprovante */}
-                  <div
-                    style={{
-                      marginTop: '14px',
-                      maxHeight: '260px',
-                      overflowY: 'auto',
-                      border: '1px solid var(--slate-200)',
-                      borderRadius: '6px',
-                    }}
-                  >
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                      <thead>
-                        <tr style={{ background: 'var(--slate-100)', textAlign: 'left', borderBottom: '1px solid var(--slate-200)' }}>
-                          <th style={{ padding: '8px 10px' }}>Cód.</th>
-                          <th style={{ padding: '8px 10px' }}>Produto</th>
-                          <th style={{ padding: '8px 10px', textAlign: 'center' }}>Faturado</th>
-                          <th style={{ padding: '8px 10px', textAlign: 'center' }}>Conferido</th>
-                          <th style={{ padding: '8px 10px' }}>Lote / Validade</th>
-                          <th style={{ padding: '8px 10px', textAlign: 'center' }}>Situação</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {comprovanteEnvio.itens.map((it, idx) => (
-                          <tr
-                            key={idx}
-                            style={{
-                              borderBottom: '1px solid var(--slate-100)',
-                              background: idx % 2 === 0 ? '#ffffff' : 'var(--slate-50)',
-                            }}
-                          >
-                            <td style={{ padding: '6px 10px', fontWeight: 600 }}>{it.codprod}</td>
-                            <td style={{ padding: '6px 10px' }}>{it.descrprod}</td>
-                            <td style={{ padding: '6px 10px', textAlign: 'center' }}>{it.qtdEsperada}</td>
-                            <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>{it.qtdConferida}</td>
-                            <td style={{ padding: '6px 10px' }}>
-                              {it.lote}
-                              {it.validade ? ` (${it.validade})` : ''}
-                            </td>
-                            <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                              <span
-                                style={{
-                                  fontSize: '0.72rem',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  background: it.status === 'Conferido OK' ? '#dcfce7' : '#fef9c3',
-                                  color: it.status === 'Conferido OK' ? '#166534' : '#854d0e',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {it.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Ações do Comprovante: CSV, Imprimir/PDF, Fechar */}
-                  <div
-                    className="gestao-modal-acoes"
-                    style={{
-                      marginTop: '16px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        type="button"
-                        onClick={handleBaixarCSVComprovante}
-                        className="gestao-btn-acao"
-                        style={{
-                          background: '#10b981',
-                          color: '#ffffff',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <span>📥 Baixar Planilha CSV</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleImprimirComprovante}
-                        className="gestao-btn-acao"
-                        style={{
-                          background: '#3b82f6',
-                          color: '#ffffff',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <span>🖨️ Imprimir / Salvar PDF</span>
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="gestao-modal-btn-cancelar"
-                      onClick={() => setComprovanteEnvio(null)}
-                    >
-                      Fechar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Modal de Restauração de Backup de Contagem */}
             {conferenciaParaRestaurar && (
               <ModalRestaurarBackup
@@ -1627,17 +1324,13 @@ export function GestaoRecebimentoPage() {
               />
             )}
 
-            {/* Modal de Confirmação de Envio Imediato ao Sankhya com Barra de Progresso */}
+            {/* Modal de Confirmação de Envio ao Sankhya com Barra de Progresso */}
             {notaParaEnvioImediato && (
               <ModalConfirmarEnvioImediato
                 isOpen={Boolean(notaParaEnvioImediato)}
                 onClose={() => setNotaParaEnvioImediato(null)}
                 dadosNota={notaParaEnvioImediato}
                 onEnviarAgora={handleExecutarEnvioImediato}
-                onVisualizarComprovante={(comprovante) => {
-                  setComprovanteEnvio(comprovante);
-                  setNotaParaEnvioImediato(null);
-                }}
               />
             )}
           </div>

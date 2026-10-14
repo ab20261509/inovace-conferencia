@@ -3,17 +3,22 @@ import { createPortal } from 'react-dom';
 
 export interface DadosNotaEnvioImediato {
   conferenciaId: string;
-  nunota: number;
+  nunota?: number;
+  nunotas?: number[];
   numnota: string | number;
   numerosNotas?: string;
   fornecedor?: string;
+  isLote?: boolean;
+  totalNotas?: number;
+  grupos?: any[];
 }
 
 export interface ResultadoEnvioImediato {
   protocolo?: string;
+  protocolos?: string[];
   itensAtualizados?: number;
   estoqueAtualizado?: number;
-  comprovante?: any;
+  totalNotasProcessadas?: number;
 }
 
 interface ModalConfirmarEnvioImediatoProps {
@@ -21,7 +26,6 @@ interface ModalConfirmarEnvioImediatoProps {
   onClose: () => void;
   dadosNota: DadosNotaEnvioImediato | null;
   onEnviarAgora: (nota: DadosNotaEnvioImediato) => Promise<ResultadoEnvioImediato>;
-  onVisualizarComprovante?: (comprovante: any) => void;
 }
 
 type EtapaEnvio = 'pergunta' | 'enviando' | 'sucesso' | 'erro';
@@ -31,7 +35,6 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
   onClose,
   dadosNota,
   onEnviarAgora,
-  onVisualizarComprovante,
 }) => {
   const [etapa, setEtapa] = useState<EtapaEnvio>('pergunta');
   const [progresso, setProgresso] = useState<number>(0);
@@ -51,20 +54,31 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
 
   if (!isOpen || !dadosNota) return null;
 
+  const isLote = Boolean(dadosNota.isLote);
+  const totalNotas = dadosNota.totalNotas || (dadosNota.nunotas ? dadosNota.nunotas.length : 1);
+
   const handleIniciarEnvio = async () => {
     setEtapa('enviando');
     setProgresso(15);
-    setStatusTexto('Preparando parâmetros e decisões fiscais...');
+    setStatusTexto(
+      isLote
+        ? `Preparando dados de ${totalNotas} notas selecionadas...`
+        : 'Preparando parâmetros e decisões fiscais da nota...'
+    );
 
     // Simulação progressiva e realista enquanto a requisição HTTP executa
     const timer1 = setTimeout(() => {
       setProgresso(45);
-      setStatusTexto('Transmitindo itens e lotes para o ERP Sankhya...');
+      setStatusTexto(
+        isLote
+          ? `Transmitindo itens e lotes para o ERP Sankhya...`
+          : `Transmitindo itens e lotes da NF ${dadosNota.numnota} para o Sankhya...`
+      );
     }, 600);
 
     const timer2 = setTimeout(() => {
       setProgresso(75);
-      setStatusTexto('Atualizando estoque e validando regras de entrada...');
+      setStatusTexto('Atualizando estoque e validando regras de entrada no Sankhya...');
     }, 1400);
 
     try {
@@ -151,6 +165,8 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                 ? '⚠️'
                 : etapa === 'enviando'
                 ? '⏳'
+                : isLote
+                ? '📦'
                 : '✨'}
             </span>
             <div>
@@ -167,14 +183,32 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                       : 'var(--slate-800, #1e293b)',
                 }}
               >
-                {etapa === 'pergunta' && 'Divergência Resolvida com Sucesso!'}
-                {etapa === 'enviando' && 'Transmitindo para o Sankhya...'}
-                {etapa === 'sucesso' && 'Nota Enviada com Sucesso!'}
+                {etapa === 'pergunta' &&
+                  (isLote
+                    ? 'Enviar Notas Selecionadas ao Sankhya'
+                    : 'Enviar Nota ao Sankhya')}
+                {etapa === 'enviando' &&
+                  (isLote
+                    ? `Transmitindo ${totalNotas} notas para o Sankhya...`
+                    : 'Transmitindo para o Sankhya...')}
+                {etapa === 'sucesso' &&
+                  (isLote
+                    ? 'Notas Enviadas com Sucesso!'
+                    : 'Nota Enviada com Sucesso!')}
                 {etapa === 'erro' && 'Falha no Envio ao Sankhya'}
               </h3>
               <span style={{ fontSize: '0.84rem', color: 'var(--slate-500, #64748b)' }}>
-                NF <strong>{dadosNota.numnota}</strong> (NÚ: {dadosNota.nunota})
-                {dadosNota.fornecedor ? ` • ${dadosNota.fornecedor}` : ''}
+                {isLote ? (
+                  <>
+                    <strong>{totalNotas}</strong> nota(s) fiscal(is) selecionada(s)
+                  </>
+                ) : (
+                  <>
+                    NF <strong>{dadosNota.numnota}</strong>
+                    {dadosNota.nunota ? ` (NÚ: ${dadosNota.nunota})` : ''}
+                    {dadosNota.fornecedor ? ` • ${dadosNota.fornecedor}` : ''}
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -216,8 +250,17 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
               >
                 <span style={{ fontSize: '1.5rem' }}>📋</span>
                 <div style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.45 }}>
-                  A conferência foi <strong>aprovada</strong> e as decisões fiscais e de contagem
-                  foram consolidadas no banco de dados.
+                  {isLote ? (
+                    <>
+                      Você selecionou <strong>{totalNotas} nota(s)</strong> prontas para integração.
+                      Todas as contagens e lotes serão transmitidos diretamente ao Sankhya.
+                    </>
+                  ) : (
+                    <>
+                      A conferência da NF <strong>{dadosNota.numnota}</strong> está pronta e as
+                      decisões de lote e contagem foram consolidadas.
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -229,7 +272,9 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                   color: 'var(--slate-800, #1e293b)',
                 }}
               >
-                Deseja enviar esta nota para o Sankhya agora mesmo?
+                {isLote
+                  ? `Deseja enviar as ${totalNotas} notas para o Sankhya agora mesmo?`
+                  : 'Deseja enviar esta nota para o Sankhya agora mesmo?'}
               </p>
               <p
                 style={{
@@ -239,7 +284,9 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                   lineHeight: 1.4,
                 }}
               >
-                O sistema fará a transmissão exclusiva dos itens da NF <strong>{dadosNota.numnota}</strong> para a Central de Compras e atualizará o estoque imediatamente.
+                {isLote
+                  ? 'O sistema transmitirá os itens para a Central de Compras e atualizará os registros de estoque de todas as notas selecionadas.'
+                  : `O sistema fará a transmissão dos itens da NF ${dadosNota.numnota} para a Central de Compras e atualizará o estoque imediatamente.`}
               </p>
             </div>
           )}
@@ -327,14 +374,19 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                   <span>Transmissão confirmada pelo Sankhya</span>
                 </div>
                 <div style={{ fontSize: '0.85rem', color: '#047857', lineHeight: 1.5 }}>
-                  {resultado?.protocolo && (
+                  {resultado?.protocolos && resultado.protocolos.length > 0 && (
+                    <div>
+                      Protocolos gerados: <strong>{resultado.protocolos.join(', ')}</strong>
+                    </div>
+                  )}
+                  {resultado?.protocolo && !resultado?.protocolos?.length && (
                     <div>
                       Protocolo gerado: <strong>{resultado.protocolo}</strong>
                     </div>
                   )}
                   {resultado?.itensAtualizados !== undefined && (
                     <div>
-                      Itens atualizados na nota: <strong>{resultado.itensAtualizados}</strong>
+                      Itens atualizados: <strong>{resultado.itensAtualizados}</strong>
                     </div>
                   )}
                   {resultado?.estoqueAtualizado !== undefined && (
@@ -346,7 +398,8 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
               </div>
 
               <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
-                A nota fiscal foi processada com sucesso no Sankhya e a conferência foi finalizada.
+                Os dados foram gravados com sucesso no ERP e o cabeçalho das notas foi marcado como{' '}
+                <strong>CONFERIDO</strong>.
               </p>
             </div>
           )}
@@ -371,8 +424,7 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                 {mensagemErro}
               </div>
               <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
-                A divergência continua salva e aprovada. Você pode tentar reenviar agora ou acessar a
-                aba <strong>Envio Sankhya</strong> mais tarde.
+                Você pode tentar reenviar agora ou verificar as permissões e parâmetros do Sankhya.
               </p>
             </div>
           )}
@@ -407,7 +459,7 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                   transition: 'all 0.15s ease',
                 }}
               >
-                Não, Enviar Depois
+                Cancelar
               </button>
               <button
                 type="button"
@@ -457,48 +509,22 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
           )}
 
           {etapa === 'sucesso' && (
-            <>
-              {resultado?.comprovante && onVisualizarComprovante && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onVisualizarComprovante(resultado.comprovante);
-                    onClose();
-                  }}
-                  style={{
-                    padding: '9px 18px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#1e293b',
-                    fontSize: '0.88rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <span>📄 Ver Comprovante</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  padding: '9px 22px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: '#059669',
-                  color: '#ffffff',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Concluir
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '9px 24px',
+                borderRadius: '8px',
+                border: 'none',
+                background: '#059669',
+                color: '#ffffff',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Concluir
+            </button>
           )}
 
           {etapa === 'erro' && (
@@ -517,7 +543,7 @@ export const ModalConfirmarEnvioImediato: React.FC<ModalConfirmarEnvioImediatoPr
                   cursor: 'pointer',
                 }}
               >
-                Enviar Mais Tarde
+                Fechar
               </button>
               <button
                 type="button"

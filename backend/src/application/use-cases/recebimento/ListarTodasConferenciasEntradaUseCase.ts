@@ -228,6 +228,7 @@ WHERE CAB.NUNOTA IN (${nunotasStr})
         atualizadoEm: sessao.atualizadoEm,
         finalizadoEm: sessao.finalizadoEm,
         enviadoSankhyaEm: sessao.enviadoSankhyaEm,
+        aprovadoPor: sessao.aprovadoPor,
         totalItens,
         totalBipadoN1,
         totalBipadoN2,

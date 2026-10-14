@@ -156,6 +156,7 @@ export interface ConferenciaEntradaResumo {
   atualizadoEm: string;
   finalizadoEm?: string;
   enviadoSankhyaEm?: string;
+  aprovadoPor?: string;
   totalItens: number;
   totalBipadoN1: number;
   totalBipadoN2: number;
