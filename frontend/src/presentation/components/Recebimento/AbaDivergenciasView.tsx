@@ -694,36 +694,34 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 {exibirN2 && <td>{item.qtdN2}</td>}
                                 {temN3 && <td>{item.qtdN3}</td>}
                                 <td>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <span className={`pill-contagem-status ${classeDif}`}>
-                                        {diferenca < 0
-                                          ? `⚠️ ${diferenca} (Falta)`
-                                          : diferenca > 0
-                                          ? `+${diferenca} (Sobra)`
-                                          : '✓ OK'}
-                                      </span>
-                                      {diferenca < 0 && onSincronizarDesmembramento && (
-                                        <button
-                                          type="button"
-                                          className="btn-desmembrar-item"
-                                          disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`}
-                                          onClick={() =>
-                                            onSincronizarDesmembramento(
-                                              grupo.conferenciaId || grupo.id,
-                                              item.nunota,
-                                              item.codprod,
-                                              item.sequencia
-                                            )
-                                          }
-                                          title="Consultar no Sankhya se o saldo faltante deste item já foi desmembrado na Central de Compras"
-                                        >
-                                          {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
-                                            ? '🔄 Checando...'
-                                            : '✂️ Desmembrar'}
-                                        </button>
-                                      )}
-                                    </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                                    <span className={`pill-contagem-status ${classeDif}`}>
+                                      {diferenca < 0
+                                        ? `⚠️ ${diferenca} (Falta)`
+                                        : diferenca > 0
+                                        ? `+${diferenca} (Sobra)`
+                                        : '✓ OK'}
+                                    </span>
+                                    {diferenca < 0 && onSincronizarDesmembramento && (
+                                      <button
+                                        type="button"
+                                        className="btn-desmembrar-item"
+                                        disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`}
+                                        onClick={() =>
+                                          onSincronizarDesmembramento(
+                                            grupo.conferenciaId || grupo.id,
+                                            item.nunota,
+                                            item.codprod,
+                                            item.sequencia
+                                          )
+                                        }
+                                        title="Consultar no Sankhya se o saldo faltante deste item já foi desmembrado na Central de Compras"
+                                      >
+                                        {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                          ? '🔄 Checando...'
+                                          : '✂️ Desmembrar'}
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                                 <td>
