@@ -2006,6 +2006,29 @@
   font-style: italic;
 }
 
+/* Badge Falta Isolada no ERP */
+.badge-falta-isolada-erp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background-color: #f0fdf4;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  white-space: nowrap;
+  cursor: help;
+  box-shadow: 0 1px 2px rgba(3, 105, 161, 0.06);
+  transition: all 0.15s ease;
+}
+
+.badge-falta-isolada-erp:hover {
+  background-color: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
 
 
 
