@@ -70,10 +70,80 @@ export class ExecutarDesmembramentoItemUseCase {
       throw new Error('É necessário fornecer pelo menos uma fração de lote para desmembrar.');
     }
 
-    // Monta a lista de LOTES no formato esperado pelo CACSP.desmembrarItem
+    // 1. Obter dados do item original na TGFITE (CODPROD, CODVOL, QTDNEG)
+    const sqlItem = `
+SELECT
+    ITE.NUNOTA,
+    ITE.SEQUENCIA,
+    ITE.CODPROD,
+    NVL(ITE.CODVOL, 'UN') AS CODVOL,
+    NVL(ITE.QTDNEG, 0) AS QTDNEG,
+    ITE.CONTROLE
+FROM TGFITE ITE
+WHERE ITE.NUNOTA = ${nunota} AND ITE.SEQUENCIA = ${sequencia}
+    `.trim();
+
+    const respItem = await this.gateway.serviceCall<any>(
+      'DbExplorerSP.executeQuery',
+      { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlItem } },
+      correlationId
+    );
+
+    const rowsItem: any[] = respItem?.responseBody?.rows || [];
+    const fieldsItem: any[] = respItem?.responseBody?.fieldsMetadata || [];
+    const fieldIndexItem: Record<string, number> = {};
+    fieldsItem.forEach((f: any, idx: number) => {
+      fieldIndexItem[f.name.toUpperCase()] = idx;
+    });
+
+    const codprod = rowsItem.length > 0 ? Number(rowsItem[0][fieldIndexItem['CODPROD']]) : undefined;
+    const codvol = rowsItem.length > 0 ? String(rowsItem[0][fieldIndexItem['CODVOL']] || 'UN') : 'UN';
+
+    // 2. Verificar se existe fator de conversão de volume no TGFVOA
+    let fatorVolume = 1;
+    let operacaoVolume = 'M';
+    if (codprod) {
+      const sqlVoa = `
+SELECT
+    NVL(VOA.DIVIDEMULTIPLICA, 'M') AS DIVIDEMULTIPLICA,
+    NVL(VOA.QUANTIDADE, 1) AS QUANTIDADE
+FROM TGFVOA VOA
+WHERE (VOA.ATIVO IS NULL OR VOA.ATIVO = 'S')
+  AND VOA.CODPROD = ${codprod}
+  AND VOA.CODVOL = '${codvol}'
+      `.trim();
+
+      const respVoa = await this.gateway.serviceCall<any>(
+        'DbExplorerSP.executeQuery',
+        { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlVoa } },
+        correlationId
+      );
+      const rowsVoa: any[] = respVoa?.responseBody?.rows || [];
+      const fieldsVoa: any[] = respVoa?.responseBody?.fieldsMetadata || [];
+      const fieldIndexVoa: Record<string, number> = {};
+      fieldsVoa.forEach((f: any, idx: number) => {
+        fieldIndexVoa[f.name.toUpperCase()] = idx;
+      });
+
+      if (rowsVoa.length > 0) {
+        fatorVolume = Number(rowsVoa[0][fieldIndexVoa['QUANTIDADE']]) || 1;
+        operacaoVolume = String(rowsVoa[0][fieldIndexVoa['DIVIDEMULTIPLICA']] || 'M').toUpperCase();
+      }
+    }
+
+    // 3. Monta a lista de LOTES com a quantidade convertida conforme a expectativa do CACSP.desmembrarItem
     const lotesPayload = input.lotes.map((item) => {
+      let qtdSankhya = Number(item.qtd);
+      if (fatorVolume > 1) {
+        if (operacaoVolume === 'M') {
+          qtdSankhya = Number((Number(item.qtd) / fatorVolume).toFixed(6));
+        } else if (operacaoVolume === 'D') {
+          qtdSankhya = Number((Number(item.qtd) * fatorVolume).toFixed(6));
+        }
+      }
+
       const loteObj: Record<string, any> = {
-        QTDNEG: String(item.qtd),
+        QTDNEG: String(qtdSankhya),
         $: item.lote ? String(item.lote).trim() : '',
       };
       const dtvalFormatada = formatarDataSankhya(item.dtval);
@@ -146,7 +216,9 @@ export class ExecutarDesmembramentoItemUseCase {
       },
     };
 
-    console.log(`[ExecutarDesmembramentoItemUseCase] Invocando CACSP.desmembrarItem no Sankhya (NUNOTA=${nunota}, SEQ=${sequencia})...`);
+    console.log(
+      `[ExecutarDesmembramentoItemUseCase] Invocando CACSP.desmembrarItem no Sankhya (NUNOTA=${nunota}, SEQ=${sequencia}, FATOR=${fatorVolume})...`
+    );
 
     // Invocação do serviço Sankhya via módulo mgecom
     const resp = await this.gateway.serviceCall<any>(
@@ -158,8 +230,66 @@ export class ExecutarDesmembramentoItemUseCase {
 
     console.log(`[ExecutarDesmembramentoItemUseCase] Resposta do Sankhya: status=${resp?.status}`);
 
-    // Reavaliar divergências de entrada no banco/memória
+    // 4. Reatribuir sequências nas bipagens locais com base nas novas sequências criadas no Sankhya
+    if (codprod) {
+      const sqlItensAtualizados = `
+SELECT
+    ITE.SEQUENCIA,
+    ITE.CODPROD,
+    NVL(ITE.QTDNEG, 0) AS QTDNEG,
+    ITE.CONTROLE
+FROM TGFITE ITE
+WHERE ITE.NUNOTA = ${nunota} AND ITE.CODPROD = ${codprod}
+ORDER BY ITE.SEQUENCIA
+      `.trim();
+
+      const respNovosItens = await this.gateway.serviceCall<any>(
+        'DbExplorerSP.executeQuery',
+        { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlItensAtualizados } },
+        correlationId
+      );
+
+      const rowsNovos: any[] = respNovosItens?.responseBody?.rows || [];
+      const fieldsNovos: any[] = respNovosItens?.responseBody?.fieldsMetadata || [];
+      const fieldIndexNovos: Record<string, number> = {};
+      fieldsNovos.forEach((f: any, idx: number) => {
+        fieldIndexNovos[f.name.toUpperCase()] = idx;
+      });
+
+      const itensTGFITE = rowsNovos.map((r) => ({
+        sequencia: Number(r[fieldIndexNovos['SEQUENCIA']]),
+        controle: r[fieldIndexNovos['CONTROLE']] ? String(r[fieldIndexNovos['CONTROLE']]).trim() : undefined,
+        qtdneg: Number(r[fieldIndexNovos['QTDNEG']] || 0),
+      }));
+
+      await this.conferenciaRepo.reatribuirSequenciasBipagens(rawId, nunota, codprod, itensTGFITE);
+    }
+
+    // 5. Reavaliar divergências de entrada no banco/memória
     const divergenciasAtualizadas = await this.listarDivergenciasUseCase.execute(correlationId);
+
+    // Se para esta nota não houver mais divergências pendentes no grupo retornado
+    const grupoNota = divergenciasAtualizadas.find((g: any) => Number(g.nunota) === nunota);
+    const temDivergenciaRestante = Boolean(
+      grupoNota && grupoNota.itensDivergentes && grupoNota.itensDivergentes.length > 0
+    );
+
+    if (!temDivergenciaRestante) {
+      sessao.statusPorNota = sessao.statusPorNota || {};
+      sessao.statusPorNota[nunota] = 'Conferido';
+      sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
+
+      const todasConferidas = sessao.nunotas.every(
+        (n) => sessao.statusPorNota?.[n] === 'Conferido' || sessao.statusPorNota?.[n] === 'Enviado ao Sankhya'
+      );
+
+      if (todasConferidas) {
+        sessao.status = 'Conferido';
+        sessao.finalizadoEm = new Date().toISOString();
+      }
+      sessao.atualizadoEm = new Date().toISOString();
+      await this.conferenciaRepo.salvarSessao(sessao);
+    }
 
     return {
       sucesso: true,

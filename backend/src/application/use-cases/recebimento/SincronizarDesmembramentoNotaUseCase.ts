@@ -79,7 +79,31 @@ ORDER BY ITE.SEQUENCIA
       };
     }
 
-    // 2. Obter bipagens da conferência para calcular a contagem física
+    // 2. Reatribuir sequências nas bipagens locais com base nos lotes da TGFITE
+    if (input.codprod) {
+      const itensTGFITE = rows
+        .filter((r) => Number(r[fieldIndex['CODPROD']]) === Number(input.codprod))
+        .map((r) => ({
+          sequencia: Number(r[fieldIndex['SEQUENCIA']]),
+          controle: r[fieldIndex['CONTROLE']] ? String(r[fieldIndex['CONTROLE']]).trim() : undefined,
+          qtdneg: Number(r[fieldIndex['QTDNEG']] || 0),
+        }));
+      await this.conferenciaRepo.reatribuirSequenciasBipagens(rawId, nunota, Number(input.codprod), itensTGFITE);
+    } else {
+      const prods = Array.from(new Set(rows.map((r) => Number(r[fieldIndex['CODPROD']])))).filter(Boolean);
+      for (const cp of prods as number[]) {
+        const itensTGFITE = rows
+          .filter((r) => Number(r[fieldIndex['CODPROD']]) === cp)
+          .map((r) => ({
+            sequencia: Number(r[fieldIndex['SEQUENCIA']]),
+            controle: r[fieldIndex['CONTROLE']] ? String(r[fieldIndex['CONTROLE']]).trim() : undefined,
+            qtdneg: Number(r[fieldIndex['QTDNEG']] || 0),
+          }));
+        await this.conferenciaRepo.reatribuirSequenciasBipagens(rawId, nunota, cp, itensTGFITE);
+      }
+    }
+
+    // 3. Obter bipagens da conferência para calcular a contagem física atualizada
     const bipagens = await this.conferenciaRepo.listarBipagens(rawId);
     const bipagensNota = bipagens.filter((b) => !b.anulado && Number(b.nunota) === nunota);
 
@@ -94,7 +118,7 @@ ORDER BY ITE.SEQUENCIA
       else if (b.nivel === 3) mapBips[key].n3 += b.qtdConferida;
     }
 
-    // 3. Verificar se as quantidades da TGFITE agora atendem ou reduziram a falta
+    // 4. Verificar se as quantidades da TGFITE agora atendem ou reduziram a falta
     let desmembramentoDetectado = false;
 
     // Se o usuário especificou um item pontual
@@ -111,13 +135,11 @@ ORDER BY ITE.SEQUENCIA
         const b = mapBips[key] || { n1: 0, n2: 0, n3: 0 };
         const contagemFinal = b.n3 > 0 ? b.n3 : b.n2 > 0 ? b.n2 : b.n1;
 
-        // Se a quantidade no ERP agora é exatamente a conferida (ou menor/igual à contagem)
         if (qtdNegAtual <= contagemFinal) {
           desmembramentoDetectado = true;
         }
       }
     } else {
-      // Verificação ampla na nota: verificar se todos os itens negativos agora batem
       let todasFaltasZeradasOuReduzidas = true;
       for (const r of rows) {
         const codprod = Number(r[fieldIndex['CODPROD']]);
@@ -136,8 +158,31 @@ ORDER BY ITE.SEQUENCIA
       }
     }
 
-    // 4. Sempre buscar a lista de divergências atualizada para refletir os números mais recentes da TGFITE
+    // 5. Sempre buscar a lista de divergências atualizada para refletir os números mais recentes da TGFITE
     const divergenciasAtualizadas = await this.listarDivergenciasUseCase.execute(correlationId);
+
+    // Se para esta nota não houver mais divergências pendentes no grupo retornado
+    const grupoNota = divergenciasAtualizadas.find((g: any) => Number(g.nunota) === nunota);
+    const temDivergenciaRestante = Boolean(
+      grupoNota && grupoNota.itensDivergentes && grupoNota.itensDivergentes.length > 0
+    );
+
+    if (!temDivergenciaRestante) {
+      sessao.statusPorNota = sessao.statusPorNota || {};
+      sessao.statusPorNota[nunota] = 'Conferido';
+      sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
+
+      const todasConferidas = sessao.nunotas.every(
+        (n) => sessao.statusPorNota?.[n] === 'Conferido' || sessao.statusPorNota?.[n] === 'Enviado ao Sankhya'
+      );
+
+      if (todasConferidas) {
+        sessao.status = 'Conferido';
+        sessao.finalizadoEm = new Date().toISOString();
+      }
+      sessao.atualizadoEm = new Date().toISOString();
+      await this.conferenciaRepo.salvarSessao(sessao);
+    }
 
     if (desmembramentoDetectado) {
       return {

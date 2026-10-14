@@ -364,4 +364,54 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
     return mapa;
   }
+
+  async reatribuirSequenciasBipagens(
+    conferenciaId: string,
+    nunota: number,
+    codprod: number,
+    itensTGFITE: Array<{ sequencia: number; controle?: string; qtdneg: number }>
+  ): Promise<number> {
+    if (!itensTGFITE || itensTGFITE.length === 0) return 0;
+
+    const sql = `SELECT id, sequencia, lote, qtd_conferida
+                 FROM bipagens_entrada
+                 WHERE conferencia_id = ? AND nunota = ? AND codprod = ? AND anulado = 0
+                 ORDER BY timestamp ASC`;
+    const res = await this.client.execute({ sql, args: [conferenciaId, nunota, codprod] });
+    if (res.rows.length === 0) return 0;
+
+    let alteradas = 0;
+
+    for (const row of res.rows) {
+      const bId = String(row.id);
+      const bLote = row.lote ? String(row.lote).trim().toUpperCase() : '';
+      const bSeqAtual = Number(row.sequencia);
+
+      if (bLote) {
+        const itemCorrespondente = itensTGFITE.find(
+          (it) => it.controle && String(it.controle).trim().toUpperCase() === bLote
+        );
+
+        if (itemCorrespondente && itemCorrespondente.sequencia !== bSeqAtual) {
+          await this.client.execute({
+            sql: `UPDATE bipagens_entrada SET sequencia = ? WHERE id = ?`,
+            args: [itemCorrespondente.sequencia, bId],
+          });
+          alteradas++;
+        }
+      }
+    }
+
+    if (alteradas > 0 && this.auditService) {
+      await this.auditService.registrar({
+        usuario: 'Sistema',
+        acao: 'REATRIBUIR_SEQUENCIAS_DESMEMBRAMENTO',
+        recurso: `conferencia:${conferenciaId}`,
+        detalhes: { conferenciaId, nunota, codprod, alteradas },
+      });
+    }
+
+    return alteradas;
+  }
 }
+

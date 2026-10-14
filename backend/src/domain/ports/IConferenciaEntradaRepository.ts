@@ -17,4 +17,11 @@ export interface IConferenciaEntradaRepository {
   migrarBipagens(deConferenciaId: string, paraConferenciaId: string, nunotas?: number[]): Promise<number>;
   excluirSessao(id: string): Promise<void>;
   obterMapaStatusNotas(nunotas: number[]): Promise<Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number }>>;
+  reatribuirSequenciasBipagens(
+    conferenciaId: string,
+    nunota: number,
+    codprod: number,
+    itensTGFITE: Array<{ sequencia: number; controle?: string; qtdneg: number }>
+  ): Promise<number>;
 }
+
