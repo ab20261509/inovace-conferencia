@@ -24,6 +24,10 @@ import {
   GrupoConferenciaPronta,
 } from '../components/Recebimento/AbaEnvioSankhyaView';
 import { ModalRestaurarBackup } from '../components/Recebimento/ModalRestaurarBackup';
+import {
+  ModalConfirmarEnvioImediato,
+  DadosNotaEnvioImediato,
+} from '../components/Recebimento/ModalConfirmarEnvioImediato';
 import './GestaoRecebimento.css';
 
 const recebimentoService = new RecebimentoApiService();
@@ -251,6 +255,7 @@ export function GestaoRecebimentoPage() {
   const [processandoDesmembramento, setProcessandoDesmembramento] = useState<string | null>(null);
   const [conferenciaParaRestaurar, setConferenciaParaRestaurar] = useState<ConferenciaEntradaResumo | null>(null);
   const [processandoRestauracao, setProcessandoRestauracao] = useState(false);
+  const [notaParaEnvioImediato, setNotaParaEnvioImediato] = useState<DadosNotaEnvioImediato | null>(null);
 
   const handleConfirmarRestauracaoBackup = async (
     conferenciaId: string,
@@ -274,6 +279,81 @@ export function GestaoRecebimentoPage() {
     } finally {
       setProcessandoRestauracao(false);
     }
+  };
+
+  const handleExecutarEnvioImediato = async (nota: DadosNotaEnvioImediato) => {
+    let detalhes = detalhesConferencias[nota.conferenciaId];
+    if (!detalhes || !detalhes.itens || detalhes.itens.length === 0) {
+      detalhes = await recebimentoService.obterItensConferencia(nota.conferenciaId, [nota.nunota]);
+      setDetalhesConferencias((prev) => ({ ...prev, [nota.conferenciaId]: detalhes }));
+    }
+
+    const lotesCust = lotesCustomizadosPorConferencia[nota.conferenciaId];
+    const resp = await recebimentoService.enviarSankhya(nota.conferenciaId, {
+      observacao: 'Envio imediato após resolução de divergência pelo gestor.',
+      nunotas: [nota.nunota],
+      itensCustomizados: lotesCust
+        ? Object.entries(lotesCust).flatMap(([codprodStr, fracoes]) => {
+            const codprod = Number(codprodStr);
+            const itemRef = detalhes?.itens.find((i) => i.codprod === codprod);
+            const nunota = itemRef?.nunota || nota.nunota;
+            const sequencia = itemRef?.sequencia ?? 1;
+            return fracoes
+              .filter((f) => f.lote?.trim())
+              .map((f) => ({
+                nunota,
+                sequencia,
+                codprod,
+                lote: f.lote.trim(),
+                validade: f.validade,
+                fabricacao: f.fabricacao,
+                qtdConferida: f.qtd || (itemRef?.qtdneg || 0),
+              }));
+          })
+        : undefined,
+    });
+
+    const itensDaNota = (detalhes?.itens || []).filter((i) => i.nunota === nota.nunota);
+    const itensComprovante = itensDaNota.map((it) => {
+      const lotesCustom = lotesCust?.[it.codprod];
+      const loteStr =
+        lotesCustom && lotesCustom.length > 0
+          ? lotesCustom.map((l) => `${l.lote} (${l.qtd})`).join('; ')
+          : it.lote || '—';
+      const qtdEsperada = it.qtdneg ?? 0;
+      const qtdConferida =
+        it.qtdConferidaN3 || it.qtdConferidaN2 || it.qtdConferidaN1 || qtdEsperada;
+      return {
+        codprod: it.codprod,
+        descrprod: it.descrprod || `Produto #${it.codprod}`,
+        qtdEsperada,
+        qtdConferida,
+        lote: loteStr,
+        validade: it.validade || undefined,
+        status: qtdConferida >= qtdEsperada ? 'Conferido OK' : 'Divergência Aceita',
+      };
+    });
+
+    const comprovante = {
+      conferenciaId: nota.conferenciaId,
+      numerosNotas: String(nota.numnota),
+      protocolo: resp.protocolo || `REC-${Date.now()}`,
+      dataHora: new Date().toLocaleString('pt-BR'),
+      usuario: resp.sessao?.conferente || 'Gestor do Recebimento',
+      itensAtualizados: resp.itensAtualizados || 0,
+      estoqueAtualizado: resp.estoqueAtualizado || 0,
+      itens: itensComprovante,
+    };
+
+    setComprovanteEnvio(comprovante);
+    await carregarDados();
+
+    return {
+      protocolo: resp.protocolo || `REC-${Date.now()}`,
+      itensAtualizados: resp.itensAtualizados || 0,
+      estoqueAtualizado: resp.estoqueAtualizado || 0,
+      comprovante,
+    };
   };
 
   const handleSincronizarDesmembramento = async (
@@ -475,8 +555,19 @@ export function GestaoRecebimentoPage() {
         });
         setFeedback({
           tipo: 'sucesso',
-          texto: `Divergência resolvida e aprovada para a NF ${modalAcao.dadosExtras?.numnota || ''}! Conferência movida para fila de envio ao Sankhya.`,
+          texto: `Divergência resolvida e aprovada para a NF ${modalAcao.dadosExtras?.numnota || ''}!`,
         });
+
+        const nunotaResolvida = nunotaExtra || (modalAcao.dadosExtras?.nunotas && modalAcao.dadosExtras?.nunotas[0]);
+        if (nunotaResolvida) {
+          setNotaParaEnvioImediato({
+            conferenciaId: confIdReal,
+            nunota: nunotaResolvida,
+            numnota: modalAcao.dadosExtras?.numnota || modalAcao.dadosExtras?.numerosNotas || '',
+            numerosNotas: modalAcao.dadosExtras?.numerosNotas,
+            fornecedor: modalAcao.dadosExtras?.fornecedor,
+          });
+        }
       } else if (modalAcao.tipo === 'RECONFERIR_N3') {
         await recebimentoService.resolverDivergencia(confIdReal, {
           acao: 'RECONFERIR_N3',
@@ -1017,8 +1108,10 @@ export function GestaoRecebimentoPage() {
                         placeholder: 'Insira a justificativa gerencial para aprovar esta divergência (ex: fornecedor confirmou envio a menor com carta de correção)...',
                         dadosExtras: {
                           conferenciaIdOrig: grupo.conferenciaId || grupo.id,
-                          nunota: grupo.nunota,
+                          nunota: grupo.nunota || (grupo.nunotas && grupo.nunotas[0]),
                           numnota: grupo.numnota || grupo.numerosNotas,
+                          numerosNotas: grupo.numerosNotas || String(grupo.numnota || ''),
+                          fornecedor: grupo.fornecedor,
                           decisoesFiscais,
                         },
                       });
@@ -1531,6 +1624,20 @@ export function GestaoRecebimentoPage() {
                 conferencia={conferenciaParaRestaurar}
                 onConfirmar={handleConfirmarRestauracaoBackup}
                 loading={processandoRestauracao}
+              />
+            )}
+
+            {/* Modal de Confirmação de Envio Imediato ao Sankhya com Barra de Progresso */}
+            {notaParaEnvioImediato && (
+              <ModalConfirmarEnvioImediato
+                isOpen={Boolean(notaParaEnvioImediato)}
+                onClose={() => setNotaParaEnvioImediato(null)}
+                dadosNota={notaParaEnvioImediato}
+                onEnviarAgora={handleExecutarEnvioImediato}
+                onVisualizarComprovante={(comprovante) => {
+                  setComprovanteEnvio(comprovante);
+                  setNotaParaEnvioImediato(null);
+                }}
               />
             )}
           </div>
