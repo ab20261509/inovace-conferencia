@@ -1839,6 +1839,53 @@
   color: #1d4ed8;
 }
 
+/* Botão Desmembrar Item Faltante */
+.btn-desmembrar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-desmembrar-item:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #f87171;
+  transform: translateY(-1px);
+}
+
+.btn-desmembrar-item:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Botão Sincronizar Desmembramento do ERP no Card */
+.gestao-btn-sincronizar-desmembramento {
+  background: #f8fafc;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.gestao-btn-sincronizar-desmembramento:hover:not(:disabled) {
+  background: #f0f9ff;
+  border-color: #7dd3fc;
+  color: #0284c7;
+}
+
+.gestao-btn-sincronizar-desmembramento:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+
 
 
 

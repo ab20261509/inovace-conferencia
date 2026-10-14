@@ -147,4 +147,16 @@ export class RecebimentoApiService {
     );
     return response.data.sessao;
   }
+
+  async sincronizarDesmembramento(
+    conferenciaId: string,
+    params: { nunota: number; codprod?: number; sequencia?: number }
+  ): Promise<{ sucesso: boolean; alterado: boolean; mensagem: string; divergencias?: any[] }> {
+    const response = await httpClient.post<{ sucesso: boolean; alterado: boolean; mensagem: string; divergencias?: any[] }>(
+      `/api/recebimento/conferencia/${conferenciaId}/sincronizar-desmembramento`,
+      params
+    );
+    return response.data;
+  }
 }
+

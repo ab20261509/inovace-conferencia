@@ -79,6 +79,7 @@ import { SankhyaDesmembrarItemService } from './infrastructure/services/SankhyaD
 import { ListarTodasConferenciasEntradaUseCase } from './application/use-cases/recebimento/ListarTodasConferenciasEntradaUseCase.js';
 import { SolicitarRecontagemEntradaUseCase } from './application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.js';
 import { RecuperarContagemReiniciadaUseCase } from './application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
+import { SincronizarDesmembramentoNotaUseCase } from './application/use-cases/recebimento/SincronizarDesmembramentoNotaUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -183,6 +184,11 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const listarTodasConferenciasUseCase = new ListarTodasConferenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const solicitarRecontagemEntradaUseCase = new SolicitarRecontagemEntradaUseCase(conferenciaEntradaRepo, auditService);
   const recuperarContagemReiniciadaUseCase = new RecuperarContagemReiniciadaUseCase(conferenciaEntradaRepo, auditService);
+  const sincronizarDesmembramentoNotaUseCase = new SincronizarDesmembramentoNotaUseCase(
+    conferenciaEntradaRepo,
+    gatewayAdapter,
+    listarDivergenciasEntradaUseCase
+  );
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -245,7 +251,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     enviarConferenciaSankhyaUseCase,
     listarTodasConferenciasUseCase,
     solicitarRecontagemEntradaUseCase,
-    recuperarContagemReiniciadaUseCase
+    recuperarContagemReiniciadaUseCase,
+    sincronizarDesmembramentoNotaUseCase
   );
   const crudController = new CrudController(
     loadRecordsUseCase,

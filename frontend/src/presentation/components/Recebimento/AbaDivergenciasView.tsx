@@ -24,6 +24,13 @@ export interface AbaDivergenciasViewProps {
   ) => void;
   onReconferirN3: (grupo: ConferenciaDivergenciaGrupo) => void;
   onReiniciar: (grupo: ConferenciaDivergenciaGrupo) => void;
+  onSincronizarDesmembramento?: (
+    conferenciaId: string,
+    nunota: number,
+    codprod?: number,
+    sequencia?: number
+  ) => void;
+  processandoDesmembramento?: string | null;
 }
 
 export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
@@ -35,6 +42,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   onResolverDivergencia,
   onReconferirN3,
   onReiniciar,
+  onSincronizarDesmembramento,
+  processandoDesmembramento,
 }) => {
   const [lotesExpandidosDiv, setLotesExpandidosDiv] = useState<Record<string, boolean>>({});
   const [decisoesFiscaisPorGrupo, setDecisoesFiscaisPorGrupo] = useState<
@@ -675,13 +684,37 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 {exibirN2 && <td>{item.qtdN2}</td>}
                                 {temN3 && <td>{item.qtdN3}</td>}
                                 <td>
-                                  <span className={`pill-contagem-status ${classeDif}`}>
-                                    {diferenca < 0
-                                      ? `⚠️ ${diferenca} (Falta)`
-                                      : diferenca > 0
-                                      ? `+${diferenca} (Sobra)`
-                                      : '✓ OK'}
-                                  </span>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <span className={`pill-contagem-status ${classeDif}`}>
+                                        {diferenca < 0
+                                          ? `⚠️ ${diferenca} (Falta)`
+                                          : diferenca > 0
+                                          ? `+${diferenca} (Sobra)`
+                                          : '✓ OK'}
+                                      </span>
+                                      {diferenca < 0 && onSincronizarDesmembramento && (
+                                        <button
+                                          type="button"
+                                          className="btn-desmembrar-item"
+                                          disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`}
+                                          onClick={() =>
+                                            onSincronizarDesmembramento(
+                                              grupo.conferenciaId || grupo.id,
+                                              item.nunota,
+                                              item.codprod,
+                                              item.sequencia
+                                            )
+                                          }
+                                          title="Consultar no Sankhya se o saldo faltante deste item já foi desmembrado na Central de Compras"
+                                        >
+                                          {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                            ? '🔄 Checando...'
+                                            : '✂️ Desmembrar'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
                                   {temDivergenciaFiscal && (
                                     <span
                                       style={{
@@ -986,13 +1019,35 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 </span>
                               )}
                             </div>
-                            <span className={`pill-contagem-status ${classeDif}`}>
-                              {diferenca < 0
-                                ? `⚠️ ${diferenca} (Falta)`
-                                : diferenca > 0
-                                ? `+${diferenca} (Sobra)`
-                                : '✓ OK'}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+                              <span className={`pill-contagem-status ${classeDif}`}>
+                                {diferenca < 0
+                                  ? `⚠️ ${diferenca} (Falta)`
+                                  : diferenca > 0
+                                  ? `+${diferenca} (Sobra)`
+                                  : '✓ OK'}
+                              </span>
+                              {diferenca < 0 && onSincronizarDesmembramento && (
+                                <button
+                                  type="button"
+                                  className="btn-desmembrar-item"
+                                  disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`}
+                                  onClick={() =>
+                                    onSincronizarDesmembramento(
+                                      grupo.conferenciaId || grupo.id,
+                                      item.nunota,
+                                      item.codprod,
+                                      item.sequencia
+                                    )
+                                  }
+                                  title="Consultar no Sankhya se o saldo faltante foi desmembrado na Central de Compras"
+                                >
+                                  {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                    ? '🔄 Checando...'
+                                    : '✂️ Desmembrar'}
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           <div className="gestao-item-mobile-grid">
@@ -1198,6 +1253,27 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       : `⚠️ Resolver Divergência (${totalFiscaisPendentes} pendente${totalFiscaisPendentes > 1 ? 's' : ''})`}
                   </span>
                 </button>
+
+                {onSincronizarDesmembramento && Boolean(grupo.nunota) && (
+                  <button
+                    type="button"
+                    className="gestao-btn-acao gestao-btn-sincronizar-desmembramento"
+                    disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${grupo.nunota}-all`}
+                    onClick={() =>
+                      onSincronizarDesmembramento(
+                        grupo.conferenciaId || grupo.id,
+                        grupo.nunota!
+                      )
+                    }
+                    title="Consultar no Sankhya se os itens da nota foram desmembrados na Central de Compras"
+                  >
+                    <span>
+                      {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${grupo.nunota}-all`
+                        ? '🔄 Sincronizando ERP...'
+                        : '🔄 Sincronizar Desmembramento do ERP'}
+                    </span>
+                  </button>
+                )}
 
                 <button
                   type="button"

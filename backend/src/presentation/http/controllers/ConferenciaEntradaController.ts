@@ -12,6 +12,7 @@ import { EnviarConferenciaSankhyaUseCase } from '../../../application/use-cases/
 import { ListarTodasConferenciasEntradaUseCase } from '../../../application/use-cases/recebimento/ListarTodasConferenciasEntradaUseCase.js';
 import { SolicitarRecontagemEntradaUseCase } from '../../../application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.js';
 import { RecuperarContagemReiniciadaUseCase } from '../../../application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
+import { SincronizarDesmembramentoNotaUseCase } from '../../../application/use-cases/recebimento/SincronizarDesmembramentoNotaUseCase.js';
 
 export class ConferenciaEntradaController {
   constructor(
@@ -27,7 +28,8 @@ export class ConferenciaEntradaController {
     private readonly enviarSankhyaUseCase?: EnviarConferenciaSankhyaUseCase,
     private readonly listarTodasUseCase?: ListarTodasConferenciasEntradaUseCase,
     private readonly solicitarRecontagemUseCase?: SolicitarRecontagemEntradaUseCase,
-    private readonly recuperarContagemUseCase?: RecuperarContagemReiniciadaUseCase
+    private readonly recuperarContagemUseCase?: RecuperarContagemReiniciadaUseCase,
+    private readonly sincronizarDesmembramentoUseCase?: SincronizarDesmembramentoNotaUseCase
   ) {}
 
   /** GET /api/recebimento/notas */
@@ -309,4 +311,37 @@ export class ConferenciaEntradaController {
       res.status(400).json({ error: error.message || 'Erro ao recuperar contagem reiniciada.' });
     }
   }
+
+  /** POST /api/recebimento/conferencia/:id/sincronizar-desmembramento */
+  async sincronizarDesmembramento(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.sincronizarDesmembramentoUseCase) {
+        res.status(501).json({ error: 'Funcionalidade de sincronização de desmembramento não configurada.' });
+        return;
+      }
+      const conferenciaId = req.params.id;
+      const { nunota, codprod, sequencia } = req.body;
+
+      if (!nunota) {
+        res.status(400).json({ error: 'nunota é obrigatório para sincronizar desmembramento.' });
+        return;
+      }
+
+      const resultado = await this.sincronizarDesmembramentoUseCase.execute(
+        {
+          conferenciaId,
+          nunota: Number(nunota),
+          codprod: codprod ? Number(codprod) : undefined,
+          sequencia: sequencia ? Number(sequencia) : undefined,
+        },
+        req.correlationId
+      );
+
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error('❌ Erro ao sincronizar desmembramento com o Sankhya:', error);
+      res.status(400).json({ error: error.message || 'Erro ao sincronizar desmembramento com o Sankhya.' });
+    }
+  }
 }
+

@@ -247,6 +247,42 @@ export function GestaoRecebimentoPage() {
   const [nunotaReiniciarModal, setNunotaReiniciarModal] = useState<number | undefined>(undefined);
   const [observacaoModal, setObservacaoModal] = useState('');
   const [processandoAcao, setProcessandoAcao] = useState(false);
+  const [processandoDesmembramento, setProcessandoDesmembramento] = useState<string | null>(null);
+
+  const handleSincronizarDesmembramento = async (
+    conferenciaId: string,
+    nunota: number,
+    codprod?: number,
+    sequencia?: number
+  ) => {
+    const chaveProcesso = `${conferenciaId}-${nunota}-${codprod || 'all'}`;
+    setProcessandoDesmembramento(chaveProcesso);
+    try {
+      const res = await recebimentoService.sincronizarDesmembramento(conferenciaId, {
+        nunota,
+        codprod,
+        sequencia,
+      });
+
+      if (res.divergencias) {
+        setDivergencias(res.divergencias);
+      } else {
+        await carregarDados();
+      }
+
+      setFeedback({
+        tipo: res.alterado ? 'sucesso' : 'erro',
+        texto: res.mensagem,
+      });
+    } catch (err: any) {
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || err.message || 'Erro ao sincronizar desmembramento com o Sankhya.',
+      });
+    } finally {
+      setProcessandoDesmembramento(null);
+    }
+  };
 
   const podeAcessar = temPermissao('conferencia_entrada') || temPermissao('gerenciar_acessos');
 
@@ -963,6 +999,8 @@ export function GestaoRecebimentoPage() {
                         },
                       });
                     }}
+                    onSincronizarDesmembramento={handleSincronizarDesmembramento}
+                    processandoDesmembramento={processandoDesmembramento}
                   />
                 )}
 
