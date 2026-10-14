@@ -11,6 +11,7 @@ export interface ObterItensConferenciaEntradaInput {
   conferenciaId?: string;
   nunotas?: number[];
   usuario: string;
+  origem?: 'coletor' | 'gestao';
 }
 
 export interface ObterItensConferenciaEntradaOutput {
@@ -329,15 +330,20 @@ WHERE BAR.CODPROD IN (
       }
     }
 
-    // Se a conferência estiver no Nível 3 (Reconferência / Desempate),
-    // o conferente deve receber APENAS os itens que divergiram nos níveis anteriores
-    // E apenas de notas que ainda estão pendentes/divergentes (ocultando notas já 100% aprovadas)
-    const ehNivel3 =
-      sessao?.nivelAtual === 3 ||
-      sessao?.status === 'Aguardando N3' ||
-      sessao?.status === 'N3 em Andamento';
+    // Se a conferência estiver ativamente sendo recontada no Coletor no Nível 3,
+    // o conferente no coletor recebe apenas os itens pendentes que divergiram.
+    // MAS no painel de gestão, ou quando a conferência/nota já foi aprovada/concluída
+    // ('Conferido', 'Aguardando Aprovação', 'Enviado ao Sankhya'), SEMPRE retornamos
+    // todos os itens para que o gestor possa visualizar na tela e enviar ao Sankhya.
+    const statusPermiteFiltragemN3 =
+      sessao?.status === 'Aguardando N3' || sessao?.status === 'N3 em Andamento';
 
-    const itensRetornados = ehNivel3
+    const ehNivel3AtivoNoColetor =
+      statusPermiteFiltragemN3 &&
+      sessao?.nivelAtual === 3 &&
+      input.origem !== 'gestao';
+
+    const itensRetornados = ehNivel3AtivoNoColetor
       ? itens.filter((i) => {
           const statusNota = sessao?.statusPorNota?.[i.nunota];
           if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {

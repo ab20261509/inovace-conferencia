@@ -409,7 +409,7 @@ export function GestaoRecebimentoPage() {
   const carregarDetalhesConferencia = async (conferenciaId: string, nunotas: number[]) => {
     setLoadingDetalhes(conferenciaId);
     try {
-      const resp = await recebimentoService.obterItensConferencia(conferenciaId, nunotas);
+      const resp = await recebimentoService.obterItensConferencia(conferenciaId, nunotas, 'gestao');
       setDetalhesConferencias((prev) => ({ ...prev, [conferenciaId]: resp }));
     } catch (err: any) {
       console.error('Erro ao obter detalhes da conferência:', err);
@@ -426,7 +426,8 @@ export function GestaoRecebimentoPage() {
       return;
     }
 
-    if (!detalhesConferencias[conferenciaId]) {
+    const detalhesAtuais = detalhesConferencias[conferenciaId];
+    if (!detalhesAtuais || !detalhesAtuais.itens || detalhesAtuais.itens.length === 0) {
       await carregarDetalhesConferencia(conferenciaId, nunotas);
     }
     setConferenciasExpandidas((prev) => ({ ...prev, [key]: true }));
@@ -627,6 +628,7 @@ export function GestaoRecebimentoPage() {
 
       setModalAcao(null);
       setObservacaoModal('');
+      setDetalhesConferencias({});
       await carregarDados();
     } catch (err: any) {
       setFeedback({

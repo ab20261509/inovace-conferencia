@@ -61,12 +61,14 @@ export class ConferenciaEntradaController {
       const nunotasQuery = req.query.nunotas ? String(req.query.nunotas) : undefined;
       const nunotas = nunotasQuery ? nunotasQuery.split(',').map((n) => Number(n.trim())).filter(Boolean) : undefined;
       const usuario = req.username || (req as any).user?.username || (req as any).username || '';
+      const origem = req.query.origem ? (String(req.query.origem) as 'coletor' | 'gestao') : undefined;
 
       const resultado = await this.obterItensUseCase.execute(
         {
           conferenciaId,
           nunotas,
           usuario,
+          origem,
         },
         req.correlationId
       );

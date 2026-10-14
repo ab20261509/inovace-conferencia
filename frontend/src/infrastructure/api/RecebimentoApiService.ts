@@ -24,12 +24,16 @@ export class RecebimentoApiService {
 
   async obterItensConferencia(
     conferenciaId?: string,
-    nunotas?: number[]
+    nunotas?: number[],
+    origem?: 'coletor' | 'gestao'
   ): Promise<ObterItensConferenciaResponse> {
     const url = conferenciaId ? `/api/recebimento/conferencia/${conferenciaId}/itens` : `/api/recebimento/conferencia/novo/itens`;
     const params: Record<string, string> = {};
     if (nunotas && nunotas.length > 0) {
       params.nunotas = nunotas.join(',');
+    }
+    if (origem) {
+      params.origem = origem;
     }
 
     const response = await httpClient.get<ObterItensConferenciaResponse>(url, { params });
