@@ -675,6 +675,16 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                     Cód: {item.codprod}
                                     {item.referencia ? ` • Ref: ${item.referencia}` : ''}
                                   </div>
+                                  {isItemPendente && (
+                                    <span className="badge-pendente-aviso" style={{ marginTop: '4px' }}>
+                                      ⚠️ Pendente de Decisão
+                                    </span>
+                                  )}
+                                  {isItemDecidido && (
+                                    <span className="badge-decidido-ok" style={{ marginTop: '4px' }}>
+                                      ✓ Decisão Definida
+                                    </span>
+                                  )}
                                 </td>
                                 <td>{item.codvol || 'UN'}</td>
                                 <td>
@@ -715,34 +725,6 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       )}
                                     </div>
                                   </div>
-                                  {temDivergenciaFiscal && (
-                                    <span
-                                      style={{
-                                        background: '#fef2f2',
-                                        color: '#dc2626',
-                                        border: '1px solid #fca5a5',
-                                        padding: '1px 5px',
-                                        borderRadius: '4px',
-                                        fontSize: '0.66rem',
-                                        fontWeight: 700,
-                                        display: 'block',
-                                        marginTop: '3px',
-                                        textAlign: 'center',
-                                      }}
-                                    >
-                                      ⚠️ Lote/Data Divergente
-                                    </span>
-                                  )}
-                                  {isItemPendente && (
-                                    <span className="badge-pendente-aviso">
-                                      ⚠️ Pendente de Decisão
-                                    </span>
-                                  )}
-                                  {isItemDecidido && (
-                                    <span className="badge-decidido-ok">
-                                      ✓ Decisão Definida
-                                    </span>
-                                  )}
                                 </td>
                                 <td>
                                   {temMultiplosLotes ? (
