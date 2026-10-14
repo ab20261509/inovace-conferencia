@@ -719,16 +719,19 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                     Cód: {item.codprod}
                                     {item.referencia ? ` • Ref: ${item.referencia}` : ''}
                                   </div>
-                                  {isItemPendente && (
+                                  {temMultiplosLotes ? (
+                                    <span className="badge-pendente-aviso" style={{ marginTop: '4px' }}>
+                                      ⚠️ Aguardando Desmembramento ({lotesConferidos.length} Lotes)
+                                    </span>
+                                  ) : isItemPendente ? (
                                     <span className="badge-pendente-aviso" style={{ marginTop: '4px' }}>
                                       ⚠️ Pendente de Decisão
                                     </span>
-                                  )}
-                                  {isItemDecidido && (
+                                  ) : isItemDecidido ? (
                                     <span className="badge-decidido-ok" style={{ marginTop: '4px' }}>
                                       ✓ Decisão Definida
                                     </span>
-                                  )}
+                                  ) : null}
                                 </td>
                                 <td>{item.codvol || 'UN'}</td>
                                 <td>
@@ -739,48 +742,88 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 {temN3 && <td>{item.qtdN3}</td>}
                                 <td>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                                    <span className={`pill-contagem-status ${classeDif}`}>
-                                      {diferenca < 0
-                                        ? `⚠️ ${diferenca} (Falta)`
-                                        : diferenca > 0
-                                        ? `+${diferenca} (Sobra)`
-                                        : '✓ OK'}
-                                    </span>
-                                    {diferenca < 0 && (
-                                      isFaltaIsolada ? (
+                                    {temMultiplosLotes ? (
+                                      <>
                                         <span
-                                          className="badge-falta-isolada-erp"
-                                          title={`Esta falta (${Math.abs(diferenca)} un) já foi desmembrada no Sankhya e isolada com o lote da Nota Fiscal (${loteOriginal}).`}
+                                          className="pill-contagem-status falta"
+                                          title="Foram conferidos múltiplos lotes físicos para uma linha única da nota fiscal. É necessário desmembrar no Sankhya."
                                         >
-                                          ✓ Falta Isolada no ERP
+                                          ⚠️ {lotesConferidos.length} Lotes
                                         </span>
-                                      ) : (onExecutarDesmembramento || onSincronizarDesmembramento) && (
-                                        <button
-                                          type="button"
-                                          className="btn-desmembrar-item"
-                                          disabled={
-                                            executandoDesmembramento ||
-                                            processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
-                                          }
-                                          onClick={() => {
-                                            if (onExecutarDesmembramento) {
-                                              setModalDesmembrarItem({ item, grupo });
-                                            } else if (onSincronizarDesmembramento) {
-                                              onSincronizarDesmembramento(
-                                                grupo.conferenciaId || grupo.id,
-                                                item.nunota,
-                                                item.codprod,
-                                                item.sequencia
-                                              );
+                                        {(onExecutarDesmembramento || onSincronizarDesmembramento) && (
+                                          <button
+                                            type="button"
+                                            className="btn-desmembrar-item"
+                                            disabled={
+                                              executandoDesmembramento ||
+                                              processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
                                             }
-                                          }}
-                                          title="Desmembrar item e separar o saldo faltante no Sankhya"
-                                        >
-                                          {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
-                                            ? '🔄 Checando...'
-                                            : '✂️ Desmembrar'}
-                                        </button>
-                                      )
+                                            onClick={() => {
+                                              if (onExecutarDesmembramento) {
+                                                setModalDesmembrarItem({ item, grupo });
+                                              } else if (onSincronizarDesmembramento) {
+                                                onSincronizarDesmembramento(
+                                                  grupo.conferenciaId || grupo.id,
+                                                  item.nunota,
+                                                  item.codprod,
+                                                  item.sequencia
+                                                );
+                                              }
+                                            }}
+                                            title="Desmembrar e separar os múltiplos lotes no Sankhya"
+                                          >
+                                            {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                              ? '🔄 Checando...'
+                                              : '✂️ Desmembrar'}
+                                          </button>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className={`pill-contagem-status ${classeDif}`}>
+                                          {diferenca < 0
+                                            ? `⚠️ ${diferenca} (Falta)`
+                                            : diferenca > 0
+                                            ? `+${diferenca} (Sobra)`
+                                            : '✓ OK'}
+                                        </span>
+                                        {diferenca < 0 && (
+                                          isFaltaIsolada ? (
+                                            <span
+                                              className="badge-falta-isolada-erp"
+                                              title={`Esta falta (${Math.abs(diferenca)} un) já foi desmembrada no Sankhya e isolada com o lote da Nota Fiscal (${loteOriginal}).`}
+                                            >
+                                              ✓ Falta Isolada no ERP
+                                            </span>
+                                          ) : (onExecutarDesmembramento || onSincronizarDesmembramento) && (
+                                            <button
+                                              type="button"
+                                              className="btn-desmembrar-item"
+                                              disabled={
+                                                executandoDesmembramento ||
+                                                processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                              }
+                                              onClick={() => {
+                                                if (onExecutarDesmembramento) {
+                                                  setModalDesmembrarItem({ item, grupo });
+                                                } else if (onSincronizarDesmembramento) {
+                                                  onSincronizarDesmembramento(
+                                                    grupo.conferenciaId || grupo.id,
+                                                    item.nunota,
+                                                    item.codprod,
+                                                    item.sequencia
+                                                  );
+                                                }
+                                              }}
+                                              title="Desmembrar item e separar o saldo faltante no Sankhya"
+                                            >
+                                              {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                                ? '🔄 Checando...'
+                                                : '✂️ Desmembrar'}
+                                            </button>
+                                          )
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                 </td>
@@ -807,18 +850,13 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                   title={item.divergenciaLote ? `Clique para adotar o lote conferido no Coletor (${item.lote || 'Sem Lote'})` : undefined}
                                 >
                                   {temMultiplosLotes ? (
-                                    <button
-                                      type="button"
-                                      className={`chip-dropdown-lote ${isLotesAberto ? 'ativo' : ''}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleLotesDiv(itemKey);
-                                      }}
-                                      title={isLotesAberto ? 'Recolher gaveta de lotes' : 'Expandir lotes linha a linha'}
+                                    <span
+                                      className="chip-dropdown-lote ativo"
+                                      style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', cursor: 'default' }}
+                                      title="Múltiplos lotes conferidos no coletor (detalhados abaixo)"
                                     >
-                                      <span>🏷️ {lotesConferidos.length} Lotes</span>
-                                      <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
-                                    </button>
+                                      🏷️ {lotesConferidos.length} Lotes Conferidos
+                                    </span>
                                   ) : decisaoItem?.lote === 'BIP' ? (
                                     <span className="celula-comparativa selecionada-badge">
                                       ✓ {item.lote || 'Sem Lote'}
@@ -898,15 +936,15 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 </td>
                               </tr>
 
-                              {/* Sub-Linha Gaveta: Lotes Linha a Linha (Modelo 1) */}
-                              {temMultiplosLotes && isLotesAberto && (
-                                <tr key={`div-lotes-${itemKey}`} className="subrow-lotes-drawer">
+                              {/* Sub-Linha Gaveta: Lotes Linha a Linha Abertos Diretamente */}
+                              {temMultiplosLotes && (
+                                <tr key={`div-lotes-${itemKey}`} className="subrow-lotes-drawer aberta">
                                   <td colSpan={totalColunasDiv}>
-                                    <div className="drawer-lotes-wrapper">
-                                      <div className="drawer-lotes-header">
-                                        <span>📦 Frações de Lote Registradas ({lotesConferidos.length} lotes):</span>
-                                        <span style={{ color: 'var(--slate-500)', fontWeight: 500, textTransform: 'none' }}>
-                                          Total: <strong>{lotesConferidos.reduce((acc, l) => acc + (l.quantidade || 0), 0)} {item.codvol || 'UN'}</strong>
+                                    <div className="drawer-lotes-wrapper" style={{ margin: '4px 8px 12px 8px' }}>
+                                      <div className="drawer-lotes-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span>📦 Frações de Lote Conferidas no Coletor ({lotesConferidos.length} lotes) - Aguardando Desmembramento no Sankhya:</span>
+                                        <span style={{ color: 'var(--slate-600)', fontWeight: 600 }}>
+                                          Total Conferido: <strong>{lotesConferidos.reduce((acc, l) => acc + (l.quantidade || 0), 0)} {item.codvol || 'UN'}</strong> de <strong>{item.qtdEsperada} {item.codvol || 'UN'}</strong>
                                         </span>
                                       </div>
                                       <table className="mini-tabela-lotes">
@@ -960,7 +998,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
                       const lotesConferidos: any[] = (item as any).lotesConferidos || [];
                       const temMultiplosLotes = lotesConferidos.length > 1;
-                      const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
+                      const isLotesAberto = lotesExpandidosDiv[itemKey] !== undefined ? Boolean(lotesExpandidosDiv[itemKey]) : true;
 
                       const diferenca = item.diferenca;
                       const classeDif =
@@ -1014,6 +1052,14 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 {item.referencia ? ` • Ref: ${item.referencia}` : ''} • Vol:{' '}
                                 {item.codvol || 'UN'}
                               </div>
+                              {temMultiplosLotes && (
+                                <span
+                                  className="badge-pendente-aviso"
+                                  style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                                >
+                                  ⚠️ Aguardando Desmembramento ({lotesConferidos.length} Lotes)
+                                </span>
+                              )}
                               {isItemPendente && (
                                 <span className="badge-pendente-aviso">
                                   ⚠️ Pendente de Decisão
@@ -1026,48 +1072,85 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                               )}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
-                              <span className={`pill-contagem-status ${classeDif}`}>
-                                {diferenca < 0
-                                  ? `⚠️ ${diferenca} (Falta)`
-                                  : diferenca > 0
-                                  ? `+${diferenca} (Sobra)`
-                                  : '✓ OK'}
-                              </span>
-                              {diferenca < 0 && (
-                                isFaltaIsolada ? (
-                                  <span
-                                    className="badge-falta-isolada-erp"
-                                    title={`Esta falta (${Math.abs(diferenca)} un) já foi desmembrada no Sankhya e isolada com o lote da Nota Fiscal (${loteOriginal}).`}
-                                  >
-                                    ✓ Falta Isolada no ERP
+                              {temMultiplosLotes ? (
+                                <>
+                                  <span className="pill-contagem-status aviso" title="Item conferido com múltiplos lotes. Necessita desmembramento no ERP.">
+                                    ⚠️ {lotesConferidos.length} Lotes
                                   </span>
-                                ) : (onExecutarDesmembramento || onSincronizarDesmembramento) && (
-                                  <button
-                                    type="button"
-                                    className="btn-desmembrar-item"
-                                    disabled={
-                                      executandoDesmembramento ||
-                                      processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
-                                    }
-                                    onClick={() => {
-                                      if (onExecutarDesmembramento) {
-                                        setModalDesmembrarItem({ item, grupo });
-                                      } else if (onSincronizarDesmembramento) {
-                                        onSincronizarDesmembramento(
-                                          grupo.conferenciaId || grupo.id,
-                                          item.nunota,
-                                          item.codprod,
-                                          item.sequencia
-                                        );
+                                  {(onExecutarDesmembramento || onSincronizarDesmembramento) && (
+                                    <button
+                                      type="button"
+                                      className="btn-desmembrar-item"
+                                      disabled={
+                                        executandoDesmembramento ||
+                                        processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
                                       }
-                                    }}
-                                    title="Desmembrar item e separar o saldo faltante no Sankhya"
-                                  >
-                                    {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
-                                      ? '🔄 Checando...'
-                                      : '✂️ Desmembrar'}
-                                  </button>
-                                )
+                                      onClick={() => {
+                                        if (onExecutarDesmembramento) {
+                                          setModalDesmembrarItem({ item, grupo });
+                                        } else if (onSincronizarDesmembramento) {
+                                          onSincronizarDesmembramento(
+                                            grupo.conferenciaId || grupo.id,
+                                            item.nunota,
+                                            item.codprod,
+                                            item.sequencia
+                                          );
+                                        }
+                                      }}
+                                      title="Desmembrar e separar os múltiplos lotes no Sankhya"
+                                    >
+                                      {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                        ? '🔄 Checando...'
+                                        : '✂️ Desmembrar'}
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <span className={`pill-contagem-status ${classeDif}`}>
+                                    {diferenca < 0
+                                      ? `⚠️ ${diferenca} (Falta)`
+                                      : diferenca > 0
+                                      ? `+${diferenca} (Sobra)`
+                                      : '✓ OK'}
+                                  </span>
+                                  {diferenca < 0 && (
+                                    isFaltaIsolada ? (
+                                      <span
+                                        className="badge-falta-isolada-erp"
+                                        title={`Esta falta (${Math.abs(diferenca)} un) já foi desmembrada no Sankhya e isolada com o lote da Nota Fiscal (${loteOriginal}).`}
+                                      >
+                                        ✓ Falta Isolada no ERP
+                                      </span>
+                                    ) : (onExecutarDesmembramento || onSincronizarDesmembramento) && (
+                                      <button
+                                        type="button"
+                                        className="btn-desmembrar-item"
+                                        disabled={
+                                          executandoDesmembramento ||
+                                          processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                        }
+                                        onClick={() => {
+                                          if (onExecutarDesmembramento) {
+                                            setModalDesmembrarItem({ item, grupo });
+                                          } else if (onSincronizarDesmembramento) {
+                                            onSincronizarDesmembramento(
+                                              grupo.conferenciaId || grupo.id,
+                                              item.nunota,
+                                              item.codprod,
+                                              item.sequencia
+                                            );
+                                          }
+                                        }}
+                                        title="Desmembrar item e separar o saldo faltante no Sankhya"
+                                      >
+                                        {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
+                                          ? '🔄 Checando...'
+                                          : '✂️ Desmembrar'}
+                                      </button>
+                                    )
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>

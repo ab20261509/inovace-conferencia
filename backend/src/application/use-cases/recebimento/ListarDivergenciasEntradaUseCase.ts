@@ -23,6 +23,14 @@ export interface ItemDivergenciaResumo {
   divergenciaLote?: boolean;
   divergenciaValidade?: boolean;
   divergenciaFabricacao?: boolean;
+  temMultiplosLotes?: boolean;
+  lotesConferidos?: Array<{
+    lote: string;
+    validade?: string;
+    fabricacao?: string;
+    quantidade: number;
+    conferente?: string;
+  }>;
   conferenteN1?: string;
   conferenteN2?: string;
   conferenteN3?: string;
@@ -159,6 +167,16 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           lote?: string;
           validade?: string;
           fabricacao?: string;
+          lotesMap: Record<
+            string,
+            {
+              lote: string;
+              validade?: string;
+              fabricacao?: string;
+              quantidade: number;
+              conferente?: string;
+            }
+          >;
           conferenteN1?: string;
           conferenteN2?: string;
           conferenteN3?: string;
@@ -168,7 +186,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       for (const b of bipagensValidas) {
         const key = `${b.nunota}|${b.codprod}|${b.sequencia}`;
         if (!mapBips[key]) {
-          mapBips[key] = { n1: 0, n2: 0, n3: 0 };
+          mapBips[key] = { n1: 0, n2: 0, n3: 0, lotesMap: {} };
         }
         if (b.nivel === 1) {
           mapBips[key].n1 += b.qtdConferida;
@@ -185,6 +203,22 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           if (b.lote) mapBips[key].lote = b.lote;
           if (b.validade) mapBips[key].validade = b.validade;
           if (b.fabricacao) mapBips[key].fabricacao = b.fabricacao;
+        }
+
+        // Agrupamento de frações de lotes conferidos (N2 ou N3)
+        if (b.lote && (b.nivel === 2 || b.nivel === 3)) {
+          const lLimpo = b.lote.trim();
+          const subKey = `${lLimpo.toUpperCase()}|${b.validade || ''}|${b.fabricacao || ''}`;
+          if (!mapBips[key].lotesMap[subKey]) {
+            mapBips[key].lotesMap[subKey] = {
+              lote: lLimpo,
+              validade: b.validade?.trim() || undefined,
+              fabricacao: b.fabricacao?.trim() || undefined,
+              quantidade: 0,
+              conferente: b.conferente,
+            };
+          }
+          mapBips[key].lotesMap[subKey].quantidade += b.qtdConferida;
         }
       }
 
@@ -219,7 +253,10 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         const fabricacaoOriginal = r[fieldIndex['DTFABRICACAO']] ? String(r[fieldIndex['DTFABRICACAO']]).trim() : undefined;
 
         const key = `${nunotaItem}|${codprod}|${sequencia}`;
-        const bips = mapBips[key] || { n1: 0, n2: 0, n3: 0 };
+        const bips = mapBips[key] || { n1: 0, n2: 0, n3: 0, lotesMap: {} };
+
+        const lotesConferidos = Object.values(bips.lotesMap || {});
+        const temMultiplosLotes = lotesConferidos.length > 1;
 
         const contagemFinal = bips.n3 > 0 ? bips.n3 : bips.n2 > 0 ? bips.n2 : bips.n1;
         const diferenca = contagemFinal - qtdEsperada;
@@ -227,6 +264,11 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         let divergenciaLote = false;
         let divergenciaValidade = false;
         let divergenciaFabricacao = false;
+
+        // Se o conferente registrou múltiplos lotes para a mesma linha, há divergência cadastral que requer desmembramento
+        if (temMultiplosLotes) {
+          divergenciaLote = true;
+        }
 
         if (contagemFinal > 0) {
           if (controleOriginal && bips.lote && bips.lote.toUpperCase() !== controleOriginal.toUpperCase()) {
@@ -261,6 +303,8 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           divergenciaLote,
           divergenciaValidade,
           divergenciaFabricacao,
+          temMultiplosLotes,
+          lotesConferidos,
           conferenteN1: bips.conferenteN1,
           conferenteN2: bips.conferenteN2,
           conferenteN3: bips.conferenteN3,
@@ -311,7 +355,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           else if (totalN2Nota > 0) temDivQtd = it.qtdN2 !== it.qtdEsperada;
           else temDivQtd = it.qtdN1 !== it.qtdEsperada;
 
-          if (temDivFiscal || temDivQtd) {
+          if (temDivFiscal || temDivQtd || it.temMultiplosLotes) {
             codprodsComDivergencia.add(it.codprod);
           }
         });
