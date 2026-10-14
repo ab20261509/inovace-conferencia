@@ -798,12 +798,14 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                           <button
                                             type="button"
                                             className="gestao-rec-btn-refresh"
+                                            disabled={jaEnviado}
                                             style={{
                                               padding: '1px 5px',
                                               fontSize: '0.70rem',
                                               lineHeight: 1,
+                                              ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
                                             }}
-                                            title="Gerenciar / Dividir lotes"
+                                            title={jaEnviado ? 'Conferência já enviada ao Sankhya' : 'Gerenciar / Dividir lotes'}
                                             onClick={() =>
                                               onEditarLotesItem({
                                                 nunota: item.nunota,
@@ -846,12 +848,14 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                           <button
                                             type="button"
                                             className="gestao-rec-btn-refresh"
+                                            disabled={jaEnviado}
                                             style={{
                                               padding: '1px 5px',
                                               fontSize: '0.70rem',
                                               lineHeight: 1,
+                                              ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
                                             }}
-                                            title="Dividir lote ou alterar"
+                                            title={jaEnviado ? 'Conferência já enviada ao Sankhya' : 'Dividir lote ou alterar'}
                                             onClick={() =>
                                               onEditarLotesItem({
                                                 nunota: item.nunota,
@@ -894,12 +898,14 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                           <button
                                             type="button"
                                             className="gestao-rec-btn-refresh"
+                                            disabled={jaEnviado}
                                             style={{
                                               padding: '1px 5px',
                                               fontSize: '0.70rem',
                                               lineHeight: 1,
+                                              ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
                                             }}
-                                            title="Dividir lote ou alterar"
+                                            title={jaEnviado ? 'Conferência já enviada ao Sankhya' : 'Dividir lote ou alterar'}
                                             onClick={() =>
                                               onEditarLotesItem({
                                                 nunota: item.nunota,
@@ -936,12 +942,14 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                           <button
                                             type="button"
                                             className="gestao-rec-btn-refresh"
+                                            disabled={jaEnviado}
                                             style={{
                                               padding: '1px 5px',
                                               fontSize: '0.70rem',
                                               lineHeight: 1,
+                                              ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
                                             }}
-                                            title="Adicionar lote / Dividir item"
+                                            title={jaEnviado ? 'Conferência já enviada ao Sankhya' : 'Adicionar lote / Dividir item'}
                                             onClick={() =>
                                               onEditarLotesItem({
                                                 nunota: item.nunota,
@@ -1048,7 +1056,13 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                               <button
                                                 type="button"
                                                 className="gestao-btn-clean-secundario"
-                                                style={{ padding: '2px 8px', fontSize: '0.72rem' }}
+                                                disabled={jaEnviado}
+                                                style={{
+                                                  padding: '2px 8px',
+                                                  fontSize: '0.72rem',
+                                                  ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
+                                                }}
+                                                title={jaEnviado ? 'Conferência já enviada ao Sankhya' : undefined}
                                                 onClick={() =>
                                                   onEditarLotesItem({
                                                     nunota: item.nunota,
@@ -1104,7 +1118,12 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                                     <button
                                                       type="button"
                                                       className="gestao-btn-clean-secundario"
-                                                      style={{ padding: '2px 6px', fontSize: '0.70rem' }}
+                                                      disabled={jaEnviado}
+                                                      style={{
+                                                        padding: '2px 6px',
+                                                        fontSize: '0.70rem',
+                                                        ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
+                                                      }}
                                                       onClick={() =>
                                                         onEditarLotesItem({
                                                           nunota: item.nunota,
@@ -1118,7 +1137,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                                             grupo.conferenciaId,
                                                         })
                                                       }
-                                                      title="Editar ou redistribuir este lote"
+                                                      title={jaEnviado ? 'Conferência já enviada ao Sankhya' : 'Editar ou redistribuir este lote'}
                                                     >
                                                       Editar
                                                     </button>
@@ -1267,7 +1286,13 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                       <button
                                         type="button"
                                         className="gestao-btn-clean-secundario"
-                                        style={{ padding: '2px 6px', fontSize: '0.70rem' }}
+                                        disabled={jaEnviado}
+                                        style={{
+                                          padding: '2px 6px',
+                                          fontSize: '0.70rem',
+                                          ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
+                                        }}
+                                        title={jaEnviado ? 'Conferência já enviada ao Sankhya' : undefined}
                                         onClick={() =>
                                           onEditarLotesItem({
                                             nunota: item.nunota,
@@ -1364,7 +1389,13 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                     <button
                                       type="button"
                                       className="gestao-btn-clean-secundario"
-                                      style={{ padding: '2px 6px', fontSize: '0.70rem' }}
+                                      disabled={jaEnviado}
+                                      style={{
+                                        padding: '2px 6px',
+                                        fontSize: '0.70rem',
+                                        ...(jaEnviado ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
+                                      }}
+                                      title={jaEnviado ? 'Conferência já enviada ao Sankhya' : undefined}
                                       onClick={() =>
                                         onEditarLotesItem({
                                           nunota: item.nunota,

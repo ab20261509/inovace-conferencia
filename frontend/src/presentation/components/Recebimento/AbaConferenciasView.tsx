@@ -140,6 +140,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
       ) : (
         conferenciasFiltradas.map((conf) => {
           const statusClasse = getStatusBadgeClass(conf.status);
+          const jaEnviado = conf.status === 'Enviado ao Sankhya';
           const isExpandido = !!conferenciasExpandidas[conf.id];
           const isCarregandoDetalhes = loadingDetalhes === conf.id;
           const detalhes = detalhesConferencias[conf.id];
@@ -904,27 +905,57 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                 <div className="gestao-acoes-grupo-secundario">
                   <button
                     type="button"
-                    className="gestao-btn-clean-secundario"
-                    onClick={() => onSolicitarRecontagem(conf)}
-                    title="Solicitar que outro conferente realize recontagem (Nível 2)"
+                    className={`gestao-btn-clean-secundario ${jaEnviado ? 'disabled-action' : ''}`}
+                    disabled={jaEnviado}
+                    onClick={() => !jaEnviado && onSolicitarRecontagem(conf)}
+                    title={
+                      jaEnviado
+                        ? 'Conferência já enviada ao Sankhya'
+                        : 'Solicitar que outro conferente realize recontagem (Nível 2)'
+                    }
+                    style={
+                      jaEnviado
+                        ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
+                        : undefined
+                    }
                   >
                     <span>🔁 Recontar</span>
                   </button>
 
                   <button
                     type="button"
-                    className="gestao-btn-clean-secundario"
-                    onClick={() => onAbrirColetor(conf)}
-                    title="Abrir tela de contagem no coletor"
+                    className={`gestao-btn-clean-secundario ${jaEnviado ? 'disabled-action' : ''}`}
+                    disabled={jaEnviado}
+                    onClick={() => !jaEnviado && onAbrirColetor(conf)}
+                    title={
+                      jaEnviado
+                        ? 'Conferência já enviada ao Sankhya'
+                        : 'Abrir tela de contagem no coletor'
+                    }
+                    style={
+                      jaEnviado
+                        ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
+                        : undefined
+                    }
                   >
                     <span>📱 Coletor</span>
                   </button>
 
                   <button
                     type="button"
-                    className="gestao-btn-clean-secundario danger"
-                    onClick={() => onReiniciar(conf)}
-                    title="Reiniciar conferência (guarda backup automático das bipagens)"
+                    className={`gestao-btn-clean-secundario danger ${jaEnviado ? 'disabled-action' : ''}`}
+                    disabled={jaEnviado}
+                    onClick={() => !jaEnviado && onReiniciar(conf)}
+                    title={
+                      jaEnviado
+                        ? 'Conferência já enviada ao Sankhya'
+                        : 'Reiniciar conferência (guarda backup automático das bipagens)'
+                    }
+                    style={
+                      jaEnviado
+                        ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
+                        : undefined
+                    }
                   >
                     <span>↺ Reiniciar</span>
                   </button>
