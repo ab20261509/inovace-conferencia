@@ -166,7 +166,11 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const registrarBipagemEntradaUseCase = new RegistrarBipagemEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const anularBipagemEntradaUseCase = new AnularBipagemEntradaUseCase(conferenciaEntradaRepo);
   const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo, configSistemaRepo);
-  const listarDivergenciasEntradaUseCase = new ListarDivergenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const listarDivergenciasEntradaUseCase = new ListarDivergenciasEntradaUseCase(
+    gatewayAdapter,
+    conferenciaEntradaRepo,
+    configSistemaRepo
+  );
   const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(conferenciaEntradaRepo);
   const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo, auditService, configSistemaRepo);
   const desmembrarItemService = new SankhyaDesmembrarItemService(gatewayAdapter);

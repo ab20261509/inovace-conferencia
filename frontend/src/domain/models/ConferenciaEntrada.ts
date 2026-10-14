@@ -230,6 +230,8 @@ export interface ConferenciaDivergenciaGrupo {
   totalN2: number;
   totalN3: number;
   totalEsperado: number;
+  nivel1Ativo?: boolean;
+  nivel2Ativo?: boolean;
   itensDivergentes: ItemDivergenciaResumo[];
   todosItens: ItemDivergenciaResumo[];
 }

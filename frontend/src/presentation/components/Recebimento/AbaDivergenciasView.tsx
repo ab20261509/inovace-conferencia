@@ -63,6 +63,11 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
               ? grupo.todosItens
               : grupo.itensDivergentes;
 
+          const houveN1 = grupo.totalN1 > 0 || ((grupo.conferentesN1?.length ?? 0) > 0);
+          const houveN2 = grupo.totalN2 > 0 || ((grupo.conferentesN2?.length ?? 0) > 0);
+          const exibirN1 = grupo.nivel1Ativo !== undefined ? (grupo.nivel1Ativo || houveN1) : houveN1;
+          const exibirN2 = grupo.nivel2Ativo !== undefined ? (grupo.nivel2Ativo || houveN2) : true;
+
           return (
             <div key={grupo.id} className="gestao-rec-card">
               {/* Cabeçalho do Card */}
@@ -95,8 +100,12 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                     }}
                   >
                     <span><strong>👤 Conferentes:</strong></span>
-                    <span>N1: <strong>{grupo.conferentesN1 && grupo.conferentesN1.length > 0 ? grupo.conferentesN1.join(', ') : '—'}</strong></span>
-                    <span>N2: <strong>{grupo.conferentesN2 && grupo.conferentesN2.length > 0 ? grupo.conferentesN2.join(', ') : '—'}</strong></span>
+                    {exibirN1 && (
+                      <span>N1: <strong>{grupo.conferentesN1 && grupo.conferentesN1.length > 0 ? grupo.conferentesN1.join(', ') : '—'}</strong></span>
+                    )}
+                    {exibirN2 && (
+                      <span>N2: <strong>{grupo.conferentesN2 && grupo.conferentesN2.length > 0 ? grupo.conferentesN2.join(', ') : '—'}</strong></span>
+                    )}
                     {grupo.conferentesN3 && grupo.conferentesN3.length > 0 && (
                       <span style={{ color: '#dc2626' }}>N3: <strong>{grupo.conferentesN3.join(', ')}</strong></span>
                     )}
@@ -113,14 +122,18 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       <span className="gestao-mini-metrica-rotulo">Faturado</span>
                       <span className="gestao-mini-metrica-valor">{grupo.totalEsperado}</span>
                     </div>
-                    <div className="gestao-mini-metrica-box">
-                      <span className="gestao-mini-metrica-rotulo">N1</span>
-                      <span className="gestao-mini-metrica-valor">{grupo.totalN1}</span>
-                    </div>
-                    <div className="gestao-mini-metrica-box">
-                      <span className="gestao-mini-metrica-rotulo">N2</span>
-                      <span className="gestao-mini-metrica-valor">{grupo.totalN2}</span>
-                    </div>
+                    {exibirN1 && (
+                      <div className="gestao-mini-metrica-box">
+                        <span className="gestao-mini-metrica-rotulo">N1</span>
+                        <span className="gestao-mini-metrica-valor">{grupo.totalN1}</span>
+                      </div>
+                    )}
+                    {exibirN2 && (
+                      <div className="gestao-mini-metrica-box">
+                        <span className="gestao-mini-metrica-rotulo">N2</span>
+                        <span className="gestao-mini-metrica-valor">{grupo.totalN2}</span>
+                      </div>
+                    )}
                     {grupo.totalN3 > 0 && (
                       <div className="gestao-mini-metrica-box">
                         <span className="gestao-mini-metrica-rotulo">N3</span>
@@ -154,48 +167,131 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
               {/* Sugestão Inteligente de Decisão (Decision Assist) */}
               {(() => {
                 const itensDiv = grupo.itensDivergentes || [];
-                const todosConcordamFalta =
-                  itensDiv.length > 0 &&
-                  itensDiv.every((i) => i.qtdN1 === i.qtdN2 && i.qtdN1 < i.qtdEsperada);
-                const todosConcordamSobra =
-                  itensDiv.length > 0 &&
-                  itensDiv.every((i) => i.qtdN1 === i.qtdN2 && i.qtdN1 > i.qtdEsperada);
-                const discordamN1N2 = itensDiv.some((i) => i.qtdN1 !== i.qtdN2);
+                if (itensDiv.length === 0) return null;
 
-                if (todosConcordamFalta) {
+                // 1. Caso todas as contagens físicas batam 100% com a nota (diferença zero), divergindo apenas em Lote, Validade ou Fabricação
+                const apenasDivergenciaFiscal = itensDiv.every((i) => {
+                  const qtdFinal = i.qtdN3 > 0 ? i.qtdN3 : i.qtdN2 > 0 ? i.qtdN2 : i.qtdN1;
+                  return qtdFinal === i.qtdEsperada && (i.divergenciaLote || i.divergenciaValidade || i.divergenciaFabricacao);
+                });
+
+                if (apenasDivergenciaFiscal) {
                   return (
                     <div className="gestao-dica-decisao concordante">
-                      <span>💡</span>
+                      <span>🏷️</span>
                       <div>
-                        <strong>Dica Gerencial (Consistência N1 = N2):</strong> Os conferentes contaram exatamente a mesma quantidade em todos os itens divergentes. Há forte indício de falta física originária da fábrica/fornecedor. Sugestão: <em>Aprovar Divergência</em> para liberar estoque ou acionar compras.
+                        <strong>Dica Gerencial (Lote / Validade Divergente):</strong> A contagem física atingiu 100% dos itens faturados, divergindo apenas nas informações fiscais de Lote ou Validade. Sugestão: <em>Aprovar Divergência</em> para atualizar a TGFITE e TGFEST no Sankhya.
                       </div>
                     </div>
                   );
                 }
 
-                if (todosConcordamSobra) {
-                  return (
-                    <div className="gestao-dica-decisao concordante">
-                      <span>💡</span>
-                      <div>
-                        <strong>Dica Gerencial (Sobra Confirmada N1 = N2):</strong> Ambos os conferentes identificaram sobra física em relação à nota faturada. Sugestão: Verificar bonificação ou contatar fornecedor antes de aceitar.
+                // 2. Se houve contagem em N3 (desempate)
+                const houveN3 = grupo.totalN3 > 0 || ((grupo.conferentesN3?.length ?? 0) > 0);
+                if (houveN3) {
+                  const todosBatemN3 = itensDiv.every((i) => i.qtdN3 === i.qtdEsperada);
+                  if (todosBatemN3) {
+                    return (
+                      <div className="gestao-dica-decisao concordante">
+                        <span>💡</span>
+                        <div>
+                          <strong>Dica Gerencial (Reconferência N3 Concluída):</strong> O desempate em N3 atingiu 100% das quantidades faturadas. Sugestão: <em>Aprovar Divergência</em> para concluir o recebimento.
+                        </div>
                       </div>
-                    </div>
-                  );
-                }
-
-                if (discordamN1N2) {
+                    );
+                  }
                   return (
                     <div className="gestao-dica-decisao discordante">
                       <span>⚠️</span>
                       <div>
-                        <strong>Dica Gerencial (Discordância N1 ≠ N2):</strong> Houve discordância de contagem cega entre os conferentes N1 e N2. Sugestão: <em>Solicitar Reconferência N3</em> para um terceiro operador desempatar antes da aprovação.
+                        <strong>Dica Gerencial (Reconferência N3 Concluída):</strong> Terceira contagem realizada. Analise as quantidades apuradas na coluna N3 antes de Aprovar ou Recusar.
                       </div>
                     </div>
                   );
                 }
 
-                return null;
+                // 3. Se ambos os níveis N1 e N2 foram realizados (dupla contagem cega)
+                if (houveN1 && houveN2) {
+                  const todosConcordamFalta =
+                    itensDiv.every((i) => i.qtdN1 === i.qtdN2 && i.qtdN1 < i.qtdEsperada);
+                  const todosConcordamSobra =
+                    itensDiv.every((i) => i.qtdN1 === i.qtdN2 && i.qtdN1 > i.qtdEsperada);
+                  const discordamN1N2 = itensDiv.some((i) => i.qtdN1 !== i.qtdN2);
+
+                  if (todosConcordamFalta) {
+                    return (
+                      <div className="gestao-dica-decisao concordante">
+                        <span>💡</span>
+                        <div>
+                          <strong>Dica Gerencial (Consistência N1 = N2):</strong> Os conferentes contaram exatamente a mesma quantidade em todos os itens divergentes. Há forte indício de falta física originária da fábrica/fornecedor. Sugestão: <em>Aprovar Divergência</em> para liberar estoque ou acionar compras.
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (todosConcordamSobra) {
+                    return (
+                      <div className="gestao-dica-decisao concordante">
+                        <span>💡</span>
+                        <div>
+                          <strong>Dica Gerencial (Sobra Confirmada N1 = N2):</strong> Ambos os conferentes identificaram sobra física em relação à nota faturada. Sugestão: Verificar bonificação ou contatar fornecedor antes de aceitar.
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (discordamN1N2) {
+                    return (
+                      <div className="gestao-dica-decisao discordante">
+                        <span>⚠️</span>
+                        <div>
+                          <strong>Dica Gerencial (Discordância N1 ≠ N2):</strong> Houve discordância de contagem cega entre os conferentes N1 e N2. Sugestão: <em>Solicitar Reconferência N3</em> para um terceiro operador desempatar antes da aprovação.
+                        </div>
+                      </div>
+                    );
+                  }
+                }
+
+                // 4. Se foi realizada conferência em nível único (apenas N2 ou apenas N1)
+                const todosFalta = itensDiv.every((i) => {
+                  const qtd = i.qtdN2 > 0 ? i.qtdN2 : i.qtdN1;
+                  return qtd < i.qtdEsperada;
+                });
+                const todosSobra = itensDiv.every((i) => {
+                  const qtd = i.qtdN2 > 0 ? i.qtdN2 : i.qtdN1;
+                  return qtd > i.qtdEsperada;
+                });
+
+                if (todosFalta) {
+                  return (
+                    <div className="gestao-dica-decisao discordante">
+                      <span>💡</span>
+                      <div>
+                        <strong>Dica Gerencial (Falta Física Apurada):</strong> O conferente registrou quantidade menor que a nota faturada. Sugestão: <em>Solicitar Reconferência N3</em> para confirmação cega ou <em>Aprovar Divergência</em> se a falta já for atestada.
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (todosSobra) {
+                  return (
+                    <div className="gestao-dica-decisao discordante">
+                      <span>💡</span>
+                      <div>
+                        <strong>Dica Gerencial (Sobra Física Apurada):</strong> O conferente registrou quantidade maior que a nota faturada. Sugestão: Verificar bonificação física ou solicitar Reconferência N3.
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="gestao-dica-decisao discordante">
+                    <span>⚠️</span>
+                    <div>
+                      <strong>Dica Gerencial (Divergências Encontradas):</strong> Foram apuradas divergências nos itens listados. Avalie as quantidades e lotes antes de aprovar ou reconferir em N3.
+                    </div>
+                  </div>
+                );
               })()}
 
               {/* Barra de Controle de Exibição / Esconder Itens */}
@@ -254,8 +350,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           <th>Produto</th>
                           <th>Vol.</th>
                           <th>Nota</th>
-                          <th>N1</th>
-                          <th>N2</th>
+                          {exibirN1 && <th>N1</th>}
+                          {exibirN2 && <th>N2</th>}
                           {grupo.totalN3 > 0 && <th>N3</th>}
                           <th>Diferença</th>
                           <th>Lote</th>
@@ -271,7 +367,10 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const temMultiplosLotes = lotesConferidos.length > 1;
                           const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
                           const temN3 = grupo.totalN3 > 0;
-                          const totalColunasDiv = temN3 ? 11 : 10;
+                          let totalColunasDiv = 8;
+                          if (exibirN1) totalColunasDiv++;
+                          if (exibirN2) totalColunasDiv++;
+                          if (temN3) totalColunasDiv++;
 
                           const diferenca = item.diferenca;
                           const classeDif =
@@ -308,8 +407,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 <td>
                                   <strong>{item.qtdEsperada}</strong>
                                 </td>
-                                <td>{item.qtdN1}</td>
-                                <td>{item.qtdN2}</td>
+                                {exibirN1 && <td>{item.qtdN1}</td>}
+                                {exibirN2 && <td>{item.qtdN2}</td>}
                                 {temN3 && <td>{item.qtdN3}</td>}
                                 <td>
                                   <span className={`pill-contagem-status ${classeDif}`}>
@@ -537,12 +636,16 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                             <div>
                               Nota: <strong>{item.qtdEsperada}</strong>
                             </div>
-                            <div>
-                              N1: <strong>{item.qtdN1}</strong>
-                            </div>
-                            <div>
-                              N2: <strong>{item.qtdN2}</strong>
-                            </div>
+                            {exibirN1 && (
+                              <div>
+                                N1: <strong>{item.qtdN1}</strong>
+                              </div>
+                            )}
+                            {exibirN2 && (
+                              <div>
+                                N2: <strong>{item.qtdN2}</strong>
+                              </div>
+                            )}
                             {grupo.totalN3 > 0 && (
                               <div>
                                 N3: <strong>{item.qtdN3}</strong>

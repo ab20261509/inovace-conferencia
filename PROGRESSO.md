@@ -1,5 +1,25 @@
 # Registro de Progresso e Entregas - Conferência de Entrada & Gestão de Recebimento
 
+## Atualização: Ocultação Dinâmica de Níveis Inativos (N1/N2) e Inteligência Gerencial da Aba Divergências
+
+### 1. Ocultação Dinâmica de N1 e N2 (Configurações do Sistema)
+- **Backend** (`ListarDivergenciasEntradaUseCase.ts`, `container.ts`):
+  - Injetado `configSistemaRepo` no caso de uso para consultar os parâmetros `conferencia_entrada_nivel1_ativo` e `conferencia_entrada_nivel2_ativo`.
+  - Retorna `nivel1Ativo` e `nivel2Ativo` em cada grupo de incidentes fiscais/divergências.
+- **Frontend** (`ConferenciaEntrada.ts`, `AbaDivergenciasView.tsx`):
+  - Modelos tipados com `nivel1Ativo` e `nivel2Ativo`.
+  - Mini-cards de contagem no topo (`N1` e `N2`) são ocultados dinamicamente quando o nível estiver inativo e sem contagens históricas.
+  - Linha de rastreabilidade (`👤 Conferentes`) oculta os níveis inativos não operados.
+  - Colunas `N1` e `N2` da Tabela Desktop e linhas do Grid Mobile são ocultadas de forma limpa e dinâmica.
+
+### 2. Dica Gerencial Inteligente (Decision Assist)
+- **Frontend** (`AbaDivergenciasView.tsx`):
+  - **Eliminação de Falso Positivo N1 ≠ N2:** A regra de discordância de contagem cega agora exige expressamente que ambos os níveis tenham sido operados (`houveN1 && houveN2`). Nunca mais acusa divergência entre níveis quando apenas N2 (ou N1) estiver ativo.
+  - **Dica de Lote/Validade Divergente:** Quando as contagens físicas atingem 100% dos itens da nota e divergem apenas no Lote ou Validade (dados fiscais), o assistente exibe recomendação direta de *Aprovar Divergência* para atualização da TGFITE/TGFEST.
+  - **Dicas de Falta/Sobra em Nível Único:** Orientações adaptadas para contagem simples direta ou desempate em N3.
+
+---
+
 ## Atualização: Tabela Padronizada de Conferência e Sub-Linha Gaveta com Lotes e Datas em Colunas Separadas
 
 ### 1. Padronização das Colunas da Tabela de Itens Conferidos
@@ -142,8 +162,18 @@
   - `🚀 Aprovar & Enviar ao Sankhya`: Ação primária posicionada na extremidade direita do card.
   - Eliminação de repetições desnecessárias no rodapé para notas já sincronizadas.
 
-### 6. Build e Verificação
-- **Frontend**: `tsc -b && vite build` aprovado com sucesso (exit code 0).
+### 6. Correção de Status Residual ao Desmembrar/Reiniciar Notas
+- **Diagnóstico da NF 221593**:
+  - A NF 221593 (nunota `1349632`) foi conferida conjuntamente com a nota `1349482`.
+  - A nota `1349482` apresentou divergência e foi reiniciada pelo gestor, sendo desmembrada para uma nova sessão.
+  - A NF 221593 permaneceu na sessão original com contagem 100% batendo (`statusPorNota = 'Conferido'`), porém a sessão herdou o status global `'Divergente'` porque o backend não recalculava o status das notas restantes.
+- **Correção Implementada**:
+  - `ReiniciarConferenciaEntradaUseCase.ts`: Adicionada etapa de recálculo dinâmico do `sessao.status` após a remoção da nota desmembrada. Se todas as notas restantes estiverem `'Conferido'`, a sessão é promovida automaticamente a `'Conferido'` com `finalizadoEm` preenchido.
+  - SQLite (`confercheck.db`): Atualizado o registro da NF 221593 (`735fe6bd-5cd2-451e-8b1a-87e1aa80c8fe`) para `status = 'Conferido'`, movendo-a imediatamente para a aba de Envio ao Sankhya.
+
+### 7. Build e Verificação
+- **Backend**: `tsc` executado com sucesso (exit code 0).
+- **Frontend**: `tsc -b && vite build` executado com sucesso (exit code 0).
 - **Git**: Alterações mantidas no working tree local (sem commits nem pushes).
 
 

@@ -1,5 +1,6 @@
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
+import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
 
 export interface ItemDivergenciaResumo {
   nunota: number;
@@ -47,6 +48,8 @@ export interface ConferênciaDivergenciaGrupo {
   totalN2: number;
   totalN3: number;
   totalEsperado: number;
+  nivel1Ativo?: boolean;
+  nivel2Ativo?: boolean;
   itensDivergentes: ItemDivergenciaResumo[];
   todosItens: ItemDivergenciaResumo[];
 }
@@ -54,10 +57,20 @@ export interface ConferênciaDivergenciaGrupo {
 export class ListarDivergenciasEntradaUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
-    private readonly conferenciaRepo: IConferenciaEntradaRepository
+    private readonly conferenciaRepo: IConferenciaEntradaRepository,
+    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository
   ) {}
 
   async execute(correlationId?: string): Promise<ConferênciaDivergenciaGrupo[]> {
+    let nivel1Ativo = true;
+    let nivel2Ativo = true;
+    if (this.configSistemaRepo) {
+      const n1Param = await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel1_ativo');
+      const n2Param = await this.configSistemaRepo.obterParametro('conferencia_entrada_nivel2_ativo');
+      if (n1Param === 'false') nivel1Ativo = false;
+      if (n2Param === 'false') nivel2Ativo = false;
+    }
+
     // 1. Buscar todas as sessões no SQLite que estão como Divergente, Em Reconferência, N3 ou com statusPorNota divergente
     const todasSessoes = await (this.conferenciaRepo as any).client?.execute(
       `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
@@ -321,6 +334,8 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
             totalN2: totalN2Nota,
             totalN3: totalN3Nota,
             totalEsperado: totalEsperadoNota,
+            nivel1Ativo,
+            nivel2Ativo,
             itensDivergentes: itensDivergentesNota,
             todosItens: itensDestaNota,
           });
