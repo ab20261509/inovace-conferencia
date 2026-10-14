@@ -519,7 +519,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                     <table className="gestao-rec-tabela">
                       <thead>
                         <tr>
-                          <th style={{ width: '38px', textAlign: 'center', padding: '6px 4px' }}>
+                          <th rowSpan={2} style={{ width: '38px', textAlign: 'center', padding: '6px 4px' }}>
                             <input
                               type="checkbox"
                               className="gestao-checkbox-select"
@@ -528,83 +528,103 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                               onChange={() => toggleSelecionarTodos(grupo.id, todosItemKeys)}
                             />
                           </th>
-                          <th>Produto</th>
-                          <th>Vol.</th>
-                          <th>Nota</th>
-                          {exibirN1 && <th>N1</th>}
-                          {exibirN2 && <th>N2</th>}
-                          {grupo.totalN3 > 0 && <th>N3</th>}
-                          <th>Diferença</th>
-                          <th className="th-col-com-acoes-em-massa">
-                            <div className="th-header-inner">
-                              <span>Lote</span>
-                              <div className="grupo-botoes-em-massa">
-                                <button
-                                  type="button"
-                                  className="btn-header-massa-erp"
-                                  title="Aplicar ERP em massa para Lote (nos itens selecionados ou em todos com divergência)"
-                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'ERP', itensParaExibir)}
-                                >
-                                  ERP
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-header-massa-bip"
-                                  title="Aplicar BIP em massa para Lote (nos itens selecionados ou em todos com divergência)"
-                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'BIP', itensParaExibir)}
-                                >
-                                  BIP
-                                </button>
-                              </div>
+                          <th rowSpan={2}>Produto</th>
+                          <th rowSpan={2}>Vol.</th>
+                          <th rowSpan={2}>Nota</th>
+                          {exibirN1 && <th rowSpan={2}>N1</th>}
+                          {exibirN2 && <th rowSpan={2}>N2</th>}
+                          {grupo.totalN3 > 0 && <th rowSpan={2}>N3</th>}
+                          <th rowSpan={2}>Diferença</th>
+                          <th colSpan={2} className="th-grupo-comparativo lote">
+                            LOTE
+                          </th>
+                          <th colSpan={2} className="th-grupo-comparativo validade">
+                            VALIDADE
+                          </th>
+                          <th colSpan={2} className="th-grupo-comparativo fabricacao">
+                            FABRICAÇÃO
+                          </th>
+                          <th rowSpan={2}>Conferente</th>
+                        </tr>
+                        <tr>
+                          <th className="th-subcoluna sub-erp">
+                            <div className="th-subcoluna-inner">
+                              <span>ERP</span>
+                              <button
+                                type="button"
+                                className="btn-header-massa-sub"
+                                title="Aplicar ERP em massa para Lote (nos itens selecionados ou todos)"
+                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'ERP', itensParaExibir)}
+                              >
+                                ⚡
+                              </button>
                             </div>
                           </th>
-                          <th className="th-col-com-acoes-em-massa">
-                            <div className="th-header-inner">
-                              <span>Validade</span>
-                              <div className="grupo-botoes-em-massa">
-                                <button
-                                  type="button"
-                                  className="btn-header-massa-erp"
-                                  title="Aplicar ERP em massa para Validade (nos itens selecionados ou em todos com divergência)"
-                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'ERP', itensParaExibir)}
-                                >
-                                  ERP
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-header-massa-bip"
-                                  title="Aplicar BIP em massa para Validade (nos itens selecionados ou em todos com divergência)"
-                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'BIP', itensParaExibir)}
-                                >
-                                  BIP
-                                </button>
-                              </div>
+                          <th className="th-subcoluna sub-coletor">
+                            <div className="th-subcoluna-inner">
+                              <span>COLETOR</span>
+                              <button
+                                type="button"
+                                className="btn-header-massa-sub"
+                                title="Aplicar COLETOR em massa para Lote (nos itens selecionados ou todos)"
+                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'BIP', itensParaExibir)}
+                              >
+                                ⚡
+                              </button>
                             </div>
                           </th>
-                          <th className="th-col-com-acoes-em-massa">
-                            <div className="th-header-inner">
-                              <span>Fabricação</span>
-                              <div className="grupo-botoes-em-massa">
-                                <button
-                                  type="button"
-                                  className="btn-header-massa-erp"
-                                  title="Aplicar ERP em massa para Fabricação (nos itens selecionados ou em todos com divergência)"
-                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'ERP', itensParaExibir)}
-                                >
-                                  ERP
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-header-massa-bip"
-                                  title="Aplicar BIP em massa para Fabricação (nos itens selecionados ou em todos com divergência)"
-                                  onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'BIP', itensParaExibir)}
-                                >
-                                  BIP
-                                </button>
-                              </div>
+                          <th className="th-subcoluna sub-erp">
+                            <div className="th-subcoluna-inner">
+                              <span>ERP</span>
+                              <button
+                                type="button"
+                                className="btn-header-massa-sub"
+                                title="Aplicar ERP em massa para Validade (nos itens selecionados ou todos)"
+                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'ERP', itensParaExibir)}
+                              >
+                                ⚡
+                              </button>
                             </div>
                           </th>
-                          <th>Conferentes</th>
+                          <th className="th-subcoluna sub-coletor">
+                            <div className="th-subcoluna-inner">
+                              <span>COLETOR</span>
+                              <button
+                                type="button"
+                                className="btn-header-massa-sub"
+                                title="Aplicar COLETOR em massa para Validade (nos itens selecionados ou todos)"
+                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'BIP', itensParaExibir)}
+                              >
+                                ⚡
+                              </button>
+                            </div>
+                          </th>
+                          <th className="th-subcoluna sub-erp">
+                            <div className="th-subcoluna-inner">
+                              <span>ERP</span>
+                              <button
+                                type="button"
+                                className="btn-header-massa-sub"
+                                title="Aplicar ERP em massa para Fabricação (nos itens selecionados ou todos)"
+                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'ERP', itensParaExibir)}
+                              >
+                                ⚡
+                              </button>
+                            </div>
+                          </th>
+                          <th className="th-subcoluna sub-coletor">
+                            <div className="th-subcoluna-inner">
+                              <span>COLETOR</span>
+                              <button
+                                type="button"
+                                className="btn-header-massa-sub"
+                                title="Aplicar COLETOR em massa para Fabricação (nos itens selecionados ou todos)"
+                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'BIP', itensParaExibir)}
+                              >
+                                ⚡
+                              </button>
+                            </div>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -614,7 +634,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const temMultiplosLotes = lotesConferidos.length > 1;
                           const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
                           const temN3 = grupo.totalN3 > 0;
-                          let totalColunasDiv = 9;
+                          let totalColunasDiv = 12;
                           if (exibirN1) totalColunasDiv++;
                           if (exibirN2) totalColunasDiv++;
                           if (temN3) totalColunasDiv++;
@@ -724,150 +744,107 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                     )}
                                   </div>
                                 </td>
-                                <td>
+
+                                {/* LOTE - ERP */}
+                                <td
+                                  className={`celula-comparativa borda-esq ${item.divergenciaLote ? 'clicavel' : 'neutra'} ${decisaoItem?.lote === 'ERP' ? 'selecionada' : ''}`}
+                                  onClick={() => item.divergenciaLote && handleSetDecisao(grupo.id, itemKey, item, 'lote', 'ERP')}
+                                  title={item.divergenciaLote ? `Clique para adotar o lote original do ERP (${item.controleOriginal || 'Sem Lote'})` : undefined}
+                                >
+                                  {decisaoItem?.lote === 'ERP' ? (
+                                    <span className="celula-comparativa selecionada-badge">
+                                      ✓ {item.controleOriginal || 'Sem Lote'}
+                                    </span>
+                                  ) : (
+                                    item.controleOriginal || '—'
+                                  )}
+                                </td>
+
+                                {/* LOTE - COLETOR */}
+                                <td
+                                  className={`celula-comparativa borda-dir ${item.divergenciaLote ? 'clicavel' : 'neutra'} ${decisaoItem?.lote === 'BIP' ? 'selecionada' : ''}`}
+                                  onClick={() => !temMultiplosLotes && item.divergenciaLote && handleSetDecisao(grupo.id, itemKey, item, 'lote', 'BIP')}
+                                  title={item.divergenciaLote ? `Clique para adotar o lote conferido no Coletor (${item.lote || 'Sem Lote'})` : undefined}
+                                >
                                   {temMultiplosLotes ? (
                                     <button
                                       type="button"
                                       className={`chip-dropdown-lote ${isLotesAberto ? 'ativo' : ''}`}
-                                      onClick={() => toggleLotesDiv(itemKey)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleLotesDiv(itemKey);
+                                      }}
                                       title={isLotesAberto ? 'Recolher gaveta de lotes' : 'Expandir lotes linha a linha'}
                                     >
                                       <span>🏷️ {lotesConferidos.length} Lotes</span>
                                       <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
                                     </button>
-                                  ) : item.divergenciaLote ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                      <span className="gestao-lote-pill" style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>
-                                        🏷️ Bip: {item.lote || 'Sem lote'}
-                                      </span>
-                                      <span style={{ fontSize: '0.68rem', color: '#dc2626', fontWeight: 600 }}>
-                                        NF: {item.controleOriginal}
-                                      </span>
-                                      <div className="grupo-botoes-decisao-fiscal">
-                                        <button
-                                          type="button"
-                                          className={`btn-decisao-fiscal ${decisaoItem?.lote === 'ERP' ? 'ativo-erp' : ''}`}
-                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'lote', 'ERP')}
-                                          title={`Manter o lote original do ERP (${item.controleOriginal})`}
-                                        >
-                                          {decisaoItem?.lote === 'ERP' && '✓ '}ERP
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className={`btn-decisao-fiscal ${decisaoItem?.lote === 'BIP' ? 'ativo-bip' : ''}`}
-                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'lote', 'BIP')}
-                                          title={`Adotar o lote bipado no coletor (${item.lote})`}
-                                        >
-                                          {decisaoItem?.lote === 'BIP' && '✓ '}BIP
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : item.lote ? (
-                                    <span className="gestao-lote-pill">
-                                      🏷️ {item.lote}
+                                  ) : decisaoItem?.lote === 'BIP' ? (
+                                    <span className="celula-comparativa selecionada-badge">
+                                      ✓ {item.lote || 'Sem Lote'}
                                     </span>
                                   ) : (
-                                    <span className="gestao-lote-pill sem-lote">
-                                      ⚠️ Sem Lote
-                                    </span>
+                                    item.lote || '—'
                                   )}
                                 </td>
-                                <td>
-                                  {temMultiplosLotes ? (
-                                    <span
-                                      style={{
-                                        fontSize: '0.74rem',
-                                        color: 'var(--primary, #0f766e)',
-                                        cursor: 'pointer',
-                                        fontStyle: 'italic',
-                                        fontWeight: 600,
-                                      }}
-                                      onClick={() => toggleLotesDiv(itemKey)}
-                                    >
-                                      {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
-                                    </span>
-                                  ) : item.divergenciaValidade ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                      <span style={{ fontSize: '0.78rem', color: '#991b1b', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
-                                        Bip: {formatarDataSimples(item.validade)}
-                                      </span>
-                                      <span style={{ fontSize: '0.68rem', color: '#dc2626' }}>
-                                        Orig: {item.validadeOriginal}
-                                      </span>
-                                      <div className="grupo-botoes-decisao-fiscal">
-                                        <button
-                                          type="button"
-                                          className={`btn-decisao-fiscal ${decisaoItem?.validade === 'ERP' ? 'ativo-erp' : ''}`}
-                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'ERP')}
-                                          title={`Manter a validade original do ERP (${item.validadeOriginal})`}
-                                        >
-                                          {decisaoItem?.validade === 'ERP' && '✓ '}ERP
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className={`btn-decisao-fiscal ${decisaoItem?.validade === 'BIP' ? 'ativo-bip' : ''}`}
-                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'BIP')}
-                                          title={`Adotar a validade bipada no coletor (${formatarDataSimples(item.validade)})`}
-                                        >
-                                          {decisaoItem?.validade === 'BIP' && '✓ '}BIP
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : item.validade ? (
-                                    <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                      {formatarDataSimples(item.validade)}
+
+                                {/* VALIDADE - ERP */}
+                                <td
+                                  className={`celula-comparativa borda-esq ${item.divergenciaValidade ? 'clicavel' : 'neutra'} ${decisaoItem?.validade === 'ERP' ? 'selecionada' : ''}`}
+                                  onClick={() => item.divergenciaValidade && handleSetDecisao(grupo.id, itemKey, item, 'validade', 'ERP')}
+                                  title={item.divergenciaValidade ? `Clique para adotar a validade original do ERP (${formatarDataSimples(item.validadeOriginal) || '—'})` : undefined}
+                                >
+                                  {decisaoItem?.validade === 'ERP' ? (
+                                    <span className="celula-comparativa selecionada-badge">
+                                      ✓ {formatarDataSimples(item.validadeOriginal) || '—'}
                                     </span>
                                   ) : (
-                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                    formatarDataSimples(item.validadeOriginal) || '—'
                                   )}
                                 </td>
-                                <td>
-                                  {temMultiplosLotes ? (
-                                    <span
-                                      style={{
-                                        fontSize: '0.74rem',
-                                        color: 'var(--primary, #0f766e)',
-                                        cursor: 'pointer',
-                                        fontStyle: 'italic',
-                                        fontWeight: 600,
-                                      }}
-                                      onClick={() => toggleLotesDiv(itemKey)}
-                                    >
-                                      {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
-                                    </span>
-                                  ) : item.divergenciaFabricacao ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                      <span style={{ fontSize: '0.78rem', color: '#991b1b', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
-                                        Bip: {formatarDataSimples(item.fabricacao)}
-                                      </span>
-                                      <span style={{ fontSize: '0.68rem', color: '#dc2626' }}>
-                                        Orig: {item.fabricacaoOriginal}
-                                      </span>
-                                      <div className="grupo-botoes-decisao-fiscal">
-                                        <button
-                                          type="button"
-                                          className={`btn-decisao-fiscal ${decisaoItem?.fabricacao === 'ERP' ? 'ativo-erp' : ''}`}
-                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'ERP')}
-                                          title={`Manter a fabricação original do ERP (${item.fabricacaoOriginal})`}
-                                        >
-                                          {decisaoItem?.fabricacao === 'ERP' && '✓ '}ERP
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className={`btn-decisao-fiscal ${decisaoItem?.fabricacao === 'BIP' ? 'ativo-bip' : ''}`}
-                                          onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'BIP')}
-                                          title={`Adotar a fabricação bipada no coletor (${formatarDataSimples(item.fabricacao)})`}
-                                        >
-                                          {decisaoItem?.fabricacao === 'BIP' && '✓ '}BIP
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : item.fabricacao ? (
-                                    <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                      {formatarDataSimples(item.fabricacao)}
+
+                                {/* VALIDADE - COLETOR */}
+                                <td
+                                  className={`celula-comparativa borda-dir ${item.divergenciaValidade ? 'clicavel' : 'neutra'} ${decisaoItem?.validade === 'BIP' ? 'selecionada' : ''}`}
+                                  onClick={() => item.divergenciaValidade && handleSetDecisao(grupo.id, itemKey, item, 'validade', 'BIP')}
+                                  title={item.divergenciaValidade ? `Clique para adotar a validade conferida no Coletor (${formatarDataSimples(item.validade) || '—'})` : undefined}
+                                >
+                                  {decisaoItem?.validade === 'BIP' ? (
+                                    <span className="celula-comparativa selecionada-badge">
+                                      ✓ {formatarDataSimples(item.validade) || '—'}
                                     </span>
                                   ) : (
-                                    <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                    formatarDataSimples(item.validade) || '—'
+                                  )}
+                                </td>
+
+                                {/* FABRICAÇÃO - ERP */}
+                                <td
+                                  className={`celula-comparativa borda-esq ${item.divergenciaFabricacao ? 'clicavel' : 'neutra'} ${decisaoItem?.fabricacao === 'ERP' ? 'selecionada' : ''}`}
+                                  onClick={() => item.divergenciaFabricacao && handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'ERP')}
+                                  title={item.divergenciaFabricacao ? `Clique para adotar a fabricação original do ERP (${formatarDataSimples(item.fabricacaoOriginal) || '—'})` : undefined}
+                                >
+                                  {decisaoItem?.fabricacao === 'ERP' ? (
+                                    <span className="celula-comparativa selecionada-badge">
+                                      ✓ {formatarDataSimples(item.fabricacaoOriginal) || '—'}
+                                    </span>
+                                  ) : (
+                                    formatarDataSimples(item.fabricacaoOriginal) || '—'
+                                  )}
+                                </td>
+
+                                {/* FABRICAÇÃO - COLETOR */}
+                                <td
+                                  className={`celula-comparativa borda-dir ${item.divergenciaFabricacao ? 'clicavel' : 'neutra'} ${decisaoItem?.fabricacao === 'BIP' ? 'selecionada' : ''}`}
+                                  onClick={() => item.divergenciaFabricacao && handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'BIP')}
+                                  title={item.divergenciaFabricacao ? `Clique para adotar a fabricação conferida no Coletor (${formatarDataSimples(item.fabricacao) || '—'})` : undefined}
+                                >
+                                  {decisaoItem?.fabricacao === 'BIP' ? (
+                                    <span className="celula-comparativa selecionada-badge">
+                                      ✓ {formatarDataSimples(item.fabricacao) || '—'}
+                                    </span>
+                                  ) : (
+                                    formatarDataSimples(item.fabricacao) || '—'
                                   )}
                                 </td>
                                 <td
