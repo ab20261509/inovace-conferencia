@@ -37,6 +37,7 @@ export function createConferenciaEntradaRoutes(controller: ConferenciaEntradaCon
   router.post('/conferencia/:id/recontar', (req, res) => controller.solicitarRecontagem(req, res));
   router.post('/conferencia/:id/recuperar', (req, res) => controller.recuperarContagem(req, res));
   router.post('/conferencia/:id/sincronizar-desmembramento', (req, res) => controller.sincronizarDesmembramento(req, res));
+  router.post('/conferencia/:id/desmembrar-item', (req, res) => controller.desmembrarItem(req, res));
   router.post('/conferencia/:id/enviar-sankhya', (req, res) => controller.enviarSankhya(req, res));
 
   return router;

@@ -284,6 +284,36 @@ export function GestaoRecebimentoPage() {
     }
   };
 
+  const handleExecutarDesmembramento = async (
+    conferenciaId: string,
+    dados: {
+      nunota: number;
+      sequencia: number;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+    }
+  ) => {
+    try {
+      const res = await recebimentoService.desmembrarItem(conferenciaId, dados);
+
+      if (res.divergencias) {
+        setDivergencias(res.divergencias);
+      } else {
+        await carregarDados();
+      }
+
+      setFeedback({
+        tipo: 'sucesso',
+        texto: res.mensagem || 'Item desmembrado com sucesso no Sankhya!',
+      });
+    } catch (err: any) {
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || err.message || 'Erro ao desmembrar item no Sankhya.',
+      });
+      throw err;
+    }
+  };
+
   const podeAcessar = temPermissao('conferencia_entrada') || temPermissao('gerenciar_acessos');
 
   // Carregar dados
@@ -1000,6 +1030,7 @@ export function GestaoRecebimentoPage() {
                       });
                     }}
                     onSincronizarDesmembramento={handleSincronizarDesmembramento}
+                    onExecutarDesmembramento={handleExecutarDesmembramento}
                     processandoDesmembramento={processandoDesmembramento}
                   />
                 )}

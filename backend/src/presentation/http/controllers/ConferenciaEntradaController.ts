@@ -13,6 +13,7 @@ import { ListarTodasConferenciasEntradaUseCase } from '../../../application/use-
 import { SolicitarRecontagemEntradaUseCase } from '../../../application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.js';
 import { RecuperarContagemReiniciadaUseCase } from '../../../application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
 import { SincronizarDesmembramentoNotaUseCase } from '../../../application/use-cases/recebimento/SincronizarDesmembramentoNotaUseCase.js';
+import { ExecutarDesmembramentoItemUseCase } from '../../../application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.js';
 
 export class ConferenciaEntradaController {
   constructor(
@@ -29,7 +30,8 @@ export class ConferenciaEntradaController {
     private readonly listarTodasUseCase?: ListarTodasConferenciasEntradaUseCase,
     private readonly solicitarRecontagemUseCase?: SolicitarRecontagemEntradaUseCase,
     private readonly recuperarContagemUseCase?: RecuperarContagemReiniciadaUseCase,
-    private readonly sincronizarDesmembramentoUseCase?: SincronizarDesmembramentoNotaUseCase
+    private readonly sincronizarDesmembramentoUseCase?: SincronizarDesmembramentoNotaUseCase,
+    private readonly executarDesmembramentoUseCase?: ExecutarDesmembramentoItemUseCase
   ) {}
 
   /** GET /api/recebimento/notas */
@@ -341,6 +343,38 @@ export class ConferenciaEntradaController {
     } catch (error: any) {
       console.error('❌ Erro ao sincronizar desmembramento com o Sankhya:', error);
       res.status(400).json({ error: error.message || 'Erro ao sincronizar desmembramento com o Sankhya.' });
+    }
+  }
+
+  /** POST /api/recebimento/conferencia/:id/desmembrar-item */
+  async desmembrarItem(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.executarDesmembramentoUseCase) {
+        res.status(501).json({ error: 'Funcionalidade de execução de desmembramento não configurada.' });
+        return;
+      }
+      const conferenciaId = req.params.id;
+      const { nunota, sequencia, lotes } = req.body;
+
+      if (!nunota || !sequencia || !Array.isArray(lotes) || lotes.length === 0) {
+        res.status(400).json({ error: 'nunota, sequencia e a lista de lotes são obrigatórios.' });
+        return;
+      }
+
+      const resultado = await this.executarDesmembramentoUseCase.execute(
+        {
+          conferenciaId,
+          nunota: Number(nunota),
+          sequencia: Number(sequencia),
+          lotes,
+        },
+        req.correlationId
+      );
+
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error('❌ Erro ao desmembrar item no Sankhya:', error);
+      res.status(400).json({ error: error.message || 'Erro ao desmembrar item no Sankhya.' });
     }
   }
 }

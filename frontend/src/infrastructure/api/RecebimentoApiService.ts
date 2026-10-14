@@ -158,5 +158,20 @@ export class RecebimentoApiService {
     );
     return response.data;
   }
+
+  async desmembrarItem(
+    conferenciaId: string,
+    params: {
+      nunota: number;
+      sequencia: number;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+    }
+  ): Promise<{ sucesso: boolean; mensagem: string; divergencias?: any[] }> {
+    const response = await httpClient.post<{ sucesso: boolean; mensagem: string; divergencias?: any[] }>(
+      `/api/recebimento/conferencia/${conferenciaId}/desmembrar-item`,
+      params
+    );
+    return response.data;
+  }
 }
 

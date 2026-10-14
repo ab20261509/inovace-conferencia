@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ConferenciaDivergenciaGrupo,
   DecisaoFiscalItem,
+  ItemDivergenciaResumo,
 } from '../../../domain/models/ConferenciaEntrada';
 import { Container } from '../Container/Container';
 import {
@@ -9,6 +10,7 @@ import {
   formatarConferentes,
   formatarDataSimples,
 } from './recebimentoHelpers';
+import { ModalDesmembrarItem } from './ModalDesmembrarItem';
 
 export interface AbaDivergenciasViewProps {
   divergencias: ConferenciaDivergenciaGrupo[];
@@ -30,6 +32,14 @@ export interface AbaDivergenciasViewProps {
     codprod?: number,
     sequencia?: number
   ) => void;
+  onExecutarDesmembramento?: (
+    conferenciaId: string,
+    dados: {
+      nunota: number;
+      sequencia: number;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+    }
+  ) => Promise<void>;
   processandoDesmembramento?: string | null;
 }
 
@@ -43,8 +53,14 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   onReconferirN3,
   onReiniciar,
   onSincronizarDesmembramento,
+  onExecutarDesmembramento,
   processandoDesmembramento,
 }) => {
+  const [modalDesmembrarItem, setModalDesmembrarItem] = useState<{
+    item: ItemDivergenciaResumo;
+    grupo: ConferenciaDivergenciaGrupo;
+  } | null>(null);
+  const [executandoDesmembramento, setExecutandoDesmembramento] = useState(false);
   const [lotesExpandidosDiv, setLotesExpandidosDiv] = useState<Record<string, boolean>>({});
   const [decisoesFiscaisPorGrupo, setDecisoesFiscaisPorGrupo] = useState<
     Record<string, Record<string, DecisaoFiscalItem>>
@@ -722,20 +738,27 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                         ? `+${diferenca} (Sobra)`
                                         : '✓ OK'}
                                     </span>
-                                    {diferenca < 0 && onSincronizarDesmembramento && (
+                                    {diferenca < 0 && (onExecutarDesmembramento || onSincronizarDesmembramento) && (
                                       <button
                                         type="button"
                                         className="btn-desmembrar-item"
-                                        disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`}
-                                        onClick={() =>
-                                          onSincronizarDesmembramento(
-                                            grupo.conferenciaId || grupo.id,
-                                            item.nunota,
-                                            item.codprod,
-                                            item.sequencia
-                                          )
+                                        disabled={
+                                          executandoDesmembramento ||
+                                          processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
                                         }
-                                        title="Consultar no Sankhya se o saldo faltante deste item já foi desmembrado na Central de Compras"
+                                        onClick={() => {
+                                          if (onExecutarDesmembramento) {
+                                            setModalDesmembrarItem({ item, grupo });
+                                          } else if (onSincronizarDesmembramento) {
+                                            onSincronizarDesmembramento(
+                                              grupo.conferenciaId || grupo.id,
+                                              item.nunota,
+                                              item.codprod,
+                                              item.sequencia
+                                            );
+                                          }
+                                        }}
+                                        title="Desmembrar item e separar o saldo faltante no Sankhya"
                                       >
                                         {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
                                           ? '🔄 Checando...'
@@ -984,20 +1007,27 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                   ? `+${diferenca} (Sobra)`
                                   : '✓ OK'}
                               </span>
-                              {diferenca < 0 && onSincronizarDesmembramento && (
+                              {diferenca < 0 && (onExecutarDesmembramento || onSincronizarDesmembramento) && (
                                 <button
                                   type="button"
                                   className="btn-desmembrar-item"
-                                  disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`}
-                                  onClick={() =>
-                                    onSincronizarDesmembramento(
-                                      grupo.conferenciaId || grupo.id,
-                                      item.nunota,
-                                      item.codprod,
-                                      item.sequencia
-                                    )
+                                  disabled={
+                                    executandoDesmembramento ||
+                                    processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
                                   }
-                                  title="Consultar no Sankhya se o saldo faltante foi desmembrado na Central de Compras"
+                                  onClick={() => {
+                                    if (onExecutarDesmembramento) {
+                                      setModalDesmembrarItem({ item, grupo });
+                                    } else if (onSincronizarDesmembramento) {
+                                      onSincronizarDesmembramento(
+                                        grupo.conferenciaId || grupo.id,
+                                        item.nunota,
+                                        item.codprod,
+                                        item.sequencia
+                                      );
+                                    }
+                                  }}
+                                  title="Desmembrar item e separar o saldo faltante no Sankhya"
                                 >
                                   {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${item.nunota}-${item.codprod}`
                                     ? '🔄 Checando...'
@@ -1251,6 +1281,29 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
             </div>
           );
         })
+      )}
+
+      {modalDesmembrarItem && (
+        <ModalDesmembrarItem
+          isOpen={Boolean(modalDesmembrarItem)}
+          onClose={() => setModalDesmembrarItem(null)}
+          item={modalDesmembrarItem.item}
+          grupo={modalDesmembrarItem.grupo}
+          loading={executandoDesmembramento}
+          onConfirmar={async (dados) => {
+            if (!onExecutarDesmembramento) return;
+            setExecutandoDesmembramento(true);
+            try {
+              await onExecutarDesmembramento(
+                modalDesmembrarItem.grupo.conferenciaId || modalDesmembrarItem.grupo.id,
+                dados
+              );
+              setModalDesmembrarItem(null);
+            } finally {
+              setExecutandoDesmembramento(false);
+            }
+          }}
+        />
       )}
     </div>
   );
