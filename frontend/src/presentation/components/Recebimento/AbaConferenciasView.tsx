@@ -188,8 +188,35 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
               {/* Cabeçalho */}
               <div className="gestao-rec-card-header">
                 <div className="gestao-rec-card-info">
-                  <div className="gestao-rec-card-notas">
+                  <div className="gestao-rec-card-notas" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span className="gestao-rec-card-nf-badge">📄 NF(s): {conf.numerosNotas}</span>
+                    {conf.status === 'Enviado ao Sankhya' && conf.enviadoSankhyaEm && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: '#ecfdf5',
+                          color: '#065f46',
+                          border: '1px solid #a7f3d0',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                        }}
+                        title="Data/hora e responsável pela integração no Sankhya"
+                      >
+                        <span>✓</span>
+                        <span>
+                          Integrado em {new Date(conf.enviadoSankhyaEm).toLocaleDateString('pt-BR')} às{' '}
+                          {new Date(conf.enviadoSankhyaEm).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {conf.aprovadoPor ? ` por ${conf.aprovadoPor}` : ''}
+                        </span>
+                      </span>
+                    )}
                     {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
                       <div className="gestao-notas-status-inline">
                         {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => {
