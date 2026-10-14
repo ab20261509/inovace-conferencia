@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { RecebimentoApiService } from '../../infrastructure/api/RecebimentoApiService';
+import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
 import {
   ConferenciaDivergenciaGrupo,
   ConferenciaEntradaResumo,
@@ -25,11 +26,16 @@ import {
 import './GestaoRecebimento.css';
 
 const recebimentoService = new RecebimentoApiService();
+const configSistemaService = new ConfiguracaoSistemaApiService();
 
 export function GestaoRecebimentoPage() {
   const { temPermissao } = useAuth();
   const navigate = useNavigate();
   const [abaAtiva, setAbaAtiva] = useState<'conferencias' | 'divergencias' | 'aprovacao_sankhya'>('conferencias');
+
+  // Parâmetros operacionais de níveis (N1 / N2)
+  const [paramN1Ativo, setParamN1Ativo] = useState<boolean>(true);
+  const [paramN2Ativo, setParamN2Ativo] = useState<boolean>(true);
 
   // Estados de dados
   const [todasConferencias, setTodasConferencias] = useState<ConferenciaEntradaResumo[]>([]);
@@ -250,6 +256,18 @@ export function GestaoRecebimentoPage() {
     setLoading(true);
     setFeedback(null);
     const erros: string[] = [];
+
+    try {
+      const params = await configSistemaService.listarParametros();
+      if (params['conferencia_entrada_nivel1_ativo']) {
+        setParamN1Ativo(params['conferencia_entrada_nivel1_ativo'].valor !== 'false');
+      }
+      if (params['conferencia_entrada_nivel2_ativo']) {
+        setParamN2Ativo(params['conferencia_entrada_nivel2_ativo'].valor !== 'false');
+      }
+    } catch (err: any) {
+      console.warn('Aviso ao carregar parâmetros dos níveis:', err);
+    }
 
     try {
       const confs = await recebimentoService.listarTodasConferencias();
@@ -886,6 +904,8 @@ export function GestaoRecebimentoPage() {
                         },
                       });
                     }}
+                    nivel1Ativo={paramN1Ativo}
+                    nivel2Ativo={paramN2Ativo}
                   />
                 )}
 
@@ -977,6 +997,8 @@ export function GestaoRecebimentoPage() {
                       });
                     }}
                     obterLotesItem={obterLotesItem}
+                    nivel1Ativo={paramN1Ativo}
+                    nivel2Ativo={paramN2Ativo}
                   />
                 )}
               </>

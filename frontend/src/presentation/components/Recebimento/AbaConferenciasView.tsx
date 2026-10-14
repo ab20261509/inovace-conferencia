@@ -39,6 +39,8 @@ export interface AbaConferenciasViewProps {
   onReiniciar: (conf: ConferenciaEntradaResumo) => void;
   onRecuperarContagem: (conf: ConferenciaEntradaResumo) => void;
   onAbrirColetor: (conf: ConferenciaEntradaResumo) => void;
+  nivel1Ativo?: boolean;
+  nivel2Ativo?: boolean;
 }
 
 export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
@@ -56,6 +58,8 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
   onReiniciar,
   onRecuperarContagem,
   onAbrirColetor,
+  nivel1Ativo,
+  nivel2Ativo,
 }) => {
   const [filtroItensCards, setFiltroItensCards] = useState<
     Record<string, 'todos' | 'divergentes' | 'semlote'>
@@ -224,6 +228,16 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                   Math.round(((totalBipadoNivel || 0) / conf.totalItens) * 100)
                 );
 
+                const houveN1Card = conf.totalBipadoN1 > 0;
+                const houveN2Card = conf.totalBipadoN2 > 0;
+                const exibirN1Card = nivel1Ativo !== false || houveN1Card;
+                const exibirN2Card = nivel2Ativo !== false || houveN2Card;
+
+                const partesNiveis: string[] = [];
+                if (exibirN1Card) partesNiveis.push(`N1: ${conf.totalBipadoN1 || 0}`);
+                if (exibirN2Card) partesNiveis.push(`N2: ${conf.totalBipadoN2 || 0}`);
+                if (conf.totalBipadoN3 > 0) partesNiveis.push(`N3: ${conf.totalBipadoN3}`);
+
                 return (
                   <div className="gestao-rec-progresso-unificado">
                     <div className="gestao-progresso-topo">
@@ -235,11 +249,9 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                         <span>
                           Bipado (N{conf.nivelAtual}): <strong>{totalBipadoNivel} un.</strong>
                         </span>
-                        {(conf.totalBipadoN2 > 0 || conf.totalBipadoN3 > 0) && (
+                        {partesNiveis.length > 0 && (
                           <span style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
-                            (N1: {conf.totalBipadoN1}
-                            {conf.totalBipadoN2 > 0 && ` • N2: ${conf.totalBipadoN2}`}
-                            {conf.totalBipadoN3 > 0 && ` • N3: ${conf.totalBipadoN3}`})
+                            ({partesNiveis.join(' • ')})
                           </span>
                         )}
                       </div>
@@ -304,6 +316,18 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                           ? itensSemLote
                           : todosItens;
 
+                      const itensDaConferencia = detalhes.itens || [];
+                      const houveN1Itens = conf.totalBipadoN1 > 0 || itensDaConferencia.some((i) => (i.qtdConferidaN1 || 0) > 0);
+                      const houveN2Itens = conf.totalBipadoN2 > 0 || itensDaConferencia.some((i) => (i.qtdConferidaN2 || 0) > 0);
+                      const exibirN1Itens = nivel1Ativo !== false || houveN1Itens;
+                      const exibirN2Itens = nivel2Ativo !== false || houveN2Itens;
+                      const temN3Itens = conf.totalBipadoN3 > 0 || itensDaConferencia.some((i) => (i.qtdConferidaN3 || 0) > 0);
+
+                      let totalColunas = 8;
+                      if (exibirN1Itens) totalColunas++;
+                      if (exibirN2Itens) totalColunas++;
+                      if (temN3Itens) totalColunas++;
+
                       return (
                         <>
                           {/* Barra de Mini-Filtros Rápidos dos Itens */}
@@ -357,110 +381,103 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                               {todosItens.length} itens
                             </span>
                           </div>
-                      <div className="gestao-rec-tabela-desktop">
-                        <table className="gestao-rec-tabela">
-                          <thead>
-                            <tr>
-                              <th>Produto</th>
-                              <th>Vol.</th>
-                              <th>Nota</th>
-                              <th>N1</th>
-                              <th>N2</th>
-                              {(conf.totalBipadoN3 > 0 ||
-                                detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0)) && (
-                                <th>N3</th>
-                              )}
-                              <th>Diferença</th>
-                              <th>Lote</th>
-                              <th>Validade</th>
-                              <th>Fabricação</th>
-                              <th>Conferentes</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {itensParaExibir.length === 0 ? (
-                              <tr>
-                                <td
-                                  colSpan={11}
-                                  style={{ textAlign: 'center', color: 'var(--slate-400)' }}
-                                >
-                                  Nenhum item encontrado para o filtro selecionado.
-                                </td>
-                              </tr>
-                            ) : (
-                              itensParaExibir.map((item) => {
-                                const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
-                                const temMultiplosLotes = Boolean(
-                                  item.lotesConferidos && item.lotesConferidos.length > 1
-                                );
-                                const isLotesAberto = Boolean(lotesExpandidos[itemKey]);
-                                const temN3 =
-                                  conf.totalBipadoN3 > 0 ||
-                                  detalhes.itens.some((i) => (i.qtdConferidaN3 || 0) > 0);
-                                const totalColunas = temN3 ? 11 : 10;
+                          <div className="gestao-rec-tabela-desktop">
+                              <table className="gestao-rec-tabela">
+                                <thead>
+                                  <tr>
+                                    <th>Produto</th>
+                                    <th>Vol.</th>
+                                    <th>Nota</th>
+                                    {exibirN1Itens && <th>N1</th>}
+                                    {exibirN2Itens && <th>N2</th>}
+                                    {temN3Itens && <th>N3</th>}
+                                    <th>Diferença</th>
+                                    <th>Lote</th>
+                                    <th>Validade</th>
+                                    <th>Fabricação</th>
+                                    <th>Conferentes</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {itensParaExibir.length === 0 ? (
+                                    <tr>
+                                      <td
+                                        colSpan={totalColunas}
+                                        style={{ textAlign: 'center', color: 'var(--slate-400)' }}
+                                      >
+                                        Nenhum item encontrado para o filtro selecionado.
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    itensParaExibir.map((item) => {
+                                      const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
+                                      const temMultiplosLotes = Boolean(
+                                        item.lotesConferidos && item.lotesConferidos.length > 1
+                                      );
+                                      const isLotesAberto = Boolean(lotesExpandidos[itemKey]);
 
-                                const diferenca =
-                                  item.diferenca !== undefined
-                                    ? item.diferenca
-                                    : ((item.qtdConferidaN3 || 0) > 0
-                                        ? item.qtdConferidaN3 || 0
-                                        : (item.qtdConferidaN2 || 0) > 0
-                                        ? item.qtdConferidaN2 || 0
-                                        : item.qtdConferidaN1 || 0) - (item.qtdneg || 0);
-                                const classeDif =
-                                  diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+                                      const diferenca =
+                                        item.diferenca !== undefined
+                                          ? item.diferenca
+                                          : ((item.qtdConferidaN3 || 0) > 0
+                                              ? item.qtdConferidaN3 || 0
+                                              : (item.qtdConferidaN2 || 0) > 0
+                                              ? item.qtdConferidaN2 || 0
+                                              : item.qtdConferidaN1 || 0) - (item.qtdneg || 0);
+                                      const classeDif =
+                                        diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
 
-                                return (
-                                  <React.Fragment key={`conf-frag-${itemKey}`}>
-                                    <tr key={`conf-${itemKey}`}>
-                                      <td>
-                                        <div
-                                          style={{
-                                            fontWeight: 600,
-                                            color: 'var(--slate-900)',
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            maxWidth: '280px',
-                                          }}
-                                          title={item.descrprod}
-                                        >
-                                          {item.descrprod || `Produto ${item.codprod}`}
-                                        </div>
-                                        <div
-                                          style={{
-                                            fontSize: '0.72rem',
-                                            color: 'var(--slate-500)',
-                                            whiteSpace: 'nowrap',
-                                          }}
-                                        >
-                                          Cód: {item.codprod}
-                                          {item.refforn
-                                            ? ` • Ref: ${item.refforn}`
-                                            : item.referencia
-                                            ? ` • Ref: ${item.referencia}`
-                                            : ''}
-                                          {item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
-                                        </div>
-                                      </td>
-                                      <td>{item.codvol || 'UN'}</td>
-                                      <td>
-                                        <strong>{item.qtdneg ?? '—'}</strong>
-                                      </td>
-                                      <td>{item.qtdConferidaN1 || 0}</td>
-                                      <td>{item.qtdConferidaN2 || 0}</td>
-                                      {temN3 && (
-                                        <td>{item.qtdConferidaN3 || 0}</td>
-                                      )}
-                                      <td>
-                                        <span className={`pill-contagem-status ${classeDif}`}>
-                                          {diferenca === 0
-                                            ? '✓ OK'
-                                            : diferenca < 0
-                                            ? `⚠️ ${diferenca}`
-                                            : `+${diferenca}`}
-                                        </span>
-                                      </td>
+                                      return (
+                                        <React.Fragment key={`conf-frag-${itemKey}`}>
+                                          <tr key={`conf-${itemKey}`}>
+                                            <td>
+                                              <div
+                                                style={{
+                                                  fontWeight: 600,
+                                                  color: 'var(--slate-900)',
+                                                  whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                  maxWidth: '280px',
+                                                }}
+                                                title={item.descrprod}
+                                              >
+                                                {item.descrprod || `Produto ${item.codprod}`}
+                                              </div>
+                                              <div
+                                                style={{
+                                                  fontSize: '0.72rem',
+                                                  color: 'var(--slate-500)',
+                                                  whiteSpace: 'nowrap',
+                                                }}
+                                              >
+                                                Cód: {item.codprod}
+                                                {item.refforn
+                                                  ? ` • Ref: ${item.refforn}`
+                                                  : item.referencia
+                                                  ? ` • Ref: ${item.referencia}`
+                                                  : ''}
+                                                {item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
+                                              </div>
+                                            </td>
+                                            <td>{item.codvol || 'UN'}</td>
+                                            <td>
+                                              <strong>{item.qtdneg ?? '—'}</strong>
+                                            </td>
+                                            {exibirN1Itens && <td>{item.qtdConferidaN1 || 0}</td>}
+                                            {exibirN2Itens && <td>{item.qtdConferidaN2 || 0}</td>}
+                                            {temN3Itens && (
+                                              <td>{item.qtdConferidaN3 || 0}</td>
+                                            )}
+                                            <td>
+                                              <span className={`pill-contagem-status ${classeDif}`}>
+                                                {diferenca === 0
+                                                  ? '✓ OK'
+                                                  : diferenca < 0
+                                                  ? `⚠️ ${diferenca}`
+                                                  : `+${diferenca}`}
+                                              </span>
+                                            </td>
                                       <td>
                                         {temMultiplosLotes ? (
                                           <button
@@ -674,13 +691,17 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                   <div>
                                     Nota: <strong>{item.qtdneg ?? '—'}</strong>
                                   </div>
-                                  <div>
-                                    N1: <strong>{item.qtdConferidaN1 || 0}</strong>
-                                  </div>
-                                  <div>
-                                    N2: <strong>{item.qtdConferidaN2 || 0}</strong>
-                                  </div>
-                                  {(conf.totalBipadoN3 > 0 || (item.qtdConferidaN3 || 0) > 0) && (
+                                  {exibirN1Itens && (
+                                    <div>
+                                      N1: <strong>{item.qtdConferidaN1 || 0}</strong>
+                                    </div>
+                                  )}
+                                  {exibirN2Itens && (
+                                    <div>
+                                      N2: <strong>{item.qtdConferidaN2 || 0}</strong>
+                                    </div>
+                                  )}
+                                  {temN3Itens && (
                                     <div>
                                       N3: <strong>{item.qtdConferidaN3 || 0}</strong>
                                     </div>

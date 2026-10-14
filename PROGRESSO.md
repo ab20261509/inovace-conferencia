@@ -2,15 +2,15 @@
 
 ## Atualização: Ocultação Dinâmica de Níveis Inativos (N1/N2) e Inteligência Gerencial da Aba Divergências
 
-### 1. Ocultação Dinâmica de N1 e N2 (Configurações do Sistema)
+### 1. Ocultação Dinâmica de N1 e N2 nas Três Abas (Divergências, Conferências e Envio ERP)
 - **Backend** (`ListarDivergenciasEntradaUseCase.ts`, `container.ts`):
   - Injetado `configSistemaRepo` no caso de uso para consultar os parâmetros `conferencia_entrada_nivel1_ativo` e `conferencia_entrada_nivel2_ativo`.
   - Retorna `nivel1Ativo` e `nivel2Ativo` em cada grupo de incidentes fiscais/divergências.
-- **Frontend** (`ConferenciaEntrada.ts`, `AbaDivergenciasView.tsx`):
-  - Modelos tipados com `nivel1Ativo` e `nivel2Ativo`.
-  - Mini-cards de contagem no topo (`N1` e `N2`) são ocultados dinamicamente quando o nível estiver inativo e sem contagens históricas.
-  - Linha de rastreabilidade (`👤 Conferentes`) oculta os níveis inativos não operados.
-  - Colunas `N1` e `N2` da Tabela Desktop e linhas do Grid Mobile são ocultadas de forma limpa e dinâmica.
+- **Frontend** (`GestaoRecebimento.tsx`, `AbaDivergenciasView.tsx`, `AbaConferenciasView.tsx`, `AbaEnvioSankhyaView.tsx`):
+  - `GestaoRecebimento.tsx` consulta os parâmetros do sistema na inicialização e propaga `nivel1Ativo` e `nivel2Ativo` para todas as visões.
+  - **Aba Divergências:** Mini-cards minimalistas de contagem (`N1`/`N2`), indicação de conferentes e colunas da tabela/mobile ocultadas dinamicamente.
+  - **Aba Conferências:** Resumo de progresso (`N1: ... • N2: ...`) só lista os níveis ativos ou bipados; colunas `N1` e `N2` da tabela desktop e do grid mobile ocultadas dinamicamente.
+  - **Aba Envio ERP:** Colunas `N1` e `N2` da tabela desktop e grid mobile ocultadas dinamicamente, mantendo foco nos lotes e locais a integrar no Sankhya.
 
 ### 2. Dica Gerencial Inteligente (Decision Assist)
 - **Frontend** (`AbaDivergenciasView.tsx`):

@@ -63,6 +63,8 @@ export interface AbaEnvioSankhyaViewProps {
     item: any,
     bipagens?: any[]
   ) => FracaoLote[];
+  nivel1Ativo?: boolean;
+  nivel2Ativo?: boolean;
 }
 
 export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
@@ -82,6 +84,8 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   onEditarLotesItem,
   onEnviarSankhya,
   obterLotesItem,
+  nivel1Ativo,
+  nivel2Ativo,
 }) => {
   const [filtroItensEnvio, setFiltroItensEnvio] = useState<
     Record<string, 'todos' | 'semlote' | 'excel' | 'coletor'>
@@ -466,6 +470,17 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                           ? itensColetor
                           : itensDoCard;
 
+                      const houveN1Envio = itensDoCard.some((i) => (i.qtdConferidaN1 || 0) > 0);
+                      const houveN2Envio = itensDoCard.some((i) => (i.qtdConferidaN2 || 0) > 0);
+                      const exibirN1Envio = nivel1Ativo !== false || houveN1Envio;
+                      const exibirN2Envio = nivel2Ativo !== false || houveN2Envio;
+                      const temN3Envio = itensDoCard.some((i) => (i.qtdConferidaN3 || 0) > 0);
+
+                      let totalColunasEnvio = 9;
+                      if (exibirN1Envio) totalColunasEnvio++;
+                      if (exibirN2Envio) totalColunasEnvio++;
+                      if (temN3Envio) totalColunasEnvio++;
+
                       return (
                         <>
                           {/* Barra de Mini-Filtros Rápidos dos Itens para Envio */}
@@ -537,30 +552,25 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                       <div className="gestao-rec-tabela-desktop">
                         <table className="gestao-rec-tabela">
                           <thead>
-                            <tr>
-                              <th>Produto</th>
-                              <th>Vol.</th>
-                              <th>Nota</th>
-                              <th>N1</th>
-                              <th>N2</th>
-                              {itensDoCard.some(
-                                (i) => (i.qtdConferidaN3 || 0) > 0
-                              ) && <th>N3</th>}
-                              <th>Diferença</th>
-                              <th>Local</th>
-                              <th>Lote</th>
-                              <th>Validade</th>
-                              <th>Fabricação</th>
-                              <th>Conferentes</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {itensParaExibir.map((item) => {
-                              const itemKey = `${grupo.conferenciaId}-${item.nunota}-${item.codprod}-${item.sequencia}`;
-                              const temN3 = itensDoCard.some(
-                                (i) => (i.qtdConferidaN3 || 0) > 0
-                              );
-                              const totalColunasEnvio = temN3 ? 12 : 11;
+                                <tr>
+                                  <th>Produto</th>
+                                  <th>Vol.</th>
+                                  <th>Nota</th>
+                                  {exibirN1Envio && <th>N1</th>}
+                                  {exibirN2Envio && <th>N2</th>}
+                                  {temN3Envio && <th>N3</th>}
+                                  <th>Diferença</th>
+                                  <th>Local</th>
+                                  <th>Lote</th>
+                                  <th>Validade</th>
+                                  <th>Fabricação</th>
+                                  <th>Conferentes</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {itensParaExibir.map((item) => {
+                                  const itemKey = `${grupo.conferenciaId}-${item.nunota}-${item.codprod}-${item.sequencia}`;
+                                  const temN3 = temN3Envio;
 
                               const qtdNivel =
                                 (item.qtdConferidaN3 || 0) > 0
@@ -632,8 +642,8 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                     <td>
                                       <strong>{item.qtdneg ?? '—'}</strong>
                                     </td>
-                                    <td>{item.qtdConferidaN1 || 0}</td>
-                                    <td>{item.qtdConferidaN2 || 0}</td>
+                                    {exibirN1Envio && <td>{item.qtdConferidaN1 || 0}</td>}
+                                    {exibirN2Envio && <td>{item.qtdConferidaN2 || 0}</td>}
                                     {temN3 && <td>{item.qtdConferidaN3 || 0}</td>}
                                     <td>
                                       <span
@@ -1127,12 +1137,16 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                 <div>
                                   Nota: <strong>{item.qtdneg ?? '—'}</strong>
                                 </div>
-                                <div>
-                                  N1: <strong>{item.qtdConferidaN1 || 0}</strong>
-                                </div>
-                                <div>
-                                  N2: <strong>{item.qtdConferidaN2 || 0}</strong>
-                                </div>
+                                {exibirN1Envio && (
+                                  <div>
+                                    N1: <strong>{item.qtdConferidaN1 || 0}</strong>
+                                  </div>
+                                )}
+                                {exibirN2Envio && (
+                                  <div>
+                                    N2: <strong>{item.qtdConferidaN2 || 0}</strong>
+                                  </div>
+                                )}
                                 {(item.qtdConferidaN3 || 0) > 0 && (
                                   <div>
                                     N3:{' '}
