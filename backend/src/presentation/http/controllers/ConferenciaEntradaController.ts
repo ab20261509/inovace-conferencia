@@ -299,10 +299,11 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = req.username || (req as any).user?.username || (req as any).username || 'Gestor';
-      const { motivo } = req.body;
+      const { motivo, backupConferenciaId } = req.body;
 
       const sessao = await this.recuperarContagemUseCase.execute({
         conferenciaId,
+        backupConferenciaId,
         usuario,
         motivo,
       });

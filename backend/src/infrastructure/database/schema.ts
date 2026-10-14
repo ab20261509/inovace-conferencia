@@ -138,6 +138,11 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   await garantirColuna(client, 'conferencias_entrada', 'backup_contagem_json', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'status_por_nota_json', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'decisoes_fiscais_json', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'chavenfe', 'TEXT');
+  await garantirColuna(client, 'conferencias_entrada', 'numnota', 'INTEGER');
+  await garantirColuna(client, 'conferencias_entrada', 'codparc', 'INTEGER');
+  await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_chavenfe ON conferencias_entrada(chavenfe);`);
+  await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_numnota ON conferencias_entrada(numnota);`);
 
   // Executa migração dos arquivos JSON legados, se existirem
   await migrarDadosLegadosJson(client);

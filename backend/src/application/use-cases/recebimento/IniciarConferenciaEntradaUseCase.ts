@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
 import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
+import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import {
   SessaoConferenciaEntrada,
   StatusConferenciaEntrada,
@@ -15,7 +16,8 @@ export interface IniciarConferenciaEntradaInput {
 export class IniciarConferenciaEntradaUseCase {
   constructor(
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
-    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository
+    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository,
+    private readonly gateway?: IGatewayPort
   ) {}
 
   async execute(input: IniciarConferenciaEntradaInput): Promise<SessaoConferenciaEntrada> {
@@ -32,6 +34,35 @@ export class IniciarConferenciaEntradaUseCase {
 
     if (nunotas.length === 0) {
       throw new Error('Nenhuma nota informada para iniciar a conferência.');
+    }
+
+    let chavenfe: string | undefined;
+    let numnota: number | undefined;
+    let codparc: number | undefined;
+
+    if (this.gateway && nunotas.length > 0) {
+      try {
+        const sqlCab = `SELECT NUNOTA, NUMNOTA, CODPARC, CHAVENFE FROM TGFCAB WHERE NUNOTA IN (${nunotas.join(',')})`;
+        const respCab = await this.gateway.serviceCall<any>(
+          'DbExplorerSP.executeQuery',
+          { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlCab } }
+        );
+        const rowsCab: any[] = respCab?.responseBody?.rows || [];
+        const fieldsCab: any[] = respCab?.responseBody?.fieldsMetadata || [];
+        const fMap: Record<string, number> = {};
+        fieldsCab.forEach((f: any, idx: number) => {
+          fMap[f.name.toUpperCase()] = idx;
+        });
+        if (rowsCab.length > 0) {
+          const row0 = rowsCab[0];
+          numnota = Number(row0[fMap['NUMNOTA']]) || undefined;
+          codparc = Number(row0[fMap['CODPARC']]) || undefined;
+          const ch = row0[fMap['CHAVENFE']] ? String(row0[fMap['CHAVENFE']]).trim() : undefined;
+          if (ch) chavenfe = ch;
+        }
+      } catch (err) {
+        console.warn('[IniciarConferencia] Aviso ao capturar dados de TGFCAB:', err);
+      }
     }
 
     // Busca sessões existentes que contenham qualquer uma das notas
@@ -75,6 +106,9 @@ export class IniciarConferenciaEntradaUseCase {
         criadoEm: agora,
         atualizadoEm: agora,
         conferente: input.conferente || 'Operador',
+        chavenfe,
+        numnota,
+        codparc,
       };
 
       // Salva a nova sessão para satisfazer FK antes da migração de bipagens
@@ -129,6 +163,9 @@ export class IniciarConferenciaEntradaUseCase {
         criadoEm: agora,
         atualizadoEm: agora,
         conferente: input.conferente || 'Operador',
+        chavenfe,
+        numnota,
+        codparc,
       };
 
       await this.conferenciaRepo.salvarSessao(novaSessao);
@@ -136,6 +173,10 @@ export class IniciarConferenciaEntradaUseCase {
     }
 
     // Se já existe sessão (seja match exato ou unificada):
+    if (chavenfe && !sessaoParaUsar.chavenfe) sessaoParaUsar.chavenfe = chavenfe;
+    if (numnota && !sessaoParaUsar.numnota) sessaoParaUsar.numnota = numnota;
+    if (codparc && !sessaoParaUsar.codparc) sessaoParaUsar.codparc = codparc;
+
     if (input.nivel && [1, 2, 3].includes(input.nivel) && input.nivel !== sessaoParaUsar.nivelAtual) {
       sessaoParaUsar.nivelAtual = input.nivel;
       sessaoParaUsar.status = statusPorNivel[input.nivel] || sessaoParaUsar.status;

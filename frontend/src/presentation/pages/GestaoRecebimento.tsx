@@ -23,6 +23,7 @@ import {
   AbaEnvioSankhyaView,
   GrupoConferenciaPronta,
 } from '../components/Recebimento/AbaEnvioSankhyaView';
+import { ModalRestaurarBackup } from '../components/Recebimento/ModalRestaurarBackup';
 import './GestaoRecebimento.css';
 
 const recebimentoService = new RecebimentoApiService();
@@ -248,6 +249,32 @@ export function GestaoRecebimentoPage() {
   const [observacaoModal, setObservacaoModal] = useState('');
   const [processandoAcao, setProcessandoAcao] = useState(false);
   const [processandoDesmembramento, setProcessandoDesmembramento] = useState<string | null>(null);
+  const [conferenciaParaRestaurar, setConferenciaParaRestaurar] = useState<ConferenciaEntradaResumo | null>(null);
+  const [processandoRestauracao, setProcessandoRestauracao] = useState(false);
+
+  const handleConfirmarRestauracaoBackup = async (
+    conferenciaId: string,
+    motivo?: string,
+    backupConferenciaId?: string
+  ) => {
+    setProcessandoRestauracao(true);
+    try {
+      await recebimentoService.recuperarContagem(conferenciaId, motivo, backupConferenciaId);
+      setFeedback({
+        tipo: 'sucesso',
+        texto: 'Contagem restaurada com sucesso! As bipagens e status do backup foram restabelecidos.',
+      });
+      setConferenciaParaRestaurar(null);
+      await carregarDados();
+    } catch (err: any) {
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || err.message || 'Falha ao restaurar backup da contagem.',
+      });
+    } finally {
+      setProcessandoRestauracao(false);
+    }
+  };
 
   const handleSincronizarDesmembramento = async (
     conferenciaId: string,
@@ -954,14 +981,7 @@ export function GestaoRecebimentoPage() {
                       });
                     }}
                     onRecuperarContagem={(conf) => {
-                      setModalAcao({
-                        tipo: 'RECUPERAR_CONTAGEM',
-                        conferenciaId: conf.id,
-                        titulo: 'Recuperar Contagem Anterior',
-                        descricao: `Deseja restaurar as ${conf.backupContagem?.totalBipagensAnuladas || 0} bipagens arquivadas da(s) nota(s) ${conf.numerosNotas}? A sessão retornará ao status anterior (${conf.backupContagem?.statusAnterior}).`,
-                        placeholder: 'Justificativa da recuperação (opcional)...',
-                        dadosExtras: conf.backupContagem,
-                      });
+                      setConferenciaParaRestaurar(conf);
                     }}
                     onAbrirColetor={(conf) => {
                       navigate('/recebimento/conferencia', {
@@ -1491,6 +1511,17 @@ export function GestaoRecebimentoPage() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Modal de Restauração de Backup de Contagem */}
+            {conferenciaParaRestaurar && (
+              <ModalRestaurarBackup
+                isOpen={Boolean(conferenciaParaRestaurar)}
+                onClose={() => setConferenciaParaRestaurar(null)}
+                conferencia={conferenciaParaRestaurar}
+                onConfirmar={handleConfirmarRestauracaoBackup}
+                loading={processandoRestauracao}
+              />
             )}
           </div>
         </div>

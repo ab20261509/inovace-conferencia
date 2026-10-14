@@ -147,26 +147,38 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
           return (
             <div key={conf.id} className="gestao-rec-card">
               {/* Ribbon Minimalista de Backup (se existir contagem anterior arquivada) */}
-              {conf.temBackupContagem && conf.backupContagem && (
+              {conf.temBackupContagem && (conf.backupContagem || (conf.backupsDisponiveis && conf.backupsDisponiveis.length > 0)) && (
                 <div className="gestao-card-backup-ribbon">
                   <div className="gestao-backup-ribbon-texto">
                     <span>
-                      💾 <strong>Backup disponível:</strong> Reiniciada por{' '}
-                      <em>{conf.backupContagem.reiniciadoPor}</em> em{' '}
-                      {new Date(conf.backupContagem.reiniciadoEm).toLocaleDateString('pt-BR')} às{' '}
-                      {new Date(conf.backupContagem.reiniciadoEm).toLocaleTimeString('pt-BR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}{' '}
-                      ({conf.backupContagem.totalBipagensAnuladas} bipagens guardadas).
-                      {conf.backupContagem.motivo && ` Motivo: "${conf.backupContagem.motivo}"`}
+                      💾 <strong>Backup disponível:</strong>{' '}
+                      {conf.backupsDisponiveis && conf.backupsDisponiveis.length > 1 ? (
+                        <>Existem <strong>{conf.backupsDisponiveis.length} backups disponíveis</strong> para esta nota / chave NF-e.</>
+                      ) : (
+                        (() => {
+                          const bkp = conf.backupsDisponiveis?.[0] || conf.backupContagem;
+                          if (!bkp) return <>Backup disponível para recuperação.</>;
+                          return (
+                            <>
+                              Reiniciada por <em>{bkp.reiniciadoPor}</em> em{' '}
+                              {new Date(bkp.reiniciadoEm).toLocaleDateString('pt-BR')} às{' '}
+                              {new Date(bkp.reiniciadoEm).toLocaleTimeString('pt-BR', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}{' '}
+                              ({bkp.totalBipagensAnuladas} bipagens guardadas).
+                              {bkp.motivo && ` Motivo: "${bkp.motivo}"`}
+                            </>
+                          );
+                        })()
+                      )}
                     </span>
                   </div>
                   <button
                     type="button"
                     className="gestao-backup-ribbon-btn"
                     onClick={() => onRecuperarContagem(conf)}
-                    title="Recuperar as bipagens arquivadas desta conferência"
+                    title="Visualizar e recuperar as bipagens arquivadas desta conferência"
                   >
                     Restaurar Contagem
                   </button>

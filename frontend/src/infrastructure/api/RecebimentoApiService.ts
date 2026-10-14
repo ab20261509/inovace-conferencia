@@ -139,11 +139,12 @@ export class RecebimentoApiService {
 
   async recuperarContagem(
     conferenciaId: string,
-    motivo?: string
+    motivo?: string,
+    backupConferenciaId?: string
   ): Promise<SessaoConferenciaEntrada> {
     const response = await httpClient.post<{ success: boolean; sessao: SessaoConferenciaEntrada }>(
       `/api/recebimento/conferencia/${conferenciaId}/recuperar`,
-      { motivo }
+      { motivo, backupConferenciaId }
     );
     return response.data.sessao;
   }

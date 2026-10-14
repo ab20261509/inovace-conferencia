@@ -86,6 +86,30 @@ export interface BackupContagemEntrada {
   totalBipagensAnuladas: number;
 }
 
+export interface ItemBackupResumo {
+  codprod: number;
+  descrprod?: string;
+  referencia?: string;
+  quantidade: number;
+  lote?: string;
+  validade?: string;
+  fabricacao?: string;
+}
+
+export interface BackupDisponivelResumo {
+  conferenciaIdOrigem: string;
+  nunotaOrigem: number;
+  numnotaOrigem?: number;
+  chavenfe?: string;
+  statusAnterior: StatusConferenciaEntrada;
+  nivelAnterior: number;
+  reiniciadoEm: string;
+  reiniciadoPor: string;
+  motivo?: string;
+  totalBipagensAnuladas: number;
+  itens: ItemBackupResumo[];
+}
+
 export interface SessaoConferenciaEntrada {
   id: string;
   nunotas: number[];
@@ -104,6 +128,9 @@ export interface SessaoConferenciaEntrada {
   backupContagem?: BackupContagemEntrada;
   statusPorNota?: Record<number, StatusConferenciaEntrada>;
   statusPorNotaJson?: string;
+  chavenfe?: string;
+  numnota?: number;
+  codparc?: number;
 }
 
 export interface ConferenciaEntradaResumo {
@@ -127,6 +154,10 @@ export interface ConferenciaEntradaResumo {
   observacaoAprovacao?: string;
   statusPorNota?: Record<number, StatusConferenciaEntrada>;
   notasDetalhadas?: Array<{ nunota: number; numnota: number }>;
+  chavenfe?: string;
+  numnota?: number;
+  codparc?: number;
+  backupsDisponiveis?: BackupDisponivelResumo[];
 }
 
 export interface BipagemEntrada {

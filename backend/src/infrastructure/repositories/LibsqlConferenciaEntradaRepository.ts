@@ -62,6 +62,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       statusPorNotaJson: row.status_por_nota_json ? String(row.status_por_nota_json) : undefined,
       decisoesFiscais,
       decisoesFiscaisJson: row.decisoes_fiscais_json ? String(row.decisoes_fiscais_json) : undefined,
+      chavenfe: row.chavenfe ? String(row.chavenfe).trim() : undefined,
+      numnota: row.numnota !== null && row.numnota !== undefined ? Number(row.numnota) : undefined,
+      codparc: row.codparc !== null && row.codparc !== undefined ? Number(row.codparc) : undefined,
     };
   }
 
@@ -87,7 +90,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   async obterSessaoPorId(id: string): Promise<SessaoConferenciaEntrada | null> {
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
+                   resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
+                   chavenfe, numnota, codparc
             FROM conferencias_entrada
             WHERE id = ?
             LIMIT 1`,
@@ -102,7 +107,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     // Busca todas as sessões e localiza a ativa primeiro, ou a última
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
+                   resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
+                   chavenfe, numnota, codparc
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -122,7 +129,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
+                   resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
+                   chavenfe, numnota, codparc
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -135,7 +144,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   async listarTodasSessoes(): Promise<SessaoConferenciaEntrada[]> {
     const res = await this.client.execute({
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
+                   resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
+                   chavenfe, numnota, codparc
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -149,9 +160,11 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     await this.client.execute({
       sql: `INSERT INTO conferencias_entrada (
               id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
-              finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json
+              finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
+              resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
+              chavenfe, numnota, codparc
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               nunotas_json = excluded.nunotas_json,
               status = excluded.status,
@@ -166,7 +179,10 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
               resposta_sankhya_json = excluded.resposta_sankhya_json,
               backup_contagem_json = excluded.backup_contagem_json,
               status_por_nota_json = excluded.status_por_nota_json,
-              decisoes_fiscais_json = excluded.decisoes_fiscais_json`,
+              decisoes_fiscais_json = excluded.decisoes_fiscais_json,
+              chavenfe = excluded.chavenfe,
+              numnota = excluded.numnota,
+              codparc = excluded.codparc`,
       args: [
         sessao.id,
         JSON.stringify(sessao.nunotas || []),
@@ -184,6 +200,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         sessao.backupContagemJson || (sessao.backupContagem ? JSON.stringify(sessao.backupContagem) : null),
         sessao.statusPorNotaJson || (sessao.statusPorNota ? JSON.stringify(sessao.statusPorNota) : null),
         sessao.decisoesFiscaisJson || (sessao.decisoesFiscais ? JSON.stringify(sessao.decisoesFiscais) : null),
+        sessao.chavenfe || null,
+        sessao.numnota || null,
+        sessao.codparc || null,
       ],
     });
   }
@@ -413,5 +432,88 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
     return alteradas;
   }
+
+  async obterSessoesComBackupPorChaveOuNota(
+    chavenfe?: string,
+    numnota?: number,
+    codparc?: number,
+    excluirConferenciaId?: string
+  ): Promise<SessaoConferenciaEntrada[]> {
+    const clausulas: string[] = [];
+    const args: any[] = [];
+
+    if (chavenfe && chavenfe.trim().length > 0) {
+      clausulas.push(`chavenfe = ?`);
+      args.push(chavenfe.trim());
+    }
+
+    if (numnota && codparc) {
+      clausulas.push(`(numnota = ? AND codparc = ?)`);
+      args.push(numnota, codparc);
+    } else if (numnota) {
+      clausulas.push(`numnota = ?`);
+      args.push(numnota);
+    }
+
+    if (clausulas.length === 0) return [];
+
+    let sqlWhere = `(${clausulas.join(' OR ')}) AND backup_contagem_json IS NOT NULL`;
+    if (excluirConferenciaId) {
+      sqlWhere += ` AND id <> ?`;
+      args.push(excluirConferenciaId);
+    }
+
+    const res = await this.client.execute({
+      sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
+                   finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
+                   resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
+                   chavenfe, numnota, codparc
+            FROM conferencias_entrada
+            WHERE ${sqlWhere}
+            ORDER BY atualizado_em DESC`,
+      args,
+    });
+
+    return res.rows.map((r) => this.mapSessao(r));
+  }
+
+  async migrarERestaurarBipagensParaNovaNota(
+    deConferenciaId: string,
+    paraConferenciaId: string,
+    novoNunota: number,
+    mapaSequenciasPorProd: Record<number, number>
+  ): Promise<number> {
+    const bipagens = await this.listarBipagens(deConferenciaId);
+    const paraRestaurar = bipagens.filter((b) => b.anulado);
+    let total = 0;
+
+    for (const b of paraRestaurar) {
+      const novaSeq = mapaSequenciasPorProd[b.codprod] ?? b.sequencia;
+      await this.client.execute({
+        sql: `UPDATE bipagens_entrada
+              SET conferencia_id = ?, nunota = ?, sequencia = ?, anulado = 0
+              WHERE id = ?`,
+        args: [paraConferenciaId, novoNunota, novaSeq, b.id],
+      });
+      total++;
+    }
+
+    if (this.auditService) {
+      await this.auditService.registrar({
+        usuario: 'Gestor',
+        acao: 'MIGRAR_E_RESTAURAR_BIPAGENS',
+        recurso: `conferencia:${paraConferenciaId}`,
+        detalhes: {
+          deConferenciaId,
+          paraConferenciaId,
+          novoNunota,
+          totalMigradas: total,
+        },
+      });
+    }
+
+    return total;
+  }
 }
+
 

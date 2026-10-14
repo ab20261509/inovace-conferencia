@@ -163,7 +163,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   );
   const iniciarConferenciaEntradaUseCase = new IniciarConferenciaEntradaUseCase(
     conferenciaEntradaRepo,
-    configSistemaRepo
+    configSistemaRepo,
+    gatewayAdapter
   );
   const registrarBipagemEntradaUseCase = new RegistrarBipagemEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const anularBipagemEntradaUseCase = new AnularBipagemEntradaUseCase(conferenciaEntradaRepo);
@@ -184,7 +185,11 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   );
   const listarTodasConferenciasUseCase = new ListarTodasConferenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const solicitarRecontagemEntradaUseCase = new SolicitarRecontagemEntradaUseCase(conferenciaEntradaRepo, auditService);
-  const recuperarContagemReiniciadaUseCase = new RecuperarContagemReiniciadaUseCase(conferenciaEntradaRepo, auditService);
+  const recuperarContagemReiniciadaUseCase = new RecuperarContagemReiniciadaUseCase(
+    conferenciaEntradaRepo,
+    gatewayAdapter,
+    auditService
+  );
   const sincronizarDesmembramentoNotaUseCase = new SincronizarDesmembramentoNotaUseCase(
     conferenciaEntradaRepo,
     gatewayAdapter,

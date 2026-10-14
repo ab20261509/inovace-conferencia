@@ -23,5 +23,17 @@ export interface IConferenciaEntradaRepository {
     codprod: number,
     itensTGFITE: Array<{ sequencia: number; controle?: string; qtdneg: number }>
   ): Promise<number>;
+  obterSessoesComBackupPorChaveOuNota(
+    chavenfe?: string,
+    numnota?: number,
+    codparc?: number,
+    excluirConferenciaId?: string
+  ): Promise<SessaoConferenciaEntrada[]>;
+  migrarERestaurarBipagensParaNovaNota(
+    deConferenciaId: string,
+    paraConferenciaId: string,
+    novoNunota: number,
+    mapaSequenciasPorProd: Record<number, number>
+  ): Promise<number>;
 }
 
