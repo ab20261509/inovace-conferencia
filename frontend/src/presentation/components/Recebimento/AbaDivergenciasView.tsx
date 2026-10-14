@@ -180,7 +180,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                     <div className="gestao-dica-decisao concordante">
                       <span>🏷️</span>
                       <div>
-                        <strong>Dica Gerencial (Lote / Validade Divergente):</strong> A contagem física atingiu 100% dos itens faturados, divergindo apenas nas informações fiscais de Lote ou Validade. Sugestão: <em>Aprovar Divergência</em> para atualizar a TGFITE e TGFEST no Sankhya.
+                        <strong>Dica Gerencial (Lote / Validade Divergente):</strong> A contagem física atingiu 100% dos itens faturados, divergindo apenas nas informações fiscais de Lote ou Validade. Sugestão: <em>Aprovar Divergência</em> para atualizar no Sankhya.
                       </div>
                     </div>
                   );
