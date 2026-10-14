@@ -1003,6 +1003,7 @@ export function GestaoRecebimentoPage() {
                 {abaAtiva === 'divergencias' && (
                   <AbaDivergenciasView
                     divergencias={divergencias}
+                    todasConferencias={todasConferencias}
                     itensDivergenciaExpandidos={itensDivergenciaExpandidos}
                     filtroItensDivergencia={filtroItensDivergencia}
                     toggleItensDivergencia={toggleItensDivergencia}
@@ -1051,6 +1052,9 @@ export function GestaoRecebimentoPage() {
                         },
                       });
                     }}
+                    onRecuperarContagem={(conf) => {
+                      setConferenciaParaRestaurar(conf);
+                    }}
                     onSincronizarDesmembramento={handleSincronizarDesmembramento}
                     onExecutarDesmembramento={handleExecutarDesmembramento}
                     processandoDesmembramento={processandoDesmembramento}
@@ -1061,6 +1065,7 @@ export function GestaoRecebimentoPage() {
                 {abaAtiva === 'aprovacao_sankhya' && (
                   <AbaEnvioSankhyaView
                     conferenciasProntasAgrupadas={conferenciasProntasAgrupadas}
+                    todasConferencias={todasConferencias}
                     detalhesConferencias={detalhesConferencias}
                     loadingDetalhes={loadingDetalhes}
                     conferenciasExpandidas={conferenciasExpandidas}
@@ -1089,6 +1094,9 @@ export function GestaoRecebimentoPage() {
                         placeholder: 'Observação opcional gravada na nota do Sankhya...',
                         dadosExtras: { nunotas, numerosNotas },
                       });
+                    }}
+                    onRecuperarContagem={(conf) => {
+                      setConferenciaParaRestaurar(conf);
                     }}
                     obterLotesItem={obterLotesItem}
                     nivel1Ativo={paramN1Ativo}

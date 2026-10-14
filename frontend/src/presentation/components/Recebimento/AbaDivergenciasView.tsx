@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ConferenciaDivergenciaGrupo,
+  ConferenciaEntradaResumo,
   DecisaoFiscalItem,
   ItemDivergenciaResumo,
 } from '../../../domain/models/ConferenciaEntrada';
@@ -14,6 +15,7 @@ import { ModalDesmembrarItem } from './ModalDesmembrarItem';
 
 export interface AbaDivergenciasViewProps {
   divergencias: ConferenciaDivergenciaGrupo[];
+  todasConferencias?: ConferenciaEntradaResumo[];
   itensDivergenciaExpandidos: Record<string, boolean>;
   filtroItensDivergencia: Record<string, 'divergentes' | 'todos'>;
   toggleItensDivergencia: (grupoId: string) => void;
@@ -26,6 +28,7 @@ export interface AbaDivergenciasViewProps {
   ) => void;
   onReconferirN3: (grupo: ConferenciaDivergenciaGrupo) => void;
   onReiniciar: (grupo: ConferenciaDivergenciaGrupo) => void;
+  onRecuperarContagem?: (conf: ConferenciaEntradaResumo) => void;
   onSincronizarDesmembramento?: (
     conferenciaId: string,
     nunota: number,
@@ -45,6 +48,7 @@ export interface AbaDivergenciasViewProps {
 
 export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   divergencias,
+  todasConferencias,
   itensDivergenciaExpandidos,
   filtroItensDivergencia,
   toggleItensDivergencia,
@@ -52,6 +56,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   onResolverDivergencia,
   onReconferirN3,
   onReiniciar,
+  onRecuperarContagem,
   onSincronizarDesmembramento,
   onExecutarDesmembramento,
   processandoDesmembramento,
@@ -229,6 +234,52 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
 
           return (
             <div key={grupo.id} className="gestao-rec-card">
+              {/* Ribbon de Backup na Aba Divergências */}
+              {(() => {
+                const conf = todasConferencias?.find((c) => c.id === grupo.conferenciaId);
+                const temBkp = conf?.temBackupContagem || Boolean(conf?.backupContagem) || Boolean(conf?.backupsDisponiveis?.length);
+                if (!temBkp || !conf) return null;
+
+                const backups = conf.backupsDisponiveis || [];
+                const bkp = backups[0] || conf.backupContagem;
+
+                return (
+                  <div className="gestao-card-backup-ribbon">
+                    <div className="gestao-backup-ribbon-texto">
+                      <span>
+                        💾 <strong>Backup disponível:</strong>{' '}
+                        {backups.length > 1 ? (
+                          <>Existem <strong>{backups.length} backups disponíveis</strong> para esta nota / chave NF-e.</>
+                        ) : bkp ? (
+                          <>
+                            Reiniciada por <em>{bkp.reiniciadoPor}</em> em{' '}
+                            {new Date(bkp.reiniciadoEm).toLocaleDateString('pt-BR')} às{' '}
+                            {new Date(bkp.reiniciadoEm).toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}{' '}
+                            ({bkp.totalBipagensAnuladas} bipagens guardadas).
+                            {bkp.motivo && ` Motivo: "${bkp.motivo}"`}
+                          </>
+                        ) : (
+                          <>Backup de contagem disponível para recuperação.</>
+                        )}
+                      </span>
+                    </div>
+                    {onRecuperarContagem && (
+                      <button
+                        type="button"
+                        className="gestao-backup-ribbon-btn"
+                        onClick={() => onRecuperarContagem(conf)}
+                        title="Visualizar e recuperar as bipagens arquivadas desta conferência"
+                      >
+                        Restaurar Contagem
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Cabeçalho do Card */}
               <div className="gestao-rec-card-header">
                 <div className="gestao-rec-card-info">

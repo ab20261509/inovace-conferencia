@@ -455,9 +455,10 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       args.push(numnota);
     }
 
-    if (clausulas.length === 0) return [];
-
-    let sqlWhere = `(${clausulas.join(' OR ')}) AND backup_contagem_json IS NOT NULL`;
+    let sqlWhere = `(${clausulas.join(' OR ')}) AND (
+      backup_contagem_json IS NOT NULL OR 
+      (SELECT COUNT(*) FROM bipagens_entrada b WHERE b.conferencia_id = conferencias_entrada.id) > 0
+    )`;
     if (excluirConferenciaId) {
       sqlWhere += ` AND id <> ?`;
       args.push(excluirConferenciaId);
@@ -484,7 +485,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     mapaSequenciasPorProd: Record<number, number>
   ): Promise<number> {
     const bipagens = await this.listarBipagens(deConferenciaId);
-    const paraRestaurar = bipagens.filter((b) => b.anulado);
+    const temAnuladas = bipagens.some((b) => b.anulado);
+    const paraRestaurar = temAnuladas ? bipagens.filter((b) => b.anulado) : bipagens;
     let total = 0;
 
     for (const b of paraRestaurar) {

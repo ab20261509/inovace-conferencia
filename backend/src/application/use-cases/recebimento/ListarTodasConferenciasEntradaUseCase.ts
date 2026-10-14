@@ -9,7 +9,8 @@ import {
 
 function agruparBipagensEmItensBackup(bipagens: BipagemEntrada[]): ItemBackupResumo[] {
   const mapItens = new Map<string, ItemBackupResumo>();
-  const bipagensBackup = bipagens.filter((b) => b.anulado);
+  const temAnuladas = bipagens.some((b) => b.anulado);
+  const bipagensBackup = temAnuladas ? bipagens.filter((b) => b.anulado) : bipagens;
   for (const b of bipagensBackup) {
     const key = `${b.codprod}_${b.lote || ''}_${b.validade || ''}_${b.fabricacao || ''}`;
     const exist = mapItens.get(key);
@@ -197,10 +198,11 @@ WHERE CAB.NUNOTA IN (${nunotasStr})
               statusAnterior: outra.backupContagem?.statusAnterior || outra.status,
               nivelAnterior: outra.backupContagem?.nivelAnterior || outra.nivelAtual,
               reiniciadoEm: outra.backupContagem?.reiniciadoEm || outra.atualizadoEm,
-              reiniciadoPor: outra.backupContagem?.reiniciadoPor || 'Sistema',
+              reiniciadoPor: outra.backupContagem?.reiniciadoPor || outra.conferente || 'Sistema',
               motivo: outra.backupContagem?.motivo,
               totalBipagensAnuladas:
-                outra.backupContagem?.totalBipagensAnuladas || bipagensOutra.filter((b) => b.anulado).length,
+                outra.backupContagem?.totalBipagensAnuladas ||
+                (bipagensOutra.filter((b) => b.anulado).length || bipagensOutra.length),
               itens: itensOutra,
             });
           }

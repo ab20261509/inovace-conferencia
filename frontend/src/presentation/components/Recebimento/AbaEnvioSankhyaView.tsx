@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ConferenciaEntradaResumo,
   NotaEntrada,
   ObterItensConferenciaResponse,
 } from '../../../domain/models/ConferenciaEntrada';
@@ -23,6 +24,7 @@ export interface GrupoConferenciaPronta {
 
 export interface AbaEnvioSankhyaViewProps {
   conferenciasProntasAgrupadas: GrupoConferenciaPronta[];
+  todasConferencias?: ConferenciaEntradaResumo[];
   detalhesConferencias: Record<string, ObterItensConferenciaResponse>;
   loadingDetalhes: string | null;
   conferenciasExpandidas: Record<string, boolean>;
@@ -58,6 +60,7 @@ export interface AbaEnvioSankhyaViewProps {
     numerosNotas: string,
     nunotas: number[]
   ) => void;
+  onRecuperarContagem?: (conf: ConferenciaEntradaResumo) => void;
   obterLotesItem: (
     conferenciaId: string,
     item: any,
@@ -69,6 +72,7 @@ export interface AbaEnvioSankhyaViewProps {
 
 export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   conferenciasProntasAgrupadas,
+  todasConferencias,
   detalhesConferencias,
   loadingDetalhes,
   conferenciasExpandidas,
@@ -83,6 +87,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   onAbrirImportarExcel,
   onEditarLotesItem,
   onEnviarSankhya,
+  onRecuperarContagem,
   obterLotesItem,
   nivel1Ativo,
   nivel2Ativo,
@@ -202,6 +207,52 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
 
           return (
             <div key={grupo.key} className="gestao-rec-card">
+              {/* Ribbon de Backup na Aba Envio Sankhya */}
+              {(() => {
+                const conf = todasConferencias?.find((c) => c.id === grupo.conferenciaId);
+                const temBkp = conf?.temBackupContagem || Boolean(conf?.backupContagem) || Boolean(conf?.backupsDisponiveis?.length);
+                if (!temBkp || !conf) return null;
+
+                const backups = conf.backupsDisponiveis || [];
+                const bkp = backups[0] || conf.backupContagem;
+
+                return (
+                  <div className="gestao-card-backup-ribbon">
+                    <div className="gestao-backup-ribbon-texto">
+                      <span>
+                        💾 <strong>Backup disponível:</strong>{' '}
+                        {backups.length > 1 ? (
+                          <>Existem <strong>{backups.length} backups disponíveis</strong> para esta nota / chave NF-e.</>
+                        ) : bkp ? (
+                          <>
+                            Reiniciada por <em>{bkp.reiniciadoPor}</em> em{' '}
+                            {new Date(bkp.reiniciadoEm).toLocaleDateString('pt-BR')} às{' '}
+                            {new Date(bkp.reiniciadoEm).toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}{' '}
+                            ({bkp.totalBipagensAnuladas} bipagens guardadas).
+                            {bkp.motivo && ` Motivo: "${bkp.motivo}"`}
+                          </>
+                        ) : (
+                          <>Backup de contagem disponível para recuperação.</>
+                        )}
+                      </span>
+                    </div>
+                    {onRecuperarContagem && (
+                      <button
+                        type="button"
+                        className="gestao-backup-ribbon-btn"
+                        onClick={() => onRecuperarContagem(conf)}
+                        title="Visualizar e recuperar as bipagens arquivadas desta conferência"
+                      >
+                        Restaurar Contagem
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="gestao-rec-card-header">
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                   {!jaEnviado && (

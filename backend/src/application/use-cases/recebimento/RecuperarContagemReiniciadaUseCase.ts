@@ -44,15 +44,25 @@ export class RecuperarContagemReiniciadaUseCase {
       throw new Error('Sessão de origem do backup não encontrada.');
     }
 
-    if (!sessaoOrigem.backupContagemJson) {
-      throw new Error('Não há contagem arquivada/reiniciada disponível para recuperação nesta sessão.');
-    }
-
     let backup: BackupContagemEntrada;
-    try {
-      backup = JSON.parse(sessaoOrigem.backupContagemJson);
-    } catch {
-      throw new Error('Dados de backup da contagem estão corrompidos ou em formato inválido.');
+    if (sessaoOrigem.backupContagemJson) {
+      try {
+        backup = JSON.parse(sessaoOrigem.backupContagemJson);
+      } catch {
+        throw new Error('Dados de backup da contagem estão corrompidos ou em formato inválido.');
+      }
+    } else {
+      const bipsOrigem = await this.conferenciaRepo.listarBipagens(sessaoOrigem.id);
+      if (bipsOrigem.length === 0) {
+        throw new Error('Não há contagem arquivada ou bipagens disponíveis para recuperação nesta sessão.');
+      }
+      backup = {
+        statusAnterior: sessaoOrigem.status || 'Conferido',
+        nivelAnterior: sessaoOrigem.nivelAtual || 2,
+        reiniciadoEm: sessaoOrigem.atualizadoEm,
+        reiniciadoPor: sessaoOrigem.conferente || 'Sistema',
+        totalBipagensAnuladas: bipsOrigem.length,
+      };
     }
 
     let totalRestauradas = 0;
