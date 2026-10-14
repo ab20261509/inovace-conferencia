@@ -301,13 +301,25 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           if (it.conferenteN3) confN3Set.add(it.conferenteN3);
         });
 
-        // Filtrar itens divergentes da nota (por quantidade ou por lote/datas fiscais)
+        // Identificar produtos com divergência (quantidade ou fiscal) ou com desmembramento
+        const codprodsComDivergencia = new Set<number>();
+        itensDestaNota.forEach((it) => {
+          const temDivFiscal = it.divergenciaLote || it.divergenciaValidade || it.divergenciaFabricacao;
+          let temDivQtd = false;
+          if (it.qtdN3 > 0) temDivQtd = it.qtdN3 !== it.qtdEsperada;
+          else if (totalN1Nota > 0 && totalN2Nota > 0) temDivQtd = it.qtdN1 !== it.qtdN2 || it.qtdN2 !== it.qtdEsperada;
+          else if (totalN2Nota > 0) temDivQtd = it.qtdN2 !== it.qtdEsperada;
+          else temDivQtd = it.qtdN1 !== it.qtdEsperada;
+
+          if (temDivFiscal || temDivQtd) {
+            codprodsComDivergencia.add(it.codprod);
+          }
+        });
+
+        // Filtrar itens divergentes: inclui todas as sequências de produtos que possuem divergência ou desmembramento,
+        // garantindo que o item conferido/bipado corretamente continue visível junto com a fração faltante desmembrada
         const itensDivergentesNota = itensDestaNota.filter((it) => {
-          if (it.divergenciaLote || it.divergenciaValidade || it.divergenciaFabricacao) return true;
-          if (it.qtdN3 > 0) return it.qtdN3 !== it.qtdEsperada;
-          if (totalN1Nota > 0 && totalN2Nota > 0) return it.qtdN1 !== it.qtdN2 || it.qtdN2 !== it.qtdEsperada;
-          if (totalN2Nota > 0) return it.qtdN2 !== it.qtdEsperada;
-          return it.qtdN1 !== it.qtdEsperada;
+          return codprodsComDivergencia.has(it.codprod);
         });
 
         // Se a nota tiver divergências ou seu status for expressamente Divergente/Aguardando N3
