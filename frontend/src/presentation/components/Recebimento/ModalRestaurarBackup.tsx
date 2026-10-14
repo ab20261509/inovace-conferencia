@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ConferenciaEntradaResumo,
   BackupDisponivelResumo,
@@ -42,19 +43,41 @@ export const ModalRestaurarBackup: React.FC<ModalRestaurarBackupProps> = ({
   const totalQuantidadeItens =
     backupAtual?.itens?.reduce((acc, it) => acc + (Number(it.quantidade) || 0), 0) || 0;
 
-  return (
-    <div className="gestao-modal-overlay" style={{ zIndex: 1100 }}>
+  const modalContent = (
+    <div
+      className="gestao-modal-backdrop"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(3px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '16px',
+      }}
+    >
       <div
-        className="gestao-modal-card"
+        className="gestao-modal-box"
+        onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: '850px',
           width: '95%',
           maxHeight: '90vh',
+          backgroundColor: 'var(--card-bg, #ffffff)',
+          color: 'var(--text-primary, #0f172a)',
           display: 'flex',
           flexDirection: 'column',
           padding: 0,
           overflow: 'hidden',
           borderRadius: '12px',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+          border: '1px solid var(--border, #cbd5e1)',
         }}
       >
         {/* Cabeçalho do Modal */}
@@ -355,4 +378,7 @@ export const ModalRestaurarBackup: React.FC<ModalRestaurarBackupProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
+
