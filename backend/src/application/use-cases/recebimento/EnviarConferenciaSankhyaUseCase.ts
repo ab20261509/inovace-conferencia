@@ -410,10 +410,22 @@ export class EnviarConferenciaSankhyaUseCase {
       }
     }
 
-    // 4. Atualizar TGFCAB (CabecalhoNota) com log de conferência e protocolo via DatasetSP.save
-    const obsTexto = `[ConferCheck] Conferência de Entrada aprovada por ${input.usuario} em ${agoraFormatada}. Protocolo: ${sessao.id.slice(0, 8)}. ${input.observacao ? `Obs: ${input.observacao}` : ''}`.trim();
+    // 4. Atualizar TGFCAB (CabecalhoNota) com AD_CONFERENCIA ('CONFERIDO') e AD_USUARIOCONF (conferente(s)) via DatasetSP.save
     for (const n of nunotasParaEnvio) {
       try {
+        const bipagensDaNota = bipagensValidas.filter((b) => b.nunota === n);
+        const conferentesSet = new Set<string>();
+        for (const b of bipagensDaNota) {
+          const confNome = b.conferente?.trim();
+          if (confNome) {
+            conferentesSet.add(confNome);
+          }
+        }
+        let conferenteFinal = Array.from(conferentesSet).join(' / ');
+        if (!conferenteFinal) {
+          conferenteFinal = sessao.conferente?.trim() || input.usuario?.trim() || 'Conferente';
+        }
+
         await this.gateway.serviceCall<any>(
           'DatasetSP.save',
           {
@@ -421,14 +433,15 @@ export class EnviarConferenciaSankhyaUseCase {
             requestBody: {
               entityName: 'CabecalhoNota',
               standAlone: false,
-              fields: ['OBSERVACAO'],
+              fields: ['AD_CONFERENCIA', 'AD_USUARIOCONF'],
               records: [
                 {
                   pk: {
                     NUNOTA: String(n),
                   },
                   values: {
-                    '0': obsTexto,
+                    '0': 'CONFERIDO',
+                    '1': conferenteFinal,
                   },
                 },
               ],
@@ -436,8 +449,14 @@ export class EnviarConferenciaSankhyaUseCase {
           },
           correlationId
         );
+        console.log(
+          `[TGFCAB] Nota #${n} atualizada com sucesso no Sankhya: AD_CONFERENCIA='CONFERIDO', AD_USUARIOCONF='${conferenteFinal}'.`
+        );
       } catch (errCab: any) {
-        console.warn(`[TGFCAB] Aviso ao atualizar observação da nota #${n}:`, errCab.message);
+        console.warn(
+          `[TGFCAB] Aviso ao atualizar AD_CONFERENCIA/AD_USUARIOCONF da nota #${n}:`,
+          errCab.message
+        );
       }
     }
 
