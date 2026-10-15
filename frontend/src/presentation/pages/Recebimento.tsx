@@ -313,10 +313,21 @@ export function RecebimentoPage() {
                             <input
                               type="checkbox"
                               checked={isSelected}
+                              disabled={n.statusConferencia === 'Enviado ao Sankhya'}
                               onChange={() => toggleSelectNota(n.nunota)}
                               onClick={(e) => e.stopPropagation()}
-                              title="Selecionar para conferência em lote"
-                              style={{ width: '18px', height: '18px', cursor: 'pointer', marginRight: '6px' }}
+                              title={
+                                n.statusConferencia === 'Enviado ao Sankhya'
+                                  ? 'Nota já enviada ao Sankhya (conferência finalizada)'
+                                  : 'Selecionar para conferência em lote'
+                              }
+                              style={{
+                                width: '18px',
+                                height: '18px',
+                                cursor: n.statusConferencia === 'Enviado ao Sankhya' ? 'not-allowed' : 'pointer',
+                                marginRight: '6px',
+                                ...(n.statusConferencia === 'Enviado ao Sankhya' ? { opacity: 0.35 } : {}),
+                              }}
                             />
                             <Label variant="title">Nota {n.numnota}</Label>
                             <span className="card-nunota">#{n.nunota}</span>

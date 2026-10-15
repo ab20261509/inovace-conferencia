@@ -50,6 +50,16 @@ export class FinalizarNivelEntradaUseCase {
       throw new Error('Sessão de conferência não encontrada.');
     }
 
+    if (
+      sessao.status === 'Conferido' ||
+      sessao.status === 'Enviado ao Sankhya' ||
+      (sessao.status === 'Divergente' && sessao.nivelAtual !== 3)
+    ) {
+      throw new Error(
+        `Esta conferência já está finalizada (Status: "${sessao.status}") e não permite nova finalização.`
+      );
+    }
+
     const nunotasStr = sessao.nunotas.join(', ');
 
     // 1. Buscar itens esperados na nota fiscal com NUMNOTA, CONTROLE e datas pré-existentes

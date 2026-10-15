@@ -252,6 +252,23 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   }
 
   async anularBipagem(bipagemId: string): Promise<void> {
+    const checkRes = await this.client.execute({
+      sql: `SELECT c.status, c.status_por_nota_json, b.nunota
+            FROM bipagens_entrada b
+            JOIN conferencias_entrada c ON c.id = b.conferencia_id
+            WHERE b.id = ?`,
+      args: [bipagemId],
+    });
+
+    if (checkRes.rows.length > 0) {
+      const row = checkRes.rows[0];
+      const statusConf = String(row.status || '');
+      const statusBloqueados = ['Conferido', 'Enviado ao Sankhya', 'Divergente'];
+      if (statusBloqueados.includes(statusConf)) {
+        throw new Error(`Esta conferência está no status "${statusConf}" e não permite estorno de bipagens.`);
+      }
+    }
+
     await this.client.execute({
       sql: `UPDATE bipagens_entrada SET anulado = 1 WHERE id = ?`,
       args: [bipagemId],

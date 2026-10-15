@@ -317,29 +317,7 @@ export const ModalRestaurarBackup: React.FC<ModalRestaurarBackupProps> = ({
             </div>
           </div>
 
-          {/* Campo de Justificativa / Observação */}
-          <div>
-            <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--slate-700, #334155)', display: 'block', marginBottom: '4px' }}>
-              Justificativa da restauração (opcional):
-            </label>
-            <textarea
-              className="gestao-modal-textarea"
-              style={{
-                width: '100%',
-                minHeight: '60px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid var(--border, #cbd5e1)',
-                fontSize: '0.82rem',
-                resize: 'vertical',
-                boxSizing: 'border-box',
-              }}
-              placeholder="Ex: Nota foi cancelada e relançada com nova numeração interna no ERP, restaurando bipagens já conferidas fisicamente..."
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              disabled={loading || estaEmAndamento}
-            />
-          </div>
+
         </div>
 
         {/* Rodapé de Ações */}

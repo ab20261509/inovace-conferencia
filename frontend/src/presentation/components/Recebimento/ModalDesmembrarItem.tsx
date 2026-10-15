@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ItemDivergenciaResumo, ConferenciaDivergenciaGrupo } from '../../../domain/models/ConferenciaEntrada.js';
+import { aplicarMascaraData, completarAnoData, validarData } from '../../utils/dateMaskHelper';
 
 export interface FracaoLoteEditavel {
   id: string;
@@ -21,6 +22,25 @@ interface ModalDesmembrarItemProps {
     lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
   }) => Promise<void>;
   loading?: boolean;
+}
+
+function formatarDataSimples(dataStr?: string | null): string {
+  if (!dataStr) return '';
+  const s = dataStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [ano, mes, dia] = s.substring(0, 10).split('-');
+    return `${dia}/${mes}/${ano}`;
+  }
+  if (/^\d{8}/.test(s)) {
+    const dia = s.substring(0, 2);
+    const mes = s.substring(2, 4);
+    const ano = s.substring(4, 8);
+    return `${dia}/${mes}/${ano}`;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+    return s.substring(0, 10);
+  }
+  return s.split(' ')[0] || s;
 }
 
 export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
@@ -51,8 +71,8 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           id: `conf-${idx}-${Date.now()}`,
           lote: String(l.lote || '').trim(),
           quantidade: Number(l.quantidade) || 0,
-          validade: l.validade || item.validade || '',
-          fabricacao: l.fabricacao || item.fabricacao || '',
+          validade: formatarDataSimples(l.validade || item.validade),
+          fabricacao: formatarDataSimples(l.fabricacao || item.fabricacao),
           isFalta: false,
         });
       });
@@ -63,8 +83,8 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           id: `conf-single-${Date.now()}`,
           lote: String(item.lote || item.controleOriginal || '').trim(),
           quantidade: qtdFisica,
-          validade: item.validade || item.validadeOriginal || '',
-          fabricacao: item.fabricacao || item.fabricacaoOriginal || '',
+          validade: formatarDataSimples(item.validade || item.validadeOriginal),
+          fabricacao: formatarDataSimples(item.fabricacao || item.fabricacaoOriginal),
           isFalta: false,
         });
       }
@@ -77,8 +97,8 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         id: `falta-${Date.now()}`,
         lote: numnotaStr,
         quantidade: qtdFalta,
-        validade: item.validadeOriginal || item.validade || '',
-        fabricacao: item.fabricacaoOriginal || item.fabricacao || '',
+        validade: formatarDataSimples(item.validadeOriginal || item.validade),
+        fabricacao: formatarDataSimples(item.fabricacaoOriginal || item.fabricacao),
         isFalta: true,
       });
     }
@@ -89,8 +109,8 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         id: `default-${Date.now()}`,
         lote: item.lote || item.controleOriginal || numnotaStr,
         quantidade: item.qtdEsperada,
-        validade: item.validade || item.validadeOriginal || '',
-        fabricacao: item.fabricacao || item.fabricacaoOriginal || '',
+        validade: formatarDataSimples(item.validade || item.validadeOriginal),
+        fabricacao: formatarDataSimples(item.fabricacao || item.fabricacaoOriginal),
         isFalta: false,
       });
     }
@@ -107,7 +127,27 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
   const isSomaCorreta = Math.abs(diferencaBalanco) < 0.0001;
 
   const lotesPreenchidos = fracoes.every((f) => f.lote.trim().length > 0 && f.quantidade > 0);
-  const podeConfirmar = isSomaCorreta && lotesPreenchidos && fracoes.length > 0 && !loading;
+  const datasValidas = fracoes.every((f) => {
+    const valOk = f.validade.trim() ? validarData(completarAnoData(f.validade), false).valida : true;
+    const fabOk = f.fabricacao.trim() ? validarData(completarAnoData(f.fabricacao), false).valida : true;
+    return valOk && fabOk;
+  });
+  const podeConfirmar = isSomaCorreta && lotesPreenchidos && datasValidas && fracoes.length > 0 && !loading;
+
+  // Comparativos de divergência
+  const loteErp = item.controleOriginal || '';
+  const valErp = formatarDataSimples(item.validadeOriginal);
+  const fabErp = formatarDataSimples(item.fabricacaoOriginal);
+
+  const lotesConf: any[] = (item as any).lotesConferidos || [];
+  const valColetor = formatarDataSimples(item.validade);
+  const fabColetor = formatarDataSimples(item.fabricacao);
+
+  const temDivergenciaValidade = Boolean(valErp && valColetor && valErp !== valColetor);
+  const temDivergenciaFabricacao = Boolean(fabErp && fabColetor && fabErp !== fabColetor);
+  const temDivergenciaLote = Boolean(
+    lotesConf.length > 1 || (loteErp && item.lote && loteErp.toUpperCase() !== item.lote.toUpperCase())
+  );
 
   const handleUpdateFracao = (id: string, campo: keyof FracaoLoteEditavel, valor: any) => {
     setFracoes((prev) =>
@@ -130,11 +170,32 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         id: `nova-${Date.now()}`,
         lote: '',
         quantidade: diferencaBalanco > 0 ? diferencaBalanco : 0,
-        validade: item.validadeOriginal || item.validade || '',
-        fabricacao: item.fabricacaoOriginal || item.fabricacao || '',
+        validade: valErp || valColetor || '',
+        fabricacao: fabErp || fabColetor || '',
         isFalta: false,
       },
     ]);
+  };
+
+  // Ações globais para todas as frações
+  const handleAplicarTodasDoColetor = () => {
+    setFracoes((prev) =>
+      prev.map((f) => ({
+        ...f,
+        validade: valColetor || f.validade,
+        fabricacao: fabColetor || f.fabricacao,
+      }))
+    );
+  };
+
+  const handleAplicarTodasDoErp = () => {
+    setFracoes((prev) =>
+      prev.map((f) => ({
+        ...f,
+        validade: valErp || f.validade,
+        fabricacao: fabErp || f.fabricacao,
+      }))
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,8 +205,8 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
     const payloadLotes = fracoes.map((f) => ({
       lote: f.lote.trim(),
       qtd: Number(f.quantidade),
-      dtval: f.validade ? f.validade.trim() : undefined,
-      dtfab: f.fabricacao ? f.fabricacao.trim() : undefined,
+      dtval: f.validade.trim() ? completarAnoData(f.validade.trim()) : undefined,
+      dtfab: f.fabricacao.trim() ? completarAnoData(f.fabricacao.trim()) : undefined,
     }));
 
     await onConfirmar({
@@ -154,6 +215,11 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
       lotes: payloadLotes,
     });
   };
+
+  // Percentual para a barra de progresso visual
+  const percentualBalanco = qtdEsperadaTotal > 0
+    ? Math.min(100, Math.max(0, Math.round((somaAtual / qtdEsperadaTotal) * 100)))
+    : 100;
 
   return (
     <div
@@ -166,50 +232,84 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         right: 0,
         bottom: 0,
         backgroundColor: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(3px)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 9999,
-        padding: '16px',
+        padding: '12px',
       }}
     >
       <div
         className="modal-desmembrar-container"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'var(--slate-50, #ffffff)',
+          background: '#ffffff',
           color: 'var(--slate-900, #0f172a)',
-          borderRadius: '12px',
-          maxWidth: '720px',
-          width: '95%',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08)',
+          borderRadius: '14px',
+          maxWidth: '820px',
+          width: '96%',
+          boxShadow: '0 25px 35px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.08)',
           border: '1px solid var(--slate-200, #e2e8f0)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '90vh',
+          maxHeight: '94vh',
         }}
       >
-        {/* Cabeçalho */}
+        {/* Cabeçalho Slim com Indicador de Status */}
         <div
           style={{
-            padding: '16px 20px',
+            padding: '12px 18px',
             borderBottom: '1px solid var(--slate-200, #e2e8f0)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            background: 'var(--slate-100, #f8fafc)',
+            background: 'linear-gradient(to right, #f8fafc, #ffffff)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.25rem' }}>✂️</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                background: '#eff6ff',
+                color: '#2563eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.1rem',
+                border: '1px solid #dbeafe',
+              }}
+            >
+              ✂️
+            </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--slate-900)' }}>
-                Desmembrar Item no Sankhya
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--slate-500)' }}>
-                Nota Fiscal #{numnota} • NUNOTA {item.nunota} • Sequência {item.sequencia}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: 'var(--slate-900)' }}>
+                  Desmembrar Item no Sankhya
+                </h3>
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: isSomaCorreta ? '#ecfdf5' : diferencaBalanco > 0 ? '#fffbeb' : '#fef2f2',
+                    color: isSomaCorreta ? '#065f46' : diferencaBalanco > 0 ? '#92400e' : '#991b1b',
+                    border: `1px solid ${isSomaCorreta ? '#a7f3d0' : diferencaBalanco > 0 ? '#fde68a' : '#fca5a5'}`,
+                  }}
+                >
+                  {isSomaCorreta
+                    ? `✓ Balanço 100% OK (${somaAtual}/${qtdEsperadaTotal} ${item.codvol || 'UN'})`
+                    : diferencaBalanco > 0
+                    ? `⚠️ Falta distribuir ${diferencaBalanco} ${item.codvol || 'UN'}`
+                    : `⚠️ Excesso de ${Math.abs(diferencaBalanco)} ${item.codvol || 'UN'}`}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--slate-500)', marginTop: '1px' }}>
+                Nota Fiscal <strong style={{ color: 'var(--slate-700)' }}>#{numnota}</strong> • NUNOTA <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.nunota}</span> • Sequência {item.sequencia}
               </p>
             </div>
           </div>
@@ -230,120 +330,277 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           </button>
         </div>
 
-        {/* Conteúdo rolável */}
-        <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Card Resumo do Produto */}
+        {/* Conteúdo com scroll otimizado */}
+        <div style={{ padding: '14px 18px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          
+          {/* Card Resumo do Produto com Barra de Progresso Integrada */}
           <div
             style={{
-              background: '#ffffff',
+              background: '#f8fafc',
               border: '1px solid var(--slate-200, #e2e8f0)',
               borderRadius: '8px',
-              padding: '12px 16px',
+              padding: '10px 14px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px',
+              gap: '6px',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--slate-900)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ minWidth: '220px' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.90rem', color: 'var(--slate-900)' }}>
                   {item.descrprod}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--slate-500)', marginTop: '2px' }}>
-                  Cód: <strong>{item.codprod}</strong> {item.referencia ? ` • Ref: ${item.referencia}` : ''}
+                <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: '1px' }}>
+                  Cód: <strong>{item.codprod}</strong> {item.referencia ? ` • Ref: ${item.referencia}` : ''} • Vol: <strong>{item.codvol || 'UN'}</strong>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <span
-                  style={{
-                    fontSize: '0.78rem',
-                    background: 'var(--slate-100)',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    color: 'var(--slate-700)',
-                  }}
-                >
-                  Faturado: <strong>{item.qtdEsperada} {item.codvol || 'UN'}</strong>
-                </span>
-                <span
-                  style={{
-                    fontSize: '0.78rem',
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    color: '#1d4ed8',
-                  }}
-                >
-                  Conferido: <strong>{(item.qtdN3 || item.qtdN2 || item.qtdN1)} {item.codvol || 'UN'}</strong>
-                </span>
-                <span
-                  style={{
-                    fontSize: '0.78rem',
-                    background: item.diferenca < 0 ? '#fef2f2' : '#f0fdf4',
-                    border: `1px solid ${item.diferenca < 0 ? '#fecaca' : '#bbf7d0'}`,
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    color: item.diferenca < 0 ? '#b91c1c' : '#15803d',
-                    fontWeight: 600,
-                  }}
-                >
-                  {item.diferenca < 0 ? `⚠️ ${item.diferenca} (Falta)` : `+${item.diferenca} (Sobra)`}
-                </span>
+
+              {/* Indicador Numérico e Barra de Balanço */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  background: '#ffffff',
+                  border: '1px solid var(--slate-200)',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                }}
+              >
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--slate-400)', fontWeight: 600 }}>
+                    Total Faturado
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--slate-800)' }}>
+                    {qtdEsperadaTotal} <span style={{ fontSize: '0.70rem', fontWeight: 500, color: 'var(--slate-500)' }}>{item.codvol || 'UN'}</span>
+                  </div>
+                </div>
+
+                <div style={{ width: '1px', height: '24px', background: '#e2e8f0' }} />
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 700, marginBottom: '3px' }}>
+                    <span style={{ color: 'var(--slate-600)' }}>Frações:</span>
+                    <span style={{ color: isSomaCorreta ? '#15803d' : diferencaBalanco > 0 ? '#b45309' : '#b91c1c', marginLeft: '6px' }}>
+                      {somaAtual} / {qtdEsperadaTotal} ({percentualBalanco}%)
+                    </span>
+                  </div>
+                  <div style={{ width: '120px', height: '6px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        borderRadius: '4px',
+                        width: `${percentualBalanco}%`,
+                        background: isSomaCorreta ? '#10b981' : diferencaBalanco > 0 ? '#f59e0b' : '#ef4444',
+                        transition: 'all 0.25s ease',
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
+            {/* Dica da Regra de Desmembramento - Compacta e Elegante */}
             <div
               style={{
-                fontSize: '0.78rem',
-                background: '#f8fafc',
-                padding: '8px 12px',
-                borderRadius: '6px',
+                fontSize: '0.72rem',
                 color: 'var(--slate-600)',
-                borderLeft: '3px solid #3b82f6',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                paddingTop: '4px',
+                borderTop: '1px solid #f1f5f9',
               }}
             >
-              💡 <strong>Regra de Desmembramento:</strong> Os itens conferidos fisicamente mantêm os lotes bipados.
-              A quantidade faltante física entra com o <strong>número da nota fiscal ({numnota})</strong> como lote para identificação no Sankhya.
+              <span>💡</span>
+              <span>
+                <strong>Regra:</strong> Itens conferidos mantêm os lotes físicos. Faltas entram com o nº da NF (<strong style={{ color: 'var(--slate-800)' }}>{numnota}</strong>) como lote para isolamento no ERP.
+              </span>
             </div>
           </div>
 
-          {/* Tabela de Frações de Lote */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--slate-800)' }}>
-                Frações de Lote a Desmembrar ({fracoes.length})
-              </span>
-              <button
-                type="button"
-                onClick={handleAdicionarFracao}
-                style={{
-                  background: '#f1f5f9',
-                  border: '1px solid #cbd5e1',
-                  color: '#334155',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                + Adicionar Lote
-              </button>
+          {/* PAINEL COMPARATIVO DE DIVERGÊNCIAS (ERP vs COLETOR) - SMART DIFF */}
+          <div style={{ background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: '8px', padding: '8px 12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--slate-600)' }}>
+                  🔍 Comparativo ERP vs Coletor
+                </span>
+                {temDivergenciaLote && (
+                  <span style={{ fontSize: '0.65rem', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                    ⚠️ Lote Divergente
+                  </span>
+                )}
+                {temDivergenciaValidade && (
+                  <span style={{ fontSize: '0.65rem', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                    ⚠️ Validade Divergente
+                  </span>
+                )}
+                {temDivergenciaFabricacao && (
+                  <span style={{ fontSize: '0.65rem', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                    ⚠️ Fabricação Divergente
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div style={{ overflowX: 'auto', border: '1px solid var(--slate-200)', borderRadius: '8px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '8px' }}>
+              {/* Lado ERP */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderLeft: '3px solid #3b82f6',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  fontSize: '0.74rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#1d4ed8', borderBottom: '1px solid #f1f5f9', paddingBottom: '3px' }}>
+                  <span>📄 Dados no ERP (Nota Fiscal)</span>
+                  <span style={{ fontSize: '0.68rem', color: '#64748b' }}>1 linha original</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--slate-500)' }}>Lote ERP:</span>
+                  <strong style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-800)', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>
+                    {loteErp || <em style={{ color: '#94a3b8' }}>Sem lote</em>}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--slate-600)' }}>
+                  <span>Validade / Fabr.:</span>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    {valErp || '—'} <span style={{ color: '#cbd5e1' }}>|</span> {fabErp || '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Lado Coletor */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #a7f3d0',
+                  borderLeft: '3px solid #10b981',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  fontSize: '0.74rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#047857', borderBottom: '1px solid #f1f5f9', paddingBottom: '3px' }}>
+                  <span>📱 Coletor Físico (Bipado)</span>
+                  <span style={{ fontSize: '0.68rem', color: '#059669' }}>
+                    {lotesConf.length > 0 ? `${lotesConf.length} lotes conferidos` : '1 contagem física'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--slate-500)' }}>Lotes Bipados:</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', justifyContent: 'flex-end' }}>
+                    {lotesConf.length > 0 ? (
+                      lotesConf.map((lc, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            background: '#ecfdf5',
+                            border: '1px solid #a7f3d0',
+                            color: '#065f46',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            fontFamily: 'JetBrains Mono, monospace',
+                          }}
+                        >
+                          {lc.lote} ({lc.quantidade})
+                        </span>
+                      ))
+                    ) : (
+                      <strong style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-800)' }}>
+                        {item.lote || <em style={{ color: '#94a3b8' }}>Sem lote</em>}
+                      </strong>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--slate-600)' }}>
+                  <span>Validade / Fabr.:</span>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: 'var(--slate-800)' }}>
+                    {valColetor || '—'} <span style={{ color: '#cbd5e1' }}>|</span> {fabColetor || '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* TABELA DE FRAÇÕES DE LOTE - SLIM LINE (SEM ROLAGEM DESPERDIÇADA) */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.80rem', color: 'var(--slate-800)' }}>
+                  Frações de Lote a Desmembrar ({fracoes.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAdicionarFracao}
+                  style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#1d4ed8',
+                    padding: '2px 8px',
+                    borderRadius: '5px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  + Nova Linha
+                </button>
+              </div>
+
+              {/* Botões de Ação Global de Datas */}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {(valColetor || fabColetor) && (
+                  <button
+                    type="button"
+                    onClick={handleAplicarTodasDoColetor}
+                    className="chip-acao-rapida bip"
+                    title="Preenche a Validade e Fabricação de todas as frações com os dados do Coletor"
+                    style={{ padding: '2px 8px', fontSize: '0.70rem', fontWeight: 700 }}
+                  >
+                    ⚡ Copiar Datas Coletor
+                  </button>
+                )}
+                {(valErp || fabErp) && (
+                  <button
+                    type="button"
+                    onClick={handleAplicarTodasDoErp}
+                    className="chip-acao-rapida erp"
+                    title="Preenche a Validade e Fabricação de todas as frações com os dados do ERP"
+                    style={{ padding: '2px 8px', fontSize: '0.70rem', fontWeight: 700 }}
+                  >
+                    ⚡ Copiar Datas ERP
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tabela com Linhas Slim (36px cada) */}
+            <div style={{ border: '1px solid var(--slate-200)', borderRadius: '8px', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--slate-200)', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 12px', color: 'var(--slate-600)', fontWeight: 600 }}>Lote / Controle</th>
-                    <th style={{ padding: '8px 12px', color: 'var(--slate-600)', fontWeight: 600, width: '110px' }}>Quantidade</th>
-                    <th style={{ padding: '8px 12px', color: 'var(--slate-600)', fontWeight: 600, width: '130px' }}>Validade</th>
-                    <th style={{ padding: '8px 12px', color: 'var(--slate-600)', fontWeight: 600, width: '130px' }}>Fabricação</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '50px' }}></th>
+                    <th style={{ padding: '6px 8px', color: 'var(--slate-400)', fontWeight: 700, width: '28px', textAlign: 'center' }}>#</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '32%' }}>Lote / Controle</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '20%' }}>Quantidade</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '22%' }}>Validade</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '22%' }}>Fabricação</th>
+                    <th style={{ padding: '6px 6px', textAlign: 'center', width: '30px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -351,97 +608,192 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                     <tr
                       key={fracao.id}
                       style={{
-                        borderBottom: idx < fracoes.length - 1 ? '1px solid #e2e8f0' : 'none',
+                        borderBottom: idx < fracoes.length - 1 ? '1px solid #f1f5f9' : 'none',
                         background: fracao.isFalta ? '#fffbeb' : '#ffffff',
                       }}
                     >
-                      <td style={{ padding: '8px 12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {/* Índice */}
+                      <td style={{ padding: '4px 8px', textAlign: 'center', color: '#94a3b8', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem' }}>
+                        {idx + 1}
+                      </td>
+
+                      {/* Campo Lote com Chip Inline ERP */}
+                      <td style={{ padding: '4px 10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <input
                             type="text"
                             value={fracao.lote}
                             onChange={(e) => handleUpdateFracao(fracao.id, 'lote', e.target.value)}
-                            placeholder="Identificador do lote..."
+                            placeholder="Lote..."
                             style={{
                               width: '100%',
-                              padding: '6px 8px',
+                              padding: '4px 8px',
                               borderRadius: '4px',
                               border: fracao.lote.trim() ? '1px solid #cbd5e1' : '1px solid #ef4444',
                               fontFamily: 'JetBrains Mono, monospace',
-                              fontSize: '0.82rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              color: 'var(--slate-900)',
                             }}
                           />
+                          {loteErp && loteErp !== fracao.lote && (
+                            <button
+                              type="button"
+                              className="chip-acao-rapida erp"
+                              onClick={() => handleUpdateFracao(fracao.id, 'lote', loteErp)}
+                              title={`Substituir pelo lote do ERP (${loteErp})`}
+                              style={{ padding: '2px 5px', fontSize: '0.65rem', fontWeight: 800, flexShrink: 0 }}
+                            >
+                              ERP
+                            </button>
+                          )}
                           {fracao.isFalta && (
                             <span
                               style={{
-                                fontSize: '0.7rem',
+                                fontSize: '0.62rem',
                                 background: '#fef3c7',
                                 color: '#b45309',
                                 border: '1px solid #fde68a',
-                                padding: '2px 6px',
+                                padding: '2px 4px',
                                 borderRadius: '4px',
                                 whiteSpace: 'nowrap',
-                                fontWeight: 600,
+                                fontWeight: 800,
+                                flexShrink: 0,
                               }}
-                              title="Lote gerado automaticamente com o número da NF para isolar a falta"
+                              title="Lote de falta gerado com o número da NF"
                             >
-                              Falta (NF)
+                              Falta
                             </span>
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0.0001"
-                          value={fracao.quantidade || ''}
-                          onChange={(e) => handleUpdateFracao(fracao.id, 'quantidade', parseFloat(e.target.value) || 0)}
-                          style={{
-                            width: '100%',
-                            padding: '6px 8px',
-                            borderRadius: '4px',
-                            border: fracao.quantidade > 0 ? '1px solid #cbd5e1' : '1px solid #ef4444',
-                            fontWeight: 600,
-                            textAlign: 'right',
-                            fontFamily: 'JetBrains Mono, monospace',
-                            fontSize: '0.82rem',
-                          }}
-                        />
+
+                      {/* Campo Quantidade com UN */}
+                      <td style={{ padding: '4px 10px' }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0.0001"
+                            value={fracao.quantidade || ''}
+                            onChange={(e) => handleUpdateFracao(fracao.id, 'quantidade', parseFloat(e.target.value) || 0)}
+                            style={{
+                              width: '100%',
+                              padding: '4px 22px 4px 8px',
+                              borderRadius: '4px',
+                              border: fracao.quantidade > 0 ? '1px solid #cbd5e1' : '1px solid #ef4444',
+                              fontWeight: 800,
+                              textAlign: 'right',
+                              fontFamily: 'JetBrains Mono, monospace',
+                              fontSize: '0.78rem',
+                              color: 'var(--slate-900)',
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: 'absolute',
+                              right: '6px',
+                              fontSize: '0.65rem',
+                              color: '#94a3b8',
+                              pointerEvents: 'none',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {item.codvol || 'UN'}
+                          </span>
+                        </div>
                       </td>
-                      <td style={{ padding: '8px 12px' }}>
+
+                      {/* Campo Validade */}
+                      <td style={{ padding: '4px 10px' }}>
                         <input
                           type="text"
                           value={fracao.validade}
-                          onChange={(e) => handleUpdateFracao(fracao.id, 'validade', e.target.value)}
+                          onChange={(e) =>
+                            handleUpdateFracao(
+                              fracao.id,
+                              'validade',
+                              aplicarMascaraData(e.target.value)
+                            )
+                          }
+                          onBlur={() => {
+                            const dataComp = completarAnoData(fracao.validade);
+                            handleUpdateFracao(fracao.id, 'validade', dataComp);
+                          }}
                           placeholder="DD/MM/AAAA"
+                          title={
+                            fracao.validade.trim() &&
+                            !validarData(completarAnoData(fracao.validade), false).valida
+                              ? validarData(completarAnoData(fracao.validade), false).erro
+                              : undefined
+                          }
                           style={{
                             width: '100%',
-                            padding: '6px 8px',
+                            padding: '4px 8px',
                             borderRadius: '4px',
-                            border: '1px solid #cbd5e1',
+                            border:
+                              fracao.validade.trim() &&
+                              !validarData(completarAnoData(fracao.validade), false).valida
+                                ? '1px solid #ef4444'
+                                : '1px solid #cbd5e1',
                             fontFamily: 'JetBrains Mono, monospace',
-                            fontSize: '0.82rem',
+                            fontSize: '0.75rem',
+                            color: 'var(--slate-800)',
+                            background:
+                              fracao.validade.trim() &&
+                              !validarData(completarAnoData(fracao.validade), false).valida
+                                ? '#fef2f2'
+                                : '#ffffff',
                           }}
                         />
                       </td>
-                      <td style={{ padding: '8px 12px' }}>
+
+                      {/* Campo Fabricação */}
+                      <td style={{ padding: '4px 10px' }}>
                         <input
                           type="text"
                           value={fracao.fabricacao}
-                          onChange={(e) => handleUpdateFracao(fracao.id, 'fabricacao', e.target.value)}
+                          onChange={(e) =>
+                            handleUpdateFracao(
+                              fracao.id,
+                              'fabricacao',
+                              aplicarMascaraData(e.target.value)
+                            )
+                          }
+                          onBlur={() => {
+                            const dataComp = completarAnoData(fracao.fabricacao);
+                            handleUpdateFracao(fracao.id, 'fabricacao', dataComp);
+                          }}
                           placeholder="DD/MM/AAAA"
+                          title={
+                            fracao.fabricacao.trim() &&
+                            !validarData(completarAnoData(fracao.fabricacao), false).valida
+                              ? validarData(completarAnoData(fracao.fabricacao), false).erro
+                              : undefined
+                          }
                           style={{
                             width: '100%',
-                            padding: '6px 8px',
+                            padding: '4px 8px',
                             borderRadius: '4px',
-                            border: '1px solid #cbd5e1',
+                            border:
+                              fracao.fabricacao.trim() &&
+                              !validarData(completarAnoData(fracao.fabricacao), false).valida
+                                ? '1px solid #ef4444'
+                                : '1px solid #cbd5e1',
                             fontFamily: 'JetBrains Mono, monospace',
-                            fontSize: '0.82rem',
+                            fontSize: '0.75rem',
+                            color: 'var(--slate-800)',
+                            background:
+                              fracao.fabricacao.trim() &&
+                              !validarData(completarAnoData(fracao.fabricacao), false).valida
+                                ? '#fef2f2'
+                                : '#ffffff',
                           }}
                         />
                       </td>
-                      <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+
+                      {/* Remover Linha */}
+                      <td style={{ padding: '4px 6px', textAlign: 'center', verticalAlign: 'middle' }}>
                         {fracoes.length > 1 && (
                           <button
                             type="button"
@@ -450,12 +802,16 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                             style={{
                               background: 'transparent',
                               border: 'none',
-                              color: '#94a3b8',
+                              color: '#cbd5e1',
                               cursor: 'pointer',
-                              fontSize: '1rem',
-                              padding: '2px 6px',
+                              fontSize: '0.85rem',
+                              padding: '2px',
                               borderRadius: '4px',
+                              lineHeight: 1,
+                              transition: 'color 0.15s ease',
                             }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}
                           >
                             🗑️
                           </button>
@@ -467,102 +823,75 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
               </table>
             </div>
           </div>
-
-          {/* Validação de Soma em Tempo Real */}
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: '8px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '8px',
-              fontSize: '0.82rem',
-              background: isSomaCorreta ? '#f0fdf4' : '#fef2f2',
-              border: `1px solid ${isSomaCorreta ? '#bbf7d0' : '#fecaca'}`,
-              color: isSomaCorreta ? '#166534' : '#991b1b',
-            }}
-          >
-            <div>
-              {isSomaCorreta ? (
-                <span>
-                  ✓ <strong>Balanço Perfeito:</strong> A soma das frações ({somaAtual} {item.codvol || 'UN'}) atende 100% da quantidade faturada ({qtdEsperadaTotal} {item.codvol || 'UN'}).
-                </span>
-              ) : (
-                <span>
-                  ⚠️ <strong>Divergência na Soma:</strong> Total configurado: <strong>{somaAtual}</strong> / Esperado: <strong>{qtdEsperadaTotal}</strong>.
-                  {diferencaBalanco > 0
-                    ? ` Faltam distribuir ${diferencaBalanco} ${item.codvol || 'UN'}.`
-                    : ` Ultrapassou em ${Math.abs(diferencaBalanco)} ${item.codvol || 'UN'}.`}
-                </span>
-              )}
-            </div>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
-              {somaAtual} / {qtdEsperadaTotal} {item.codvol || 'UN'}
-            </div>
-          </div>
         </div>
 
-        {/* Rodapé com Ações */}
+        {/* Rodapé Slim com Ações */}
         <div
           style={{
-            padding: '14px 20px',
+            padding: '10px 18px',
             borderTop: '1px solid var(--slate-200, #e2e8f0)',
             display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '10px',
-            background: 'var(--slate-100, #f8fafc)',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#f8fafc',
+            flexWrap: 'wrap',
+            gap: '8px',
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: '1px solid #cbd5e1',
-              background: '#ffffff',
-              color: '#475569',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!podeConfirmar}
-            style={{
-              padding: '8px 20px',
-              borderRadius: '6px',
-              border: 'none',
-              background: podeConfirmar ? '#2563eb' : '#94a3b8',
-              color: '#ffffff',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: podeConfirmar ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: podeConfirmar ? '0 2px 4px rgba(37, 99, 235, 0.2)' : 'none',
-            }}
-          >
-            {loading ? (
-              <>
-                <span className="spinner" style={{ width: '14px', height: '14px' }}></span>
-                Desmembrando no Sankhya...
-              </>
-            ) : (
-              <>
-                <span>✂️</span>
-                Confirmar e Desmembrar no Sankhya
-              </>
-            )}
-          </button>
+          <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981' }} />
+            <span>
+              Ação no ERP: Gerará <strong>{fracoes.length} sequências</strong> correspondentes na nota fiscal.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#475569',
+                fontSize: '0.80rem',
+                fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!podeConfirmar}
+              style={{
+                padding: '6px 18px',
+                borderRadius: '6px',
+                border: 'none',
+                background: podeConfirmar ? '#2563eb' : '#94a3b8',
+                color: '#ffffff',
+                fontSize: '0.80rem',
+                fontWeight: 700,
+                cursor: podeConfirmar ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: podeConfirmar ? '0 1px 2px rgba(37, 99, 235, 0.2)' : 'none',
+              }}
+            >
+              {loading ? (
+                <>
+                  <span className="spinner-border-sm" />
+                  Desmembrando no ERP...
+                </>
+              ) : (
+                'Confirmar e Desmembrar no Sankhya'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

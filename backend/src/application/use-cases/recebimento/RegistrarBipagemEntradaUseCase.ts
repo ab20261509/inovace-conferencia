@@ -39,6 +39,11 @@ export class RegistrarBipagemEntradaUseCase {
       throw new Error('Sessão de conferência não encontrada.');
     }
 
+    const statusBloqueados = ['Conferido', 'Enviado ao Sankhya', 'Divergente'];
+    if (statusBloqueados.includes(sessao.status) && !(sessao.status === 'Divergente' && sessao.nivelAtual === 3)) {
+      throw new Error(`Esta conferência está com status "${sessao.status}" e não aceita novas bipagens.`);
+    }
+
     const nunotasStr = sessao.nunotas.join(', ');
 
     // 1. Buscar se o código corresponde a produto principal (REFERENCIA) ou alternativo (TGFVOA + TGFBAR)
@@ -146,6 +151,15 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     const codBarraAlt = String(targetRow[fieldIndex['CODBARRA_ALT']] || '').trim();
     const divideMultiplica = String(targetRow[fieldIndex['DIVIDEMULTIPLICA']] || 'M');
     const fatorAlt = Number(targetRow[fieldIndex['FATOR_ALT']] || 1);
+
+    if (sessao.statusPorNota && sessao.statusPorNota[nunota]) {
+      const statusNota = sessao.statusPorNota[nunota];
+      if (statusBloqueados.includes(statusNota) && !(statusNota === 'Divergente' && sessao.nivelAtual === 3)) {
+        throw new Error(
+          `A nota fiscal #${nunota} já está com status "${statusNota}" e não aceita novas bipagens.`
+        );
+      }
+    }
 
     // 2. Se a conferência estiver no Nível 3 (Reconferência / Desempate),
     // validar se o item bipado é realmente divergente nos níveis anteriores

@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ConferenciaEntradaResumo,
   NotaEntrada,
   ObterItensConferenciaResponse,
+  ItemDivergenciaResumo,
 } from '../../../domain/models/ConferenciaEntrada';
 import { Container } from '../Container/Container';
 import { FracaoLote } from './ModalGerenciarLotes';
+import { ModalDesmembrarItem } from './ModalDesmembrarItem';
 import { SkeletonItens } from './SkeletonItens';
 import {
   formatarConferentes,
   formatarDataSimples,
 } from './recebimentoHelpers';
+
+export type FiltroStatusEnvio = 'pendentes' | 'enviados' | 'todas';
 
 export interface GrupoConferenciaPronta {
   key: string;
@@ -35,7 +39,7 @@ export interface AbaEnvioSankhyaViewProps {
   origemExcelPorConferencia: Record<string, Set<number>>;
   selecionadasEnvio: Set<string>;
   onToggleSelecionar: (chave: string) => void;
-  onToggleSelecionarTodas: () => void;
+  onToggleSelecionarTodas: (chavesAptas?: string[]) => void;
   onEnviarLote: () => void;
   carregarDetalhesConferencia: (
     conferenciaId: string,
@@ -61,6 +65,14 @@ export interface AbaEnvioSankhyaViewProps {
     nunotas: number[]
   ) => void;
   onRecuperarContagem?: (conf: ConferenciaEntradaResumo) => void;
+  onExecutarDesmembramento?: (
+    conferenciaId: string,
+    dados: {
+      nunota: number;
+      sequencia: number;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+    }
+  ) => Promise<void>;
   obterLotesItem: (
     conferenciaId: string,
     item: any,
@@ -88,6 +100,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   onEditarLotesItem,
   onEnviarSankhya,
   onRecuperarContagem,
+  onExecutarDesmembramento,
   obterLotesItem,
   nivel1Ativo,
   nivel2Ativo,
@@ -98,6 +111,85 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   const [lotesExpandidosEnvio, setLotesExpandidosEnvio] = useState<
     Record<string, boolean>
   >({});
+  const [modalDesmembrarItem, setModalDesmembrarItem] = useState<{
+    item: ItemDivergenciaResumo;
+    grupo: any;
+  } | null>(null);
+  const [executandoDesmembramento, setExecutandoDesmembramento] = useState(false);
+
+  const abrirModalDesmembrar = (
+    item: any,
+    lotesDoItem: FracaoLote[],
+    diferenca: number,
+    grupo: GrupoConferenciaPronta
+  ) => {
+    const primeiroLote = lotesDoItem[0];
+    const itemDivergencia: ItemDivergenciaResumo = {
+      nunota: item.nunota,
+      codprod: item.codprod,
+      sequencia: item.sequencia,
+      descrprod: item.descrprod || `Produto ${item.codprod}`,
+      referencia: item.refforn || item.referencia || '',
+      codvol: item.codvol || 'UN',
+      qtdEsperada: item.qtdneg ?? 0,
+      qtdN1: item.qtdConferidaN1 || 0,
+      qtdN2: item.qtdConferidaN2 || 0,
+      qtdN3: item.qtdConferidaN3 || 0,
+      diferenca: diferenca,
+      lote: item.lote,
+      controleOriginal: (item as any).controleOriginal || (item as any).controle || item.lote,
+      validadeOriginal: (item as any).validadeOriginal || item.validade,
+      fabricacaoOriginal: (item as any).fabricacaoOriginal || item.fabricacao,
+      validade: item.validade || primeiroLote?.validade,
+      fabricacao: item.fabricacao || primeiroLote?.fabricacao,
+      lotesConferidos: lotesDoItem.map((l) => ({
+        lote: l.lote,
+        quantidade: l.qtd,
+        validade: l.validade,
+        fabricacao: l.fabricacao,
+      })),
+    };
+
+    setModalDesmembrarItem({
+      item: itemDivergencia,
+      grupo: {
+        id: grupo.conferenciaId,
+        conferenciaId: grupo.conferenciaId,
+        nunota: item.nunota,
+        numnota: Number(grupo.numerosNotas?.split(',')?.[0]) || item.nunota,
+        nunotas: grupo.nunotas,
+        numerosNotas: grupo.numerosNotas,
+        fornecedor: grupo.fornecedor,
+        status: grupo.status,
+      } as any,
+    });
+  };
+
+  const handleConfirmarDesmembramentoEnvio = async (dados: {
+    nunota: number;
+    sequencia: number;
+    lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+  }) => {
+    if (!onExecutarDesmembramento || !modalDesmembrarItem) return;
+    setExecutandoDesmembramento(true);
+    try {
+      const confId =
+        modalDesmembrarItem.grupo.conferenciaId || modalDesmembrarItem.grupo.id;
+      await onExecutarDesmembramento(confId, dados);
+      setModalDesmembrarItem(null);
+      if (modalDesmembrarItem.grupo.nunotas) {
+        await carregarDetalhesConferencia(
+          confId,
+          modalDesmembrarItem.grupo.nunotas
+        );
+      }
+    } finally {
+      setExecutandoDesmembramento(false);
+    }
+  };
+
+  const [filtroStatusEnvio, setFiltroStatusEnvio] = useState<FiltroStatusEnvio>('pendentes');
+  const [buscaTextoEnvio, setBuscaTextoEnvio] = useState('');
 
   const toggleLotesItemEnvio = (itemKey: string) => {
     setLotesExpandidosEnvio((prev) => ({
@@ -106,28 +198,106 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
     }));
   };
 
-  const notasNaoEnviadas = conferenciasProntasAgrupadas.filter(
-    (g) => g.status !== 'Enviado ao Sankhya'
-  );
-  const todasAptasSelecionadas =
-    notasNaoEnviadas.length > 0 &&
-    notasNaoEnviadas.every((g) => selecionadasEnvio.has(g.key));
+  // Contagens em tempo real para os chips de status
+  const contagensEnvio = useMemo(() => {
+    let pendentes = 0;
+    let enviados = 0;
+    for (const g of conferenciasProntasAgrupadas) {
+      if (g.status === 'Enviado ao Sankhya') {
+        enviados++;
+      } else {
+        pendentes++;
+      }
+    }
+    return {
+      todas: conferenciasProntasAgrupadas.length,
+      pendentes,
+      enviados,
+    };
+  }, [conferenciasProntasAgrupadas]);
+
+  // Lista de conferências filtradas por status e busca de texto
+  const conferenciasFiltradas = useMemo(() => {
+    return conferenciasProntasAgrupadas.filter((g) => {
+      // 1. Filtro por status
+      if (filtroStatusEnvio === 'pendentes' && g.status === 'Enviado ao Sankhya') {
+        return false;
+      }
+      if (filtroStatusEnvio === 'enviados' && g.status !== 'Enviado ao Sankhya') {
+        return false;
+      }
+
+      // 2. Filtro por busca de texto (NF ou Fornecedor)
+      if (buscaTextoEnvio.trim()) {
+        const termo = buscaTextoEnvio.toLowerCase();
+        const matchNf = (g.numerosNotas || '').toLowerCase().includes(termo);
+        const matchForn = (g.fornecedor || '').toLowerCase().includes(termo);
+        return matchNf || matchForn;
+      }
+
+      return true;
+    });
+  }, [conferenciasProntasAgrupadas, filtroStatusEnvio, buscaTextoEnvio]);
+
+  // Notas aptas para envio que estão visíveis sob o filtro atual
+  const notasAptasVisiveis = useMemo(() => {
+    return conferenciasFiltradas.filter((g) => g.status !== 'Enviado ao Sankhya');
+  }, [conferenciasFiltradas]);
+
+  const todasAptasVisiveisSelecionadas =
+    notasAptasVisiveis.length > 0 &&
+    notasAptasVisiveis.every((g) => selecionadasEnvio.has(g.key));
 
   return (
     <div className="gestao-rec-lista">
-      {/* Barra de Ações em Lote (Bulk Send) */}
-      {notasNaoEnviadas.length > 0 && (
+      {/* Barra de Filtros por Status e Busca por Texto */}
+      <div className="gestao-rec-filtro-bar">
+        <div className="gestao-rec-filtros-chips">
+          <button
+            type="button"
+            className={`gestao-filtro-chip ${filtroStatusEnvio === 'pendentes' ? 'ativo' : ''}`}
+            onClick={() => setFiltroStatusEnvio('pendentes')}
+          >
+            Pendentes de Envio <span className="chip-count">{contagensEnvio.pendentes}</span>
+          </button>
+          <button
+            type="button"
+            className={`gestao-filtro-chip ${filtroStatusEnvio === 'enviados' ? 'ativo' : ''}`}
+            onClick={() => setFiltroStatusEnvio('enviados')}
+          >
+            Enviadas ao Sankhya <span className="chip-count">{contagensEnvio.enviados}</span>
+          </button>
+          <button
+            type="button"
+            className={`gestao-filtro-chip ${filtroStatusEnvio === 'todas' ? 'ativo' : ''}`}
+            onClick={() => setFiltroStatusEnvio('todas')}
+          >
+            Todas <span className="chip-count">{contagensEnvio.todas}</span>
+          </button>
+        </div>
+
+        <input
+          type="text"
+          className="gestao-rec-busca-input"
+          placeholder="Buscar por NF ou fornecedor..."
+          value={buscaTextoEnvio}
+          onChange={(e) => setBuscaTextoEnvio(e.target.value)}
+        />
+      </div>
+
+      {/* Barra de Ações em Lote (Bulk Send - Oculta ao filtrar 'Enviadas ao Sankhya') */}
+      {filtroStatusEnvio !== 'enviados' && notasAptasVisiveis.length > 0 && (
         <div className="gestao-rec-bulk-bar">
           <div className="gestao-bulk-selecao-info">
             <input
               type="checkbox"
               id="bulk-select-all"
               className="gestao-bulk-checkbox"
-              checked={todasAptasSelecionadas}
-              onChange={onToggleSelecionarTodas}
+              checked={todasAptasVisiveisSelecionadas}
+              onChange={() => onToggleSelecionarTodas(notasAptasVisiveis.map((g) => g.key))}
             />
             <label htmlFor="bulk-select-all" style={{ fontWeight: 600, cursor: 'pointer' }}>
-              Selecionar todas as aptas ({notasNaoEnviadas.length} nota{notasNaoEnviadas.length > 1 ? 's' : ''})
+              Selecionar todas as aptas ({notasAptasVisiveis.length} nota{notasAptasVisiveis.length > 1 ? 's' : ''})
             </label>
             {selecionadasEnvio.size > 0 && (
               <span style={{ fontSize: '0.80rem', color: 'var(--primary, #0f766e)', fontWeight: 700 }}>
@@ -157,15 +327,55 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
           <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--slate-500)' }}>
             <span style={{ fontSize: '2.5rem' }}>📦</span>
             <h3 style={{ marginTop: '12px', color: 'var(--slate-700)' }}>
-              Nenhuma conferência aguardando envio
+              Nenhuma conferência pronta para envio
             </h3>
             <p style={{ marginTop: '6px', fontSize: '0.9rem' }}>
               Assim que as conferências forem concluídas ou aprovadas pelo gestor, aparecerão aqui para envio direto ao Sankhya.
             </p>
           </div>
         </Container>
+      ) : conferenciasFiltradas.length === 0 ? (
+        <Container variant="default" padding="lg">
+          <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--slate-500)' }}>
+            <span style={{ fontSize: '2rem' }}>🔍</span>
+            <h4 style={{ marginTop: '10px', color: 'var(--slate-700)' }}>
+              Nenhuma conferência encontrada
+            </h4>
+            <p style={{ marginTop: '4px', fontSize: '0.85rem' }}>
+              Nenhuma nota corresponde ao filtro{' '}
+              <strong>
+                {filtroStatusEnvio === 'pendentes'
+                  ? '"Pendentes de Envio"'
+                  : filtroStatusEnvio === 'enviados'
+                  ? '"Enviadas ao Sankhya"'
+                  : '"Todas"'}
+              </strong>
+              {buscaTextoEnvio ? ` e busca "${buscaTextoEnvio}"` : ''}.
+            </p>
+            <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              {buscaTextoEnvio && (
+                <button
+                  type="button"
+                  className="gestao-btn-clean-secundario"
+                  onClick={() => setBuscaTextoEnvio('')}
+                >
+                  Limpar busca de texto
+                </button>
+              )}
+              {filtroStatusEnvio !== 'todas' && (
+                <button
+                  type="button"
+                  className="gestao-btn-clean-toggle"
+                  onClick={() => setFiltroStatusEnvio('todas')}
+                >
+                  Ver todas as notas
+                </button>
+              )}
+            </div>
+          </div>
+        </Container>
       ) : (
-        conferenciasProntasAgrupadas.map((grupo) => {
+        conferenciasFiltradas.map((grupo) => {
           const jaEnviado = grupo.status === 'Enviado ao Sankhya';
           const conf = todasConferencias?.find((c) => c.id === grupo.conferenciaId);
           const detalhes = grupo.conferenciaId
@@ -378,7 +588,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                   </span>
                 </span>
 
-                {/* 3. Locais de Estoque TGFITE */}
+                {/* 3. Locais de Estoque no ERP */}
                 <span
                   className={`gestao-micro-chip-status ${
                     jaEnviado || (detalhes && todosLocaisOk)
@@ -389,23 +599,23 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                   }`}
                   title={
                     jaEnviado
-                      ? 'Locais de origem da TGFITE gravados com sucesso'
+                      ? 'Locais de origem no ERP gravados com sucesso'
                       : detalhes
                       ? todosLocaisOk
-                        ? 'Todos os itens possuem Local de Origem definido na TGFITE'
+                        ? 'Todos os itens possuem Local de Origem definido no ERP'
                         : `${itensSemLocal.length} item(ns) sem Local de Origem (CODLOCALORIG) na nota`
-                      : 'Locais de Estoque TGFITE OK'
+                      : 'Locais de Estoque no ERP OK'
                   }
                 >
                   <span>{jaEnviado || !detalhes || todosLocaisOk ? '✓' : '⚠️'}</span>
                   <span>
                     {jaEnviado
-                      ? 'Locais TGFITE OK'
+                      ? 'Locais no ERP OK'
                       : detalhes
                       ? todosLocaisOk
-                        ? 'Locais TGFITE OK'
-                        : `${itensSemLocal.length} sem Local TGFITE`
-                      : 'Locais TGFITE OK'}
+                        ? 'Locais no ERP OK'
+                        : `${itensSemLocal.length} sem Local no ERP`
+                      : 'Locais no ERP OK'}
                   </span>
                 </span>
 
@@ -762,7 +972,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                             border: '1px solid #fecaca',
                                             color: '#b91c1c',
                                           }}
-                                          title="Item sem Local de Origem na TGFITE. Necessário preencher no Sankhya antes do envio."
+                                          title="Item sem Local de Origem no ERP. Necessário preencher no Sankhya antes do envio."
                                         >
                                           ⚠️ Sem Local
                                         </span>
@@ -795,6 +1005,24 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                             <span>✂️ {lotesDoItem.length} Lotes</span>
                                             <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
                                           </button>
+                                          {onExecutarDesmembramento && !jaEnviado && (
+                                            <button
+                                              type="button"
+                                              className="btn-desmembrar-item"
+                                              disabled={executandoDesmembramento}
+                                              onClick={() =>
+                                                abrirModalDesmembrar(
+                                                  item,
+                                                  lotesDoItem,
+                                                  diferenca,
+                                                  grupo
+                                                )
+                                              }
+                                              title="Desmembrar múltiplos lotes no Sankhya"
+                                            >
+                                              ✂️ Desmembrar
+                                            </button>
+                                          )}
                                           <button
                                             type="button"
                                             className="gestao-rec-btn-refresh"
@@ -1272,7 +1500,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                 {temMultiplosLotes ? (
                                   <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                                         <span>{isVeioExcel ? '📊' : '📱'}</span>
                                         <button
                                           type="button"
@@ -1282,6 +1510,25 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                           <span>✂️ {lotesDoItem.length} Lotes no Sankhya</span>
                                           <span style={{ fontSize: '0.65rem' }}>{isLotesAberto ? '▲ recolher' : '▼ expandir'}</span>
                                         </button>
+                                        {onExecutarDesmembramento && !jaEnviado && (
+                                          <button
+                                            type="button"
+                                            className="btn-desmembrar-item"
+                                            disabled={executandoDesmembramento}
+                                            style={{ padding: '2px 8px', fontSize: '0.72rem' }}
+                                            onClick={() =>
+                                              abrirModalDesmembrar(
+                                                item,
+                                                lotesDoItem,
+                                                diferenca,
+                                                grupo
+                                              )
+                                            }
+                                            title="Desmembrar múltiplos lotes no Sankhya"
+                                          >
+                                            ✂️ Desmembrar
+                                          </button>
+                                        )}
                                       </div>
                                       <button
                                         type="button"
@@ -1461,6 +1708,16 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
             </div>
           );
         })
+      )}
+      {modalDesmembrarItem && (
+        <ModalDesmembrarItem
+          isOpen={Boolean(modalDesmembrarItem)}
+          onClose={() => setModalDesmembrarItem(null)}
+          item={modalDesmembrarItem.item}
+          grupo={modalDesmembrarItem.grupo}
+          loading={executandoDesmembramento}
+          onConfirmar={handleConfirmarDesmembramentoEnvio}
+        />
       )}
     </div>
   );

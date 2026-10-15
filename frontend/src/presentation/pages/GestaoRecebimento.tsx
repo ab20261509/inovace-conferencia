@@ -694,6 +694,10 @@ export function GestaoRecebimentoPage() {
     });
   }, [conferenciasProntas]);
 
+  const totalPendentesEnvio = useMemo(() => {
+    return conferenciasProntasAgrupadas.filter((g) => g.status !== 'Enviado ao Sankhya').length;
+  }, [conferenciasProntasAgrupadas]);
+
   const handleToggleSelecionarEnvio = (chave: string) => {
     setSelecionadasEnvio((prev) => {
       const novo = new Set(prev);
@@ -706,15 +710,22 @@ export function GestaoRecebimentoPage() {
     });
   };
 
-  const handleToggleSelecionarTodasEnvio = () => {
-    const aptas = conferenciasProntasAgrupadas.filter((g) => g.status !== 'Enviado ao Sankhya');
-    if (aptas.length === 0) return;
-    const todasJaMarcadas = aptas.every((g) => selecionadasEnvio.has(g.key));
-    if (todasJaMarcadas) {
-      setSelecionadasEnvio(new Set());
-    } else {
-      setSelecionadasEnvio(new Set(aptas.map((g) => g.key)));
-    }
+  const handleToggleSelecionarTodasEnvio = (chavesAptas?: string[]) => {
+    const chavesAlvo = chavesAptas && chavesAptas.length > 0
+      ? chavesAptas
+      : conferenciasProntasAgrupadas.filter((g) => g.status !== 'Enviado ao Sankhya').map((g) => g.key);
+
+    if (chavesAlvo.length === 0) return;
+    const todasJaMarcadas = chavesAlvo.every((chave) => selecionadasEnvio.has(chave));
+    setSelecionadasEnvio((prev) => {
+      const novo = new Set(prev);
+      if (todasJaMarcadas) {
+        chavesAlvo.forEach((chave) => novo.delete(chave));
+      } else {
+        chavesAlvo.forEach((chave) => novo.add(chave));
+      }
+      return novo;
+    });
   };
 
   const handleAbrirModalEnvioLote = () => {
@@ -893,7 +904,9 @@ export function GestaoRecebimentoPage() {
                   onClick={() => setAbaAtiva('aprovacao_sankhya')}
                 >
                   <span>Envio Sankhya</span>
-                  <span className="gestao-rec-tab-badge">{conferenciasProntasAgrupadas.length}</span>
+                  <span className={`gestao-rec-tab-badge ${totalPendentesEnvio > 0 ? 'alerta' : ''}`}>
+                    {totalPendentesEnvio}
+                  </span>
                 </button>
               </div>
 
@@ -1073,6 +1086,7 @@ export function GestaoRecebimentoPage() {
                     onRecuperarContagem={(conf) => {
                       setConferenciaParaRestaurar(conf);
                     }}
+                    onExecutarDesmembramento={handleExecutarDesmembramento}
                     obterLotesItem={obterLotesItem}
                     nivel1Ativo={paramN1Ativo}
                     nivel2Ativo={paramN2Ativo}
@@ -1281,12 +1295,6 @@ export function GestaoRecebimentoPage() {
                     </div>
                   )}
 
-                  <textarea
-                    className="gestao-modal-textarea"
-                    placeholder={modalAcao.placeholder}
-                    value={observacaoModal}
-                    onChange={(e) => setObservacaoModal(e.target.value)}
-                  />
 
                   <div className="gestao-modal-acoes">
                     <button

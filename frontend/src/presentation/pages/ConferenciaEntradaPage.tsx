@@ -12,6 +12,7 @@ import { Botao, Campo, Container, Label, Painel, ModalCameraScanner } from '../c
 import { Loading } from '../components/Loading/Loading';
 import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infrastructure/audio/alertas';
 import { extractFieldValue, normalizeDate } from '../../infrastructure/utils/ocrParser';
+import { aplicarMascaraData, completarAnoData, validarData } from '../utils/dateMaskHelper';
 
 const recebimentoService = new RecebimentoApiService();
 
@@ -87,6 +88,8 @@ export function ConferenciaEntradaPage() {
   const [lote, setLote] = useState('');
   const [validade, setValidade] = useState('');
   const [fabricacao, setFabricacao] = useState('');
+  const [erroValidade, setErroValidade] = useState<string | null>(null);
+  const [erroFabricacao, setErroFabricacao] = useState<string | null>(null);
   const [mostrarCamera, setMostrarCamera] = useState(false);
 
   // Navegação de Abas
@@ -189,6 +192,10 @@ export function ConferenciaEntradaPage() {
   }, []);
 
   const nivelAtual = sessao?.nivelAtual || 1;
+  const isEnviadoSankhya = sessao?.status === 'Enviado ao Sankhya';
+  const isConferido = sessao?.status === 'Conferido';
+  const isDivergentePendente = sessao?.status === 'Divergente' && sessao?.nivelAtual !== 3;
+  const isSomenteLeitura = isEnviadoSankhya || isConferido || isDivergentePendente;
 
   // Estatísticas consolidadas e por nota
   const estatisticas = useMemo(() => {
@@ -322,10 +329,43 @@ export function ConferenciaEntradaPage() {
     const codLimpo = codigo.trim();
     if (!codLimpo || !sessao) return;
 
-    if (nivelAtual >= 2 && (!lote.trim() || !validade.trim())) {
-      setErro('⚠️ No Nível N2/N3, é obrigatório preencher Lote e Validade antes de registrar!');
+    if (isSomenteLeitura) {
+      setErro(`⚠️ Conferência com status "${sessao.status}". Modo somente leitura, não é permitido registrar bipagens.`);
       tocarAlertaErro();
       return;
+    }
+
+    let validadeFinal = validade.trim();
+    let fabricacaoFinal = fabricacao.trim();
+
+    if (nivelAtual >= 2) {
+      if (!lote.trim() || !validadeFinal) {
+        setErro('⚠️ No Nível N2/N3, é obrigatório preencher Lote e Validade antes de registrar!');
+        tocarAlertaErro();
+        return;
+      }
+
+      validadeFinal = completarAnoData(validadeFinal);
+      const resVal = validarData(validadeFinal, true);
+      if (!resVal.valida) {
+        setErroValidade(resVal.erro || 'Data de validade inválida');
+        setErro(`⚠️ Validade inválida: ${resVal.erro}`);
+        tocarAlertaErro();
+        return;
+      }
+      setValidade(validadeFinal);
+
+      if (fabricacaoFinal) {
+        fabricacaoFinal = completarAnoData(fabricacaoFinal);
+        const resFab = validarData(fabricacaoFinal, false);
+        if (!resFab.valida) {
+          setErroFabricacao(resFab.erro || 'Data de fabricação inválida');
+          setErro(`⚠️ Fabricação inválida: ${resFab.erro}`);
+          tocarAlertaErro();
+          return;
+        }
+        setFabricacao(fabricacaoFinal);
+      }
     }
 
     setProcessando(true);
@@ -338,8 +378,8 @@ export function ConferenciaEntradaPage() {
         quantidade: Number(quantidade) || 1,
         nivel: nivelAtual,
         lote: lote.trim() || undefined,
-        validade: validade.trim() || undefined,
-        fabricacao: fabricacao.trim() || undefined,
+        validade: validadeFinal || undefined,
+        fabricacao: fabricacaoFinal || undefined,
       });
 
       tocarAlertaSucesso();
@@ -380,6 +420,8 @@ export function ConferenciaEntradaPage() {
 
       setCodigo('');
       setQuantidade('1');
+      setErroValidade(null);
+      setErroFabricacao(null);
       if (inputCodigoRef.current) inputCodigoRef.current.focus();
     } catch (err: any) {
       tocarAlertaErro();
@@ -413,11 +455,19 @@ export function ConferenciaEntradaPage() {
     } else if (campoOcrAlvo === 'validade') {
       const extraido = extractFieldValue(textoOcrBruto, 'validade');
       const normalizado = extraido ? normalizeDate(extraido) : null;
-      if (normalizado) setValidade(normalizado);
+      if (normalizado) {
+        const formatado = completarAnoData(aplicarMascaraData(normalizado));
+        setValidade(formatado);
+        setErroValidade(null);
+      }
     } else if (campoOcrAlvo === 'fabricacao') {
       const extraido = extractFieldValue(textoOcrBruto, 'fabricacao');
       const normalizado = extraido ? normalizeDate(extraido) : null;
-      if (normalizado) setFabricacao(normalizado);
+      if (normalizado) {
+        const formatado = completarAnoData(aplicarMascaraData(normalizado));
+        setFabricacao(formatado);
+        setErroFabricacao(null);
+      }
     }
 
     setModalOcrAberto(false);
@@ -682,9 +732,50 @@ export function ConferenciaEntradaPage() {
             <span className="nota-info">
               NF(s) {numerosNFsUnicas.join(', ')} — Recebimento
             </span>
-            <span className="badge-recontagem-header" title="Nível atual da conferência">
-              N{nivelAtual}: {nivelAtual === 1 ? 'Contagem Cega' : nivelAtual === 2 ? 'Lote e Validade' : 'Desempate de Divergência'}
-            </span>
+            {isEnviadoSankhya ? (
+              <span
+                className="badge-recontagem-header"
+                style={{
+                  background: '#f3e8ff',
+                  color: '#7e22ce',
+                  border: '1px solid #d8b4fe',
+                  fontWeight: 700,
+                }}
+                title="Conferência já enviada e integrada ao Sankhya"
+              >
+                🚀 Enviado ao Sankhya
+              </span>
+            ) : isConferido ? (
+              <span
+                className="badge-recontagem-header"
+                style={{
+                  background: '#dcfce7',
+                  color: '#15803d',
+                  border: '1px solid #86efac',
+                  fontWeight: 700,
+                }}
+                title="Conferência 100% conferida e aprovada"
+              >
+                ✓ Conferido
+              </span>
+            ) : isDivergentePendente ? (
+              <span
+                className="badge-recontagem-header"
+                style={{
+                  background: '#fee2e2',
+                  color: '#b91c1c',
+                  border: '1px solid #fca5a5',
+                  fontWeight: 700,
+                }}
+                title="Conferência finalizada com divergências (aguardando parecer do gestor)"
+              >
+                ⚠️ Divergente
+              </span>
+            ) : (
+              <span className="badge-recontagem-header" title="Nível atual da conferência">
+                N{nivelAtual}: {nivelAtual === 1 ? 'Contagem Cega' : nivelAtual === 2 ? 'Lote e Validade' : 'Desempate de Divergência'}
+              </span>
+            )}
           </div>
 
           <div className="header-cards">
@@ -706,16 +797,45 @@ export function ConferenciaEntradaPage() {
             variant="success"
             size="sm"
             onClick={() => {
+              if (isSomenteLeitura) return;
               setCienteItensFaltantes(false);
               setModalFinalizarAberto(true);
             }}
-            disabled={processando || estatisticas.totalConferidoNivel === 0}
+            disabled={processando || estatisticas.totalConferidoNivel === 0 || isSomenteLeitura}
+            style={isSomenteLeitura ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
           >
-            Finalizar N{nivelAtual}
+            {isEnviadoSankhya ? 'Enviado Sankhya' : isConferido ? 'Conferido' : `Finalizar N${nivelAtual}`}
           </Botao>
         </header>
 
-        {nivelAtual === 3 && (
+        {isSomenteLeitura && (
+          <div
+            style={{
+              background: isEnviadoSankhya ? '#f5f3ff' : isConferido ? '#f0fdf4' : '#fff1f2',
+              color: isEnviadoSankhya ? '#6b21a8' : isConferido ? '#166534' : '#991b1b',
+              border: `1px solid ${isEnviadoSankhya ? '#ddd6fe' : isConferido ? '#bbf7d0' : '#fecdd3'}`,
+              borderRadius: '8px',
+              padding: '10px 14px',
+              margin: '0 0 10px 0',
+              fontSize: '0.86rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>{isEnviadoSankhya ? '🔒' : isConferido ? '✓' : '⚠️'}</span>
+            <span>
+              {isEnviadoSankhya
+                ? 'Conferência finalizada e enviada ao Sankhya. Modo somente consulta (bipagem e alterações desabilitadas).'
+                : isConferido
+                ? 'Conferência finalizada e conferida com sucesso. Modo somente consulta.'
+                : 'Conferência finalizada com divergência aguardando parecer na Gestão de Recebimento. Modo somente consulta.'}
+            </span>
+          </div>
+        )}
+
+        {nivelAtual === 3 && !isSomenteLeitura && (
           <div
             style={{
               background: '#fef3c7',
@@ -747,8 +867,9 @@ export function ConferenciaEntradaPage() {
                 variant="scanner"
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
-                placeholder="Escanear ou digitar código de barras..."
-                autoFocus
+                placeholder={isSomenteLeitura ? 'Conferência finalizada (somente leitura)...' : 'Escanear ou digitar código de barras...'}
+                autoFocus={!isSomenteLeitura}
+                disabled={isSomenteLeitura}
                 bloquearColar
                 onTentativaColar={handleTentativaColar}
               />
@@ -758,6 +879,8 @@ export function ConferenciaEntradaPage() {
                 className="btn-camera-scanner"
                 title="Ler código de barras pela câmera"
                 onClick={() => setMostrarCamera(true)}
+                disabled={isSomenteLeitura}
+                style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
@@ -771,6 +894,8 @@ export function ConferenciaEntradaPage() {
                   className="btn-camera-scanner"
                   title="Extrair Lote / Validade por OCR"
                   onClick={() => handleAbrirOcr('lote')}
+                  disabled={isSomenteLeitura}
+                  style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
                 >
                   <span style={{ fontSize: '0.8rem', fontWeight: 800 }}>OCR</span>
                 </button>
@@ -783,14 +908,16 @@ export function ConferenciaEntradaPage() {
                 onChange={(e) => setQuantidade(e.target.value)}
                 min="1"
                 step="1"
+                disabled={isSomenteLeitura}
               />
 
               <Botao
                 type="submit"
                 variant="primary"
                 size="lg"
-                disabled={processando || !codigo.trim()}
+                disabled={processando || !codigo.trim() || isSomenteLeitura}
                 loading={processando}
+                style={isSomenteLeitura ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
               >
                 Conferir
               </Botao>
@@ -804,18 +931,45 @@ export function ConferenciaEntradaPage() {
                   value={lote}
                   onChange={(e) => setLote(e.target.value.toUpperCase())}
                   placeholder="Ex: L240501"
+                  disabled={isSomenteLeitura}
                 />
                 <Campo
                   label="Validade *"
                   value={validade}
-                  onChange={(e) => setValidade(e.target.value)}
+                  onChange={(e) => {
+                    setValidade(aplicarMascaraData(e.target.value));
+                    if (erroValidade) setErroValidade(null);
+                  }}
+                  onBlur={() => {
+                    const dataCompletada = completarAnoData(validade);
+                    setValidade(dataCompletada);
+                    const res = validarData(dataCompletada, true);
+                    setErroValidade(res.valida ? null : res.erro || 'Data inválida');
+                  }}
                   placeholder="DD/MM/AAAA"
+                  disabled={isSomenteLeitura}
+                  error={erroValidade || undefined}
                 />
                 <Campo
                   label="Fabricação"
                   value={fabricacao}
-                  onChange={(e) => setFabricacao(e.target.value)}
+                  onChange={(e) => {
+                    setFabricacao(aplicarMascaraData(e.target.value));
+                    if (erroFabricacao) setErroFabricacao(null);
+                  }}
+                  onBlur={() => {
+                    const dataCompletada = completarAnoData(fabricacao);
+                    setFabricacao(dataCompletada);
+                    if (dataCompletada.trim()) {
+                      const res = validarData(dataCompletada, false);
+                      setErroFabricacao(res.valida ? null : res.erro || 'Data inválida');
+                    } else {
+                      setErroFabricacao(null);
+                    }
+                  }}
                   placeholder="DD/MM/AAAA"
+                  disabled={isSomenteLeitura}
+                  error={erroFabricacao || undefined}
                 />
               </div>
             )}
@@ -1186,10 +1340,14 @@ export function ConferenciaEntradaPage() {
                                     <button
                                       type="button"
                                       className="btn-estornar-item"
-                                      style={{ padding: '3px 8px', fontSize: '0.72rem' }}
-                                      title="Estornar a última bipagem registrada deste item"
-                                      disabled={!confItem.ultimoBip}
-                                      onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
+                                      style={{
+                                        padding: '3px 8px',
+                                        fontSize: '0.72rem',
+                                        ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
+                                      }}
+                                      title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Estornar a última bipagem registrada deste item'}
+                                      disabled={isSomenteLeitura || !confItem.ultimoBip}
+                                      onClick={() => !isSomenteLeitura && confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
                                     >
                                       <span>↺ Bip</span>
                                     </button>
@@ -1204,9 +1362,12 @@ export function ConferenciaEntradaPage() {
                                           background: '#fff1f2',
                                           borderColor: '#fecdd3',
                                           color: '#dc2626',
+                                          ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
                                         }}
-                                        title="Estornar toda a contagem deste item neste nível"
+                                        title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Estornar toda a contagem deste item neste nível'}
+                                        disabled={isSomenteLeitura}
                                         onClick={() => {
+                                          if (isSomenteLeitura) return;
                                           const todosBipIds = confItem.lotesDetalhes.flatMap((l) => l.bipagemIds);
                                           setLoteParaEstornar({
                                             descrprod: confItem.item.descrprod,
@@ -1287,15 +1448,18 @@ export function ConferenciaEntradaPage() {
                                               <button
                                                 type="button"
                                                 className="btn-estorno-lote-clean"
-                                                title={`Estornar as contagens do Lote ${ld.lote}`}
-                                                onClick={() =>
+                                                title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : `Estornar as contagens do Lote ${ld.lote}`}
+                                                disabled={isSomenteLeitura}
+                                                style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+                                                onClick={() => {
+                                                  if (isSomenteLeitura) return;
                                                   setLoteParaEstornar({
                                                     descrprod: confItem.item.descrprod,
                                                     lote: ld.lote,
                                                     bipagemIds: ld.bipagemIds,
                                                     quantidade: ld.quantidade,
-                                                  })
-                                                }
+                                                  });
+                                                }}
                                               >
                                                 ✕ Estornar
                                               </button>
@@ -1427,9 +1591,10 @@ export function ConferenciaEntradaPage() {
                           <button
                             type="button"
                             className="btn-estornar-item btn-estornar-card"
-                            title="Estornar a última bipagem deste item"
-                            disabled={!confItem.ultimoBip}
-                            onClick={() => confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
+                            title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Estornar a última bipagem deste item'}
+                            disabled={isSomenteLeitura || !confItem.ultimoBip}
+                            style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+                            onClick={() => !isSomenteLeitura && confItem.ultimoBip && setBipagemParaEstornar(confItem.ultimoBip)}
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="3 6 5 6 21 6"></polyline>
@@ -1462,7 +1627,9 @@ export function ConferenciaEntradaPage() {
                             </span>
                             <button
                               type="button"
+                              disabled={isSomenteLeitura}
                               onClick={() => {
+                                if (isSomenteLeitura) return;
                                 const todosBipIds = confItem.lotesDetalhes.flatMap((l) => l.bipagemIds);
                                 setLoteParaEstornar({
                                   descrprod: confItem.item.descrprod,
@@ -1479,6 +1646,7 @@ export function ConferenciaEntradaPage() {
                                 padding: '2px 6px',
                                 fontSize: '0.70rem',
                                 fontWeight: 700,
+                                ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
                               }}
                             >
                               ✕ Zerar Todos os Lotes
@@ -1512,14 +1680,16 @@ export function ConferenciaEntradaPage() {
                               </div>
                               <button
                                 type="button"
-                                onClick={() =>
+                                disabled={isSomenteLeitura}
+                                onClick={() => {
+                                  if (isSomenteLeitura) return;
                                   setLoteParaEstornar({
                                     descrprod: confItem.item.descrprod,
                                     lote: ld.lote,
                                     bipagemIds: ld.bipagemIds,
                                     quantidade: ld.quantidade,
-                                  })
-                                }
+                                  });
+                                }}
                                 style={{
                                   background: '#fef2f2',
                                   border: '1px solid #fecaca',
@@ -1528,9 +1698,10 @@ export function ConferenciaEntradaPage() {
                                   padding: '3px 6px',
                                   fontSize: '0.70rem',
                                   fontWeight: 600,
+                                  ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
                                 }}
                               >
-                                ✕ Estornar Lote
+                                ✕ Estornar
                               </button>
                             </div>
                           ))}

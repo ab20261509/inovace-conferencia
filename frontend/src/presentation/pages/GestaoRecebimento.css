@@ -2029,6 +2029,91 @@
   border-color: #7dd3fc;
 }
 
+/* Modal Desmembrar Item: Painel Comparativo e Chips Rápidos */
+.desmembrar-comparativo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid var(--slate-200, #e2e8f0);
+  border-radius: 8px;
+  padding: 10px 14px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.desmembrar-comparativo-card.erp {
+  border-left: 3px solid #3b82f6;
+  background: #f8fafc;
+}
+
+.desmembrar-comparativo-card.coletor {
+  border-left: 3px solid #10b981;
+  background: #f0fdf4;
+}
+
+.desmembrar-comparativo-titulo {
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.desmembrar-comparativo-item {
+  display: flex;
+  justifyContent: space-between;
+  font-size: 0.78rem;
+  padding: 2px 0;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.06);
+}
+
+.desmembrar-comparativo-item:last-child {
+  border-bottom: none;
+}
+
+.chip-acao-rapida {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  line-height: 1.3;
+}
+
+.chip-acao-rapida:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.chip-acao-rapida.erp {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.chip-acao-rapida.erp:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.chip-acao-rapida.bip {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.chip-acao-rapida.bip:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+
 
 
 
