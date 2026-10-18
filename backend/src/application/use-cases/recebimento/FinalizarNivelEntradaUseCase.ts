@@ -358,6 +358,10 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       sessao.finalizadoEm = agora;
     }
 
+    // Limpa a recontagem parcial ao finalizar o nível
+    sessao.itensRecontagem = undefined;
+    sessao.itensRecontagemJson = undefined;
+
     await this.conferenciaRepo.salvarSessao(sessao);
 
     return {

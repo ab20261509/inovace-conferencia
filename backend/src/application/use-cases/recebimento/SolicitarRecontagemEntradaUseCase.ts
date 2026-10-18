@@ -2,11 +2,18 @@ import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenci
 import { SessaoConferenciaEntrada, StatusConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
 
+export interface ItemRecontagemAlvo {
+  nunota: number;
+  sequencia: number;
+  codprod: number;
+}
+
 export interface SolicitarRecontagemInput {
   conferenciaId: string;
   nivel: number; // 1, 2 ou 3
   usuario: string;
   motivo?: string;
+  itens?: ItemRecontagemAlvo[];
 }
 
 export class SolicitarRecontagemEntradaUseCase {
@@ -44,9 +51,30 @@ export class SolicitarRecontagemEntradaUseCase {
     sessao.aprovadoPor = undefined;
     sessao.aprovadoEm = undefined;
     sessao.enviadoSankhyaEm = undefined;
-    sessao.observacaoAprovacao = input.motivo
-      ? `Recontagem N${nivelAlvo} solicitada: ${input.motivo}`
-      : `Recontagem N${nivelAlvo} solicitada pelo gestor.`;
+
+    // Se foram especificados itens para recontagem parcial
+    if (input.itens && input.itens.length > 0) {
+      sessao.itensRecontagem = input.itens;
+      sessao.itensRecontagemJson = JSON.stringify(input.itens);
+      // Anula apenas as bipagens do nível alvo para os itens selecionados
+      await this.conferenciaRepo.anularBipagensPorItens(sessao.id, nivelAlvo, input.itens);
+      sessao.observacaoAprovacao = input.motivo
+        ? `Recontagem N${nivelAlvo} parcial (${input.itens.length} itens): ${input.motivo}`
+        : `Recontagem N${nivelAlvo} parcial (${input.itens.length} itens) solicitada pelo gestor.`;
+    } else {
+      sessao.itensRecontagem = undefined;
+      sessao.itensRecontagemJson = undefined;
+      sessao.observacaoAprovacao = input.motivo
+        ? `Recontagem N${nivelAlvo} solicitada: ${input.motivo}`
+        : `Recontagem N${nivelAlvo} solicitada pelo gestor.`;
+    }
+
+    if (sessao.statusPorNota) {
+      for (const nu of sessao.nunotas) {
+        sessao.statusPorNota[nu] = novoStatus;
+      }
+      sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
+    }
 
     await this.conferenciaRepo.salvarSessao(sessao);
 

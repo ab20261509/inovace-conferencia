@@ -35,5 +35,10 @@ export interface IConferenciaEntradaRepository {
     novoNunota: number,
     mapaSequenciasPorProd: Record<number, number>
   ): Promise<number>;
+  anularBipagensPorItens(
+    conferenciaId: string,
+    nivel: number,
+    itens: Array<{ nunota: number; sequencia: number; codprod: number }>
+  ): Promise<number>;
 }
 

@@ -343,15 +343,33 @@ WHERE BAR.CODPROD IN (
       sessao?.nivelAtual === 3 &&
       input.origem !== 'gestao';
 
-    const itensRetornados = ehNivel3AtivoNoColetor
-      ? itens.filter((i) => {
-          const statusNota = sessao?.statusPorNota?.[i.nunota];
-          if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {
-            return false;
-          }
-          return i.divergente;
-        })
-      : itens;
+    // Se houver recontagem parcial ativa (itens específicos selecionados pelo gestor para N2/N3)
+    const temRecontagemParcialNoColetor =
+      Boolean(sessao?.itensRecontagem && sessao.itensRecontagem.length > 0) &&
+      input.origem !== 'gestao' &&
+      (sessao?.status === 'Aguardando N2' ||
+        sessao?.status === 'N2 em Andamento' ||
+        sessao?.status === 'Aguardando N3' ||
+        sessao?.status === 'N3 em Andamento');
+
+    let itensRetornados = itens;
+
+    if (temRecontagemParcialNoColetor && sessao?.itensRecontagem) {
+      const setChavesRecontagem = new Set(
+        sessao.itensRecontagem.map((r) => `${r.nunota}|${r.sequencia}|${r.codprod}`)
+      );
+      itensRetornados = itens.filter((i) =>
+        setChavesRecontagem.has(`${i.nunota}|${i.sequencia}|${i.codprod}`)
+      );
+    } else if (ehNivel3AtivoNoColetor) {
+      itensRetornados = itens.filter((i) => {
+        const statusNota = sessao?.statusPorNota?.[i.nunota];
+        if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {
+          return false;
+        }
+        return i.divergente;
+      });
+    }
 
     // Enriquecer bipagens com dados descritivos do produto
     const bipagensEnriquecidas = bipagens.map((b) => {

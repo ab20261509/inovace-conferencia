@@ -255,6 +255,7 @@ export function GestaoRecebimentoPage() {
   } | null>(null);
 
   const [nivelRecontagemModal, setNivelRecontagemModal] = useState<number>(2);
+  const [itensRecontagemModal, setItensRecontagemModal] = useState<Array<{ nunota: number; sequencia: number; codprod: number }>>([]);
   const [nunotaReiniciarModal, setNunotaReiniciarModal] = useState<number | undefined>(undefined);
   const [observacaoModal, setObservacaoModal] = useState('');
   const [processandoAcao, setProcessandoAcao] = useState(false);
@@ -622,10 +623,13 @@ export function GestaoRecebimentoPage() {
         await recebimentoService.solicitarRecontagem(modalAcao.conferenciaId, {
           nivel: nivelRecontagemModal,
           motivo: observacaoModal,
+          itens: itensRecontagemModal.length > 0 ? itensRecontagemModal : undefined,
         });
         setFeedback({
           tipo: 'sucesso',
-          texto: `Recontagem Nível ${nivelRecontagemModal} solicitada com sucesso! Sessão disponibilizada aos conferentes.`,
+          texto: itensRecontagemModal.length > 0
+            ? `Recontagem Nível ${nivelRecontagemModal} solicitada com sucesso para ${itensRecontagemModal.length} item(ns) selecionado(s)!`
+            : `Recontagem Nível ${nivelRecontagemModal} solicitada com sucesso! Sessão disponibilizada aos conferentes.`,
         });
       } else if (modalAcao.tipo === 'RECUPERAR_CONTAGEM') {
         await recebimentoService.recuperarContagem(modalAcao.conferenciaId, observacaoModal);
@@ -637,6 +641,7 @@ export function GestaoRecebimentoPage() {
 
       setModalAcao(null);
       setObservacaoModal('');
+      setItensRecontagemModal([]);
       setDetalhesConferencias({});
       await carregarDados();
     } catch (err: any) {
@@ -1016,13 +1021,19 @@ export function GestaoRecebimentoPage() {
                     detalhesConferencias={detalhesConferencias}
                     loadingDetalhes={loadingDetalhes}
                     toggleDetalhesConferencia={toggleDetalhesConferencia}
-                    onSolicitarRecontagem={(conf) => {
-                      setNivelRecontagemModal(conf.nivelAtual === 1 ? 2 : conf.nivelAtual);
+                    onSolicitarRecontagem={(conf, itensSelecionados) => {
+                      const itens = itensSelecionados || [];
+                      setNivelRecontagemModal(2);
+                      setItensRecontagemModal(itens);
                       setModalAcao({
                         tipo: 'SOLICITAR_RECONTAGEM',
                         conferenciaId: conf.id,
-                        titulo: 'Solicitar Recontagem da Conferência',
-                        descricao: `Defina o nível para recontagem da(s) nota(s) ${conf.numerosNotas}. A conferência ficará disponível para os operadores realizarem a nova contagem cega.`,
+                        titulo: itens.length > 0
+                          ? `Solicitar Recontagem na N2 (${itens.length} produto(s) selecionado(s))`
+                          : 'Solicitar Recontagem da Conferência',
+                        descricao: itens.length > 0
+                          ? `A recontagem será realizada no Nível 2 apenas para os ${itens.length} item(ns) selecionado(s) da(s) nota(s) ${conf.numerosNotas}. Os demais itens já conferidos serão mantidos intactos e consolidados ao final.`
+                          : `Defina o nível para recontagem da(s) nota(s) ${conf.numerosNotas}. A conferência ficará disponível para os operadores realizarem a nova contagem cega.`,
                         placeholder: 'Instrução ou motivo da recontagem para a equipe...',
                       });
                     }}
@@ -1234,49 +1245,84 @@ export function GestaoRecebimentoPage() {
 
                   {/* Detalhes para Recontagem */}
                   {modalAcao.tipo === 'SOLICITAR_RECONTAGEM' && (
-                    <div className="gestao-modal-niveis-recontagem">
-                      <label className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 1 ? 'selecionado' : ''}`}>
-                        <input
-                          type="radio"
-                          name="nivelRecontagem"
-                          value={1}
-                          checked={nivelRecontagemModal === 1}
-                          onChange={() => setNivelRecontagemModal(1)}
-                        />
-                        <div className="gestao-modal-nivel-info">
-                          <strong>Nível 1 - Recontagem Cega Simples</strong>
-                          <span>Recontagem rápida pelo código de barras/produto sem exigir lote e validade.</span>
+                    <>
+                      {itensRecontagemModal.length > 0 && (
+                        <div
+                          style={{
+                            padding: '10px 14px',
+                            backgroundColor: '#ecfdf5',
+                            border: '1px solid #a7f3d0',
+                            borderRadius: '8px',
+                            marginBottom: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            fontSize: '0.85rem',
+                            color: '#065f46',
+                          }}
+                        >
+                          <span style={{ fontSize: '1.25rem' }}>🎯</span>
+                          <div>
+                            <strong>Recontagem Seletiva N2 ({itensRecontagemModal.length} produto(s) selecionado(s))</strong>
+                            <div style={{ fontSize: '0.78rem', color: '#047857' }}>
+                              Apenas os itens marcados ficarão visíveis para nova contagem no coletor. As bipagens dos demais itens permanecem preservadas.
+                            </div>
+                          </div>
                         </div>
-                      </label>
+                      )}
 
-                      <label className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 2 ? 'selecionado' : ''}`}>
-                        <input
-                          type="radio"
-                          name="nivelRecontagem"
-                          value={2}
-                          checked={nivelRecontagemModal === 2}
-                          onChange={() => setNivelRecontagemModal(2)}
-                        />
-                        <div className="gestao-modal-nivel-info">
-                          <strong>Nível 2 - Recontagem com Lote e Validade (Recomendado)</strong>
-                          <span>Recontagem cega completa registrando código, lote e data de validade por produto.</span>
-                        </div>
-                      </label>
+                      <div className="gestao-modal-niveis-recontagem">
+                        <label
+                          className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 1 ? 'selecionado' : ''} ${itensRecontagemModal.length > 0 ? 'desabilitado' : ''}`}
+                          style={itensRecontagemModal.length > 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        >
+                          <input
+                            type="radio"
+                            name="nivelRecontagem"
+                            value={1}
+                            checked={nivelRecontagemModal === 1}
+                            onChange={() => setNivelRecontagemModal(1)}
+                            disabled={itensRecontagemModal.length > 0}
+                          />
+                          <div className="gestao-modal-nivel-info">
+                            <strong>Nível 1 - Recontagem Cega Simples</strong>
+                            <span>Recontagem rápida pelo código de barras/produto sem exigir lote e validade.</span>
+                          </div>
+                        </label>
 
-                      <label className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 3 ? 'selecionado' : ''}`}>
-                        <input
-                          type="radio"
-                          name="nivelRecontagem"
-                          value={3}
-                          checked={nivelRecontagemModal === 3}
-                          onChange={() => setNivelRecontagemModal(3)}
-                        />
-                        <div className="gestao-modal-nivel-info">
-                          <strong>Nível 3 - Reconferência de Desempate (N3)</strong>
-                          <span>Para casos onde N1 e N2 divergiram e necessita de um 3º conferente para desempate.</span>
-                        </div>
-                      </label>
-                    </div>
+                        <label className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 2 ? 'selecionado' : ''}`}>
+                          <input
+                            type="radio"
+                            name="nivelRecontagem"
+                            value={2}
+                            checked={nivelRecontagemModal === 2}
+                            onChange={() => setNivelRecontagemModal(2)}
+                          />
+                          <div className="gestao-modal-nivel-info">
+                            <strong>Nível 2 - Recontagem com Lote e Validade (Recomendado)</strong>
+                            <span>Recontagem cega completa registrando código, lote e data de validade por produto.</span>
+                          </div>
+                        </label>
+
+                        <label
+                          className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 3 ? 'selecionado' : ''} ${itensRecontagemModal.length > 0 ? 'desabilitado' : ''}`}
+                          style={itensRecontagemModal.length > 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        >
+                          <input
+                            type="radio"
+                            name="nivelRecontagem"
+                            value={3}
+                            checked={nivelRecontagemModal === 3}
+                            onChange={() => setNivelRecontagemModal(3)}
+                            disabled={itensRecontagemModal.length > 0}
+                          />
+                          <div className="gestao-modal-nivel-info">
+                            <strong>Nível 3 - Reconferência de Desempate (N3)</strong>
+                            <span>Para casos onde N1 e N2 divergiram e necessita de um 3º conferente para desempate.</span>
+                          </div>
+                        </label>
+                      </div>
+                    </>
                   )}
 
                   {/* Opções de Escopo para Reiniciar Conferência Conjunta */}
@@ -1390,6 +1436,7 @@ export function GestaoRecebimentoPage() {
                       onClick={() => {
                         setModalAcao(null);
                         setObservacaoModal('');
+                        setItensRecontagemModal([]);
                       }}
                       disabled={processandoAcao}
                     >

@@ -35,7 +35,10 @@ export interface AbaConferenciasViewProps {
   detalhesConferencias: Record<string, ObterItensConferenciaResponse>;
   loadingDetalhes: string | null;
   toggleDetalhesConferencia: (conferenciaId: string, nunotas: number[]) => void;
-  onSolicitarRecontagem: (conf: ConferenciaEntradaResumo) => void;
+  onSolicitarRecontagem: (
+    conf: ConferenciaEntradaResumo,
+    itensSelecionados?: Array<{ nunota: number; sequencia: number; codprod: number }>
+  ) => void;
   onReiniciar: (conf: ConferenciaEntradaResumo) => void;
   onRecuperarContagem: (conf: ConferenciaEntradaResumo) => void;
   onAbrirColetor: (conf: ConferenciaEntradaResumo) => void;
@@ -65,6 +68,32 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
     Record<string, 'todos' | 'divergentes' | 'semlote'>
   >({});
   const [lotesExpandidos, setLotesExpandidos] = useState<Record<string, boolean>>({});
+  const [itensSelecionadosRecontagem, setItensSelecionadosRecontagem] = useState<
+    Record<string, Set<string>>
+  >({});
+
+  const toggleSelecionarItemConf = (confId: string, itemKey: string) => {
+    setItensSelecionadosRecontagem((prev) => {
+      const atual = new Set(prev[confId] || []);
+      if (atual.has(itemKey)) {
+        atual.delete(itemKey);
+      } else {
+        atual.add(itemKey);
+      }
+      return { ...prev, [confId]: atual };
+    });
+  };
+
+  const toggleSelecionarTodosConf = (confId: string, todosKeys: string[]) => {
+    setItensSelecionadosRecontagem((prev) => {
+      const atual = prev[confId] || new Set();
+      const todosJaEstao = todosKeys.length > 0 && todosKeys.every((k) => atual.has(k));
+      return {
+        ...prev,
+        [confId]: todosJaEstao ? new Set() : new Set(todosKeys),
+      };
+    });
+  };
 
   const toggleLotesItem = (itemKey: string) => {
     setLotesExpandidos((prev) => ({
@@ -377,9 +406,15 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                       const temN3Itens = conf.totalBipadoN3 > 0 || itensDaConferencia.some((i) => (i.qtdConferidaN3 || 0) > 0);
 
                       let totalColunas = 8;
+                      if (!jaEnviado) totalColunas++;
                       if (exibirN1Itens) totalColunas++;
                       if (exibirN2Itens) totalColunas++;
                       if (temN3Itens) totalColunas++;
+
+                      const selecionadosConf = itensSelecionadosRecontagem[conf.id] || new Set();
+                      const todosItemKeys = itensParaExibir.map((i) => `${i.nunota}-${i.codprod}-${i.sequencia}`);
+                      const todosItensSelecionados =
+                        todosItemKeys.length > 0 && todosItemKeys.every((k) => selecionadosConf.has(k));
 
                       return (
                         <>
@@ -438,6 +473,17 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                               <table className="gestao-rec-tabela">
                                 <thead>
                                   <tr>
+                                    {!jaEnviado && (
+                                      <th style={{ width: '38px', textAlign: 'center', padding: '6px 4px' }}>
+                                        <input
+                                          type="checkbox"
+                                          className="gestao-checkbox-select"
+                                          title={todosItensSelecionados ? 'Desmarcar todos' : 'Selecionar todos os itens da tabela'}
+                                          checked={todosItensSelecionados}
+                                          onChange={() => toggleSelecionarTodosConf(conf.id, todosItemKeys)}
+                                        />
+                                      </th>
+                                    )}
                                     <th>Produto</th>
                                     <th>Vol.</th>
                                     <th>Nota</th>
@@ -483,6 +529,17 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       return (
                                         <React.Fragment key={`conf-frag-${itemKey}`}>
                                           <tr key={`conf-${itemKey}`}>
+                                            {!jaEnviado && (
+                                              <td style={{ textAlign: 'center', width: '38px', padding: '6px 4px' }}>
+                                                <input
+                                                  type="checkbox"
+                                                  className="gestao-checkbox-select"
+                                                  checked={selecionadosConf.has(itemKey)}
+                                                  onChange={() => toggleSelecionarItemConf(conf.id, itemKey)}
+                                                  title="Selecionar produto para recontagem na N2"
+                                                />
+                                              </td>
+                                            )}
                                             <td>
                                               <div
                                                 style={{
@@ -716,6 +773,16 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                 className="gestao-item-card-mobile"
                               >
                                 <div className="gestao-item-mobile-header">
+                                  {!jaEnviado && (
+                                    <input
+                                      type="checkbox"
+                                      className="gestao-checkbox-select"
+                                      style={{ marginTop: '2px', marginRight: '6px' }}
+                                      checked={selecionadosConf.has(itemKey)}
+                                      onChange={() => toggleSelecionarItemConf(conf.id, itemKey)}
+                                      title="Selecionar produto para recontagem na N2"
+                                    />
+                                  )}
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div className="gestao-item-mobile-descr">
                                       {item.descrprod || `Produto ${item.codprod}`}
@@ -907,11 +974,26 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                     type="button"
                     className={`gestao-btn-clean-secundario ${jaEnviado ? 'disabled-action' : ''}`}
                     disabled={jaEnviado}
-                    onClick={() => !jaEnviado && onSolicitarRecontagem(conf)}
+                    onClick={() => {
+                      if (jaEnviado) return;
+                      const selecionados = itensSelecionadosRecontagem[conf.id] || new Set();
+                      if (selecionados.size === 0) {
+                        if (!isExpandido) {
+                          toggleDetalhesConferencia(conf.id, conf.nunotas);
+                        }
+                        alert('Selecione ao menos um item da tabela para recontar na N2.');
+                        return;
+                      }
+                      const itensMapeados = Array.from(selecionados).map((k) => {
+                        const [nu, prod, seq] = k.split('-').map(Number);
+                        return { nunota: nu, codprod: prod, sequencia: seq };
+                      });
+                      onSolicitarRecontagem(conf, itensMapeados);
+                    }}
                     title={
                       jaEnviado
                         ? 'Conferência já enviada ao Sankhya'
-                        : 'Solicitar que outro conferente realize recontagem (Nível 2)'
+                        : 'Solicitar que outro conferente realize recontagem (Nível 2) dos itens selecionados'
                     }
                     style={
                       jaEnviado
@@ -919,7 +1001,12 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                         : undefined
                     }
                   >
-                    <span>🔁 Recontar</span>
+                    <span>
+                      🔁 Recontar
+                      {(itensSelecionadosRecontagem[conf.id]?.size || 0) > 0
+                        ? ` (${itensSelecionadosRecontagem[conf.id].size})`
+                        : ''}
+                    </span>
                   </button>
 
                   <button

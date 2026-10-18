@@ -42,6 +42,13 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       } catch {}
     }
 
+    let itensRecontagem: Array<{ nunota: number; sequencia: number; codprod: number }> | undefined = undefined;
+    if (row.itens_recontagem_json) {
+      try {
+        itensRecontagem = JSON.parse(String(row.itens_recontagem_json));
+      } catch {}
+    }
+
     return {
       id: String(row.id),
       nunotas,
@@ -65,6 +72,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       chavenfe: row.chavenfe ? String(row.chavenfe).trim() : undefined,
       numnota: row.numnota !== null && row.numnota !== undefined ? Number(row.numnota) : undefined,
       codparc: row.codparc !== null && row.codparc !== undefined ? Number(row.codparc) : undefined,
+      itensRecontagem,
+      itensRecontagemJson: row.itens_recontagem_json ? String(row.itens_recontagem_json) : undefined,
     };
   }
 
@@ -92,7 +101,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
                    finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
                    resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
-                   chavenfe, numnota, codparc
+                   chavenfe, numnota, codparc, itens_recontagem_json
             FROM conferencias_entrada
             WHERE id = ?
             LIMIT 1`,
@@ -109,7 +118,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
                    finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
                    resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
-                   chavenfe, numnota, codparc
+                   chavenfe, numnota, codparc, itens_recontagem_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -131,7 +140,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
                    finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
                    resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
-                   chavenfe, numnota, codparc
+                   chavenfe, numnota, codparc, itens_recontagem_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -146,7 +155,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
                    finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
                    resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
-                   chavenfe, numnota, codparc
+                   chavenfe, numnota, codparc, itens_recontagem_json
             FROM conferencias_entrada
             ORDER BY atualizado_em DESC`,
       args: [],
@@ -162,9 +171,9 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
               id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
               finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
               resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
-              chavenfe, numnota, codparc
+              chavenfe, numnota, codparc, itens_recontagem_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               nunotas_json = excluded.nunotas_json,
               status = excluded.status,
@@ -182,7 +191,8 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
               decisoes_fiscais_json = excluded.decisoes_fiscais_json,
               chavenfe = excluded.chavenfe,
               numnota = excluded.numnota,
-              codparc = excluded.codparc`,
+              codparc = excluded.codparc,
+              itens_recontagem_json = excluded.itens_recontagem_json`,
       args: [
         sessao.id,
         JSON.stringify(sessao.nunotas || []),
@@ -203,6 +213,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         sessao.chavenfe || null,
         sessao.numnota || null,
         sessao.codparc || null,
+        sessao.itensRecontagemJson || (sessao.itensRecontagem ? JSON.stringify(sessao.itensRecontagem) : null),
       ],
     });
   }
@@ -485,7 +496,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       sql: `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
                    finalizado_em, aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao,
                    resposta_sankhya_json, backup_contagem_json, status_por_nota_json, decisoes_fiscais_json,
-                   chavenfe, numnota, codparc
+                   chavenfe, numnota, codparc, itens_recontagem_json
             FROM conferencias_entrada
             WHERE ${sqlWhere}
             ORDER BY atualizado_em DESC`,
@@ -493,6 +504,25 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     });
 
     return res.rows.map((r) => this.mapSessao(r));
+  }
+
+  async anularBipagensPorItens(
+    conferenciaId: string,
+    nivel: number,
+    itens: Array<{ nunota: number; sequencia: number; codprod: number }>
+  ): Promise<number> {
+    if (!itens || itens.length === 0) return 0;
+    let total = 0;
+    for (const item of itens) {
+      const res = await this.client.execute({
+        sql: `UPDATE bipagens_entrada
+              SET anulado = 1
+              WHERE conferencia_id = ? AND nivel = ? AND nunota = ? AND sequencia = ? AND codprod = ? AND anulado = 0`,
+        args: [conferenciaId, nivel, item.nunota, item.sequencia, item.codprod],
+      });
+      total += Number(res.rowsAffected || 0);
+    }
+    return total;
   }
 
   async migrarERestaurarBipagensParaNovaNota(

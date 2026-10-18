@@ -278,13 +278,14 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = req.username || (req as any).user?.username || (req as any).username || 'Gestor';
-      const { nivel, motivo } = req.body;
+      const { nivel, motivo, itens } = req.body;
 
       const sessao = await this.solicitarRecontagemUseCase.execute({
         conferenciaId,
         nivel: Number(nivel) || 2,
         usuario,
         motivo,
+        itens,
       });
 
       res.status(200).json({ success: true, sessao });

@@ -131,6 +131,8 @@ export interface SessaoConferenciaEntrada {
   chavenfe?: string;
   numnota?: number;
   codparc?: number;
+  itensRecontagem?: Array<{ nunota: number; sequencia: number; codprod: number }>;
+  itensRecontagemJson?: string;
 }
 
 export interface ConferenciaEntradaResumo {

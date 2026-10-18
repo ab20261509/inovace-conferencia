@@ -177,6 +177,7 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   await garantirColuna(client, 'conferencias_entrada', 'chavenfe', 'TEXT');
   await garantirColuna(client, 'conferencias_entrada', 'numnota', 'INTEGER');
   await garantirColuna(client, 'conferencias_entrada', 'codparc', 'INTEGER');
+  await garantirColuna(client, 'conferencias_entrada', 'itens_recontagem_json', 'TEXT');
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_chavenfe ON conferencias_entrada(chavenfe);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_numnota ON conferencias_entrada(numnota);`);
 

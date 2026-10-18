@@ -132,7 +132,11 @@ export class RecebimentoApiService {
 
   async solicitarRecontagem(
     conferenciaId: string,
-    dados: { nivel: number; motivo?: string }
+    dados: {
+      nivel: number;
+      motivo?: string;
+      itens?: Array<{ nunota: number; sequencia: number; codprod: number }>;
+    }
   ): Promise<SessaoConferenciaEntrada> {
     const response = await httpClient.post<{ success: boolean; sessao: SessaoConferenciaEntrada }>(
       `/api/recebimento/conferencia/${conferenciaId}/recontar`,
