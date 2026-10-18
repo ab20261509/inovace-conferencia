@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ItemDivergenciaResumo, ConferenciaDivergenciaGrupo } from '../../../domain/models/ConferenciaEntrada.js';
 import { aplicarMascaraData, completarAnoData, validarData } from '../../utils/dateMaskHelper';
+import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
+import { LocalEstoqueItem } from '../../../domain/models/OcorrenciaRecebimento';
+import { ModalPesquisaLocalEstoque } from './ModalPesquisaLocalEstoque';
 
 export interface FracaoLoteEditavel {
   id: string;
@@ -8,6 +11,7 @@ export interface FracaoLoteEditavel {
   quantidade: number;
   validade: string;
   fabricacao: string;
+  codlocal?: number;
   isFalta?: boolean;
 }
 
@@ -19,10 +23,19 @@ interface ModalDesmembrarItemProps {
   onConfirmar: (dados: {
     nunota: number;
     sequencia: number;
-    lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+    lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string; codlocal?: number }>;
   }) => Promise<void>;
   loading?: boolean;
 }
+
+const recebimentoService = new RecebimentoApiService();
+
+const LOCAIS_PADRAO_FALLBACK: LocalEstoqueItem[] = [
+  { codlocal: 0, descrlocal: 'PADRÃO / GERAL' },
+  { codlocal: 95, descrlocal: 'VALIDADE PRÓXIMA (SHELF-LIFE)' },
+  { codlocal: 98, descrlocal: 'PRODUTO VENCIDO' },
+  { codlocal: 99, descrlocal: 'AVARIA / BLOQUEADO' },
+];
 
 function formatarDataSimples(dataStr?: string | null): string {
   if (!dataStr) return '';
@@ -53,6 +66,39 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
 }) => {
   const [fracoes, setFracoes] = useState<FracaoLoteEditavel[]>([]);
 
+  // Estados para seleção/pesquisa de locais de estoque da TGFLOC
+  const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueItem[]>(LOCAIS_PADRAO_FALLBACK);
+  const [carregandoLocais, setCarregandoLocais] = useState<boolean>(false);
+  const [modalBuscaLocalAberto, setModalBuscaLocalAberto] = useState<boolean>(false);
+  const [fracaoAlvoLocalId, setFracaoAlvoLocalId] = useState<string | null>(null);
+  const [termoBuscaLocal, setTermoBuscaLocal] = useState<string>('');
+
+  // Carrega lista de locais de estoque analíticos da TGFLOC ao abrir o modal
+  useEffect(() => {
+    if (!isOpen) return;
+    let ativo = true;
+
+    const carregarLocais = async () => {
+      setCarregandoLocais(true);
+      try {
+        const resp = await recebimentoService.listarLocaisEstoque();
+        if (ativo && resp && resp.length > 0) {
+          setLocaisEstoque(resp);
+        }
+      } catch (e) {
+        console.warn('[ModalDesmembrarItem] Erro ao carregar locais:', e);
+      } finally {
+        if (ativo) setCarregandoLocais(false);
+      }
+    };
+
+    carregarLocais();
+
+    return () => {
+      ativo = false;
+    };
+  }, [isOpen]);
+
   // Inicializa as frações quando o modal abre com base no item
   useEffect(() => {
     if (!isOpen || !item) {
@@ -73,6 +119,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           quantidade: Number(l.quantidade) || 0,
           validade: formatarDataSimples(l.validade || item.validade),
           fabricacao: formatarDataSimples(l.fabricacao || item.fabricacao),
+          codlocal: l.codlocal ? Number(l.codlocal) : (item as any).codlocalDestino ? Number((item as any).codlocalDestino) : undefined,
           isFalta: false,
         });
       });
@@ -85,6 +132,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           quantidade: qtdFisica,
           validade: formatarDataSimples(item.validade || item.validadeOriginal),
           fabricacao: formatarDataSimples(item.fabricacao || item.fabricacaoOriginal),
+          codlocal: (item as any).codlocalDestino ? Number((item as any).codlocalDestino) : (item as any).codlocal ? Number((item as any).codlocal) : undefined,
           isFalta: false,
         });
       }
@@ -99,6 +147,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         quantidade: qtdFalta,
         validade: formatarDataSimples(item.validadeOriginal || item.validade),
         fabricacao: formatarDataSimples(item.fabricacaoOriginal || item.fabricacao),
+        codlocal: (item as any).codlocalDestino ? Number((item as any).codlocalDestino) : undefined,
         isFalta: true,
       });
     }
@@ -111,6 +160,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         quantidade: item.qtdEsperada,
         validade: formatarDataSimples(item.validade || item.validadeOriginal),
         fabricacao: formatarDataSimples(item.fabricacao || item.fabricacaoOriginal),
+        codlocal: (item as any).codlocalDestino ? Number((item as any).codlocalDestino) : (item as any).codlocal ? Number((item as any).codlocal) : undefined,
         isFalta: false,
       });
     }
@@ -172,6 +222,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         quantidade: diferencaBalanco > 0 ? diferencaBalanco : 0,
         validade: valErp || valColetor || '',
         fabricacao: fabErp || fabColetor || '',
+        codlocal: (item as any).codlocalDestino ? Number((item as any).codlocalDestino) : undefined,
         isFalta: false,
       },
     ]);
@@ -198,6 +249,44 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
     );
   };
 
+  // Funções para controle da busca e seleção de locais de estoque (TGFLOC)
+  const abrirBuscaLocal = (fracaoId: string) => {
+    setFracaoAlvoLocalId(fracaoId);
+    setTermoBuscaLocal('');
+    setModalBuscaLocalAberto(true);
+  };
+
+  const fecharBuscaLocal = () => {
+    setModalBuscaLocalAberto(false);
+    setFracaoAlvoLocalId(null);
+    setTermoBuscaLocal('');
+  };
+
+  const selecionarLocalParaFracao = (codlocal?: number) => {
+    if (fracaoAlvoLocalId) {
+      handleUpdateFracao(fracaoAlvoLocalId, 'codlocal', codlocal);
+    }
+    fecharBuscaLocal();
+  };
+
+  const obterDescricaoLocal = (codlocal?: number): string | null => {
+    if (codlocal === undefined || codlocal === null) return null;
+    const encontrado = locaisEstoque.find((l) => l.codlocal === codlocal);
+    return encontrado ? encontrado.descrlocal : null;
+  };
+
+  const fracaoAlvo = fracoes.find((f) => f.id === fracaoAlvoLocalId);
+
+  const locaisFiltrados = useMemo(() => {
+    if (!termoBuscaLocal.trim()) return locaisEstoque;
+    const t = termoBuscaLocal.toLowerCase().trim();
+    return locaisEstoque.filter(
+      (loc) =>
+        String(loc.codlocal).includes(t) ||
+        loc.descrlocal.toLowerCase().includes(t)
+    );
+  }, [locaisEstoque, termoBuscaLocal]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!podeConfirmar) return;
@@ -207,6 +296,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
       qtd: Number(f.quantidade),
       dtval: f.validade.trim() ? completarAnoData(f.validade.trim()) : undefined,
       dtfab: f.fabricacao.trim() ? completarAnoData(f.fabricacao.trim()) : undefined,
+      codlocal: f.codlocal !== undefined && !isNaN(Number(f.codlocal)) ? Number(f.codlocal) : undefined,
     }));
 
     await onConfirmar({
@@ -595,12 +685,13 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--slate-200)', textAlign: 'left' }}>
-                    <th style={{ padding: '6px 8px', color: 'var(--slate-400)', fontWeight: 700, width: '28px', textAlign: 'center' }}>#</th>
-                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '32%' }}>Lote / Controle</th>
-                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '20%' }}>Quantidade</th>
-                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '22%' }}>Validade</th>
-                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '22%' }}>Fabricação</th>
-                    <th style={{ padding: '6px 6px', textAlign: 'center', width: '30px' }}></th>
+                    <th style={{ padding: '6px 8px', color: 'var(--slate-400)', fontWeight: 700, width: '26px', textAlign: 'center' }}>#</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '25%' }}>Lote / Controle</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '15%' }}>Quantidade</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '17%' }}>Validade</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '17%' }}>Fabricação</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '23%' }} title="Local de Estoque no ERP (CODLOCAL) - Digite o código ou clique em 🔍 para pesquisar">Local ERP</th>
+                    <th style={{ padding: '6px 6px', textAlign: 'center', width: '28px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -792,6 +883,87 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                         />
                       </td>
 
+                      {/* Campo Local ERP com Botão de Pesquisa 🔍 */}
+                      <td style={{ padding: '4px 8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <input
+                              type="number"
+                              value={fracao.codlocal !== undefined ? fracao.codlocal : ''}
+                              onChange={(e) =>
+                                handleUpdateFracao(
+                                  fracao.id,
+                                  'codlocal',
+                                  e.target.value !== '' ? parseInt(e.target.value, 10) : undefined
+                                )
+                              }
+                              placeholder="Padrão"
+                              title={
+                                obterDescricaoLocal(fracao.codlocal)
+                                  ? `Local ${fracao.codlocal}: ${obterDescricaoLocal(fracao.codlocal)}`
+                                  : 'Local de estoque de destino no Sankhya (ex: 99 para Avaria, 98 Vencido, 95 Validade Próxima)'
+                              }
+                              style={{
+                                width: '100%',
+                                padding: '4px 6px',
+                                borderRadius: '4px',
+                                border: fracao.codlocal !== undefined ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontSize: '0.75rem',
+                                textAlign: 'center',
+                                fontWeight: 700,
+                                color: fracao.codlocal !== undefined ? '#b45309' : 'var(--slate-800)',
+                                background: fracao.codlocal !== undefined ? '#fffbeb' : '#ffffff',
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => abrirBuscaLocal(fracao.id)}
+                              title="Pesquisar local de estoque no Sankhya (TGFLOC)"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px 7px',
+                                background: fracao.codlocal !== undefined ? '#fef3c7' : '#f1f5f9',
+                                border: fracao.codlocal !== undefined ? '1px solid #fcd34d' : '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                color: fracao.codlocal !== undefined ? '#b45309' : '#475569',
+                                flexShrink: 0,
+                                height: '26px',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = '#e2e8f0';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = fracao.codlocal !== undefined ? '#fef3c7' : '#f1f5f9';
+                              }}
+                            >
+                              🔍
+                            </button>
+                          </div>
+                          {fracao.codlocal !== undefined && (
+                            <div
+                              style={{
+                                fontSize: '0.64rem',
+                                color: '#b45309',
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '140px',
+                              }}
+                              title={`[${fracao.codlocal}] ${obterDescricaoLocal(fracao.codlocal) || 'Local selecionado'}`}
+                            >
+                              {obterDescricaoLocal(fracao.codlocal) || `Local ${fracao.codlocal}`}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Remover Linha */}
                       <td style={{ padding: '4px 6px', textAlign: 'center', verticalAlign: 'middle' }}>
                         {fracoes.length > 1 && (
@@ -894,6 +1066,19 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Submodal de Pesquisa e Seleção de Local de Estoque (TGFLOC) */}
+      <ModalPesquisaLocalEstoque
+        isOpen={modalBuscaLocalAberto}
+        onClose={fecharBuscaLocal}
+        onSelecionar={(codlocal) => selecionarLocalParaFracao(codlocal)}
+        codlocalAtual={fracaoAlvo?.codlocal}
+        tituloContexto={
+          fracaoAlvo
+            ? `Fração Lote: ${fracaoAlvo.lote || '(Sem Lote)'} • Qtd: ${fracaoAlvo.quantidade} ${item.codvol || 'UN'}`
+            : undefined
+        }
+      />
     </div>
   );
 };

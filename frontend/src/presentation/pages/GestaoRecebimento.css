@@ -36,22 +36,23 @@
    ═══════════════════════════════════════════════════════ */
 .gestao-rec-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
   width: 100%;
 }
 
 .gestao-kpi-card {
   background: #ffffff;
   border: 1px solid var(--slate-200);
-  border-radius: 10px;
-  padding: 12px 16px;
+  border-radius: 8px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   cursor: pointer;
   transition: all 0.15s ease-in-out;
   text-align: left;
+  min-width: 0;
 }
 
 .gestao-kpi-card:hover {
@@ -64,22 +65,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 4px;
 }
 
 .gestao-kpi-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   color: var(--slate-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gestao-kpi-tag {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 4px;
   line-height: 1.1;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .gestao-kpi-tag.azul {
@@ -103,18 +110,21 @@
 }
 
 .gestao-kpi-valor {
-  font-size: 1.65rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: var(--slate-900);
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .gestao-kpi-sub {
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   color: var(--slate-500);
   display: flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gestao-kpi-card.alerta-ativo {
@@ -1247,6 +1257,11 @@
 
 /* Responsividade Geral */
 @media (max-width: 1024px) {
+  .gestao-rec-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 6px;
+  }
+
   .gestao-rec-tabela-desktop {
     display: none;
   }
@@ -1530,12 +1545,30 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   ESTILOS DE IMPRESSÃO / PDF PARA COMPROVANTE
+   ESTILOS DE IMPRESSÃO / PDF PARA COMPROVANTE E OCORRÊNCIAS
    ═══════════════════════════════════════════════════════ */
+.print-only {
+  display: none !important;
+}
+
 @media print {
   body * {
     visibility: hidden;
   }
+
+  /* Ocultar elementos de navegação, botões e filtros */
+  .print-hide,
+  .sidebar,
+  .gestao-rec-tabs,
+  .gestao-rec-filtro-bar,
+  .gestao-modal-acoes,
+  button,
+  select.print-hide {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* CASO 1: Comprovante de Envio */
   #comprovante-envio-modal,
   #comprovante-envio-modal * {
     visibility: visible;
@@ -1555,9 +1588,57 @@
     position: static !important;
     padding: 0 !important;
   }
-  .gestao-modal-acoes,
-  button {
-    display: none !important;
+
+  /* CASO 2: Relatório de Ocorrências */
+  #relatorio-ocorrencias-impressao,
+  #relatorio-ocorrencias-impressao * {
+    visibility: visible;
+  }
+  #relatorio-ocorrencias-impressao {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 10px 15px !important;
+    background: #ffffff !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-only {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Cards de Ocorrência na Impressão */
+  .card-ocorrencia-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    margin-bottom: 12px !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Fotos das evidências tipo 3x4 ampliada em 100% na impressão */
+  .evidencia-foto-thumb {
+    width: 160px !important;
+    height: 214px !important; /* Proporção 3x4 ampliada em 100% */
+    border: 1px solid #94a3b8 !important;
+    border-radius: 6px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-shadow: none !important;
+    background: #f8fafc !important;
+  }
+
+  .evidencia-foto-thumb img {
+    object-fit: contain !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: #ffffff !important;
   }
 }
 

@@ -20,6 +20,7 @@ import { ConfiguracaoTelasController } from '../controllers/ConfiguracaoTelasCon
 import { ConfiguracaoSistemaController } from '../controllers/ConfiguracaoSistemaController.js';
 import { ConferenciaEntradaController } from '../controllers/ConferenciaEntradaController.js';
 import { DatabaseExplorerController } from '../controllers/DatabaseExplorerController.js';
+import { OcorrenciasRecebimentoController } from '../controllers/OcorrenciasRecebimentoController.js';
 
 export interface RouteControllers {
   authController: AuthController;
@@ -32,6 +33,7 @@ export interface RouteControllers {
   configuracaoSistemaController: ConfiguracaoSistemaController;
   conferenciaEntradaController: ConferenciaEntradaController;
   databaseExplorerController: DatabaseExplorerController;
+  ocorrenciasRecebimentoController: OcorrenciasRecebimentoController;
 }
 
 /**
@@ -46,7 +48,14 @@ export function registerRoutes(app: Application, controllers: RouteControllers, 
 
   // Rotas protegidas
   app.use('/api/conferencias', authMiddleware, createConferenciasRoutes(controllers.conferenciasController));
-  app.use('/api/recebimento', authMiddleware, createConferenciaEntradaRoutes(controllers.conferenciaEntradaController));
+  app.use(
+    '/api/recebimento',
+    authMiddleware,
+    createConferenciaEntradaRoutes(
+      controllers.conferenciaEntradaController,
+      controllers.ocorrenciasRecebimentoController
+    )
+  );
   app.use('/api/crud', authMiddleware, createCrudRoutes(controllers.crudController));
   app.use('/api/produtos', authMiddleware, createProdutoRoutes(controllers.produtoController));
   app.use('/api/acessos', authMiddleware, createAcessosRoutes(controllers.acessosController));

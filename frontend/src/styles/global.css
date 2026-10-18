@@ -1187,15 +1187,11 @@ body {
    RESPONSIVO
    ═══════════════════════════════════════ */
 @media (max-width: 640px) {
-  .page-container { padding: 16px 12px; }
-  .page-header h1 { font-size: 1.3rem; }
-  .header-actions { gap: 8px; width: 100%; justify-content: flex-start; }
+  .page-container { padding: 12px 8px; }
   .ui-grid--cols-3 { grid-template-columns: repeat(3, 1fr); }
-  .scanner-form-inner { flex-wrap: wrap; }
-  .scanner-form-inner .ui-campo:first-child { flex: none; width: 100%; }
-  .tabela-itens th, .tabela-itens td { padding: 10px 14px; }
-  .card-footer { flex-wrap: wrap; gap: 8px; }
-  .ui-label--value { font-size: 1.6rem; }
+  .tabela-itens th, .tabela-itens td { padding: 8px 10px; }
+  .card-footer { flex-wrap: wrap; gap: 6px; }
+  .ui-label--value { font-size: 1.3rem; }
 }
 
 
@@ -1365,6 +1361,638 @@ body {
   margin: -24px -20px 8px;
 }
 
+/* Topo Compacto (quando o Head da conferência está oculto no mobile) */
+.conferencia-topo-compacto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Botão de Toggle do Scanner */
+.btn-toggle-scanner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-300);
+  color: var(--slate-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-toggle-scanner:hover {
+  background: var(--slate-200);
+  color: var(--slate-900);
+}
+
+/* Mini Barra Rápida de Scanner */
+.scanner-mini-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius);
+}
+
+.scanner-mini-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.scanner-mini-input {
+  flex: 1;
+  height: 38px;
+  padding: 6px 12px;
+  border: 1px solid #fdba74;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-family: 'JetBrains Mono', monospace;
+  background: white;
+  color: var(--slate-900);
+  font-weight: 600;
+}
+
+.scanner-mini-input:focus {
+  outline: none;
+  border-color: var(--orange-500);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.scanner-mini-qtd {
+  width: 50px;
+  height: 38px;
+  text-align: center;
+  border: 1px solid #fdba74;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-weight: 700;
+  background: white;
+}
+
+.scanner-mini-btn {
+  height: 38px;
+  padding: 0 14px;
+  background: var(--orange-500);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+
+.scanner-mini-btn:hover {
+  background: var(--orange-600);
+}
+
+.scanner-mini-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════
+   CABEÇALHO RESPONSIVO DA CONFERÊNCIA
+   ═══════════════════════════════════════ */
+.conferencia-header-resp {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: white;
+  border-bottom: 1px solid var(--slate-200);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.header-linha-superior {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.header-btn-voltar {
+  padding: 5px 10px !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  color: var(--slate-600) !important;
+  background: var(--slate-100) !important;
+  border: 1px solid var(--slate-200) !important;
+  border-radius: 6px !important;
+  flex-shrink: 0 !important;
+  cursor: pointer;
+}
+.header-btn-voltar:hover {
+  background: var(--slate-200) !important;
+}
+
+.header-info-centro {
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-info-centro h1 {
+  font-size: 0.88rem !important;
+  font-weight: 900 !important;
+  color: var(--slate-900) !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-info-centro .nota-info {
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  color: var(--slate-500) !important;
+  display: block !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.header-btn-finalizar {
+  flex-shrink: 0;
+}
+
+.header-btn-finalizar .btn-finalizar-n {
+  font-size: 0.74rem !important;
+  font-weight: 900 !important;
+  padding: 5px 10px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+}
+
+/* Linha 2 do Header: Badge de Status e Mini Cards de Resumo */
+.header-linha-inferior {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--slate-50);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--slate-200);
+  box-sizing: border-box;
+}
+
+.header-status-badge {
+  flex-shrink: 0;
+}
+
+.header-status-badge .badge-recontagem-header {
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  display: inline-block !important;
+}
+
+.header-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  flex: 1;
+}
+
+.resumo-card-mini {
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  padding: 2px 4px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.resumo-card-mini.conferido {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.resumo-card-mini.pendente {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.resumo-card-mini .resumo-card-val {
+  font-size: 0.85rem !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  color: var(--slate-800);
+}
+
+.resumo-card-mini .resumo-card-lbl {
+  font-size: 0.58rem !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: var(--slate-400);
+}
+
+/* ═══════════════════════════════════════
+   FORMULÁRIO DE SCANNER E MODOS
+   ═══════════════════════════════════════ */
+.scanner-modos-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--slate-200);
+}
+
+.scanner-modos-botoes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-modo-avaria {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.btn-modo-avaria.ativo {
+  border-color: #dc2626;
+  background: #fef2f2;
+  color: #b91c1c;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.btn-apontar-ocorrencia {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.badge-ocorrencias-topo {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Form de Bipagem Principal */
+.scanner-form-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.scanner-row-codigo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.scanner-row-codigo .ui-campo {
+  flex: 1 !important;
+  min-width: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.scanner-row-codigo .ui-campo--scanner .ui-campo__input {
+  width: 100%;
+  height: 38px;
+  font-size: 0.88rem;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--slate-300);
+  background: white;
+  box-sizing: border-box;
+}
+
+.scanner-row-codigo .btn-camera-scanner,
+.scanner-row-codigo .btn-ocr-scanner {
+  height: 38px;
+  min-width: 38px;
+  padding: 0 10px;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  color: var(--slate-700);
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Botão Teclado Virtual — Exclusivo para Mobile e Tablet (<= 1024px) */
+.btn-teclado-scanner {
+  display: none !important;
+  height: 38px;
+  min-width: 38px;
+  padding: 0 10px;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  color: var(--slate-700);
+  font-size: 0.78rem;
+  font-weight: 800;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+@media (max-width: 1024px) {
+  .btn-teclado-scanner {
+    display: inline-flex !important;
+  }
+}
+
+.scanner-row-codigo .btn-teclado-scanner:hover {
+  background: var(--slate-200);
+  color: var(--slate-900);
+}
+
+.scanner-row-codigo .btn-teclado-scanner.ativo {
+  background: #ffedd5 !important;
+  border-color: #f97316 !important;
+  color: #ea580c !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.25) !important;
+}
+
+.scanner-row-acoes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.scanner-row-acoes .ui-campo--compact,
+.scanner-row-codigo .ui-campo--compact,
+.ui-campo--compact {
+  width: 82px !important;
+  min-width: 82px !important;
+  max-width: 95px !important;
+  margin-bottom: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.scanner-row-acoes .ui-campo--compact .ui-campo__input,
+.scanner-row-codigo .ui-campo--compact .ui-campo__input,
+.ui-campo--compact .ui-campo__input {
+  width: 100% !important;
+  height: 38px !important;
+  text-align: center !important;
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  border: 1px solid var(--slate-300) !important;
+  border-radius: 8px !important;
+  background: white !important;
+  color: var(--slate-900) !important;
+  box-sizing: border-box !important;
+  padding: 2px 4px !important;
+  -moz-appearance: textfield;
+}
+
+.scanner-row-acoes .ui-campo--compact .ui-campo__input::-webkit-outer-spin-button,
+.scanner-row-acoes .ui-campo--compact .ui-campo__input::-webkit-inner-spin-button,
+.scanner-row-codigo .ui-campo--compact .ui-campo__input::-webkit-outer-spin-button,
+.scanner-row-codigo .ui-campo--compact .ui-campo__input::-webkit-inner-spin-button,
+.ui-campo--compact .ui-campo__input::-webkit-outer-spin-button,
+.ui-campo--compact .ui-campo__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.scanner-row-acoes .btn-conferir-principal,
+.scanner-row-acoes .btn-conferir-scanner,
+.scanner-row-botao-conferir .btn-conferir-principal {
+  width: 100% !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  background: var(--orange-500) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-size: 0.92rem !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.scanner-row-botao-conferir {
+  display: flex;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.scanner-row-acoes .btn-conferir-principal:hover,
+.scanner-row-acoes .btn-conferir-scanner:hover,
+.scanner-row-botao-conferir .btn-conferir-principal:hover {
+  background: var(--orange-600) !important;
+}
+
+.scanner-row-acoes .btn-conferir-principal:disabled,
+.scanner-row-acoes .btn-conferir-scanner:disabled,
+.scanner-row-botao-conferir .btn-conferir-principal:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Grid de Lote / Validade / Fabricação (3 Colunas) */
+.conferencia-lote-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.conferencia-lote-grid .ui-campo {
+  margin-bottom: 0 !important;
+}
+
+.conferencia-lote-grid .ui-campo .ui-label {
+  font-size: 0.65rem !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: var(--slate-600) !important;
+  margin-bottom: 2px !important;
+  display: block !important;
+}
+
+.conferencia-lote-grid .ui-campo__input {
+  width: 100% !important;
+  height: 34px !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  padding: 4px 6px !important;
+  border: 1px solid var(--slate-300) !important;
+  border-radius: 6px !important;
+  background: var(--slate-50) !important;
+  box-sizing: border-box !important;
+}
+
+.conferencia-lote-grid .ui-campo__input:focus {
+  background: white !important;
+  border-color: var(--orange-500) !important;
+}
+
+/* Rodapé do Scanner */
+.scanner-recolher-footer {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.btn-recolher-footer {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--slate-100);
+  border: 1px dashed var(--slate-300);
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--slate-600);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-recolher-footer:hover {
+  background: var(--slate-200);
+  color: var(--slate-900);
+  border-style: solid;
+}
+
+/* Topo Compacto (Barra quando o head está recolhido) */
+.conferencia-topo-compacto-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
+
+.conferencia-topo-compacto-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 8px;
+  background: var(--slate-100);
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--slate-600);
+}
+
+.mini-info-badge {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #d8b4fe;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.conferencia-topo-compacto {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius);
+}
+
+.mini-btn-voltar {
+  padding: 6px 8px !important;
+  font-size: 0.8rem !important;
+  min-width: 34px !important;
+  height: 36px !important;
+}
+
+.btn-toggle-scanner-expandir {
+  height: 36px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: #ea580c;
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-toggle-scanner-expandir:hover {
+  background: #c2410c;
+}
+
+
 
 /* Grid desktop: pendentes e conferidos em largura total */
 .itens-grid-desktop {
@@ -1533,3 +2161,282 @@ body {
   outline: none;
   border-color: var(--orange-500);
 }
+
+/* ═══════════════════════════════════════
+   RESPONSIVO ESPECÍFICO CONFERÊNCIA (MOBILE <= 768px)
+   ═══════════════════════════════════════ */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 6px 4px !important;
+  }
+  .conferencia-top-fixo {
+    padding: 4px 6px 4px !important;
+    margin: -6px -4px 6px !important;
+  }
+
+  /* Topo Compacto */
+  .conferencia-topo-compacto {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 4px 6px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: #fff7ed !important;
+    border: 1px solid #fed7aa !important;
+    border-radius: var(--radius) !important;
+  }
+  .conferencia-topo-compacto .scanner-mini-form {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  .conferencia-topo-compacto .scanner-mini-input {
+    flex: 1 !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    font-size: 0.80rem !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+  }
+  .conferencia-topo-compacto .scanner-mini-qtd {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 36px !important;
+    font-size: 0.80rem !important;
+    padding: 2px !important;
+    text-align: center !important;
+    border-radius: 6px !important;
+  }
+  .conferencia-topo-compacto .scanner-mini-btn {
+    height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 0.76rem !important;
+    font-weight: 800 !important;
+    border-radius: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Cabeçalho 2 Linhas */
+  .conferencia-header-resp {
+    margin-bottom: 6px !important;
+    padding-bottom: 6px !important;
+    gap: 4px !important;
+  }
+  .header-linha-superior {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+  .header-btn-voltar {
+    padding: 4px 8px !important;
+    font-size: 0.74rem !important;
+  }
+  .header-info-centro h1 {
+    font-size: 0.82rem !important;
+    margin: 0 !important;
+  }
+  .header-info-centro .nota-info {
+    font-size: 0.64rem !important;
+  }
+  .header-btn-finalizar .btn-finalizar-n {
+    font-size: 0.70rem !important;
+    padding: 4px 8px !important;
+  }
+  .header-linha-inferior {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 3px 6px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .header-status-badge .badge-recontagem-header {
+    font-size: 0.62rem !important;
+    padding: 2px 6px !important;
+  }
+  .header-cards-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 4px !important;
+  }
+  .resumo-card-mini {
+    padding: 2px 2px !important;
+  }
+  .resumo-card-mini .resumo-card-val {
+    font-size: 0.78rem !important;
+  }
+  .resumo-card-mini .resumo-card-lbl {
+    font-size: 0.52rem !important;
+  }
+
+  /* Painel de Scanner */
+  .ui-painel {
+    margin-bottom: 6px !important;
+  }
+  .ui-painel__header {
+    padding: 6px 8px !important;
+  }
+  .ui-painel__titulo {
+    font-size: 0.88rem !important;
+  }
+  .btn-toggle-scanner {
+    font-size: 0.70rem !important;
+    padding: 3px 8px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Form de Bipagem Expandido */
+  .scanner-form-inner {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+  .scanner-row-codigo {
+    display: flex !important;
+    gap: 6px !important;
+    width: 100% !important;
+    align-items: center !important;
+  }
+  .scanner-row-codigo .ui-campo {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  .scanner-row-codigo .ui-campo--scanner .ui-campo__input {
+    height: 38px !important;
+    font-size: 0.84rem !important;
+    padding: 5px 8px !important;
+  }
+  .scanner-row-codigo .btn-camera-scanner,
+  .scanner-row-codigo .btn-ocr-scanner,
+  .scanner-row-codigo .btn-teclado-scanner {
+    height: 38px !important;
+    min-width: 38px !important;
+    padding: 0 8px !important;
+  }
+  .scanner-row-acoes {
+    display: flex !important;
+    gap: 6px !important;
+    width: 100% !important;
+    align-items: center !important;
+  }
+  .scanner-row-acoes .ui-campo--compact,
+  .scanner-row-codigo .ui-campo--compact,
+  .ui-campo--compact {
+    width: 76px !important;
+    min-width: 76px !important;
+    max-width: 86px !important;
+  }
+  .scanner-row-acoes .ui-campo--compact .ui-campo__input,
+  .scanner-row-codigo .ui-campo--compact .ui-campo__input,
+  .ui-campo--compact .ui-campo__input {
+    height: 38px !important;
+    width: 100% !important;
+    font-size: 0.90rem !important;
+    padding: 2px !important;
+    text-align: center !important;
+  }
+  .scanner-row-acoes .btn-conferir-principal,
+  .scanner-row-acoes .btn-conferir-scanner,
+  .scanner-row-botao-conferir .btn-conferir-principal {
+    flex: 1 !important;
+    width: 100% !important;
+    height: 40px !important;
+    font-size: 0.88rem !important;
+    font-weight: 800 !important;
+  }
+
+  /* Grid de Lote / Validade / Fabricação */
+  .conferencia-lote-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 4px !important;
+    margin-top: 6px !important;
+    width: 100% !important;
+  }
+  .conferencia-lote-grid .ui-campo__input {
+    height: 32px !important;
+    font-size: 0.74rem !important;
+    padding: 3px 4px !important;
+  }
+  .conferencia-lote-grid .ui-label {
+    font-size: 0.62rem !important;
+    margin-bottom: 2px !important;
+    font-weight: 700 !important;
+  }
+
+  /* Abas e Lista de Produtos */
+  .tab-button {
+    padding: 8px 6px !important;
+    font-size: 0.78rem !important;
+  }
+  .item-card-mobile {
+    padding: 8px 10px !important;
+    gap: 6px !important;
+  }
+  .item-card-header {
+    gap: 8px !important;
+  }
+  .item-card-img {
+    width: 38px !important;
+    height: 38px !important;
+  }
+  .item-card-title {
+    font-size: 0.80rem !important;
+    line-height: 1.25 !important;
+  }
+  .item-card-sub {
+    font-size: 0.68rem !important;
+  }
+}
+
+/* ═══════════════════════════════════════
+   ADAPTAÇÃO DESKTOP CONFERÊNCIA (> 768px)
+   ═══════════════════════════════════════ */
+@media (min-width: 769px) {
+  .header-linha-superior {
+    justify-content: flex-start;
+    gap: 16px;
+  }
+  .header-linha-superior .header-info-centro {
+    text-align: left;
+    flex: 1;
+  }
+  .header-linha-superior .header-btn-finalizar {
+    margin-left: auto;
+  }
+  .header-linha-inferior {
+    justify-content: flex-start;
+    gap: 16px;
+  }
+  .header-cards-grid {
+    flex: 0 0 auto;
+    width: 300px;
+  }
+  .scanner-form-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  .scanner-row-codigo {
+    width: 100%;
+  }
+  .scanner-row-botao-conferir {
+    margin-top: 8px;
+  }
+  .scanner-row-botao-conferir .btn-conferir-principal {
+    height: 42px !important;
+    font-size: 0.95rem !important;
+  }
+  .conferencia-lote-grid {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+}
+

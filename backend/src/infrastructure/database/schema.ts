@@ -122,6 +122,42 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
      VALUES ('conferencia_entrada_nivel1_ativo', 'true', 'Ativa a 1ª contagem cega simples no Recebimento de Mercadorias', datetime('now'));`,
     `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
      VALUES ('conferencia_entrada_nivel2_ativo', 'true', 'Ativa a 2ª contagem obrigatória (N2 com Lote e Validade) no Recebimento de Mercadorias', datetime('now'));`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('recebimento_local_avaria', '99', 'Local padrão de estoque no Sankhya para avarias', datetime('now'));`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('recebimento_local_vencido', '98', 'Local padrão de estoque no Sankhya para produtos vencidos', datetime('now'));`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('recebimento_local_validade_proxima', '95', 'Local padrão de estoque no Sankhya para produtos com validade próxima', datetime('now'));`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('recebimento_shelf_life_dias_alerta', '90', 'Prazo em dias para disparar alerta de validade próxima no recebimento', datetime('now'));`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('recebimento_local_ocorrencia_padrao', '99', 'Local padrão no Sankhya para demais ocorrências de estoque', datetime('now'));`,
+
+    // 7. Ocorrências e Divergências da Conferência de Entrada (Avaria, Vencidos, Trocados, etc.)
+    `CREATE TABLE IF NOT EXISTS ocorrencias_conferencia_entrada (
+      id TEXT PRIMARY KEY,
+      conferencia_id TEXT,
+      nunota INTEGER,
+      sequencia INTEGER,
+      codprod INTEGER,
+      descrprod TEXT,
+      tipo TEXT NOT NULL,
+      quantidade REAL NOT NULL,
+      lote TEXT,
+      validade TEXT,
+      fabricacao TEXT,
+      motivo TEXT,
+      codlocal_destino INTEGER,
+      fotos_json TEXT,
+      status TEXT DEFAULT 'PENDENTE',
+      origem TEXT DEFAULT 'COLETOR',
+      criado_por TEXT,
+      criado_em TEXT NOT NULL,
+      atualizado_em TEXT NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_ocorr_conf ON ocorrencias_conferencia_entrada(conferencia_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_ocorr_nunota ON ocorrencias_conferencia_entrada(nunota);`,
+    `CREATE INDEX IF NOT EXISTS idx_ocorr_tipo ON ocorrencias_conferencia_entrada(tipo);`,
   ];
 
   for (const sql of statements) {
@@ -143,6 +179,45 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   await garantirColuna(client, 'conferencias_entrada', 'codparc', 'INTEGER');
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_chavenfe ON conferencias_entrada(chavenfe);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_numnota ON conferencias_entrada(numnota);`);
+
+  // Migração segura para ocorrencias_conferencia_entrada (remover NOT NULL e FK de conferencia_id / nunota se existir)
+  try {
+    const tableInfo = await client.execute("PRAGMA table_info(ocorrencias_conferencia_entrada);");
+    const confCol = tableInfo.rows.find((r: any) => r.name === 'conferencia_id');
+    if (confCol && Number(confCol.notnull) === 1) {
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS ocorrencias_temp (
+          id TEXT PRIMARY KEY,
+          conferencia_id TEXT,
+          nunota INTEGER,
+          sequencia INTEGER,
+          codprod INTEGER,
+          descrprod TEXT,
+          tipo TEXT NOT NULL,
+          quantidade REAL NOT NULL,
+          lote TEXT,
+          validade TEXT,
+          fabricacao TEXT,
+          motivo TEXT,
+          codlocal_destino INTEGER,
+          fotos_json TEXT,
+          status TEXT DEFAULT 'PENDENTE',
+          origem TEXT DEFAULT 'COLETOR',
+          criado_por TEXT,
+          criado_em TEXT NOT NULL,
+          atualizado_em TEXT NOT NULL
+        );
+      `);
+      await client.execute(`INSERT OR IGNORE INTO ocorrencias_temp SELECT * FROM ocorrencias_conferencia_entrada;`);
+      await client.execute(`DROP TABLE ocorrencias_conferencia_entrada;`);
+      await client.execute(`ALTER TABLE ocorrencias_temp RENAME TO ocorrencias_conferencia_entrada;`);
+      await client.execute(`CREATE INDEX IF NOT EXISTS idx_ocorr_conf ON ocorrencias_conferencia_entrada(conferencia_id);`);
+      await client.execute(`CREATE INDEX IF NOT EXISTS idx_ocorr_nunota ON ocorrencias_conferencia_entrada(nunota);`);
+      await client.execute(`CREATE INDEX IF NOT EXISTS idx_ocorr_tipo ON ocorrencias_conferencia_entrada(tipo);`);
+    }
+  } catch (err) {
+    console.warn('[Schema] Aviso na verificação de migração de ocorrencias_conferencia_entrada:', err);
+  }
 
   // Executa migração dos arquivos JSON legados, se existirem
   await migrarDadosLegadosJson(client);

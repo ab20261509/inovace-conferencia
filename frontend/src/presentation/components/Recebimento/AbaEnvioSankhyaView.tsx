@@ -8,6 +8,8 @@ import {
 import { Container } from '../Container/Container';
 import { FracaoLote } from './ModalGerenciarLotes';
 import { ModalDesmembrarItem } from './ModalDesmembrarItem';
+import { ModalPesquisaLocalEstoque } from './ModalPesquisaLocalEstoque';
+import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
 import { SkeletonItens } from './SkeletonItens';
 import {
   formatarConferentes,
@@ -70,7 +72,7 @@ export interface AbaEnvioSankhyaViewProps {
     dados: {
       nunota: number;
       sequencia: number;
-      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string; codlocal?: number }>;
     }
   ) => Promise<void>;
   obterLotesItem: (
@@ -116,6 +118,55 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
     grupo: any;
   } | null>(null);
   const [executandoDesmembramento, setExecutandoDesmembramento] = useState(false);
+  const recebimentoService = useMemo(() => new RecebimentoApiService(), []);
+  const [modalLocalAberto, setModalLocalAberto] = useState(false);
+  const [itemParaAlterarLocal, setItemParaAlterarLocal] = useState<{
+    nunota: number;
+    sequencia: number;
+    codprod?: number;
+    descrprod?: string;
+    codlocalorig?: number;
+    conferenciaId: string;
+  } | null>(null);
+  const [salvandoLocal, setSalvandoLocal] = useState(false);
+
+  const handleAbrirAlterarLocal = (
+    item: any,
+    conferenciaId: string
+  ) => {
+    setItemParaAlterarLocal({
+      nunota: item.nunota,
+      sequencia: item.sequencia,
+      codprod: item.codprod,
+      descrprod: item.descrprod || `Produto ${item.codprod}`,
+      codlocalorig: item.codlocalorig,
+      conferenciaId,
+    });
+    setModalLocalAberto(true);
+  };
+
+  const handleConfirmarAlterarLocal = async (novoCodlocal?: number) => {
+    if (!itemParaAlterarLocal || novoCodlocal === undefined || novoCodlocal === null) return;
+    setSalvandoLocal(true);
+    try {
+      await recebimentoService.alterarLocalItem({
+        nunota: itemParaAlterarLocal.nunota,
+        sequencia: itemParaAlterarLocal.sequencia,
+        codlocal: novoCodlocal,
+        conferenciaId: itemParaAlterarLocal.conferenciaId,
+      });
+      await carregarDetalhesConferencia(
+        itemParaAlterarLocal.conferenciaId,
+        [itemParaAlterarLocal.nunota]
+      );
+      setModalLocalAberto(false);
+      setItemParaAlterarLocal(null);
+    } catch (err: any) {
+      alert(`Erro ao alterar local no Sankhya: ${err?.message || 'Falha na comunicação'}`);
+    } finally {
+      setSalvandoLocal(false);
+    }
+  };
 
   const abrirModalDesmembrar = (
     item: any,
@@ -168,7 +219,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
   const handleConfirmarDesmembramentoEnvio = async (dados: {
     nunota: number;
     sequencia: number;
-    lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+    lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string; codlocal?: number }>;
   }) => {
     if (!onExecutarDesmembramento || !modalDesmembrarItem) return;
     setExecutandoDesmembramento(true);
@@ -946,7 +997,48 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                       </span>
                                     </td>
                                     <td>
-                                      {item.codlocalorig !== undefined && item.codlocalorig !== null ? (
+                                      {!jaEnviado ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAbrirAlterarLocal(item, grupo.conferenciaId)}
+                                          title="Clique para alterar o Local de Estoque (CODLOCALORIG) no Sankhya antes do envio"
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            cursor: 'pointer',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 600,
+                                            padding: '3px 8px',
+                                            borderRadius: '5px',
+                                            border: item.codlocalorig !== undefined && item.codlocalorig !== null
+                                              ? '1px solid var(--slate-300)'
+                                              : '1px solid #fca5a5',
+                                            background: item.codlocalorig !== undefined && item.codlocalorig !== null
+                                              ? '#f8fafc'
+                                              : '#fef2f2',
+                                            color: item.codlocalorig !== undefined && item.codlocalorig !== null
+                                              ? 'var(--slate-800)'
+                                              : '#b91c1c',
+                                            transition: 'all 0.15s ease',
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--primary-500, #3b82f6)';
+                                            e.currentTarget.style.backgroundColor = '#eff6ff';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = item.codlocalorig !== undefined && item.codlocalorig !== null
+                                              ? 'var(--slate-300)'
+                                              : '#fca5a5';
+                                            e.currentTarget.style.backgroundColor = item.codlocalorig !== undefined && item.codlocalorig !== null
+                                              ? '#f8fafc'
+                                              : '#fef2f2';
+                                          }}
+                                        >
+                                          <span>{item.codlocalorig !== undefined && item.codlocalorig !== null ? `📍 ${item.codlocalorig}` : '⚠️ Sem Local'}</span>
+                                          <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>✏️</span>
+                                        </button>
+                                      ) : item.codlocalorig !== undefined && item.codlocalorig !== null ? (
                                         <span
                                           style={{
                                             fontSize: '0.8rem',
@@ -972,7 +1064,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                             border: '1px solid #fecaca',
                                             color: '#b91c1c',
                                           }}
-                                          title="Item sem Local de Origem no ERP. Necessário preencher no Sankhya antes do envio."
+                                          title="Item sem Local de Origem no ERP."
                                         >
                                           ⚠️ Sem Local
                                         </span>
@@ -1481,7 +1573,34 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                 )}
                                 <div>
                                   Local:{' '}
-                                  {item.codlocalorig !== undefined && item.codlocalorig !== null ? (
+                                  {!jaEnviado ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAbrirAlterarLocal(item, grupo.conferenciaId)}
+                                      style={{
+                                        cursor: 'pointer',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600,
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        border: item.codlocalorig !== undefined && item.codlocalorig !== null
+                                          ? '1px solid var(--slate-300)'
+                                          : '1px solid #fca5a5',
+                                        background: item.codlocalorig !== undefined && item.codlocalorig !== null
+                                          ? '#f8fafc'
+                                          : '#fef2f2',
+                                        color: item.codlocalorig !== undefined && item.codlocalorig !== null
+                                          ? 'var(--slate-800)'
+                                          : '#b91c1c',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                      }}
+                                    >
+                                      <span>{item.codlocalorig !== undefined && item.codlocalorig !== null ? `📍 ${item.codlocalorig}` : '⚠️ Sem Local'}</span>
+                                      <span style={{ fontSize: '0.7rem' }}>✏️</span>
+                                    </button>
+                                  ) : item.codlocalorig !== undefined && item.codlocalorig !== null ? (
                                     <strong style={{ color: 'var(--slate-800)' }}>📍 {item.codlocalorig}</strong>
                                   ) : (
                                     <strong style={{ color: '#b91c1c' }}>⚠️ Sem Local</strong>
@@ -1717,6 +1836,24 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
           grupo={modalDesmembrarItem.grupo}
           loading={executandoDesmembramento}
           onConfirmar={handleConfirmarDesmembramentoEnvio}
+        />
+      )}
+      {modalLocalAberto && (
+        <ModalPesquisaLocalEstoque
+          isOpen={modalLocalAberto}
+          onClose={() => {
+            if (!salvandoLocal) {
+              setModalLocalAberto(false);
+              setItemParaAlterarLocal(null);
+            }
+          }}
+          codlocalAtual={itemParaAlterarLocal?.codlocalorig}
+          tituloContexto={
+            itemParaAlterarLocal
+              ? `${itemParaAlterarLocal.descrprod} (Nota ${itemParaAlterarLocal.nunota})`
+              : undefined
+          }
+          onSelecionar={(codlocal) => handleConfirmarAlterarLocal(codlocal)}
         />
       )}
     </div>

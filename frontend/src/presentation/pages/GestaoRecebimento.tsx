@@ -28,15 +28,17 @@ import {
   ModalConfirmarEnvioImediato,
   DadosNotaEnvioImediato,
 } from '../components/Recebimento/ModalConfirmarEnvioImediato';
+import { AbaOcorrenciasView } from '../components/Recebimento/AbaOcorrenciasView';
+import { OcorrenciaRecebimento } from '../../domain/models/OcorrenciaRecebimento';
 import './GestaoRecebimento.css';
 
 const recebimentoService = new RecebimentoApiService();
 const configSistemaService = new ConfiguracaoSistemaApiService();
 
 export function GestaoRecebimentoPage() {
-  const { temPermissao } = useAuth();
+  const { user, temPermissao } = useAuth();
   const navigate = useNavigate();
-  const [abaAtiva, setAbaAtiva] = useState<'conferencias' | 'divergencias' | 'aprovacao_sankhya'>('conferencias');
+  const [abaAtiva, setAbaAtiva] = useState<'conferencias' | 'divergencias' | 'aprovacao_sankhya' | 'ocorrencias'>('conferencias');
 
   // Parâmetros operacionais de níveis (N1 / N2)
   const [paramN1Ativo, setParamN1Ativo] = useState<boolean>(true);
@@ -46,6 +48,7 @@ export function GestaoRecebimentoPage() {
   const [todasConferencias, setTodasConferencias] = useState<ConferenciaEntradaResumo[]>([]);
   const [divergencias, setDivergencias] = useState<ConferenciaDivergenciaGrupo[]>([]);
   const [conferenciasProntas, setConferenciasProntas] = useState<NotaEntrada[]>([]);
+  const [ocorrencias, setOcorrencias] = useState<OcorrenciaRecebimento[]>([]);
   const [detalhesConferencias, setDetalhesConferencias] = useState<Record<string, ObterItensConferenciaResponse>>({});
   const [conferenciasExpandidas, setConferenciasExpandidas] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
@@ -120,9 +123,23 @@ export function GestaoRecebimentoPage() {
     const custom = lotesCustomizadosPorConferencia[conferenciaId]?.[item.codprod];
     if (custom && custom.length > 0) return custom;
 
-    const bipagensProd = bipagens.filter(
-      (b) => b.codprod === item.codprod && !b.anulado && b.lote
+    // Se o item possui sequência definida e existem bipagens correspondentes a ela, filtra especificamente por sequência
+    const bipagensSeq = bipagens.filter(
+      (b) =>
+        b.codprod === item.codprod &&
+        Boolean(b.sequencia) &&
+        Boolean(item.sequencia) &&
+        Number(b.sequencia) === Number(item.sequencia) &&
+        !b.anulado &&
+        b.lote
     );
+
+    const bipagensProd =
+      bipagensSeq.length > 0
+        ? bipagensSeq
+        : bipagens.filter(
+            (b) => b.codprod === item.codprod && !b.anulado && b.lote
+          );
 
     if (bipagensProd.length > 0) {
       const mapa = new Map<string, FracaoLote>();
@@ -139,6 +156,15 @@ export function GestaoRecebimentoPage() {
         mapa.get(key)!.qtd += b.qtdConferida || 0;
       }
       return Array.from(mapa.values());
+    }
+
+    if (item.lotesConferidos && item.lotesConferidos.length > 0) {
+      return item.lotesConferidos.map((lc: any) => ({
+        lote: lc.lote,
+        qtd: lc.quantidade ?? lc.qtd ?? item.qtdneg ?? 0,
+        validade: lc.validade || item.validade,
+        fabricacao: lc.fabricacao || item.fabricacao,
+      }));
     }
 
     if (item.lote) {
@@ -420,7 +446,7 @@ export function GestaoRecebimentoPage() {
     dados: {
       nunota: number;
       sequencia: number;
-      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string; codlocal?: number }>;
     }
   ) => {
     try {
@@ -494,6 +520,13 @@ export function GestaoRecebimentoPage() {
     } catch (err: any) {
       console.error('Erro ao carregar notas prontas para envio:', err);
       erros.push(err.response?.data?.error || 'Falha ao carregar notas para envio ao Sankhya');
+    }
+
+    try {
+      const ocs = await recebimentoService.listarOcorrencias();
+      setOcorrencias(ocs);
+    } catch (err: any) {
+      console.warn('Aviso ao carregar ocorrências:', err);
     }
 
     if (erros.length > 0) {
@@ -875,6 +908,36 @@ export function GestaoRecebimentoPage() {
                   <span>Sincronizadas com o estoque</span>
                 </div>
               </div>
+
+              {/* Card 5: Ocorrências & Avarias */}
+              <div
+                className={`gestao-kpi-card ${ocorrencias.some((o) => o.status === 'PENDENTE') ? 'alerta-ativo' : ''}`}
+                onClick={() => setAbaAtiva('ocorrencias')}
+                title="Acessar avarias, produtos vencidos e desvios de recebimento"
+              >
+                <div className="gestao-kpi-header">
+                  <span className="gestao-kpi-label">Ocorrências</span>
+                  <span
+                    className={`gestao-kpi-tag ${
+                      ocorrencias.some((o) => o.status === 'PENDENTE') ? 'alerta' : 'cinza'
+                    }`}
+                  >
+                    {ocorrencias.filter((o) => o.status === 'PENDENTE').length > 0 ? 'Pendentes' : 'Total'}
+                  </span>
+                </div>
+                <div
+                  className="gestao-kpi-valor"
+                  style={{
+                    color: ocorrencias.some((o) => o.status === 'PENDENTE') ? '#dc2626' : undefined,
+                  }}
+                >
+                  {ocorrencias.length}
+                </div>
+                <div className="gestao-kpi-sub">
+                  <span>💥</span>
+                  <span>Avarias, vencidos e desvios</span>
+                </div>
+              </div>
             </div>
 
             {/* Navegação de Abas Minimalista */}
@@ -906,6 +969,20 @@ export function GestaoRecebimentoPage() {
                   <span>Envio Sankhya</span>
                   <span className={`gestao-rec-tab-badge ${totalPendentesEnvio > 0 ? 'alerta' : ''}`}>
                     {totalPendentesEnvio}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`gestao-rec-tab-btn ${abaAtiva === 'ocorrencias' ? 'ativa' : ''}`}
+                  onClick={() => setAbaAtiva('ocorrencias')}
+                >
+                  <span>Ocorrências</span>
+                  <span
+                    className={`gestao-rec-tab-badge ${
+                      ocorrencias.filter((o) => o.status === 'PENDENTE').length > 0 ? 'alerta' : ''
+                    }`}
+                  >
+                    {ocorrencias.length}
                   </span>
                 </button>
               </div>
@@ -998,7 +1075,7 @@ export function GestaoRecebimentoPage() {
                         tipo: 'APROVAR_DIVERGENCIA',
                         conferenciaId: grupo.conferenciaId || grupo.id,
                         titulo: `Resolver e Aceitar Divergência (NF ${grupo.numnota || grupo.numerosNotas})`,
-                        descricao: `Você está prestes a aprovar a conferência da nota fiscal ${grupo.numnota || grupo.numerosNotas} aceitando a contagem física atual como definitiva para o estoque com as decisões fiscais selecionadas.`,
+                        descricao: `Você está prestes a aprovar a conferência da nota ${grupo.numnota || grupo.numerosNotas} aceitando a contagem física atual como definitiva para o estoque com as decisões selecionadas.`,
                         placeholder: 'Insira a justificativa gerencial para aprovar esta divergência (ex: fornecedor confirmou envio a menor com carta de correção)...',
                         dadosExtras: {
                           conferenciaIdOrig: grupo.conferenciaId || grupo.id,
@@ -1045,6 +1122,7 @@ export function GestaoRecebimentoPage() {
                     onSincronizarDesmembramento={handleSincronizarDesmembramento}
                     onExecutarDesmembramento={handleExecutarDesmembramento}
                     processandoDesmembramento={processandoDesmembramento}
+                    onLocalAlterado={carregarDados}
                   />
                 )}
 
@@ -1090,6 +1168,15 @@ export function GestaoRecebimentoPage() {
                     obterLotesItem={obterLotesItem}
                     nivel1Ativo={paramN1Ativo}
                     nivel2Ativo={paramN2Ativo}
+                  />
+                )}
+
+                {/* ABA 4: OCORRÊNCIAS & PENDÊNCIAS */}
+                {abaAtiva === 'ocorrencias' && (
+                  <AbaOcorrenciasView
+                    ocorrencias={ocorrencias}
+                    onRecarregar={carregarDados}
+                    usuarioAtual={user?.nomeUsu || 'Gestor'}
                   />
                 )}
               </>

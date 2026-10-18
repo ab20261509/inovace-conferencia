@@ -12,9 +12,13 @@ import { Botao, Campo, Container, Label, Painel, ModalCameraScanner } from '../c
 import { Loading } from '../components/Loading/Loading';
 import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infrastructure/audio/alertas';
 import { extractFieldValue, normalizeDate } from '../../infrastructure/utils/ocrParser';
-import { aplicarMascaraData, completarAnoData, validarData } from '../utils/dateMaskHelper';
+import { aplicarMascaraData, completarAnoData, validarData, checarStatusValidade } from '../utils/dateMaskHelper';
+import { ModalRegistrarOcorrencia } from '../components/Recebimento/ModalRegistrarOcorrencia';
+import { TipoOcorrenciaRecebimento, OcorrenciaRecebimento } from '../../domain/models/OcorrenciaRecebimento';
+import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
 
 const recebimentoService = new RecebimentoApiService();
+const configSistemaService = new ConfiguracaoSistemaApiService();
 
 function formatarDataHora(val?: string | null): string {
   if (!val) return '—';
@@ -91,6 +95,32 @@ export function ConferenciaEntradaPage() {
   const [erroValidade, setErroValidade] = useState<string | null>(null);
   const [erroFabricacao, setErroFabricacao] = useState<string | null>(null);
   const [mostrarCamera, setMostrarCamera] = useState(false);
+  const [scannerRecolhido, setScannerRecolhido] = useState(false);
+  const [tecladoVirtualAtivo, setTecladoVirtualAtivo] = useState(false);
+  const [isDispositivoMovel, setIsDispositivoMovel] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= 1024 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDispositivoMovel(window.innerWidth <= 1024 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const alternarTecladoVirtual = () => {
+    setTecladoVirtualAtivo((prev) => {
+      const novo = !prev;
+      setTimeout(() => {
+        if (inputCodigoRef.current) {
+          inputCodigoRef.current.focus();
+        }
+      }, 50);
+      return novo;
+    });
+  };
 
   // Navegação de Abas
   const [abaAtiva, setAbaAtiva] = useState<'pendentes' | 'conferidos'>('pendentes');
@@ -114,12 +144,30 @@ export function ConferenciaEntradaPage() {
   const [estornando, setEstornando] = useState(false);
   const [imagemAmpliada, setImagemAmpliada] = useState<string | null>(null);
 
+  // Ocorrências e Avarias
+  const [modalOcorrenciaAberto, setModalOcorrenciaAberto] = useState(false);
+  const [itemParaOcorrencia, setItemParaOcorrencia] = useState<any>(null);
+  const [tipoOcorrenciaModal, setTipoOcorrenciaModal] = useState<TipoOcorrenciaRecebimento>('AVARIA');
+  const [modoAvariaAtivo, setModoAvariaAtivo] = useState(false);
+  const [ocorrenciasSessao, setOcorrenciasSessao] = useState<OcorrenciaRecebimento[]>([]);
+  const [codigoNaoEncontradoOcorr, setCodigoNaoEncontradoOcorr] = useState<string | null>(null);
+  const [diasShelfLife, setDiasShelfLife] = useState<number>(90);
+
   // Feedback Visual Pop-up
   const [feedbackVisual, setFeedbackVisual] = useState<{ codProd: number; descrProd: string } | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputCodigoRef = useRef<HTMLInputElement>(null);
 
   const podeAcessar = temPermissao('conferencia_entrada');
+
+  const carregarOcorrencias = useCallback(async (confId: string) => {
+    try {
+      const res = await recebimentoService.listarOcorrencias({ conferenciaId: confId });
+      setOcorrenciasSessao(res);
+    } catch (e) {
+      console.warn('Erro ao carregar ocorrências:', e);
+    }
+  }, []);
 
   // Inicializar sessão
   const inicializar = useCallback(async () => {
@@ -153,25 +201,28 @@ export function ConferenciaEntradaPage() {
           setSessao(sessaoAtual);
           setItens(respAtualizada.itens);
           setBipagens(respAtualizada.bipagens);
+          await carregarOcorrencias(sessaoAtual.id);
           return;
         }
 
         setSessao(sessaoAtual);
         setItens(resp.itens);
         setBipagens(resp.bipagens);
+        await carregarOcorrencias(sessaoAtual.id);
       } else {
         sessaoAtual = await recebimentoService.iniciarConferencia(nunotas, nivelInicial);
         setSessao(sessaoAtual);
         const resp = await recebimentoService.obterItensConferencia(sessaoAtual.id);
         setItens(resp.itens);
         setBipagens(resp.bipagens);
+        await carregarOcorrencias(sessaoAtual.id);
       }
     } catch (err: any) {
       setErro(err.response?.data?.error || err.message || 'Erro ao inicializar conferência de entrada.');
     } finally {
       setLoading(false);
     }
-  }, [nunotas, navState, nivelInicial]);
+  }, [nunotas, navState, nivelInicial, carregarOcorrencias]);
 
   useEffect(() => {
     prepararAudio();
@@ -188,6 +239,24 @@ export function ConferenciaEntradaPage() {
   useEffect(() => {
     return () => {
       if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    };
+  }, []);
+
+  // Carrega parâmetro de dias para shelf-life configurado no sistema
+  useEffect(() => {
+    let ativo = true;
+    configSistemaService
+      .listarParametros()
+      .then((params) => {
+        if (!ativo) return;
+        const paramDias = params?.recebimento_shelf_life_dias_alerta?.valor;
+        if (paramDias && !isNaN(Number(paramDias))) {
+          setDiasShelfLife(Number(paramDias));
+        }
+      })
+      .catch((e) => console.warn('Erro ao carregar parâmetro de shelf-life:', e));
+    return () => {
+      ativo = false;
     };
   }, []);
 
@@ -323,6 +392,189 @@ export function ConferenciaEntradaPage() {
     tocarAlertaErro();
   };
 
+  // Abrir Modal de Ocorrência para um Item Específico
+  const handleAbrirOcorrenciaItem = (
+    it?: ItemNotaEntrada,
+    tipoPadrao: TipoOcorrenciaRecebimento = 'AVARIA'
+  ) => {
+    if (it) {
+      setItemParaOcorrencia({
+        codprod: it.codprod,
+        descrprod: it.descrprod,
+        sequencia: it.sequencia,
+        lote: lote || undefined,
+        validade: validade || undefined,
+        fabricacao: fabricacao || undefined,
+        qtdEsperada: it.qtdneg || undefined,
+      });
+    } else {
+      setItemParaOcorrencia(null);
+    }
+    setTipoOcorrenciaModal(tipoPadrao);
+    setModalOcorrenciaAberto(true);
+  };
+
+  // Função para verificar validade vencida ou shelf-life próximo e abrir modal de ocorrência automaticamente
+  const verificarValidadeEObrirOcorrencia = (
+    valStr: string,
+    fabStr?: string,
+    loteStr?: string,
+    qtdSugerida?: string | number
+  ): boolean => {
+    if (!valStr || !valStr.trim()) return false;
+    const valComp = completarAnoData(valStr.trim());
+    const res = validarData(valComp, true);
+    if (!res.valida) return false;
+
+    const checagem = checarStatusValidade(valComp, diasShelfLife);
+    if (checagem.status === 'VENCIDO' || checagem.status === 'VALIDADE_PROXIMA') {
+      const codLimpo = codigo.trim();
+      const itemEncontrado = itens.find(
+        (it) =>
+          it.codbarra === codLimpo ||
+          String(it.codprod) === codLimpo ||
+          (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
+      );
+
+      setItemParaOcorrencia({
+        codprod: itemEncontrado?.codprod,
+        descrprod: itemEncontrado?.descrprod || (codLimpo ? `Item [${codLimpo}]` : 'Produto em Conferência'),
+        sequencia: itemEncontrado?.sequencia,
+        lote: loteStr?.trim() || lote.trim() || undefined,
+        validade: valComp,
+        fabricacao: fabStr?.trim() ? completarAnoData(fabStr.trim()) : (fabricacao.trim() ? completarAnoData(fabricacao.trim()) : undefined),
+        qtdEsperada: itemEncontrado?.qtdneg || undefined,
+        quantidadeSugerida: Number(qtdSugerida || quantidade) || 1,
+      });
+      setTipoOcorrenciaModal(checagem.status);
+      setModalOcorrenciaAberto(true);
+      return true;
+    }
+    return false;
+  };
+
+  // Renderiza tags visuais de ocorrências registradas para o item ou lote
+  const renderTagsOcorrencia = (ocorrencias: OcorrenciaRecebimento[]) => {
+    if (!ocorrencias || ocorrencias.length === 0) return null;
+
+    return (
+      <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '3px' }}>
+        {ocorrencias.map((oc, idx) => {
+          const isVencido = oc.tipo === 'VENCIDO';
+          const isAvaria = oc.tipo === 'AVARIA';
+          const isValidadeProx = oc.tipo === 'VALIDADE_PROXIMA';
+
+          const bg = isVencido ? '#fef2f2' : isAvaria ? '#fff1f2' : isValidadeProx ? '#fffbeb' : '#f1f5f9';
+          const border = isVencido ? '#f87171' : isAvaria ? '#fda4af' : isValidadeProx ? '#fcd34d' : '#cbd5e1';
+          const color = isVencido ? '#991b1b' : isAvaria ? '#be123c' : isValidadeProx ? '#92400e' : '#334155';
+          const emoji = isVencido ? '⛔' : isAvaria ? '💥' : isValidadeProx ? '⚠️' : 'ℹ️';
+          const label =
+            isVencido ? 'Vencido' : isAvaria ? 'Avaria' : isValidadeProx ? 'Validade Próxima' : oc.tipo;
+
+          return (
+            <span
+              key={`tag-oc-${oc.id || idx}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                padding: '1px 6px',
+                borderRadius: '4px',
+                background: bg,
+                border: `1px solid ${border}`,
+                color: color,
+                lineHeight: '1.2',
+              }}
+              title={`Ocorrência de ${label} registrada (+${oc.quantidade} un)`}
+            >
+              <span>{emoji}</span>
+              <span>
+                {label} ({oc.quantidade} un)
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Salvar Ocorrência
+  const handleSalvarOcorrencia = async (dados: any) => {
+    await recebimentoService.registrarOcorrencia(dados);
+    tocarAlertaSucesso();
+
+    // Se for AVARIA, VENCIDO ou VALIDADE_PROXIMA, contabiliza também na conferência física da sessão
+    if (sessao && ['AVARIA', 'VENCIDO', 'VALIDADE_PROXIMA'].includes(dados.tipo)) {
+      const codIdentificador = dados.codprod ? String(dados.codprod) : codigo.trim();
+      const qtdNum = Number(dados.quantidade) || 1;
+      if (codIdentificador) {
+        try {
+          const resp = await recebimentoService.bipar(sessao.id, {
+            codigo: codIdentificador,
+            quantidade: qtdNum,
+            nivel: nivelAtual,
+            lote: dados.lote || lote.trim() || undefined,
+            validade: dados.validade || validade.trim() || undefined,
+            fabricacao: dados.fabricacao || fabricacao.trim() || undefined,
+          });
+
+          // Atualiza status da sessão local se retornado
+          if (resp.statusSessao) {
+            setSessao((prev) => (prev ? { ...prev, status: resp.statusSessao as any } : prev));
+          } else {
+            const statusEsperado =
+              nivelAtual === 2 ? 'N2 em Andamento' : nivelAtual === 3 ? 'N3 em Andamento' : 'N1 em Andamento';
+            setSessao((prev) => (prev && prev.status !== statusEsperado && prev.status !== 'Conferido' ? { ...prev, status: statusEsperado } : prev));
+          }
+
+          // Atualiza lista de itens e bipagens
+          setBipagens((prev) => [resp.bipagem, ...prev]);
+          setItens((prev) =>
+            prev.map((it) => {
+              if (
+                it.nunota === resp.bipagem.nunota &&
+                it.sequencia === resp.bipagem.sequencia &&
+                it.codprod === resp.bipagem.codprod
+              ) {
+                const add = resp.bipagem.qtdConferida;
+                return {
+                  ...it,
+                  qtdConferidaN1: nivelAtual === 1 ? it.qtdConferidaN1 + add : it.qtdConferidaN1,
+                  qtdConferidaN2: nivelAtual === 2 ? it.qtdConferidaN2 + add : it.qtdConferidaN2,
+                  qtdConferidaN3: nivelAtual === 3 ? it.qtdConferidaN3 + add : it.qtdConferidaN3,
+                };
+              }
+              return it;
+            })
+          );
+
+          setSucesso(
+            `Ocorrência de ${dados.tipo} registrada e CONTABILIZADA na conferência física (+${resp.bipagem.qtdConferida} un)!`
+          );
+          setCodigo('');
+          setQuantidade('1');
+          setLote('');
+          setValidade('');
+          setFabricacao('');
+        } catch (bipErr: any) {
+          console.warn('Aviso: Falha ao contabilizar bipagem física para a ocorrência:', bipErr);
+          setSucesso(`Ocorrência de ${dados.tipo} registrada com sucesso.`);
+        }
+      } else {
+        setSucesso(`Ocorrência de ${dados.tipo} registrada com sucesso.`);
+      }
+    } else {
+      setSucesso(`Ocorrência de ${dados.tipo} registrada com sucesso.`);
+    }
+
+    if (sessao) {
+      await carregarOcorrencias(sessao.id);
+    }
+    setCodigoNaoEncontradoOcorr(null);
+  };
+
   // Bipagem
   const handleBipar = async (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -335,12 +587,36 @@ export function ConferenciaEntradaPage() {
       return;
     }
 
+    // Se o Modo Avaria estiver ativo, direciona o bip diretamente para o registro de ocorrência
+    if (modoAvariaAtivo) {
+      const itemEncontrado = itens.find(
+        (it) =>
+          it.codbarra === codLimpo ||
+          String(it.codprod) === codLimpo ||
+          (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
+      );
+
+      setItemParaOcorrencia({
+        codprod: itemEncontrado?.codprod,
+        descrprod: itemEncontrado?.descrprod || `Item [${codLimpo}]`,
+        sequencia: itemEncontrado?.sequencia,
+        lote: lote.trim() || undefined,
+        validade: validade.trim() ? completarAnoData(validade) : undefined,
+        fabricacao: fabricacao.trim() ? completarAnoData(fabricacao) : undefined,
+        qtdEsperada: itemEncontrado?.qtdneg || undefined,
+        quantidadeSugerida: Number(quantidade) || 1,
+      });
+      setTipoOcorrenciaModal('AVARIA');
+      setModalOcorrenciaAberto(true);
+      return;
+    }
+
     let validadeFinal = validade.trim();
     let fabricacaoFinal = fabricacao.trim();
 
     if (nivelAtual >= 2) {
-      if (!lote.trim() || !validadeFinal) {
-        setErro('⚠️ No Nível N2/N3, é obrigatório preencher Lote e Validade antes de registrar!');
+      if (!lote.trim() || !validadeFinal || !fabricacaoFinal) {
+        setErro('⚠️ No Nível N2/N3, é obrigatório preencher Lote, Validade e Fabricação antes de registrar!');
         tocarAlertaErro();
         return;
       }
@@ -355,22 +631,72 @@ export function ConferenciaEntradaPage() {
       }
       setValidade(validadeFinal);
 
-      if (fabricacaoFinal) {
-        fabricacaoFinal = completarAnoData(fabricacaoFinal);
-        const resFab = validarData(fabricacaoFinal, false);
-        if (!resFab.valida) {
-          setErroFabricacao(resFab.erro || 'Data de fabricação inválida');
-          setErro(`⚠️ Fabricação inválida: ${resFab.erro}`);
-          tocarAlertaErro();
-          return;
+      fabricacaoFinal = completarAnoData(fabricacaoFinal);
+      const resFab = validarData(fabricacaoFinal, true);
+      if (!resFab.valida) {
+        setErroFabricacao(resFab.erro || 'Data de fabricação inválida');
+        setErro(`⚠️ Fabricação inválida: ${resFab.erro}`);
+        tocarAlertaErro();
+        return;
+      }
+      setFabricacao(fabricacaoFinal);
+
+      // Validação de Integridade de Lote: No Sankhya, um mesmo produto não pode ter o mesmo Lote com datas diferentes
+      const loteLimpo = lote.trim().toUpperCase();
+      const itemAlvo = itens.find(
+        (it) =>
+          it.codbarra === codLimpo ||
+          String(it.codprod) === codLimpo ||
+          (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
+      );
+
+      if (itemAlvo) {
+        const bipExistente = bipagens.find(
+          (b) =>
+            !b.anulado &&
+            b.codprod === itemAlvo.codprod &&
+            b.lote &&
+            b.lote.trim().toUpperCase() === loteLimpo
+        );
+
+        if (bipExistente) {
+          const valExistenteFmt = bipExistente.validade ? formatarDataApenas(bipExistente.validade) : null;
+          const fabExistenteFmt = bipExistente.fabricacao ? formatarDataApenas(bipExistente.fabricacao) : null;
+
+          const valAtualFmt = formatarDataApenas(validadeFinal);
+          const fabAtualFmt = formatarDataApenas(fabricacaoFinal);
+
+          const validadeDiverge = valExistenteFmt && valAtualFmt && valExistenteFmt !== valAtualFmt;
+          const fabricacaoDiverge = fabExistenteFmt && fabAtualFmt && fabExistenteFmt !== fabAtualFmt;
+
+          if (validadeDiverge || fabricacaoDiverge) {
+            setErro(
+              `⚠️ Divergência de Lote: O lote "${lote.trim()}" já foi registrado para este produto com Validade ${valExistenteFmt || '—'} e Fabricação ${fabExistenteFmt || '—'}. No Sankhya, um mesmo lote não pode possuir datas diferentes. Verifique a digitação na embalagem ou estorne o lote anterior caso tenha sido digitado incorretamente.`
+            );
+            tocarAlertaErro();
+            return;
+          }
         }
-        setFabricacao(fabricacaoFinal);
+      }
+    }
+
+    // Checagem de Validade (Vencido ou Validade Próxima / Shelf-life)
+    if (validadeFinal) {
+      const abriuOcorrencia = verificarValidadeEObrirOcorrencia(
+        validadeFinal,
+        fabricacaoFinal,
+        lote,
+        quantidade
+      );
+      if (abriuOcorrencia) {
+        return;
       }
     }
 
     setProcessando(true);
     setErro(null);
     setSucesso(null);
+    setCodigoNaoEncontradoOcorr(null);
 
     try {
       const resp = await recebimentoService.bipar(sessao.id, {
@@ -422,10 +748,17 @@ export function ConferenciaEntradaPage() {
       setQuantidade('1');
       setErroValidade(null);
       setErroFabricacao(null);
+      setTecladoVirtualAtivo(false);
       if (inputCodigoRef.current) inputCodigoRef.current.focus();
     } catch (err: any) {
       tocarAlertaErro();
-      setErro(err.response?.data?.error || err.message || 'Erro ao registrar bipagem.');
+      const msgErro = err.response?.data?.error || err.message || 'Erro ao registrar bipagem.';
+      setErro(msgErro);
+
+      // Se o código não pertence a nenhum item da nota, sugere apontamento de produto trocado/não identificado
+      if (msgErro.includes('não encontrado nos itens desta carga')) {
+        setCodigoNaoEncontradoOcorr(codLimpo);
+      }
     } finally {
       setProcessando(false);
     }
@@ -512,6 +845,26 @@ export function ConferenciaEntradaPage() {
       );
 
       setBipagemParaEstornar(null);
+
+      // Remove ocorrência pendente vinculada ao bip estornado se houver
+      if (bipagemParaEstornar.lote && sessao) {
+        const loteLimpo = bipagemParaEstornar.lote.trim().toUpperCase();
+        const ocsBip = ocorrenciasSessao.filter(
+          (oc) =>
+            oc.status === 'PENDENTE' &&
+            oc.codprod === bipagemParaEstornar.codprod &&
+            oc.lote &&
+            oc.lote.trim().toUpperCase() === loteLimpo
+        );
+        for (const oc of ocsBip) {
+          try {
+            await recebimentoService.removerOcorrencia(oc.id);
+          } catch (e) {
+            console.warn('Erro ao remover ocorrência vinculada ao bip estornado:', e);
+          }
+        }
+        await carregarOcorrencias(sessao.id);
+      }
     } catch (err: any) {
       tocarAlertaErro();
       setErro(err.response?.data?.error || err.message || 'Erro ao anular bipagem.');
@@ -541,10 +894,27 @@ export function ConferenciaEntradaPage() {
         prev.map((b) => (idsAnulados.has(b.id) ? { ...b, anulado: true } : b))
       );
 
+      // Remove ocorrências pendentes vinculadas a este lote nesta conferência
+      const ocorrenciasVinculadas = ocorrenciasSessao.filter(
+        (oc) =>
+          oc.status === 'PENDENTE' &&
+          (loteParaEstornar.lote === 'TODOS OS LOTES / TOTAL' ||
+            (oc.lote && oc.lote.trim().toUpperCase() === loteParaEstornar.lote.trim().toUpperCase()))
+      );
+
+      for (const oc of ocorrenciasVinculadas) {
+        try {
+          await recebimentoService.removerOcorrencia(oc.id);
+        } catch (e) {
+          console.warn('Erro ao remover ocorrência vinculada ao lote estornado:', e);
+        }
+      }
+
       // Recarrega itens atualizados da conferência para garantir sincronia
       const respAtualizada = await recebimentoService.obterItensConferencia(sessao.id);
       setItens(respAtualizada.itens);
       setBipagens(respAtualizada.bipagens);
+      await carregarOcorrencias(sessao.id);
 
       setLoteParaEstornar(null);
     } catch (err: any) {
@@ -721,260 +1091,527 @@ export function ConferenciaEntradaPage() {
   return (
     <div className="page-container">
       {/* Top Fixo: Header + Scanner Panel */}
+      {/* Top Fixo: Header + Scanner Panel */}
       <div className="conferencia-top-fixo">
-        <header className="page-header">
-          <Botao variant="ghost" size="sm" onClick={() => navigate('/recebimento')}>
-            ← Voltar
-          </Botao>
-
-          <div className="header-info">
-            <h1>Conferência #{sessao?.id.slice(0, 8)}</h1>
-            <span className="nota-info">
-              NF(s) {numerosNFsUnicas.join(', ')} — Recebimento
-            </span>
-            {isEnviadoSankhya ? (
-              <span
-                className="badge-recontagem-header"
-                style={{
-                  background: '#f3e8ff',
-                  color: '#7e22ce',
-                  border: '1px solid #d8b4fe',
-                  fontWeight: 700,
-                }}
-                title="Conferência já enviada e integrada ao Sankhya"
-              >
-                🚀 Enviado ao Sankhya
+        {scannerRecolhido ? (
+          <div className="conferencia-topo-compacto-wrapper">
+            <div className="conferencia-topo-compacto-info">
+              <span className="mini-info-nf">NF(s) {numerosNFsUnicas.join(', ')}</span>
+              <span className="mini-info-badge">
+                {isEnviadoSankhya ? 'Enviado' : isConferido ? 'Conferido' : isDivergentePendente ? 'Divergente' : `N${nivelAtual}`}
               </span>
-            ) : isConferido ? (
-              <span
-                className="badge-recontagem-header"
-                style={{
-                  background: '#dcfce7',
-                  color: '#15803d',
-                  border: '1px solid #86efac',
-                  fontWeight: 700,
-                }}
-                title="Conferência 100% conferida e aprovada"
-              >
-                ✓ Conferido
+              <span className="mini-info-kpis">
+                {estatisticas.totalItensDistintos} Tot • {estatisticas.itensConferidosOk} Conf • {estatisticas.pendentes} Pend
               </span>
-            ) : isDivergentePendente ? (
-              <span
-                className="badge-recontagem-header"
-                style={{
-                  background: '#fee2e2',
-                  color: '#b91c1c',
-                  border: '1px solid #fca5a5',
-                  fontWeight: 700,
-                }}
-                title="Conferência finalizada com divergências (aguardando parecer do gestor)"
-              >
-                ⚠️ Divergente
-              </span>
-            ) : (
-              <span className="badge-recontagem-header" title="Nível atual da conferência">
-                N{nivelAtual}: {nivelAtual === 1 ? 'Contagem Cega' : nivelAtual === 2 ? 'Lote e Validade' : 'Desempate de Divergência'}
-              </span>
-            )}
-          </div>
-
-          <div className="header-cards">
-            <Container variant="default" padding="sm" className="resumo-card-inline">
-              <Label variant="value">{estatisticas.totalItensDistintos}</Label>
-              <Label variant="caption">Total</Label>
-            </Container>
-            <Container variant="default" padding="sm" className="resumo-card-inline conferido">
-              <Label variant="value" className="text-success">{estatisticas.itensConferidosOk}</Label>
-              <Label variant="caption">Conferidos</Label>
-            </Container>
-            <Container variant="default" padding="sm" className="resumo-card-inline pendente">
-              <Label variant="value" className="text-warning">{estatisticas.pendentes}</Label>
-              <Label variant="caption">Pendentes</Label>
-            </Container>
-          </div>
-
-          <Botao
-            variant="success"
-            size="sm"
-            onClick={() => {
-              if (isSomenteLeitura) return;
-              setCienteItensFaltantes(false);
-              setModalFinalizarAberto(true);
-            }}
-            disabled={processando || estatisticas.totalConferidoNivel === 0 || isSomenteLeitura}
-            style={isSomenteLeitura ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
-          >
-            {isEnviadoSankhya ? 'Enviado Sankhya' : isConferido ? 'Conferido' : `Finalizar N${nivelAtual}`}
-          </Botao>
-        </header>
-
-        {isSomenteLeitura && (
-          <div
-            style={{
-              background: isEnviadoSankhya ? '#f5f3ff' : isConferido ? '#f0fdf4' : '#fff1f2',
-              color: isEnviadoSankhya ? '#6b21a8' : isConferido ? '#166534' : '#991b1b',
-              border: `1px solid ${isEnviadoSankhya ? '#ddd6fe' : isConferido ? '#bbf7d0' : '#fecdd3'}`,
-              borderRadius: '8px',
-              padding: '10px 14px',
-              margin: '0 0 10px 0',
-              fontSize: '0.86rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '1.1rem' }}>{isEnviadoSankhya ? '🔒' : isConferido ? '✓' : '⚠️'}</span>
-            <span>
-              {isEnviadoSankhya
-                ? 'Conferência finalizada e enviada ao Sankhya. Modo somente consulta (bipagem e alterações desabilitadas).'
-                : isConferido
-                ? 'Conferência finalizada e conferida com sucesso. Modo somente consulta.'
-                : 'Conferência finalizada com divergência aguardando parecer na Gestão de Recebimento. Modo somente consulta.'}
-            </span>
-          </div>
-        )}
-
-        {nivelAtual === 3 && !isSomenteLeitura && (
-          <div
-            style={{
-              background: '#fef3c7',
-              color: '#92400e',
-              border: '1px solid #fde68a',
-              borderRadius: '8px',
-              padding: '10px 14px',
-              margin: '0 0 10px 0',
-              fontSize: '0.86rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-            <span>
-              <strong>Reconferência Nível 3:</strong> Apenas os itens divergentes ({itens.length}) foram carregados para desempate.
-            </span>
-          </div>
-        )}
-
-        {/* Scanner */}
-        <Painel titulo="Conferir Produto">
-          <Container variant="scanner" padding="md">
-            <form onSubmit={handleBipar} className="scanner-form-inner">
-              <Campo
-                ref={inputCodigoRef}
-                variant="scanner"
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                placeholder={isSomenteLeitura ? 'Conferência finalizada (somente leitura)...' : 'Escanear ou digitar código de barras...'}
-                autoFocus={!isSomenteLeitura}
-                disabled={isSomenteLeitura}
-                bloquearColar
-                onTentativaColar={handleTentativaColar}
-              />
-
+            </div>
+            <div className="conferencia-topo-compacto">
+              <Botao variant="ghost" size="sm" onClick={() => navigate('/recebimento')} className="mini-btn-voltar">
+                ←
+              </Botao>
+              <form onSubmit={handleBipar} className="scanner-mini-form">
+                <input
+                  ref={inputCodigoRef}
+                  type="text"
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                  placeholder={isSomenteLeitura ? 'Finalizada...' : 'Bipar código de barras...'}
+                  disabled={isSomenteLeitura}
+                  className="scanner-mini-input"
+                  inputMode={isDispositivoMovel ? (tecladoVirtualAtivo ? 'text' : 'none') : undefined}
+                />
+                <input
+                  type="number"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(e.target.value)}
+                  min="1"
+                  disabled={isSomenteLeitura}
+                  className="scanner-mini-qtd"
+                />
+                <button
+                  type="submit"
+                  disabled={processando || !codigo.trim() || isSomenteLeitura}
+                  className="scanner-mini-btn"
+                >
+                  {processando ? '...' : 'Bipar'}
+                </button>
+              </form>
               <button
                 type="button"
-                className="btn-camera-scanner"
-                title="Ler código de barras pela câmera"
-                onClick={() => setMostrarCamera(true)}
-                disabled={isSomenteLeitura}
-                style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+                onClick={() => setScannerRecolhido(false)}
+                className="btn-toggle-scanner-expandir"
+                title="Expandir cabeçalho e formulário completo"
               >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
-                </svg>
+                <span>▼ Topo</span>
               </button>
-
-              {nivelAtual >= 2 && (
-                <button
-                  type="button"
-                  className="btn-camera-scanner"
-                  title="Extrair Lote / Validade por OCR"
-                  onClick={() => handleAbrirOcr('lote')}
-                  disabled={isSomenteLeitura}
-                  style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+            </div>
+          </div>
+        ) : (
+          <>
+            <header className="page-header conferencia-header-resp">
+              <div className="header-linha-superior">
+                <Botao
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/recebimento')}
+                  className="header-btn-voltar"
                 >
-                  <span style={{ fontSize: '0.8rem', fontWeight: 800 }}>OCR</span>
-                </button>
-              )}
+                  ← Voltar
+                </Botao>
 
-              <Campo
-                variant="compact"
-                type="number"
-                value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
-                min="1"
-                step="1"
-                disabled={isSomenteLeitura}
-              />
+                <div className="header-info-centro">
+                  <h1>Conferência #{sessao?.id.slice(0, 8)}</h1>
+                  <span className="nota-info">
+                    NF(s) {numerosNFsUnicas.join(', ')} — Recebimento
+                  </span>
+                </div>
 
-              <Botao
-                type="submit"
-                variant="primary"
-                size="lg"
-                disabled={processando || !codigo.trim() || isSomenteLeitura}
-                loading={processando}
-                style={isSomenteLeitura ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+                <div className="header-btn-finalizar">
+                  <Botao
+                    variant="success"
+                    size="sm"
+                    onClick={() => {
+                      if (isSomenteLeitura) return;
+                      setCienteItensFaltantes(false);
+                      setModalFinalizarAberto(true);
+                    }}
+                    disabled={processando || estatisticas.totalConferidoNivel === 0 || isSomenteLeitura}
+                    style={isSomenteLeitura ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+                    className="btn-finalizar-n"
+                  >
+                    {isEnviadoSankhya ? 'Enviado Sankhya' : isConferido ? 'Conferido' : `Finalizar N${nivelAtual}`}
+                  </Botao>
+                </div>
+              </div>
+
+              <div className="header-linha-inferior">
+                <div className="header-status-badge">
+                  {isEnviadoSankhya ? (
+                    <span
+                      className="badge-recontagem-header"
+                      style={{
+                        background: '#f3e8ff',
+                        color: '#7e22ce',
+                        border: '1px solid #d8b4fe',
+                        fontWeight: 700,
+                      }}
+                      title="Conferência já enviada e integrada ao Sankhya"
+                    >
+                      🚀 Enviado ao Sankhya
+                    </span>
+                  ) : isConferido ? (
+                    <span
+                      className="badge-recontagem-header"
+                      style={{
+                        background: '#dcfce7',
+                        color: '#15803d',
+                        border: '1px solid #86efac',
+                        fontWeight: 700,
+                      }}
+                      title="Conferência 100% conferida e aprovada"
+                    >
+                      ✓ Conferido
+                    </span>
+                  ) : isDivergentePendente ? (
+                    <span
+                      className="badge-recontagem-header"
+                      style={{
+                        background: '#fee2e2',
+                        color: '#b91c1c',
+                        border: '1px solid #fca5a5',
+                        fontWeight: 700,
+                      }}
+                      title="Conferência finalizada com divergências (aguardando parecer do gestor)"
+                    >
+                      ⚠️ Divergente
+                    </span>
+                  ) : (
+                    <span
+                      className="badge-recontagem-header"
+                      style={{
+                        background: '#f3e8ff',
+                        color: '#6b21a8',
+                        border: '1px solid #d8b4fe',
+                        fontWeight: 800,
+                      }}
+                      title="Nível atual da conferência"
+                    >
+                      N{nivelAtual}: {nivelAtual === 1 ? 'CONTAGEM CEGA' : nivelAtual === 2 ? 'LOTE E VALIDADE' : 'DESEMPATE'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="header-cards-grid">
+                  <div className="resumo-card-mini total">
+                    <span className="resumo-card-val">{estatisticas.totalItensDistintos}</span>
+                    <span className="resumo-card-lbl">Total</span>
+                  </div>
+                  <div className="resumo-card-mini conferido">
+                    <span className="resumo-card-val" style={{ color: '#15803d' }}>{estatisticas.itensConferidosOk}</span>
+                    <span className="resumo-card-lbl" style={{ color: '#16a34a' }}>Conf</span>
+                  </div>
+                  <div className="resumo-card-mini pendente">
+                    <span className="resumo-card-val" style={{ color: '#b45309' }}>{estatisticas.pendentes}</span>
+                    <span className="resumo-card-lbl" style={{ color: '#d97706' }}>Pend</span>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            {isSomenteLeitura && (
+              <div
+                style={{
+                  background: isEnviadoSankhya ? '#f5f3ff' : isConferido ? '#f0fdf4' : '#fff1f2',
+                  color: isEnviadoSankhya ? '#6b21a8' : isConferido ? '#166534' : '#991b1b',
+                  border: `1px solid ${isEnviadoSankhya ? '#ddd6fe' : isConferido ? '#bbf7d0' : '#fecdd3'}`,
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  margin: '0 0 10px 0',
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
               >
-                Conferir
-              </Botao>
-            </form>
-
-            {/* Campos de Lote / Validade no N2 e N3 */}
-            {nivelAtual >= 2 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginTop: '12px' }}>
-                <Campo
-                  label="Lote *"
-                  value={lote}
-                  onChange={(e) => setLote(e.target.value.toUpperCase())}
-                  placeholder="Ex: L240501"
-                  disabled={isSomenteLeitura}
-                />
-                <Campo
-                  label="Validade *"
-                  value={validade}
-                  onChange={(e) => {
-                    setValidade(aplicarMascaraData(e.target.value));
-                    if (erroValidade) setErroValidade(null);
-                  }}
-                  onBlur={() => {
-                    const dataCompletada = completarAnoData(validade);
-                    setValidade(dataCompletada);
-                    const res = validarData(dataCompletada, true);
-                    setErroValidade(res.valida ? null : res.erro || 'Data inválida');
-                  }}
-                  placeholder="DD/MM/AAAA"
-                  disabled={isSomenteLeitura}
-                  error={erroValidade || undefined}
-                />
-                <Campo
-                  label="Fabricação"
-                  value={fabricacao}
-                  onChange={(e) => {
-                    setFabricacao(aplicarMascaraData(e.target.value));
-                    if (erroFabricacao) setErroFabricacao(null);
-                  }}
-                  onBlur={() => {
-                    const dataCompletada = completarAnoData(fabricacao);
-                    setFabricacao(dataCompletada);
-                    if (dataCompletada.trim()) {
-                      const res = validarData(dataCompletada, false);
-                      setErroFabricacao(res.valida ? null : res.erro || 'Data inválida');
-                    } else {
-                      setErroFabricacao(null);
-                    }
-                  }}
-                  placeholder="DD/MM/AAAA"
-                  disabled={isSomenteLeitura}
-                  error={erroFabricacao || undefined}
-                />
+                <span style={{ fontSize: '1.1rem' }}>{isEnviadoSankhya ? '🔒' : isConferido ? '✓' : '⚠️'}</span>
+                <span>
+                  {isEnviadoSankhya
+                    ? 'Conferência finalizada e enviada ao Sankhya. Modo somente consulta (bipagem e alterações desabilitadas).'
+                    : isConferido
+                    ? 'Conferência finalizada e conferida com sucesso. Modo somente consulta.'
+                    : 'Conferência finalizada com divergência aguardando parecer na Gestão de Recebimento. Modo somente consulta.'}
+                </span>
               </div>
             )}
-          </Container>
-        </Painel>
+
+            {nivelAtual === 3 && !isSomenteLeitura && (
+              <div
+                style={{
+                  background: '#fef3c7',
+                  color: '#92400e',
+                  border: '1px solid #fde68a',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  margin: '0 0 10px 0',
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                <span>
+                  <strong>Reconferência Nível 3:</strong> Apenas os itens divergentes ({itens.length}) foram carregados para desempate.
+                </span>
+              </div>
+            )}
+
+            {/* Scanner */}
+            <Painel
+              titulo="Conferir Produto"
+              acoes={
+                <button
+                  type="button"
+                  onClick={() => setScannerRecolhido(true)}
+                  className="btn-toggle-scanner"
+                  title="Ocultar cabeçalho e formulário de bipagem e mostrar lista de produtos"
+                >
+                  <span>▲ Ocultar Topo / Ver Lista</span>
+                </button>
+              }
+            >
+              <Container variant="scanner" padding="md">
+                {/* Barra de Modos e Ocorrências Rápidas */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginBottom: '10px',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid var(--slate-200, #e2e8f0)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setModoAvariaAtivo((prev) => !prev)}
+                      disabled={isSomenteLeitura}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        border: `1px solid ${modoAvariaAtivo ? '#dc2626' : '#cbd5e1'}`,
+                        background: modoAvariaAtivo ? '#fef2f2' : '#ffffff',
+                        color: modoAvariaAtivo ? '#b91c1c' : '#334155',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: isSomenteLeitura ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: modoAvariaAtivo ? '0 0 0 2px rgba(239, 68, 68, 0.2)' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title="Quando ativo, o próximo bip registrará diretamente uma ocorrência/avaria"
+                    >
+                      <span>💥</span>
+                      <span>{modoAvariaAtivo ? 'Modo Avaria ATIVO' : 'Modo Avaria'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAbrirOcorrenciaItem(undefined, 'AVARIA')}
+                      disabled={isSomenteLeitura}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #fde68a',
+                        background: '#fffbeb',
+                        color: '#b45309',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: isSomenteLeitura ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                      title="Apontar avaria, vencido, sobra ou divergência avulsa"
+                    >
+                      <span>⚠️</span>
+                      <span>+ Apontar Ocorrência</span>
+                    </button>
+                  </div>
+
+                  {ocorrenciasSessao.length > 0 && (
+                    <span
+                      style={{
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        border: '1px solid #fde68a',
+                        borderRadius: '12px',
+                        padding: '2px 8px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                      title={`${ocorrenciasSessao.length} ocorrência(s) registrada(s) nesta conferência`}
+                    >
+                      <span>⚠️</span>
+                      <span>{ocorrenciasSessao.length} Ocorrência(s)</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Aviso de Modo Avaria Ligado */}
+                {modoAvariaAtivo && !isSomenteLeitura && (
+                  <div
+                    style={{
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      marginBottom: '10px',
+                      fontSize: '0.78rem',
+                      color: '#991b1b',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <span>💥</span>
+                    <span>
+                      <strong>Atenção:</strong> O Modo Avaria está ativado. O próximo bip abrirá o registro de ocorrência para desmembrar o produto no local de avaria.
+                    </span>
+                  </div>
+                )}
+
+                {/* Banner de Produto Não Encontrado */}
+                {codigoNaoEncontradoOcorr && !isSomenteLeitura && (
+                  <div
+                    style={{
+                      background: '#fefce8',
+                      border: '1px solid #fef08a',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      marginBottom: '10px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.80rem', color: '#854d0e' }}>
+                      <span>⚠️ O código <strong>"{codigoNaoEncontradoOcorr}"</strong> não pertence a nenhum item desta nota.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setItemParaOcorrencia({
+                          descrprod: `Produto Trocado / Divergente (${codigoNaoEncontradoOcorr})`,
+                        });
+                        setTipoOcorrenciaModal('PRODUTO_TROCADO');
+                        setModalOcorrenciaAberto(true);
+                      }}
+                      style={{
+                        padding: '4px 10px',
+                        background: '#eab308',
+                        color: '#713f12',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🔄 Registrar Produto Trocado / Não Identificado
+                    </button>
+                  </div>
+                )}
+
+                <form onSubmit={handleBipar} className="scanner-form-inner">
+                  <div className="scanner-row-codigo">
+                    <Campo
+                      ref={inputCodigoRef}
+                      variant="scanner"
+                      value={codigo}
+                      onChange={(e) => setCodigo(e.target.value)}
+                      placeholder={isSomenteLeitura ? 'Conferência finalizada (somente leitura)...' : 'Escanear ou digitar código de barras...'}
+                      autoFocus={!isSomenteLeitura}
+                      disabled={isSomenteLeitura}
+                      bloquearColar
+                      onTentativaColar={handleTentativaColar}
+                      inputMode={isDispositivoMovel ? (tecladoVirtualAtivo ? 'text' : 'none') : undefined}
+                    />
+
+                    {isDispositivoMovel && (
+                      <button
+                        type="button"
+                        className={`btn-teclado-scanner ${tecladoVirtualAtivo ? 'ativo' : ''}`}
+                        title={tecladoVirtualAtivo ? 'Desativar teclado virtual (Modo Coletor ativo)' : 'Abrir teclado virtual para digitação manual'}
+                        onClick={alternarTecladoVirtual}
+                        disabled={isSomenteLeitura}
+                        style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+                      >
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                          <line x1="6" y1="8" x2="6" y2="8"></line>
+                          <line x1="10" y1="8" x2="10" y2="8"></line>
+                          <line x1="14" y1="8" x2="14" y2="8"></line>
+                          <line x1="18" y1="8" x2="18" y2="8"></line>
+                          <line x1="6" y1="12" x2="6" y2="12"></line>
+                          <line x1="10" y1="12" x2="10" y2="12"></line>
+                          <line x1="14" y1="12" x2="14" y2="12"></line>
+                          <line x1="18" y1="12" x2="18" y2="12"></line>
+                          <line x1="7" y1="16" x2="17" y2="16"></line>
+                        </svg>
+                      </button>
+                    )}
+
+                    <Campo
+                      variant="compact"
+                      type="number"
+                      value={quantidade}
+                      onChange={(e) => setQuantidade(e.target.value)}
+                      min="1"
+                      max="9999"
+                      step="1"
+                      placeholder="Qtd"
+                      title="Quantidade a conferir (até 4 números)"
+                      disabled={isSomenteLeitura}
+                    />
+                  </div>
+
+                  {/* Campos de Lote / Validade no N2 e N3 */}
+                  {nivelAtual >= 2 && (
+                    <div className="conferencia-lote-grid">
+                      <Campo
+                        label="Lote *"
+                        value={lote}
+                        onChange={(e) => setLote(e.target.value.toUpperCase())}
+                        placeholder="Ex: L2405"
+                        disabled={isSomenteLeitura}
+                      />
+                      <Campo
+                        label="Validade *"
+                        value={validade}
+                        onChange={(e) => {
+                          setValidade(aplicarMascaraData(e.target.value));
+                          if (erroValidade) setErroValidade(null);
+                        }}
+                        onBlur={() => {
+                          const dataCompletada = completarAnoData(validade);
+                          setValidade(dataCompletada);
+                          const res = validarData(dataCompletada, true);
+                          setErroValidade(res.valida ? null : res.erro || 'Data inválida');
+                          if (res.valida && dataCompletada.length === 10) {
+                            verificarValidadeEObrirOcorrencia(dataCompletada, fabricacao, lote, quantidade);
+                          }
+                        }}
+                        placeholder="DD/MM/AAAA"
+                        disabled={isSomenteLeitura}
+                        error={erroValidade || undefined}
+                      />
+                      <Campo
+                        label="Fabricação *"
+                        value={fabricacao}
+                        onChange={(e) => {
+                          setFabricacao(aplicarMascaraData(e.target.value));
+                          if (erroFabricacao) setErroFabricacao(null);
+                        }}
+                        onBlur={() => {
+                          const dataCompletada = completarAnoData(fabricacao);
+                          setFabricacao(dataCompletada);
+                          if (dataCompletada.trim()) {
+                            const res = validarData(dataCompletada, true);
+                            setErroFabricacao(res.valida ? null : res.erro || 'Data inválida');
+                          } else {
+                            setErroFabricacao(null);
+                          }
+                        }}
+                        placeholder="DD/MM/AAAA"
+                        disabled={isSomenteLeitura}
+                        error={erroFabricacao || undefined}
+                      />
+                    </div>
+                  )}
+
+                  {/* Botão Conferir Produto - Abaixo dos inputs de Lote, Validade e Fabricação */}
+                  <div className="scanner-row-botao-conferir">
+                    <Botao
+                      type="submit"
+                      variant="primary"
+                      size="lg"
+                      disabled={processando || !codigo.trim() || isSomenteLeitura}
+                      loading={processando}
+                      style={isSomenteLeitura ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
+                      className="btn-conferir-principal"
+                    >
+                      {processando ? 'Conferindo...' : 'Conferir Produto'}
+                    </Botao>
+                  </div>
+                </form>
+
+                {/* Rodapé para recolher e ver lista em 1 clique */}
+                <div className="scanner-recolher-footer">
+                  <button
+                    type="button"
+                    onClick={() => setScannerRecolhido(true)}
+                    className="btn-recolher-footer"
+                  >
+                    ▲ Ocultar Topo e Ver Lista ({itensPendentesVisiveis.length} pendentes)
+                  </button>
+                </div>
+              </Container>
+            </Painel>
+          </>
+        )}
       </div>
 
       {/* Feedbacks de Operação */}
@@ -1139,13 +1776,24 @@ export function ConferenciaEntradaPage() {
                       <div
                         key={`card-${item.nunota}-${item.sequencia}`}
                         className={`item-card-mobile ${parcial ? 'item-card-parcial' : ''}`}
+                        onClick={() => {
+                          if (isSomenteLeitura) return;
+                          const cod = item.codbarra || (item as any).referencia || String(item.codprod);
+                          setCodigo(cod);
+                          if (inputCodigoRef.current) inputCodigoRef.current.focus();
+                        }}
+                        style={{ cursor: isSomenteLeitura ? 'default' : 'pointer' }}
+                        title={isSomenteLeitura ? undefined : 'Toque para selecionar este produto no leitor'}
                       >
                         <div className="item-card-header">
                           <img
                             src={`/api/crud/produto/${item.codprod}/imagem`}
                             alt={item.descrprod}
                             className="produto-img item-card-img"
-                            onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codprod}/imagem`)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setImagemAmpliada(`/api/crud/produto/${item.codprod}/imagem`);
+                            }}
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                           />
                           <div className="item-card-info">
@@ -1238,6 +1886,11 @@ export function ConferenciaEntradaPage() {
                         const temSobra = esperado !== null && conferido > esperado;
                         const temFalta = esperado !== null && conferido < esperado;
                         const temLotes = confItem.lotesDetalhes && confItem.lotesDetalhes.length > 0;
+                        const ocorrenciasDoItem = ocorrenciasSessao.filter(
+                          (oc) =>
+                            oc.codprod === confItem.item.codprod &&
+                            (oc.sequencia ? oc.sequencia === confItem.item.sequencia : true)
+                        );
 
                         return (
                           <Fragment key={`frag-conf-${confItem.item.nunota}-${confItem.item.sequencia}`}>
@@ -1272,6 +1925,7 @@ export function ConferenciaEntradaPage() {
                                       )}
                                       Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
                                     </span>
+                                    {renderTagsOcorrencia(ocorrenciasDoItem)}
                                   </div>
                                 </div>
                               </td>
@@ -1337,6 +1991,24 @@ export function ConferenciaEntradaPage() {
                                   )}
 
                                   <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                    <button
+                                      type="button"
+                                      className="btn-estornar-item"
+                                      style={{
+                                        padding: '3px 8px',
+                                        fontSize: '0.72rem',
+                                        background: '#fffbeb',
+                                        borderColor: '#fde68a',
+                                        color: '#b45309',
+                                        ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
+                                      }}
+                                      title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Apontar avaria, vencido ou divergência para este item'}
+                                      disabled={isSomenteLeitura}
+                                      onClick={() => !isSomenteLeitura && handleAbrirOcorrenciaItem(confItem.item)}
+                                    >
+                                      <span>⚠️ Ocorrência</span>
+                                    </button>
+
                                     <button
                                       type="button"
                                       className="btn-estornar-item"
@@ -1412,22 +2084,35 @@ export function ConferenciaEntradaPage() {
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {confItem.lotesDetalhes.map((ld, lIdx) => (
+                                        {confItem.lotesDetalhes.map((ld, lIdx) => {
+                                          const ocorrenciasDoLote = ocorrenciasSessao.filter((oc) => {
+                                            if (oc.codprod !== confItem.item.codprod) return false;
+                                            if (!oc.lote || !ld.lote) return false;
+                                            if (oc.lote.trim().toUpperCase() !== ld.lote.trim().toUpperCase()) return false;
+                                            if (oc.validade && ld.validade) {
+                                              return formatarDataApenas(oc.validade) === formatarDataApenas(ld.validade);
+                                            }
+                                            return true;
+                                          });
+                                          return (
                                           <tr key={lIdx}>
                                             <td>
-                                              <span
-                                                style={{
-                                                  fontFamily: 'JetBrains Mono, monospace',
-                                                  fontWeight: 700,
-                                                  color: 'var(--slate-900)',
-                                                  background: '#f1f5f9',
-                                                  padding: '2px 6px',
-                                                  borderRadius: '4px',
-                                                  border: '1px solid var(--slate-200)',
-                                                }}
-                                              >
-                                                🏷️ {ld.lote}
-                                              </span>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                <span
+                                                  style={{
+                                                    fontFamily: 'JetBrains Mono, monospace',
+                                                    fontWeight: 700,
+                                                    color: 'var(--slate-900)',
+                                                    background: '#f1f5f9',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    border: '1px solid var(--slate-200)',
+                                                  }}
+                                                >
+                                                  🏷️ {ld.lote}
+                                                </span>
+                                                {renderTagsOcorrencia(ocorrenciasDoLote)}
+                                              </div>
                                             </td>
                                             <td>
                                               <strong style={{ color: 'var(--emerald-600)', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -1465,7 +2150,8 @@ export function ConferenciaEntradaPage() {
                                               </button>
                                             </td>
                                           </tr>
-                                        ))}
+                                        );
+                                      })}
                                       </tbody>
                                     </table>
                                   </div>
@@ -1481,7 +2167,13 @@ export function ConferenciaEntradaPage() {
 
                 {/* Visualização Mobile / Tablet: Cards */}
                 <div className="itens-cards-mobile">
-                  {itensConferidosVisiveis.map((confItem) => (
+                  {itensConferidosVisiveis.map((confItem) => {
+                    const ocorrenciasDoItem = ocorrenciasSessao.filter(
+                      (oc) =>
+                        oc.codprod === confItem.item.codprod &&
+                        (oc.sequencia ? oc.sequencia === confItem.item.sequencia : true)
+                    );
+                    return (
                     <div key={`card-conf-${confItem.item.nunota}-${confItem.item.sequencia}`} className="item-card-mobile item-card-conferido">
                       <div className="item-card-header">
                         <img
@@ -1512,6 +2204,7 @@ export function ConferenciaEntradaPage() {
                             )}
                             Cód: {confItem.item.codprod} | Ref: {confItem.item.referencia || '—'}
                           </span>
+                          {renderTagsOcorrencia(ocorrenciasDoItem)}
                         </div>
                         <div className="item-card-time">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1591,6 +2284,23 @@ export function ConferenciaEntradaPage() {
                           <button
                             type="button"
                             className="btn-estornar-item btn-estornar-card"
+                            title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Apontar avaria, vencido ou divergência para este item'}
+                            disabled={isSomenteLeitura}
+                            style={{
+                              background: '#fffbeb',
+                              borderColor: '#fde68a',
+                              color: '#b45309',
+                              marginRight: '6px',
+                              ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
+                            }}
+                            onClick={() => !isSomenteLeitura && handleAbrirOcorrenciaItem(confItem.item)}
+                          >
+                            <span>⚠️ Ocorrência</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn-estornar-item btn-estornar-card"
                             title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Estornar a última bipagem deste item'}
                             disabled={isSomenteLeitura || !confItem.ultimoBip}
                             style={isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
@@ -1653,7 +2363,17 @@ export function ConferenciaEntradaPage() {
                             </button>
                           </div>
 
-                          {confItem.lotesDetalhes.map((ld, lIdx) => (
+                          {confItem.lotesDetalhes.map((ld, lIdx) => {
+                            const ocorrenciasDoLote = ocorrenciasSessao.filter((oc) => {
+                              if (oc.codprod !== confItem.item.codprod) return false;
+                              if (!oc.lote || !ld.lote) return false;
+                              if (oc.lote.trim().toUpperCase() !== ld.lote.trim().toUpperCase()) return false;
+                              if (oc.validade && ld.validade) {
+                                return formatarDataApenas(oc.validade) === formatarDataApenas(ld.validade);
+                              }
+                              return true;
+                            });
+                            return (
                             <div
                               key={lIdx}
                               style={{
@@ -1668,12 +2388,15 @@ export function ConferenciaEntradaPage() {
                               }}
                             >
                               <div>
-                                <strong>🏷️ {ld.lote}</strong>
-                                <span style={{ color: 'var(--emerald-600)', fontWeight: 800, marginLeft: '6px' }}>
-                                  ({ld.quantidade} un)
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                  <strong>🏷️ {ld.lote}</strong>
+                                  <span style={{ color: 'var(--emerald-600)', fontWeight: 800 }}>
+                                    ({ld.quantidade} un)
+                                  </span>
+                                  {renderTagsOcorrencia(ocorrenciasDoLote)}
+                                </div>
                                 {ld.validade && (
-                                  <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.70rem' }}>
+                                  <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.70rem', marginTop: '2px' }}>
                                     Val: {ld.validade} {ld.fabricacao ? `• Fab: ${ld.fabricacao}` : ''}
                                   </span>
                                 )}
@@ -1704,11 +2427,13 @@ export function ConferenciaEntradaPage() {
                                 ✕ Estornar
                               </button>
                             </div>
-                          ))}
+                          );
+                          })}
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </>
             )}
@@ -1999,28 +2724,6 @@ export function ConferenciaEntradaPage() {
               >
                 Voltar ao Recebimento
               </Botao>
-              {resultadoFinalizacao.possuiDivergenciasQtd && (
-                <Botao
-                  variant="danger"
-                  size="md"
-                  onClick={() => handleAvancarParaNivel(3)}
-                  loading={processando}
-                >
-                  🔍 Iniciar Auditoria N3 Agora
-                </Botao>
-              )}
-              {!resultadoFinalizacao.possuiDivergenciasQtd && resultadoFinalizacao.possuiDivergenciasLote && (
-                <Botao
-                  variant="primary"
-                  size="md"
-                  onClick={() => {
-                    setModalResultadoAberto(false);
-                    navigate('/recebimento');
-                  }}
-                >
-                  🏢 Ir para Gerência de Recebimento
-                </Botao>
-              )}
               {resultadoFinalizacao.statusFinal === 'Aguardando N2' && (
                 <Botao
                   variant="primary"
@@ -2143,6 +2846,20 @@ export function ConferenciaEntradaPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Registro de Ocorrência / Avaria */}
+      {modalOcorrenciaAberto && (
+        <ModalRegistrarOcorrencia
+          isOpen={modalOcorrenciaAberto}
+          onClose={() => setModalOcorrenciaAberto(false)}
+          conferenciaId={sessao?.id || ''}
+          nunota={itemParaOcorrencia?.nunota || sessao?.nunotas[0] || 0}
+          item={itemParaOcorrencia}
+          tipoPredefinido={tipoOcorrenciaModal}
+          origem="COLETOR"
+          onSalvar={handleSalvarOcorrencia}
+        />
       )}
     </div>
   );

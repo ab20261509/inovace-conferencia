@@ -1,12 +1,14 @@
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { ListarDivergenciasEntradaUseCase } from './ListarDivergenciasEntradaUseCase.js';
+import { IOcorrenciaConferenciaEntradaRepository } from '../../../domain/ports/IOcorrenciaConferenciaEntradaRepository.js';
 
 export interface LoteDesmembramentoInput {
   lote: string;
   qtd: number;
   dtval?: string;
   dtfab?: string;
+  codlocal?: number;
 }
 
 export interface ExecutarDesmembramentoInput {
@@ -40,7 +42,8 @@ export class ExecutarDesmembramentoItemUseCase {
   constructor(
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
     private readonly gateway: IGatewayPort,
-    private readonly listarDivergenciasUseCase: ListarDivergenciasEntradaUseCase
+    private readonly listarDivergenciasUseCase: ListarDivergenciasEntradaUseCase,
+    private readonly ocorrenciaRepo?: IOcorrenciaConferenciaEntradaRepository
   ) {}
 
   async execute(
@@ -263,6 +266,78 @@ ORDER BY ITE.SEQUENCIA
       }));
 
       await this.conferenciaRepo.reatribuirSequenciasBipagens(rawId, nunota, codprod, itensTGFITE);
+
+      // 4.1 Se houver frações com CODLOCAL customizado (ex: Avaria, Vencidos), atualizar CODLOCALORIG na TGFITE
+      for (let i = 0; i < input.lotes.length; i++) {
+        const fracao = input.lotes[i];
+        if (fracao.codlocal && itensTGFITE[i]) {
+          const seqAlvo = itensTGFITE[i].sequencia;
+          try {
+            await this.gateway.serviceCall<any>(
+              'DatasetSP.save',
+              {
+                serviceName: 'DatasetSP.save',
+                requestBody: {
+                  entityName: 'ItemNota',
+                  standAlone: false,
+                  fields: ['CODLOCALORIG'],
+                  records: [
+                    {
+                      pk: {
+                        NUNOTA: String(nunota),
+                        SEQUENCIA: String(seqAlvo),
+                      },
+                      values: {
+                        '0': String(fracao.codlocal),
+                      },
+                    },
+                  ],
+                },
+              },
+              correlationId
+            );
+          } catch (eLocal: any) {
+            console.warn(`[ExecutarDesmembramentoItemUseCase] Aviso ao atualizar CODLOCALORIG=${fracao.codlocal} na SEQ=${seqAlvo}:`, eLocal?.message);
+          }
+        }
+      }
+
+      // 4.2 Sincronizar ocorrências pendentes (Avaria, Vencidos, Shelf-Life):
+      // Refletir o CODLOCAL escolhido na ocorrência e marcá-la como RESOLVIDO
+      if (this.ocorrenciaRepo && nunota) {
+        try {
+          const ocorrenciasDaNota = await this.ocorrenciaRepo.listarPorNuNota(nunota);
+          const ocorrenciasPendentes = ocorrenciasDaNota.filter(
+            (oc) => oc.status === 'PENDENTE' || oc.status === 'RESOLVIDO'
+          );
+
+          for (const fracao of input.lotes) {
+            const loteFracao = fracao.lote ? fracao.lote.trim().toUpperCase() : '';
+
+            // Encontra ocorrência com o mesmo lote ou para o mesmo codprod de Avaria/Vencido/Validade Próxima
+            const ocAlvo = ocorrenciasPendentes.find(
+              (oc) =>
+                (loteFracao && oc.lote && oc.lote.trim().toUpperCase() === loteFracao) ||
+                (codprod && oc.codprod === codprod && ['AVARIA', 'VENCIDO', 'VALIDADE_PROXIMA'].includes(oc.tipo))
+            );
+
+            if (ocAlvo) {
+              const dadosAtualizar: any = {
+                status: 'RESOLVIDO',
+              };
+              if (fracao.codlocal !== undefined && fracao.codlocal !== null) {
+                dadosAtualizar.codlocalDestino = Number(fracao.codlocal);
+              }
+              await this.ocorrenciaRepo.atualizar(ocAlvo.id, dadosAtualizar);
+              console.log(
+                `[ExecutarDesmembramentoItemUseCase] Ocorrência ${ocAlvo.id} (${ocAlvo.tipo}) atualizada com Local ${fracao.codlocal} e status RESOLVIDO.`
+              );
+            }
+          }
+        } catch (eOc: any) {
+          console.warn('[ExecutarDesmembramentoItemUseCase] Aviso ao sincronizar ocorrências no desmembramento:', eOc?.message);
+        }
+      }
     }
 
     // 5. Reavaliar divergências de entrada no banco/memória

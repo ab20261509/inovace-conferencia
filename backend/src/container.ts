@@ -81,6 +81,7 @@ import { SolicitarRecontagemEntradaUseCase } from './application/use-cases/receb
 import { RecuperarContagemReiniciadaUseCase } from './application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
 import { SincronizarDesmembramentoNotaUseCase } from './application/use-cases/recebimento/SincronizarDesmembramentoNotaUseCase.js';
 import { ExecutarDesmembramentoItemUseCase } from './application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.js';
+import { AlterarLocalItemNotaUseCase } from './application/use-cases/recebimento/AlterarLocalItemNotaUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -99,6 +100,15 @@ import { ConfiguracaoTelasController } from './presentation/http/controllers/Con
 import { ConfiguracaoSistemaController } from './presentation/http/controllers/ConfiguracaoSistemaController.js';
 import { ConferenciaEntradaController } from './presentation/http/controllers/ConferenciaEntradaController.js';
 import { DatabaseExplorerController } from './presentation/http/controllers/DatabaseExplorerController.js';
+import { OcorrenciasRecebimentoController } from './presentation/http/controllers/OcorrenciasRecebimentoController.js';
+import { LibsqlOcorrenciaConferenciaEntradaRepository } from './infrastructure/repositories/LibsqlOcorrenciaConferenciaEntradaRepository.js';
+import { RegistrarOcorrenciaEntradaUseCase } from './application/use-cases/recebimento/RegistrarOcorrenciaEntradaUseCase.js';
+import { ListarOcorrenciasEntradaUseCase } from './application/use-cases/recebimento/ListarOcorrenciasEntradaUseCase.js';
+import { AtualizarOcorrenciaEntradaUseCase } from './application/use-cases/recebimento/AtualizarOcorrenciaEntradaUseCase.js';
+import { RemoverOcorrenciaEntradaUseCase } from './application/use-cases/recebimento/RemoverOcorrenciaEntradaUseCase.js';
+import { BuscarProdutoTGFPROUseCase } from './application/use-cases/recebimento/BuscarProdutoTGFPROUseCase.js';
+import { BuscarProdutoInternetUseCase } from './application/use-cases/recebimento/BuscarProdutoInternetUseCase.js';
+import { ListarLocaisSankhyaUseCase } from './application/use-cases/recebimento/ListarLocaisSankhyaUseCase.js';
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
 import { createServer } from './presentation/server.js';
 
@@ -134,6 +144,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const configTelasRepo = new LibsqlConfiguracaoTelasRepository(dbClient, permissoesRepo, auditService);
   const configSistemaRepo = new LibsqlConfiguracaoSistemaRepository(dbClient, auditService);
   const conferenciaEntradaRepo = new LibsqlConferenciaEntradaRepository(dbClient, auditService);
+  const ocorrenciaEntradaRepo = new LibsqlOcorrenciaConferenciaEntradaRepository(dbClient);
 
   // 2. Use Cases (Application)
   const loginUseCase = new LoginUseCase(authAdapter, tokenAdapter);
@@ -181,7 +192,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     gatewayAdapter,
     conferenciaEntradaRepo,
     auditService,
-    desmembrarItemService
+    desmembrarItemService,
+    ocorrenciaEntradaRepo
   );
   const listarTodasConferenciasUseCase = new ListarTodasConferenciasEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
   const solicitarRecontagemEntradaUseCase = new SolicitarRecontagemEntradaUseCase(conferenciaEntradaRepo, auditService);
@@ -198,8 +210,10 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const executarDesmembramentoItemUseCase = new ExecutarDesmembramentoItemUseCase(
     conferenciaEntradaRepo,
     gatewayAdapter,
-    listarDivergenciasEntradaUseCase
+    listarDivergenciasEntradaUseCase,
+    ocorrenciaEntradaRepo
   );
+  const alterarLocalItemNotaUseCase = new AlterarLocalItemNotaUseCase(gatewayAdapter, conferenciaEntradaRepo);
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -264,7 +278,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     solicitarRecontagemEntradaUseCase,
     recuperarContagemReiniciadaUseCase,
     sincronizarDesmembramentoNotaUseCase,
-    executarDesmembramentoItemUseCase
+    executarDesmembramentoItemUseCase,
+    alterarLocalItemNotaUseCase
   );
   const crudController = new CrudController(
     loadRecordsUseCase,
@@ -296,6 +311,30 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const databaseExplorerRepo = new LibsqlDatabaseExplorerRepository(dbClient, auditService);
   const databaseExplorerController = new DatabaseExplorerController(databaseExplorerRepo, permissoesRepo);
 
+  // Ocorrências do Recebimento (Avaria, Vencidos, Trocados, etc.)
+  const registrarOcorrenciaEntradaUseCase = new RegistrarOcorrenciaEntradaUseCase(ocorrenciaEntradaRepo, configSistemaRepo);
+  const listarOcorrenciasEntradaUseCase = new ListarOcorrenciasEntradaUseCase(ocorrenciaEntradaRepo);
+  const atualizarOcorrenciaEntradaUseCase = new AtualizarOcorrenciaEntradaUseCase(
+    ocorrenciaEntradaRepo,
+    conferenciaEntradaRepo,
+    listarDivergenciasEntradaUseCase
+  );
+  const removerOcorrenciaEntradaUseCase = new RemoverOcorrenciaEntradaUseCase(ocorrenciaEntradaRepo);
+  const buscarProdutoTGFPROUseCase = new BuscarProdutoTGFPROUseCase(gatewayAdapter);
+  const buscarProdutoInternetUseCase = new BuscarProdutoInternetUseCase();
+  const listarLocaisSankhyaUseCase = new ListarLocaisSankhyaUseCase(gatewayAdapter);
+
+  const ocorrenciasRecebimentoController = new OcorrenciasRecebimentoController(
+    registrarOcorrenciaEntradaUseCase,
+    listarOcorrenciasEntradaUseCase,
+    atualizarOcorrenciaEntradaUseCase,
+    removerOcorrenciaEntradaUseCase,
+    buscarProdutoTGFPROUseCase,
+    buscarProdutoInternetUseCase,
+    listarLocaisSankhyaUseCase,
+    discordAdapter
+  );
+
   // 4. Middleware de autenticação
   const authMiddleware = createAuthMiddleware(tokenAdapter);
 
@@ -313,6 +352,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
       configuracaoSistemaController,
       conferenciaEntradaController,
       databaseExplorerController,
+      ocorrenciasRecebimentoController,
     },
     authMiddleware,
   );

@@ -3,6 +3,7 @@ import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenci
 import { IDesmembrarItemNotaService } from '../../../domain/ports/IDesmembrarItemNotaService.js';
 import { SessaoConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
+import { IOcorrenciaConferenciaEntradaRepository } from '../../../domain/ports/IOcorrenciaConferenciaEntradaRepository.js';
 
 export interface ItemAssociacaoEnvio {
   nunota: number;
@@ -37,7 +38,8 @@ export class EnviarConferenciaSankhyaUseCase {
     private readonly gateway: IGatewayPort,
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
     private readonly audit?: AuditService,
-    private readonly desmembrarItemService?: IDesmembrarItemNotaService
+    private readonly desmembrarItemService?: IDesmembrarItemNotaService,
+    private readonly ocorrenciaRepo?: IOcorrenciaConferenciaEntradaRepository
   ) {}
 
   async execute(
@@ -104,8 +106,10 @@ export class EnviarConferenciaSankhyaUseCase {
 
     const mapaLotesPorProd: Record<
       string,
-      Array<{ lote: string; validade?: string; fabricacao?: string; qtd: number }>
+      Array<{ lote: string; validade?: string; fabricacao?: string; qtd: number; codlocal?: number }>
     > = {};
+
+    let bipsParaUso = bipagensValidas;
 
     if (input.itensCustomizados && input.itensCustomizados.length > 0) {
       for (const item of input.itensCustomizados) {
@@ -119,10 +123,10 @@ export class EnviarConferenciaSankhyaUseCase {
           validade: item.validade?.trim(),
           fabricacao: item.fabricacao?.trim(),
           qtd: item.qtdConferida,
+          codlocal: item.codlocal,
         });
       }
     } else {
-      let bipsParaUso = bipagensValidas;
       if (input.nivelEscolhido) {
         const filtrados = bipagensValidas.filter((b) => b.nivel === input.nivelEscolhido && Boolean(b.lote));
         if (filtrados.length > 0) {
@@ -259,11 +263,36 @@ export class EnviarConferenciaSankhyaUseCase {
       const lotesDoItem = mapaLotesPorProd[key] || [];
 
       if (lotesDoItem.length > 0) {
-        // Se houver múltiplas sequências na nota para o mesmo produto, casa 1:1 por índice
-        const linhasDesteProd = iteRows.filter((it) => Number(it[0]) === nunota && Number(it[2]) === codprod);
-        const indiceSequencia = linhasDesteProd.findIndex((it) => Number(it[1]) === sequencia);
-        const loteParaEstaSequencia = lotesDoItem[indiceSequencia] || lotesDoItem[0];
+        // Se houver bipagem vinculada diretamente a esta sequência, prioriza o lote dela
+        const bipagemDestaSeq = bipsParaUso.find(
+          (b) => Number(b.nunota) === nunota && Number(b.codprod) === codprod && Number(b.sequencia) === sequencia && b.lote
+        );
+        let loteParaEstaSequencia;
+        if (bipagemDestaSeq) {
+          loteParaEstaSequencia = lotesDoItem.find(
+            (l) => l.lote.toUpperCase() === bipagemDestaSeq.lote!.trim().toUpperCase()
+          ) || {
+            lote: bipagemDestaSeq.lote!.trim(),
+            validade: bipagemDestaSeq.validade,
+            fabricacao: bipagemDestaSeq.fabricacao,
+            qtd: bipagemDestaSeq.qtdConferida,
+            codlocal: undefined,
+          };
+        } else {
+          // Se houver múltiplas sequências na nota para o mesmo produto, casa 1:1 por índice
+          const linhasDesteProd = iteRows.filter((it) => Number(it[0]) === nunota && Number(it[2]) === codprod);
+          const indiceSequencia = linhasDesteProd.findIndex((it) => Number(it[1]) === sequencia);
+          loteParaEstaSequencia = lotesDoItem[indiceSequencia] || lotesDoItem[0];
+        }
         const loteLimpo = loteParaEstaSequencia.lote.trim();
+
+        const localEfetivo = loteParaEstaSequencia.codlocal || codlocal;
+        const fieldsSave = ['CONTROLE'];
+        const valuesSave: Record<string, string> = { '0': loteLimpo };
+        if (loteParaEstaSequencia.codlocal && loteParaEstaSequencia.codlocal !== codlocal) {
+          fieldsSave.push('CODLOCALORIG');
+          valuesSave['1'] = String(loteParaEstaSequencia.codlocal);
+        }
 
         // 3.1 Atualizar ItemNota (TGFITE) via DatasetSP.save
         await this.gateway.serviceCall<any>(
@@ -273,16 +302,14 @@ export class EnviarConferenciaSankhyaUseCase {
             requestBody: {
               entityName: 'ItemNota',
               standAlone: false,
-              fields: ['CONTROLE'],
+              fields: fieldsSave,
               records: [
                 {
                   pk: {
                     NUNOTA: String(nunota),
                     SEQUENCIA: String(sequencia),
                   },
-                  values: {
-                    '0': loteLimpo,
-                  },
+                  values: valuesSave,
                 },
               ],
             },
@@ -296,6 +323,7 @@ export class EnviarConferenciaSankhyaUseCase {
           const lLimpo = loteObj.lote.trim();
           if (!lLimpo) continue;
 
+          const localLote = loteObj.codlocal || localEfetivo;
           const validadeFormatada = formatarDataSankhya(loteObj.validade);
           const fabricacaoFormatada = formatarDataSankhya(loteObj.fabricacao);
 
@@ -303,7 +331,7 @@ export class EnviarConferenciaSankhyaUseCase {
           const checkEstSql = `
             SELECT COUNT(1) FROM TGFEST
             WHERE CODPROD = ${codprod} 
-              AND CODLOCAL = ${codlocal} 
+              AND CODLOCAL = ${localLote} 
               AND CODEMP = ${codemp} 
               AND CONTROLE = '${lLimpo}'
               AND CODPARC = 0
@@ -486,6 +514,29 @@ export class EnviarConferenciaSankhyaUseCase {
     });
 
     await this.conferenciaRepo.salvarSessao(sessao);
+
+    // 5.1 Atualizar ocorrências das notas enviadas para status 'INTEGRADO_ERP'
+    if (this.ocorrenciaRepo) {
+      for (const n of nunotasParaEnvio) {
+        try {
+          const ocorrenciasNota = await this.ocorrenciaRepo.listarPorNuNota(n);
+          for (const oc of ocorrenciasNota) {
+            // Se a ocorrência foi resolvida ou ainda estava pendente desta nota integrada no ERP,
+            // atualiza seu status para 'INTEGRADO_ERP'
+            if (oc.status === 'PENDENTE' || oc.status === 'RESOLVIDO') {
+              await this.ocorrenciaRepo.atualizar(oc.id, {
+                status: 'INTEGRADO_ERP',
+              });
+              console.log(
+                `[EnviarConferenciaSankhyaUseCase] Ocorrência ${oc.id} (${oc.tipo}) da Nota #${n} atualizada para INTEGRADO_ERP.`
+              );
+            }
+          }
+        } catch (errOc: any) {
+          console.warn(`[EnviarConferenciaSankhyaUseCase] Aviso ao atualizar ocorrências da Nota #${n}:`, errOc?.message);
+        }
+      }
+    }
 
     if (this.audit) {
       await this.audit.registrar({

@@ -924,25 +924,6 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
 
                   <button
                     type="button"
-                    className={`gestao-btn-clean-secundario ${jaEnviado ? 'disabled-action' : ''}`}
-                    disabled={jaEnviado}
-                    onClick={() => !jaEnviado && onAbrirColetor(conf)}
-                    title={
-                      jaEnviado
-                        ? 'Conferência já enviada ao Sankhya'
-                        : 'Abrir tela de contagem no coletor'
-                    }
-                    style={
-                      jaEnviado
-                        ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
-                        : undefined
-                    }
-                  >
-                    <span>📱 Coletor</span>
-                  </button>
-
-                  <button
-                    type="button"
                     className={`gestao-btn-clean-secundario danger ${jaEnviado ? 'disabled-action' : ''}`}
                     disabled={jaEnviado}
                     onClick={() => !jaEnviado && onReiniciar(conf)}

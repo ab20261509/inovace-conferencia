@@ -14,6 +14,7 @@ import { SolicitarRecontagemEntradaUseCase } from '../../../application/use-case
 import { RecuperarContagemReiniciadaUseCase } from '../../../application/use-cases/recebimento/RecuperarContagemReiniciadaUseCase.js';
 import { SincronizarDesmembramentoNotaUseCase } from '../../../application/use-cases/recebimento/SincronizarDesmembramentoNotaUseCase.js';
 import { ExecutarDesmembramentoItemUseCase } from '../../../application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.js';
+import { AlterarLocalItemNotaUseCase } from '../../../application/use-cases/recebimento/AlterarLocalItemNotaUseCase.js';
 
 export class ConferenciaEntradaController {
   constructor(
@@ -31,7 +32,8 @@ export class ConferenciaEntradaController {
     private readonly solicitarRecontagemUseCase?: SolicitarRecontagemEntradaUseCase,
     private readonly recuperarContagemUseCase?: RecuperarContagemReiniciadaUseCase,
     private readonly sincronizarDesmembramentoUseCase?: SincronizarDesmembramentoNotaUseCase,
-    private readonly executarDesmembramentoUseCase?: ExecutarDesmembramentoItemUseCase
+    private readonly executarDesmembramentoUseCase?: ExecutarDesmembramentoItemUseCase,
+    private readonly alterarLocalItemUseCase?: AlterarLocalItemNotaUseCase
   ) {}
 
   /** GET /api/recebimento/notas */
@@ -380,5 +382,37 @@ export class ConferenciaEntradaController {
       res.status(400).json({ error: error.message || 'Erro ao desmembrar item no Sankhya.' });
     }
   }
+
+  /** PUT /api/recebimento/conferencia/item/local */
+  async alterarLocalItem(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.alterarLocalItemUseCase) {
+        res.status(501).json({ error: 'Funcionalidade de alteração de local não configurada.' });
+        return;
+      }
+      const { nunota, sequencia, codlocal, conferenciaId } = req.body;
+
+      if (!nunota || !sequencia || codlocal === undefined || codlocal === null) {
+        res.status(400).json({ error: 'nunota, sequencia e codlocal são obrigatórios.' });
+        return;
+      }
+
+      const resultado = await this.alterarLocalItemUseCase.execute(
+        {
+          nunota: Number(nunota),
+          sequencia: Number(sequencia),
+          codlocal: Number(codlocal),
+          conferenciaId,
+        },
+        req.correlationId
+      );
+
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error('❌ Erro ao alterar local do item no Sankhya:', error);
+      res.status(400).json({ error: error.message || 'Erro ao alterar local do item.' });
+    }
+  }
 }
+
 

@@ -169,12 +169,108 @@ export class RecebimentoApiService {
     params: {
       nunota: number;
       sequencia: number;
-      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string; codlocal?: number }>;
     }
   ): Promise<{ sucesso: boolean; mensagem: string; divergencias?: any[] }> {
     const response = await httpClient.post<{ sucesso: boolean; mensagem: string; divergencias?: any[] }>(
       `/api/recebimento/conferencia/${conferenciaId}/desmembrar-item`,
       params
+    );
+    return response.data;
+  }
+
+  async alterarLocalItem(params: {
+    nunota: number;
+    sequencia: number;
+    codlocal: number;
+    conferenciaId?: string;
+  }): Promise<{ sucesso: boolean; mensagem: string; nunota: number; sequencia: number; codlocal: number }> {
+    const response = await httpClient.put<{ sucesso: boolean; mensagem: string; nunota: number; sequencia: number; codlocal: number }>(
+      '/api/recebimento/conferencia/item/local',
+      params
+    );
+    return response.data;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     OCORRÊNCIAS & PENDÊNCIAS (AVARIA, VENCIDOS, ETC.)
+     ══════════════════════════════════════════════════════ */
+
+  async registrarOcorrencia(
+    dados: import('../../domain/models/OcorrenciaRecebimento').RegistrarOcorrenciaInput
+  ): Promise<import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento> {
+    const response = await httpClient.post<import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento>(
+      '/api/recebimento/ocorrencias',
+      dados
+    );
+    return response.data;
+  }
+
+  async listarOcorrencias(filtros?: {
+    conferenciaId?: string;
+    nunota?: number;
+    tipo?: string;
+    status?: string;
+  }): Promise<import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento[]> {
+    const response = await httpClient.get<import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento[]>(
+      '/api/recebimento/ocorrencias',
+      { params: filtros }
+    );
+    return response.data;
+  }
+
+  async atualizarOcorrencia(
+    id: string,
+    dados: Partial<import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento>
+  ): Promise<import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento> {
+    const response = await httpClient.put<import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento>(
+      `/api/recebimento/ocorrencias/${id}`,
+      dados
+    );
+    return response.data;
+  }
+
+  async removerOcorrencia(id: string): Promise<void> {
+    await httpClient.delete(`/api/recebimento/ocorrencias/${id}`);
+  }
+
+  async buscarCatalogoProdutos(
+    termo: string
+  ): Promise<import('../../domain/models/OcorrenciaRecebimento').ProdutoCatalogoItem[]> {
+    const response = await httpClient.get<import('../../domain/models/OcorrenciaRecebimento').ProdutoCatalogoItem[]>(
+      '/api/recebimento/produtos/catalogo',
+      { params: { termo } }
+    );
+    return response.data;
+  }
+
+  async buscarProdutoInternet(
+    codbarra: string
+  ): Promise<import('../../domain/models/OcorrenciaRecebimento').ProdutoInternetResultado> {
+    const response = await httpClient.get<import('../../domain/models/OcorrenciaRecebimento').ProdutoInternetResultado>(
+      '/api/recebimento/produtos/buscar-internet',
+      { params: { codbarra } }
+    );
+    return response.data;
+  }
+
+  async listarLocaisEstoque(): Promise<import('../../domain/models/OcorrenciaRecebimento').LocalEstoqueItem[]> {
+    const response = await httpClient.get<import('../../domain/models/OcorrenciaRecebimento').LocalEstoqueItem[]>(
+      '/api/recebimento/locais-estoque'
+    );
+    return response.data;
+  }
+
+  async notificarDiscordOcorrencias(payload: {
+    nunota: number;
+    numnota?: number;
+    razaosocial?: string;
+    ocorrencias: import('../../domain/models/OcorrenciaRecebimento').OcorrenciaRecebimento[];
+    usuario?: string;
+  }): Promise<{ sucesso: boolean; mensagem: string }> {
+    const response = await httpClient.post<{ sucesso: boolean; mensagem: string }>(
+      '/api/recebimento/ocorrencias/notificar-discord',
+      payload
     );
     return response.data;
   }

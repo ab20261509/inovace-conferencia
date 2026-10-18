@@ -104,3 +104,42 @@ export function validarData(
 
   return { valida: true };
 }
+
+/**
+ * Calcula se a data de validade está vencida ou com validade próxima (shelf-life)
+ */
+export function checarStatusValidade(
+  validadeStr: string,
+  diasShelfLifeAlerta = 90
+): { status: 'NORMAL' | 'VENCIDO' | 'VALIDADE_PROXIMA'; diasRestantes: number; erro?: string } {
+  if (!validadeStr) return { status: 'NORMAL', diasRestantes: 999 };
+  const limpo = validadeStr.trim();
+  const match = limpo.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return { status: 'NORMAL', diasRestantes: 999, erro: 'Data incompleta' };
+
+  const dia = Number(match[1]);
+  const mes = Number(match[2]) - 1;
+  const ano = Number(match[3]);
+
+  // Normaliza ambas as datas para 00:00:00 (comparação estrita por dias de calendário)
+  const dataValidade = new Date(ano, mes, dia);
+  dataValidade.setHours(0, 0, 0, 0);
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const diffMs = dataValidade.getTime() - hoje.getTime();
+  const diasRestantes = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  // Se a validade já expirou (ontem ou antes) ou vence no próprio dia de hoje, é VENCIDO
+  if (diasRestantes <= 0) {
+    return { status: 'VENCIDO', diasRestantes };
+  }
+
+  // Se vence a partir de amanhã e dentro do prazo limite de shelf-life, é VALIDADE_PROXIMA
+  if (diasRestantes <= diasShelfLifeAlerta) {
+    return { status: 'VALIDADE_PROXIMA', diasRestantes };
+  }
+
+  return { status: 'NORMAL', diasRestantes };
+}

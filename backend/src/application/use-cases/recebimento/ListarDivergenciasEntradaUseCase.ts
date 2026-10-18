@@ -34,6 +34,7 @@ export interface ItemDivergenciaResumo {
   conferenteN1?: string;
   conferenteN2?: string;
   conferenteN3?: string;
+  codlocalorig?: number;
 }
 
 export interface ConferênciaDivergenciaGrupo {
@@ -125,6 +126,7 @@ SELECT
     NVL(ITE.CODVOL, 'UN') AS CODVOL,
     NVL(ITE.QTDNEG, 0) AS QTDNEG,
     ITE.CONTROLE,
+    ITE.CODLOCALORIG,
     TO_CHAR(EST.DTVAL, 'DD/MM/YYYY') AS DTVAL,
     TO_CHAR(EST.DTFABRICACAO, 'DD/MM/YYYY') AS DTFABRICACAO
 FROM TGFCAB CAB
@@ -308,6 +310,9 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           conferenteN1: bips.conferenteN1,
           conferenteN2: bips.conferenteN2,
           conferenteN3: bips.conferenteN3,
+          codlocalorig: r[fieldIndex['CODLOCALORIG']] !== undefined && r[fieldIndex['CODLOCALORIG']] !== null && r[fieldIndex['CODLOCALORIG']] !== ''
+            ? Number(r[fieldIndex['CODLOCALORIG']])
+            : undefined,
         };
 
         if (!itensPorNota[nunotaItem]) {

@@ -242,6 +242,7 @@ export interface ItemDivergenciaResumo {
   conferenteN2?: string;
   conferenteN3?: string;
   lotesConferidos?: any[];
+  codlocalorig?: number;
 }
 
 export interface ConferenciaDivergenciaGrupo {

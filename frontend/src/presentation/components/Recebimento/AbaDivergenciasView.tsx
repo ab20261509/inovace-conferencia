@@ -12,6 +12,8 @@ import {
   formatarDataSimples,
 } from './recebimentoHelpers';
 import { ModalDesmembrarItem } from './ModalDesmembrarItem';
+import { ModalPesquisaLocalEstoque } from './ModalPesquisaLocalEstoque';
+import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
 
 export interface AbaDivergenciasViewProps {
   divergencias: ConferenciaDivergenciaGrupo[];
@@ -40,10 +42,11 @@ export interface AbaDivergenciasViewProps {
     dados: {
       nunota: number;
       sequencia: number;
-      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string }>;
+      lotes: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string; codlocal?: number }>;
     }
   ) => Promise<void>;
   processandoDesmembramento?: string | null;
+  onLocalAlterado?: () => void;
 }
 
 export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
@@ -60,7 +63,64 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   onSincronizarDesmembramento,
   onExecutarDesmembramento,
   processandoDesmembramento,
+  onLocalAlterado,
 }) => {
+  const recebimentoService = React.useMemo(() => new RecebimentoApiService(), []);
+  const [locaisAlterados, setLocaisAlterados] = useState<Record<string, number>>({});
+  const [modalLocalAberto, setModalLocalAberto] = useState(false);
+  const [itemParaAlterarLocal, setItemParaAlterarLocal] = useState<{
+    nunota: number;
+    sequencia: number;
+    codprod?: number;
+    descrprod?: string;
+    codlocalorig?: number;
+    conferenciaId: string;
+  } | null>(null);
+  const [salvandoLocal, setSalvandoLocal] = useState(false);
+
+  const handleAbrirAlterarLocal = (
+    item: ItemDivergenciaResumo,
+    conferenciaId: string
+  ) => {
+    const itemChave = `${item.nunota}-${item.sequencia}`;
+    const codlocalAtual = locaisAlterados[itemChave] !== undefined ? locaisAlterados[itemChave] : item.codlocalorig;
+    setItemParaAlterarLocal({
+      nunota: item.nunota,
+      sequencia: item.sequencia,
+      codprod: item.codprod,
+      descrprod: item.descrprod || `Produto ${item.codprod}`,
+      codlocalorig: codlocalAtual,
+      conferenciaId,
+    });
+    setModalLocalAberto(true);
+  };
+
+  const handleConfirmarAlterarLocal = async (novoCodlocal?: number) => {
+    if (!itemParaAlterarLocal || novoCodlocal === undefined || novoCodlocal === null) return;
+    setSalvandoLocal(true);
+    try {
+      await recebimentoService.alterarLocalItem({
+        nunota: itemParaAlterarLocal.nunota,
+        sequencia: itemParaAlterarLocal.sequencia,
+        codlocal: novoCodlocal,
+        conferenciaId: itemParaAlterarLocal.conferenciaId,
+      });
+      const itemChave = `${itemParaAlterarLocal.nunota}-${itemParaAlterarLocal.sequencia}`;
+      if (novoCodlocal !== undefined && novoCodlocal !== null) {
+        setLocaisAlterados((prev) => ({ ...prev, [itemChave]: novoCodlocal }));
+      }
+      if (onLocalAlterado) {
+        onLocalAlterado();
+      }
+      setModalLocalAberto(false);
+      setItemParaAlterarLocal(null);
+    } catch (err: any) {
+      alert(`Erro ao alterar local no Sankhya: ${err?.message || 'Falha na comunicação'}`);
+    } finally {
+      setSalvandoLocal(false);
+    }
+  };
+
   const [modalDesmembrarItem, setModalDesmembrarItem] = useState<{
     item: ItemDivergenciaResumo;
     grupo: ConferenciaDivergenciaGrupo;
@@ -602,6 +662,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           {exibirN2 && <th rowSpan={2}>N2</th>}
                           {grupo.totalN3 > 0 && <th rowSpan={2}>N3</th>}
                           <th rowSpan={2}>Diferença</th>
+                          <th rowSpan={2}>Local</th>
                           <th colSpan={2} className="th-grupo-comparativo lote">
                             LOTE
                           </th>
@@ -701,7 +762,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const temMultiplosLotes = lotesConferidos.length > 1;
                           const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
                           const temN3 = grupo.totalN3 > 0;
-                          let totalColunasDiv = 12;
+                          let totalColunasDiv = 13;
                           if (exibirN1) totalColunasDiv++;
                           if (exibirN2) totalColunasDiv++;
                           if (temN3) totalColunasDiv++;
@@ -877,6 +938,89 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       </>
                                     )}
                                   </div>
+                                </td>
+
+                                {/* LOCAL DE ESTOQUE */}
+                                <td>
+                                  {(() => {
+                                    const itemChave = `${item.nunota}-${item.sequencia}`;
+                                    const codlocalEfetivo =
+                                      locaisAlterados[itemChave] !== undefined
+                                        ? locaisAlterados[itemChave]
+                                        : item.codlocalorig;
+
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleAbrirAlterarLocal(
+                                            item,
+                                            grupo.conferenciaId || grupo.id
+                                          )
+                                        }
+                                        title="Clique para alterar o Local de Estoque (CODLOCALORIG) antes de liberar a conferência"
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '5px',
+                                          cursor: 'pointer',
+                                          fontSize: '0.8rem',
+                                          fontWeight: 600,
+                                          padding: '3px 8px',
+                                          borderRadius: '5px',
+                                          border:
+                                            codlocalEfetivo !== undefined &&
+                                            codlocalEfetivo !== null
+                                              ? '1px solid var(--slate-300)'
+                                              : '1px solid #fca5a5',
+                                          background:
+                                            codlocalEfetivo !== undefined &&
+                                            codlocalEfetivo !== null
+                                              ? '#f8fafc'
+                                              : '#fef2f2',
+                                          color:
+                                            codlocalEfetivo !== undefined &&
+                                            codlocalEfetivo !== null
+                                              ? 'var(--slate-800)'
+                                              : '#b91c1c',
+                                          transition: 'all 0.15s ease',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.borderColor =
+                                            'var(--primary-500, #3b82f6)';
+                                          e.currentTarget.style.backgroundColor =
+                                            '#eff6ff';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.borderColor =
+                                            codlocalEfetivo !== undefined &&
+                                            codlocalEfetivo !== null
+                                              ? 'var(--slate-300)'
+                                              : '#fca5a5';
+                                          e.currentTarget.style.backgroundColor =
+                                            codlocalEfetivo !== undefined &&
+                                            codlocalEfetivo !== null
+                                              ? '#f8fafc'
+                                              : '#fef2f2';
+                                        }}
+                                      >
+                                        <span>
+                                          {codlocalEfetivo !== undefined &&
+                                          codlocalEfetivo !== null
+                                            ? `📍 ${codlocalEfetivo}`
+                                            : '⚠️ Sem Local'}
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '0.72rem',
+                                            opacity: 0.7,
+                                          }}
+                                        >
+                                          ✏️
+                                        </span>
+                                      </button>
+                                    );
+                                  })()}
                                 </td>
 
                                 {/* LOTE - ERP */}
@@ -1225,6 +1369,61 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 N3: <strong>{item.qtdN3}</strong>
                               </div>
                             )}
+                            <div>
+                              Local:{' '}
+                              {(() => {
+                                const itemChave = `${item.nunota}-${item.sequencia}`;
+                                const codlocalEfetivo =
+                                  locaisAlterados[itemChave] !== undefined
+                                    ? locaisAlterados[itemChave]
+                                    : item.codlocalorig;
+
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleAbrirAlterarLocal(
+                                        item,
+                                        grupo.conferenciaId || grupo.id
+                                      )
+                                    }
+                                    style={{
+                                      cursor: 'pointer',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 600,
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      border:
+                                        codlocalEfetivo !== undefined &&
+                                        codlocalEfetivo !== null
+                                          ? '1px solid var(--slate-300)'
+                                          : '1px solid #fca5a5',
+                                      background:
+                                        codlocalEfetivo !== undefined &&
+                                        codlocalEfetivo !== null
+                                          ? '#f8fafc'
+                                          : '#fef2f2',
+                                      color:
+                                        codlocalEfetivo !== undefined &&
+                                        codlocalEfetivo !== null
+                                          ? 'var(--slate-800)'
+                                          : '#b91c1c',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    <span>
+                                      {codlocalEfetivo !== undefined &&
+                                      codlocalEfetivo !== null
+                                        ? `📍 ${codlocalEfetivo}`
+                                        : '⚠️ Sem Local'}
+                                    </span>
+                                    <span style={{ fontSize: '0.7rem' }}>✏️</span>
+                                  </button>
+                                );
+                              })()}
+                            </div>
                           </div>
 
                           <div
@@ -1410,27 +1609,6 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                   </span>
                 </button>
 
-                {onSincronizarDesmembramento && Boolean(grupo.nunota) && (
-                  <button
-                    type="button"
-                    className="gestao-btn-acao gestao-btn-sincronizar-desmembramento"
-                    disabled={processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${grupo.nunota}-all`}
-                    onClick={() =>
-                      onSincronizarDesmembramento(
-                        grupo.conferenciaId || grupo.id,
-                        grupo.nunota!
-                      )
-                    }
-                    title="Consultar no Sankhya se os itens da nota foram desmembrados na Central de Compras"
-                  >
-                    <span>
-                      {processandoDesmembramento === `${grupo.conferenciaId || grupo.id}-${grupo.nunota}-all`
-                        ? '🔄 Sincronizando ERP...'
-                        : '🔄 Sincronizar Desmembramento do ERP'}
-                    </span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   className="gestao-btn-acao gestao-btn-n3"
@@ -1472,6 +1650,24 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
               setExecutandoDesmembramento(false);
             }
           }}
+        />
+      )}
+      {modalLocalAberto && (
+        <ModalPesquisaLocalEstoque
+          isOpen={modalLocalAberto}
+          onClose={() => {
+            if (!salvandoLocal) {
+              setModalLocalAberto(false);
+              setItemParaAlterarLocal(null);
+            }
+          }}
+          codlocalAtual={itemParaAlterarLocal?.codlocalorig}
+          tituloContexto={
+            itemParaAlterarLocal
+              ? `${itemParaAlterarLocal.descrprod} (Nota ${itemParaAlterarLocal.nunota})`
+              : undefined
+          }
+          onSelecionar={(codlocal) => handleConfirmarAlterarLocal(codlocal)}
         />
       )}
     </div>

@@ -50,14 +50,17 @@ export function GestaoAcessosPage() {
   // Estados Aba 3: Parâmetros Operacionais
   const [paramN1Ativo, setParamN1Ativo] = useState<boolean>(true);
   const [paramN2Ativo, setParamN2Ativo] = useState<boolean>(true);
+  const [paramShelfLifeDias, setParamShelfLifeDias] = useState<number>(90);
   const [loadingParametros, setLoadingParametros] = useState<boolean>(false);
   const [salvandoParametro, setSalvandoParametro] = useState<boolean>(false);
-  const [descricoesAbertas, setDescricoesAbertas] = useState<{ n1: boolean; n2: boolean }>({
+  const [salvandoShelfLife, setSalvandoShelfLife] = useState<boolean>(false);
+  const [descricoesAbertas, setDescricoesAbertas] = useState<{ n1: boolean; n2: boolean; shelfLife: boolean }>({
     n1: false,
     n2: false,
+    shelfLife: false,
   });
 
-  const toggleDescricao = (nivel: 'n1' | 'n2') => {
+  const toggleDescricao = (nivel: 'n1' | 'n2' | 'shelfLife') => {
     setDescricoesAbertas((prev) => ({
       ...prev,
       [nivel]: !prev[nivel],
@@ -147,6 +150,12 @@ export function GestaoAcessosPage() {
           }
           if (params['conferencia_entrada_nivel2_ativo']) {
             setParamN2Ativo(params['conferencia_entrada_nivel2_ativo'].valor !== 'false');
+          }
+          if (params['recebimento_shelf_life_dias_alerta']) {
+            const n = parseInt(params['recebimento_shelf_life_dias_alerta'].valor, 10);
+            if (!isNaN(n) && n > 0) {
+              setParamShelfLifeDias(n);
+            }
           }
         }
       } catch (err: any) {
@@ -239,6 +248,41 @@ export function GestaoAcessosPage() {
       });
     } finally {
       setSalvandoParametro(false);
+    }
+  }
+
+  async function handleSalvarShelfLife() {
+    if (paramShelfLifeDias <= 0 || isNaN(paramShelfLifeDias)) {
+      setFeedback({
+        tipo: 'erro',
+        texto: 'Por favor, informe uma quantidade válida de dias (número maior que zero).',
+      });
+      return;
+    }
+
+    setSalvandoShelfLife(true);
+    setFeedback(null);
+
+    try {
+      await configSistemaService.salvarParametro(
+        'recebimento_shelf_life_dias_alerta',
+        String(paramShelfLifeDias),
+        'Tolerância de shelf-life em dias para alerta de validade próxima no recebimento'
+      );
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `Tolerância de Validade Próxima atualizada para ${paramShelfLifeDias} dias com sucesso!`,
+      });
+      setTimeout(() => {
+        setFeedback((prev) => (prev?.tipo === 'sucesso' ? null : prev));
+      }, 3500);
+    } catch (err: any) {
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || 'Erro ao salvar parâmetro de shelf-life.',
+      });
+    } finally {
+      setSalvandoShelfLife(false);
     }
   }
 
@@ -953,6 +997,114 @@ export function GestaoAcessosPage() {
                                 <li><strong>Nível 1:</strong> Conferente faz a contagem física cega.</li>
                                 <li><strong>Finalização Direta:</strong> Se N1 coincidir exatamente com a NF, a conferência é finalizada com sucesso.</li>
                                 <li><strong>Divergência com a NF:</strong> Caso falte ou sobre produto em relação à NF, a conferência é marcada como <em>Divergente</em> para o gestor.</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CARD 3: SHELF-LIFE (VALIDADE PRÓXIMA) NO RECEBIMENTO */}
+                    <div className="gestao-parametro-card">
+                      <div className="gestao-parametro-header">
+                        <div className="gestao-parametro-info">
+                          <div className="gestao-parametro-titulo-row">
+                            <span className="gestao-parametro-icone">⏳</span>
+                            <h4 className="gestao-parametro-titulo">
+                              Tolerância de Validade Próxima (Shelf-Life) no Recebimento
+                            </h4>
+                            <span className="badge-parametro-status ativo">
+                              {paramShelfLifeDias} dias configurados
+                            </span>
+                          </div>
+                          <p className="gestao-parametro-resumo-curto">
+                            Prazo mínimo em dias até o vencimento. Lotes que vencerem dentro desta margem abrem automaticamente ocorrência de Validade Próxima no coletor.
+                          </p>
+                          <button
+                            type="button"
+                            className="gestao-parametro-btn-toggle"
+                            onClick={() => toggleDescricao('shelfLife')}
+                            title={descricoesAbertas.shelfLife ? 'Ocultar detalhes' : 'Exibir detalhes da rotina'}
+                          >
+                            <span>{descricoesAbertas.shelfLife ? '▲ Ocultar detalhes da rotina' : 'ℹ️ Ver detalhes da rotina ▼'}</span>
+                          </button>
+                        </div>
+
+                        {/* Campo de input e botão salvar */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px' }}>
+                            <input
+                              type="number"
+                              min="1"
+                              max="9999"
+                              value={paramShelfLifeDias}
+                              onChange={(e) => setParamShelfLifeDias(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                              disabled={salvandoShelfLife}
+                              style={{
+                                width: '70px',
+                                border: 'none',
+                                background: 'transparent',
+                                fontSize: '1rem',
+                                fontWeight: 700,
+                                textAlign: 'center',
+                                outline: 'none',
+                                color: '#0f172a',
+                              }}
+                            />
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>dias</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSalvarShelfLife}
+                            disabled={salvandoShelfLife}
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: '8px',
+                              background: '#10b981',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '0.85rem',
+                              fontWeight: 700,
+                              cursor: salvandoShelfLife ? 'wait' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              boxShadow: '0 1px 3px rgba(16, 185, 129, 0.3)',
+                              transition: 'all 0.2s',
+                            }}
+                          >
+                            {salvandoShelfLife ? '⏳ Salvando...' : '💾 Salvar Alteração'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {descricoesAbertas.shelfLife && (
+                        <div className="gestao-parametro-detalhes-container">
+                          <p className="gestao-parametro-detalhes">
+                            Ao conferir no Nível 2 ou Nível 3 (onde Lote e Validade são obrigatórios), o sistema calcula os dias restantes entre a data atual e o vencimento digitado pelo operador.<br />
+                            Se o lote vencer em menos de <strong>{paramShelfLifeDias} dias</strong>, o sistema detecta shelf-life curto e abre automaticamente o modal de ocorrência com tipo <strong>Validade Próxima</strong>.
+                          </p>
+
+                          <div className="gestao-parametro-fluxo-explicacao">
+                            <div className="fluxo-modo-box modo-destaque">
+                              <div className="fluxo-modo-header">
+                                <span className="fluxo-icone">📦</span>
+                                <strong>Contabilização na Conferência Física</strong>
+                              </div>
+                              <ul>
+                                <li>Ao confirmar a ocorrência, a quantidade <strong>contabiliza na conferência física</strong> da carga (não trava o conferente).</li>
+                                <li>A ocorrência é gravada com status <em>Pendente</em> para o gestor atuar.</li>
+                              </ul>
+                            </div>
+
+                            <div className="fluxo-modo-box modo-destaque">
+                              <div className="fluxo-modo-header">
+                                <span className="fluxo-icone">🏢</span>
+                                <strong>Definição do Local de Estoque pelo Gestor</strong>
+                              </div>
+                              <ul>
+                                <li>O coletor <strong>não define local</strong> no momento da conferência (permanece pendente).</li>
+                                <li>O gestor define o local correto de armazenagem na <strong>Aba Ocorrências</strong> ou faz o desdobramento de linhas na <strong>Aba Divergências</strong> antes de enviar ao Sankhya.</li>
                               </ul>
                             </div>
                           </div>
