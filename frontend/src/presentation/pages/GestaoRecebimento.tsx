@@ -8,6 +8,7 @@ import {
   ConferenciaEntradaResumo,
   NotaEntrada,
   ObterItensConferenciaResponse,
+  ItemDivergenciaResumo,
 } from '../../domain/models/ConferenciaEntrada';
 import { AppLayout, AppHeader, Container } from '../components';
 import { Loading } from '../components/Loading/Loading';
@@ -470,6 +471,23 @@ export function GestaoRecebimentoPage() {
       });
       throw err;
     }
+  };
+
+  const handleLocalAlteradoDivergencia = (nunota: number, sequencia: number, novoCodlocal: number) => {
+    setDivergencias((prev) =>
+      prev.map((grupo) => {
+        const atualizarItem = (item: ItemDivergenciaResumo): ItemDivergenciaResumo =>
+          item.nunota === nunota && item.sequencia === sequencia
+            ? { ...item, codlocalorig: novoCodlocal }
+            : item;
+
+        return {
+          ...grupo,
+          itensDivergentes: (grupo.itensDivergentes || []).map(atualizarItem),
+          todosItens: (grupo.todosItens || []).map(atualizarItem),
+        };
+      })
+    );
   };
 
   const podeAcessar = temPermissao('conferencia_entrada') || temPermissao('gerenciar_acessos');
@@ -1133,7 +1151,7 @@ export function GestaoRecebimentoPage() {
                     onSincronizarDesmembramento={handleSincronizarDesmembramento}
                     onExecutarDesmembramento={handleExecutarDesmembramento}
                     processandoDesmembramento={processandoDesmembramento}
-                    onLocalAlterado={carregarDados}
+                    onLocalAlterado={handleLocalAlteradoDivergencia}
                   />
                 )}
 

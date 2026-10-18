@@ -46,7 +46,7 @@ export interface AbaDivergenciasViewProps {
     }
   ) => Promise<void>;
   processandoDesmembramento?: string | null;
-  onLocalAlterado?: () => void;
+  onLocalAlterado?: (nunota: number, sequencia: number, novoCodlocal: number) => void;
 }
 
 export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
@@ -109,8 +109,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
       if (novoCodlocal !== undefined && novoCodlocal !== null) {
         setLocaisAlterados((prev) => ({ ...prev, [itemChave]: novoCodlocal }));
       }
-      if (onLocalAlterado) {
-        onLocalAlterado();
+      if (onLocalAlterado && novoCodlocal !== undefined && novoCodlocal !== null) {
+        onLocalAlterado(itemParaAlterarLocal.nunota, itemParaAlterarLocal.sequencia, novoCodlocal);
       }
       setModalLocalAberto(false);
       setItemParaAlterarLocal(null);
