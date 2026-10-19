@@ -1,6 +1,7 @@
 import React from 'react';
 
 export function getStatusBadgeClass(status: string): string {
+  if (status === 'Em Aberto') return 'em-aberto';
   if (status === 'Divergente') return 'divergente';
   if (status.includes('Aguardando N') || status.includes('Reconferência')) return 'reconferencia';
   if (status === 'Conferido') return 'conferido';

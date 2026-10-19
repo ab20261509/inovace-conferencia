@@ -75,9 +75,12 @@ SELECT
     NVL(PRO.REFFORN, ' ') AS REFFORN,
     NVL(ITE.CODVOL, 'UN') AS CODVOL,
     NVL(ITE.QTDNEG, 0) AS QTDNEG,
-    ITE.CODLOCALORIG
+    ITE.CODLOCALORIG,
+    NVL(PAR.RAZAOSOCIAL, NVL(PAR.NOMEPARC, 'FORNECEDOR NÃO INFORMADO')) AS NOMEPARC,
+    CAB.CODPARC
 FROM TGFITE ITE
 INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
 INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
 WHERE ITE.NUNOTA IN (${nunotasStr})
 ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
@@ -315,6 +318,8 @@ WHERE BAR.CODPROD IN (
         diferenca,
         codlocal: r[itensIndex['CODLOCALORIG']] !== null && r[itensIndex['CODLOCALORIG']] !== undefined ? Number(r[itensIndex['CODLOCALORIG']]) : undefined,
         codlocalorig: r[itensIndex['CODLOCALORIG']] !== null && r[itensIndex['CODLOCALORIG']] !== undefined ? Number(r[itensIndex['CODLOCALORIG']]) : undefined,
+        nomeparc: r[itensIndex['NOMEPARC']] ? String(r[itensIndex['NOMEPARC']]).trim() : undefined,
+        codparc: r[itensIndex['CODPARC']] !== null && r[itensIndex['CODPARC']] !== undefined ? Number(r[itensIndex['CODPARC']]) : undefined,
       };
     });
 

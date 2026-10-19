@@ -1,0 +1,158 @@
+/* ═════════════════════════════════════════════════════════════════
+   CONFERÊNCIA DE SAÍDA - BARRA DE BIPAGEM / SCANNER 100% ISOLADO
+   Não afeta a Conferência de Entrada nem estilos globais
+   ═════════════════════════════════════════════════════════════════ */
+
+.scanner-saida-card {
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+  padding: 12px 16px;
+  width: 100%;
+  margin-top: 4px;
+  box-sizing: border-box;
+}
+
+.scanner-saida-form {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Wrapper e Input do Código de Barras */
+.scanner-saida-input-codigo-wrapper {
+  flex: 1 !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+.scanner-saida-input-codigo-wrapper .ui-campo {
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.scanner-saida-input-codigo-wrapper .ui-campo__input {
+  width: 100% !important;
+  height: 48px !important;
+  padding: 0 16px !important;
+  border: 2px solid #f97316 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 0.95rem !important;
+  color: #1e293b !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
+}
+
+.scanner-saida-input-codigo-wrapper .ui-campo__input:focus {
+  outline: none !important;
+  border-color: #ea580c !important;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15) !important;
+}
+
+.scanner-saida-input-codigo-wrapper .ui-campo__input::placeholder {
+  color: #94a3b8 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: 400 !important;
+}
+
+/* Botão Câmera — apenas para telas touch/mobile (<= 1024px) */
+.scanner-saida-btn-camera {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .scanner-saida-btn-camera {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 48px !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    background: #f8fafc !important;
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    color: #475569 !important;
+    transition: all 0.2s ease !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .scanner-saida-btn-camera:hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+    border-color: #cbd5e1 !important;
+  }
+}
+
+/* Wrapper e Input da Quantidade */
+.scanner-saida-input-qtd-wrapper {
+  width: 72px !important;
+  min-width: 72px !important;
+  margin: 0 !important;
+}
+
+.scanner-saida-input-qtd-wrapper .ui-campo {
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.scanner-saida-input-qtd-wrapper .ui-campo__input {
+  width: 100% !important;
+  height: 48px !important;
+  padding: 0 4px !important;
+  border: 2px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  text-align: center !important;
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
+}
+
+.scanner-saida-input-qtd-wrapper .ui-campo__input:focus {
+  outline: none !important;
+  border-color: #f97316 !important;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15) !important;
+}
+
+/* Botão Conferir */
+.scanner-saida-btn-conferir {
+  height: 48px !important;
+  padding: 0 32px !important;
+  background: #7e8590 !important;
+  color: #ffffff !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  border: none !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  box-shadow: none !important;
+}
+
+.scanner-saida-btn-conferir:hover:not(:disabled) {
+  background: #6c737e !important;
+  transform: translateY(-1px) !important;
+}
+
+.scanner-saida-btn-conferir:active:not(:disabled) {
+  transform: translateY(0) !important;
+}
+
+.scanner-saida-btn-conferir:disabled {
+  opacity: 0.65 !important;
+  cursor: not-allowed !important;
+}

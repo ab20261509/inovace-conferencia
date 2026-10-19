@@ -17,6 +17,7 @@ function RotaInicialRedirect() {
   if (loadingPermissoes && !permissoes) return null;
   if (temPermissao('conferencia_saida')) return <Navigate to="/conferencias" replace />;
   if (temPermissao('conferencia_entrada')) return <Navigate to="/recebimento" replace />;
+  if (temPermissao('gestao_recebimento')) return <Navigate to="/recebimento/gestao" replace />;
   if (temPermissao('gerenciar_acessos')) return <Navigate to="/configuracoes/acessos" replace />;
   return <Navigate to="/login" replace />;
 }
@@ -65,7 +66,7 @@ export function AppRoutes() {
         <Route
           path="/recebimento/gestao"
           element={
-            <PrivateRoute modulo="conferencia_entrada">
+            <PrivateRoute modulo="gestao_recebimento">
               <GestaoRecebimentoPage />
             </PrivateRoute>
           }

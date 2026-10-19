@@ -56,7 +56,7 @@ export function registerRoutes(
 
   // Middlewares de permissão por módulo
   const permSaida = createPermissionMiddleware(permissoesRepo, 'conferencia_saida');
-  const permEntrada = createPermissionMiddleware(permissoesRepo, 'conferencia_entrada');
+  const permRecebimento = createPermissionMiddleware(permissoesRepo, ['conferencia_entrada', 'gestao_recebimento']);
   const permProdutos = createPermissionMiddleware(permissoesRepo, 'consulta_produtos');
   const permAdmin = createPermissionMiddleware(permissoesRepo, 'gerenciar_acessos');
 
@@ -65,10 +65,11 @@ export function registerRoutes(
   app.use(
     '/api/recebimento',
     authMiddleware,
-    permEntrada,
+    permRecebimento,
     createConferenciaEntradaRoutes(
       controllers.conferenciaEntradaController,
-      controllers.ocorrenciasRecebimentoController
+      controllers.ocorrenciasRecebimentoController,
+      permissoesRepo
     )
   );
   app.use('/api/crud', authMiddleware, createCrudRoutes(controllers.crudController));

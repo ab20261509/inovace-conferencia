@@ -5,9 +5,10 @@ import { useAuth } from '../../application/contexts/AuthContext';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
 import { ItemConferidoDetalhe } from '../../domain/models/Conferencia';
 import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infrastructure/audio/alertas';
-import { Botao, Campo, Container, Grid, Label, Painel, ModalCameraScanner } from '../components';
+import { Botao, Campo, Container, Grid, Label, Painel, ModalCameraScanner, ModalFolhaBipagem } from '../components';
 import { Loading } from '../components/Loading/Loading';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import './ConferenciaProdutos.css';
 
 function formatarDataHora(val?: string | null): string {
   if (!val) return '—';
@@ -28,8 +29,11 @@ export function ConferenciaProdutosPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const nuNotaNum = parseInt(nunota || '0', 10);
-  const { user } = useAuth();
+  const { user, temPermissao } = useAuth();
   const verCamposSensiveis = podeVerCamposSensiveis(user?.nomeUsu);
+  const ehAdmin =
+    ['SUP', 'ANTONY', 'ANTONY.B'].includes((user?.nomeUsu || '').toUpperCase()) ||
+    temPermissao('gerenciar_acessos');
 
   // Status de recontagem pode vir de duas fontes:
   // 1) navigate state (vindo da lista de conferências, disponível imediatamente)
@@ -65,6 +69,7 @@ export function ConferenciaProdutosPage() {
   const [estornando, setEstornando] = useState(false);
   const [feedbackVisual, setFeedbackVisual] = useState<{ codProd: string; descrProd: string } | null>(null);
   const [showCameraModal, setShowCameraModal] = useState(false);
+  const [showFolhaBipagemModal, setShowFolhaBipagemModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -360,28 +365,42 @@ export function ConferenciaProdutosPage() {
             <Label variant="caption">Pendentes</Label>
           </Container>
         </div>
-        <Botao variant="success" size="sm" onClick={() => setShowFinalizarModal(true)} disabled={loading}>
-          Finalizar
-        </Botao>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {ehAdmin && (
+            <Botao
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowFolhaBipagemModal(true)}
+              title="Gerar Folha de Bipagem com Códigos de Barras e Lotes para leitura ótica"
+            >
+              📄 Folha de Bipagem
+            </Botao>
+          )}
+          <Botao variant="success" size="sm" onClick={() => setShowFinalizarModal(true)} disabled={loading}>
+            Finalizar
+          </Botao>
+        </div>
       </header>
 
       {/* Scanner */}
       <Painel titulo="Conferir Produto">
-        <Container variant="scanner" padding="md">
-          <form onSubmit={handleBuscarProduto} className="scanner-form-inner">
-            <Campo
-              ref={inputRef}
-              variant="scanner"
-              value={codBarra}
-              onChange={(e) => setCodBarra(e.target.value)}
-              placeholder="Escanear ou digitar código de barras..."
-              autoFocus
-              bloquearColar
-              onTentativaColar={handleTentativaColar}
-            />
+        <div className="scanner-saida-card">
+          <form onSubmit={handleBuscarProduto} className="scanner-saida-form">
+            <div className="scanner-saida-input-codigo-wrapper">
+              <Campo
+                ref={inputRef}
+                variant="scanner"
+                value={codBarra}
+                onChange={(e) => setCodBarra(e.target.value)}
+                placeholder="Escanear ou digitar código de barras..."
+                autoFocus
+                bloquearColar
+                onTentativaColar={handleTentativaColar}
+              />
+            </div>
             <button
               type="button"
-              className="btn-camera-scanner"
+              className="scanner-saida-btn-camera"
               title="Ler código de barras pela câmera"
               onClick={() => setShowCameraModal(true)}
             >
@@ -390,25 +409,27 @@ export function ConferenciaProdutosPage() {
                 <circle cx="12" cy="13" r="4"></circle>
               </svg>
             </button>
-            <Campo
-              variant="compact"
-              type="number"
-              value={quantidade}
-              onChange={(e) => setQuantidade(e.target.value)}
-              min="1"
-              step="1"
-            />
+            <div className="scanner-saida-input-qtd-wrapper">
+              <Campo
+                variant="compact"
+                type="number"
+                value={quantidade}
+                onChange={(e) => setQuantidade(e.target.value)}
+                min="1"
+                step="1"
+              />
+            </div>
             <Botao
               type="submit"
-              variant="primary"
               size="lg"
+              className="scanner-saida-btn-conferir"
               disabled={conferindo || !codBarra.trim()}
               loading={conferindo}
             >
               Conferir
             </Botao>
           </form>
-        </Container>
+        </div>
       </Painel>
       </div>
 
@@ -891,6 +912,41 @@ export function ConferenciaProdutosPage() {
         onFechar={() => setShowCameraModal(false)}
         onScan={handleCameraScan}
       />
+
+      {/* Modal Folha de Bipagem (PDF / Impressão A4) */}
+      {showFolhaBipagemModal && (
+        <ModalFolhaBipagem
+          modulo="EXPEDICAO"
+          identificadorNota={`NOTA ${conferencia?.numNota || nuNotaNum}`}
+          nunota={nuNotaNum}
+          parceiro={conferencia?.parceiro}
+          vendedor={conferencia?.vendedor}
+          itens={itens.map((it) => {
+            const lotes =
+              it.controle && it.controle.trim() !== ''
+                ? [
+                    {
+                      lote: it.controle,
+                      validade: it.validade || null,
+                      fabricacao: it.fabricacao || null,
+                      origem: 'ERP' as const,
+                    },
+                  ]
+                : [];
+            return {
+              sequencia: it.sequencia,
+              codProd: it.codProd,
+              descrProd: it.descrProd,
+              referencia: it.referencia,
+              codBarra: it.codBarra,
+              qtd: it.qtdPed,
+              lotes,
+            };
+          })}
+          verCamposSensiveis={verCamposSensiveis}
+          onClose={() => setShowFolhaBipagemModal(false)}
+        />
+      )}
     </div>
   );
 }

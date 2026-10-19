@@ -13,6 +13,7 @@ import {
 
 export type FiltroStatusConferencia =
   | 'todas'
+  | 'em_aberto'
   | 'em_andamento'
   | 'recontagem'
   | 'concluidas'
@@ -24,6 +25,7 @@ export interface AbaConferenciasViewProps {
   setFiltroStatus: (filtro: FiltroStatusConferencia) => void;
   contagensFiltros: {
     todas: number;
+    emAberto: number;
     emAndamento: number;
     recontagem: number;
     concluidas: number;
@@ -113,6 +115,13 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
             onClick={() => setFiltroStatus('todas')}
           >
             Todas <span className="chip-count">{contagensFiltros.todas}</span>
+          </button>
+          <button
+            type="button"
+            className={`gestao-filtro-chip ${filtroStatus === 'em_aberto' ? 'ativo' : ''}`}
+            onClick={() => setFiltroStatus('em_aberto')}
+          >
+            Em Aberto <span className="chip-count">{contagensFiltros.emAberto}</span>
           </button>
           <button
             type="button"
@@ -278,15 +287,26 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                     Fornecedor: {conf.fornecedor}
                   </span>
                   <span className="gestao-rec-card-meta">
-                    Conferente: <strong>{conf.conferente || '—'}</strong> • Iniciado em:{' '}
-                    {new Date(conf.criadoEm).toLocaleString('pt-BR')}
-                    {conf.finalizadoEm &&
-                      ` • Concluído em: ${new Date(conf.finalizadoEm).toLocaleString('pt-BR')}`}
+                    {conf.status === 'Em Aberto' ? (
+                      <>
+                        Status ERP: <strong>Aguardando Início de Conferência</strong>
+                        {conf.criadoEm && ` • Data da Nota: ${new Date(conf.criadoEm).toLocaleDateString('pt-BR')}`}
+                      </>
+                    ) : (
+                      <>
+                        Conferente: <strong>{conf.conferente || '—'}</strong> • Iniciado em:{' '}
+                        {new Date(conf.criadoEm).toLocaleString('pt-BR')}
+                        {conf.finalizadoEm &&
+                          ` • Concluído em: ${new Date(conf.finalizadoEm).toLocaleString('pt-BR')}`}
+                      </>
+                    )}
                   </span>
                 </div>
 
                 <div className="gestao-rec-card-badges">
-                  <span className="badge-nivel-rec">Nível Atual: N{conf.nivelAtual}</span>
+                  {conf.status !== 'Em Aberto' && (
+                    <span className="badge-nivel-rec">Nível Atual: N{conf.nivelAtual}</span>
+                  )}
                   <span className={`badge-status-rec ${statusClasse}`}>
                     {conf.status}
                   </span>
@@ -969,65 +989,67 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                   <span>{isExpandido ? '▲ Ocultar Itens' : `🔍 Ver Itens (${conf.totalItens})`}</span>
                 </button>
 
-                <div className="gestao-acoes-grupo-secundario">
-                  <button
-                    type="button"
-                    className={`gestao-btn-clean-secundario ${jaEnviado ? 'disabled-action' : ''}`}
-                    disabled={jaEnviado}
-                    onClick={() => {
-                      if (jaEnviado) return;
-                      const selecionados = itensSelecionadosRecontagem[conf.id] || new Set();
-                      if (selecionados.size === 0) {
-                        if (!isExpandido) {
-                          toggleDetalhesConferencia(conf.id, conf.nunotas);
+                {conf.status !== 'Em Aberto' && (
+                  <div className="gestao-acoes-grupo-secundario">
+                    <button
+                      type="button"
+                      className={`gestao-btn-clean-secundario ${jaEnviado ? 'disabled-action' : ''}`}
+                      disabled={jaEnviado}
+                      onClick={() => {
+                        if (jaEnviado) return;
+                        const selecionados = itensSelecionadosRecontagem[conf.id] || new Set();
+                        if (selecionados.size === 0) {
+                          if (!isExpandido) {
+                            toggleDetalhesConferencia(conf.id, conf.nunotas);
+                          }
+                          alert('Selecione ao menos um item da tabela para recontar na N2.');
+                          return;
                         }
-                        alert('Selecione ao menos um item da tabela para recontar na N2.');
-                        return;
+                        const itensMapeados = Array.from(selecionados).map((k) => {
+                          const [nu, prod, seq] = k.split('-').map(Number);
+                          return { nunota: nu, codprod: prod, sequencia: seq };
+                        });
+                        onSolicitarRecontagem(conf, itensMapeados);
+                      }}
+                      title={
+                        jaEnviado
+                          ? 'Conferência já enviada ao Sankhya'
+                          : 'Solicitar que outro conferente realize recontagem (Nível 2) dos itens selecionados'
                       }
-                      const itensMapeados = Array.from(selecionados).map((k) => {
-                        const [nu, prod, seq] = k.split('-').map(Number);
-                        return { nunota: nu, codprod: prod, sequencia: seq };
-                      });
-                      onSolicitarRecontagem(conf, itensMapeados);
-                    }}
-                    title={
-                      jaEnviado
-                        ? 'Conferência já enviada ao Sankhya'
-                        : 'Solicitar que outro conferente realize recontagem (Nível 2) dos itens selecionados'
-                    }
-                    style={
-                      jaEnviado
-                        ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
-                        : undefined
-                    }
-                  >
-                    <span>
-                      🔁 Recontar
-                      {(itensSelecionadosRecontagem[conf.id]?.size || 0) > 0
-                        ? ` (${itensSelecionadosRecontagem[conf.id].size})`
-                        : ''}
-                    </span>
-                  </button>
+                      style={
+                        jaEnviado
+                          ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
+                          : undefined
+                      }
+                    >
+                      <span>
+                        🔁 Recontar
+                        {(itensSelecionadosRecontagem[conf.id]?.size || 0) > 0
+                          ? ` (${itensSelecionadosRecontagem[conf.id].size})`
+                          : ''}
+                      </span>
+                    </button>
 
-                  <button
-                    type="button"
-                    className={`gestao-btn-clean-secundario danger ${jaEnviado ? 'disabled-action' : ''}`}
-                    disabled={jaEnviado}
-                    onClick={() => !jaEnviado && onReiniciar(conf)}
-                    title={
-                      jaEnviado
-                        ? 'Conferência já enviada ao Sankhya'
-                        : 'Reiniciar conferência (guarda backup automático das bipagens)'
-                    }
-                    style={
-                      jaEnviado
-                        ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
-                        : undefined
-                    }
-                  >
-                    <span>↺ Reiniciar</span>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      className={`gestao-btn-clean-secundario danger ${jaEnviado ? 'disabled-action' : ''}`}
+                      disabled={jaEnviado}
+                      onClick={() => !jaEnviado && onReiniciar(conf)}
+                      title={
+                        jaEnviado
+                          ? 'Conferência já enviada ao Sankhya'
+                          : 'Reiniciar conferência (guarda backup automático das bipagens)'
+                      }
+                      style={
+                        jaEnviado
+                          ? { opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }
+                          : undefined
+                      }
+                    >
+                      <span>↺ Reiniciar</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );

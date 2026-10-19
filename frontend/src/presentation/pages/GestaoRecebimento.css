@@ -32,12 +32,12 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   1. COCKPIT DE KPIS (RESUMO EXECUTIVO MINIMALISTA)
+   1. COCKPIT DE KPIS (RESUMO EXECUTIVO MINIMALISTA EM LINHA ÚNICA)
    ═══════════════════════════════════════════════════════ */
 .gestao-rec-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
   width: 100%;
 }
 
@@ -45,7 +45,7 @@
   background: #ffffff;
   border: 1px solid var(--slate-200);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -748,6 +748,12 @@
   background: #e0f2fe;
   color: #0369a1;
   border: 1px solid #bae6fd;
+}
+
+.badge-status-rec.em-aberto {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 .badge-status-rec.cancelado {

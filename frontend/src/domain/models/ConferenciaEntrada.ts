@@ -75,6 +75,8 @@ export interface ItemNotaEntrada {
   conferenteN2?: string;
   conferenteN3?: string;
   diferenca?: number;
+  nomeparc?: string;
+  codparc?: number;
 }
 
 export interface BackupContagemEntrada {

@@ -40,33 +40,44 @@ export class ListarTodasConferenciasEntradaUseCase {
   async execute(correlationId?: string): Promise<ConferenciaEntradaResumo[]> {
     // 1. Buscar todas as sessões registradas no repositório SQLite / Turso
     const sessoes = await this.conferenciaRepo.listarTodasSessoes();
-    if (sessoes.length === 0) {
-      return [];
-    }
 
-    // 2. Coletar todas as NUNOTAs distintas para buscar dados no Sankhya
-    const todasNunotasSet = new Set<number>();
+    // 2. Coletar todas as NUNOTAs das sessões existentes
+    const sessoesNunotasSet = new Set<number>();
     for (const s of sessoes) {
       for (const n of s.nunotas) {
-        if (n) todasNunotasSet.add(n);
+        if (n) sessoesNunotasSet.add(n);
       }
     }
 
-    const nunotasArr = Array.from(todasNunotasSet);
+    const nunotasArr = Array.from(sessoesNunotasSet);
     const mapaNotasSankhya: Record<
       number,
-      { numnota: number; codparc?: number; chavenfe?: string; fornecedor: string; qtdItens: number }
+      {
+        numnota: number;
+        codparc?: number;
+        chavenfe?: string;
+        fornecedor: string;
+        qtdItens: number;
+        dtneg?: string;
+        dtentsai?: string;
+        statusnota?: string;
+      }
     > = {};
 
-    if (nunotasArr.length > 0) {
-      try {
-        const nunotasStr = nunotasArr.join(', ');
-        const sql = `
+    // 3. Buscar no Sankhya:
+    // a) Notas de compra abertas no ERP (TIPMOV = 'C' AND STATUSNOTA <> 'L')
+    // b) Notas das sessões locais (caso alguma já tenha sido liberada ou pertença a outro status)
+    try {
+      const condicaoSessoes = nunotasArr.length > 0 ? `OR CAB.NUNOTA IN (${nunotasArr.join(', ')})` : '';
+      const sql = `
 SELECT
     CAB.NUNOTA,
     CAB.NUMNOTA,
     CAB.CODPARC,
     CAB.CHAVENFE,
+    CAB.DTNEG,
+    CAB.DTENTSAI,
+    CAB.STATUSNOTA,
     NVL(PAR.RAZAOSOCIAL, NVL(PAR.NOMEPARC, 'FORNECEDOR NÃO INFORMADO')) AS NOMEPARC,
     NVL(ITE.QTD_ITENS, 0) AS QTD_ITENS
 FROM TGFCAB CAB
@@ -76,38 +87,42 @@ LEFT JOIN (
     FROM TGFITE
     GROUP BY NUNOTA
 ) ITE ON ITE.NUNOTA = CAB.NUNOTA
-WHERE CAB.NUNOTA IN (${nunotasStr})
-        `.trim();
+WHERE (CAB.TIPMOV = 'C' AND CAB.STATUSNOTA <> 'L')
+   ${condicaoSessoes}
+ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
+      `.trim();
 
-        const response = await this.gateway.serviceCall<any>(
-          'DbExplorerSP.executeQuery',
-          { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql } },
-          correlationId
-        );
+      const response = await this.gateway.serviceCall<any>(
+        'DbExplorerSP.executeQuery',
+        { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql } },
+        correlationId
+      );
 
-        const rows: any[] = response?.responseBody?.rows || [];
-        const fields: any[] = response?.responseBody?.fieldsMetadata || [];
-        const fieldIndexMap: Record<string, number> = {};
-        fields.forEach((f: any, idx: number) => {
-          fieldIndexMap[f.name.toUpperCase()] = idx;
-        });
+      const rows: any[] = response?.responseBody?.rows || [];
+      const fields: any[] = response?.responseBody?.fieldsMetadata || [];
+      const fieldIndexMap: Record<string, number> = {};
+      fields.forEach((f: any, idx: number) => {
+        fieldIndexMap[f.name.toUpperCase()] = idx;
+      });
 
-        for (const r of rows) {
-          const nunota = Number(r[fieldIndexMap['NUNOTA']]);
-          const numnota = Number(r[fieldIndexMap['NUMNOTA']]) || 0;
-          const codparc = r[fieldIndexMap['CODPARC']] !== undefined ? Number(r[fieldIndexMap['CODPARC']]) : undefined;
-          const chavenfe = r[fieldIndexMap['CHAVENFE']] ? String(r[fieldIndexMap['CHAVENFE']]).trim() : undefined;
-          const fornecedor = String(r[fieldIndexMap['NOMEPARC']] || 'FORNECEDOR NÃO INFORMADO').trim();
-          const qtdItens = Number(r[fieldIndexMap['QTD_ITENS']]) || 0;
+      for (const r of rows) {
+        const nunota = Number(r[fieldIndexMap['NUNOTA']]);
+        const numnota = Number(r[fieldIndexMap['NUMNOTA']]) || 0;
+        const codparc = r[fieldIndexMap['CODPARC']] !== undefined ? Number(r[fieldIndexMap['CODPARC']]) : undefined;
+        const chavenfe = r[fieldIndexMap['CHAVENFE']] ? String(r[fieldIndexMap['CHAVENFE']]).trim() : undefined;
+        const fornecedor = String(r[fieldIndexMap['NOMEPARC']] || 'FORNECEDOR NÃO INFORMADO').trim();
+        const qtdItens = Number(r[fieldIndexMap['QTD_ITENS']]) || 0;
+        const dtneg = r[fieldIndexMap['DTNEG']] ? String(r[fieldIndexMap['DTNEG']]) : undefined;
+        const dtentsai = r[fieldIndexMap['DTENTSAI']] ? String(r[fieldIndexMap['DTENTSAI']]) : undefined;
+        const statusnota = r[fieldIndexMap['STATUSNOTA']] ? String(r[fieldIndexMap['STATUSNOTA']]) : undefined;
 
-          mapaNotasSankhya[nunota] = { numnota, codparc, chavenfe, fornecedor, qtdItens };
-        }
-      } catch (err) {
-        console.warn('⚠️ Falha ao buscar dados de cabeçalho das notas no Sankhya:', err);
+        mapaNotasSankhya[nunota] = { numnota, codparc, chavenfe, fornecedor, qtdItens, dtneg, dtentsai, statusnota };
       }
+    } catch (err) {
+      console.warn('⚠️ Falha ao buscar dados de cabeçalho das notas no Sankhya:', err);
     }
 
-    // 3. Montar resumo de cada conferência cruzando com bipagens
+    // 4. Montar resumo de cada conferência existente cruzando com bipagens
     const resultado: ConferenciaEntradaResumo[] = [];
 
     for (const sessao of sessoes) {
@@ -244,6 +259,73 @@ WHERE CAB.NUNOTA IN (${nunotasStr})
         backupsDisponiveis,
       });
     }
+
+    // 5. Adicionar notas de compra do Sankhya que ainda não possuem sessão iniciada (status 'Em Aberto')
+    const todasNunotasSessoes = new Set<number>();
+    for (const sessao of sessoes) {
+      for (const n of sessao.nunotas) {
+        if (n) todasNunotasSessoes.add(n);
+      }
+    }
+
+    for (const [nunotaStr, info] of Object.entries(mapaNotasSankhya)) {
+      const nunota = Number(nunotaStr);
+      if (todasNunotasSessoes.has(nunota)) {
+        continue; // Já tratada dentro de uma sessão
+      }
+
+      // Se a nota já foi liberada/faturada no Sankhya sem conferência local, pula
+      if (info.statusnota === 'L') {
+        continue;
+      }
+
+      const numnota = info.numnota || nunota;
+      const dataCriacao = info.dtneg || info.dtentsai || new Date().toISOString();
+
+      resultado.push({
+        id: `aberto_${nunota}`,
+        nunotas: [nunota],
+        numerosNotas: String(numnota),
+        fornecedor: info.fornecedor || 'Fornecedor da Nota',
+        status: 'Em Aberto',
+        nivelAtual: 1,
+        conferente: 'Aguardando Início',
+        criadoEm: dataCriacao,
+        atualizadoEm: dataCriacao,
+        totalItens: info.qtdItens || 0,
+        totalBipadoN1: 0,
+        totalBipadoN2: 0,
+        totalBipadoN3: 0,
+        temBackupContagem: false,
+        notasDetalhadas: [{ nunota, numnota }],
+        chavenfe: info.chavenfe,
+        numnota,
+        codparc: info.codparc,
+        backupsDisponiveis: [],
+      });
+    }
+
+    // Ordenar resultado: notas em andamento/divergentes primeiro, seguidas de Em Aberto, e por fim Concluídas/Enviadas
+    const pesoStatus: Record<string, number> = {
+      'Divergente': 1,
+      'Aguardando N2': 2,
+      'N2 em Andamento': 3,
+      'Aguardando N3': 4,
+      'N3 em Andamento': 5,
+      'N1 em Andamento': 6,
+      'Iniciado': 7,
+      'Em Aberto': 8,
+      'Aguardando Aprovação': 9,
+      'Conferido': 10,
+      'Enviado ao Sankhya': 11,
+    };
+
+    resultado.sort((a, b) => {
+      const pesoA = pesoStatus[a.status] || 99;
+      const pesoB = pesoStatus[b.status] || 99;
+      if (pesoA !== pesoB) return pesoA - pesoB;
+      return new Date(b.criadoEm || 0).getTime() - new Date(a.criadoEm || 0).getTime();
+    });
 
     return resultado;
   }

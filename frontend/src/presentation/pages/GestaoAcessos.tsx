@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, ReactNode } from 'react';
 import { useAuth } from '../../application/contexts/AuthContext';
 import { AcessosApiService } from '../../infrastructure/api/AcessosApiService';
 import { ConfiguracaoTelasApiService } from '../../infrastructure/api/ConfiguracaoTelasApiService';
@@ -39,6 +39,22 @@ export function GestaoAcessosPage() {
   const [loadingUsuarios, setLoadingUsuarios] = useState(true);
   const [salvandoId, setSalvandoId] = useState<number | null>(null);
   const [busca, setBusca] = useState('');
+  const [usuarioDrawerId, setUsuarioDrawerId] = useState<number | null>(null);
+
+  const usuarioDrawer = useMemo(() => {
+    return usuarios.find((u) => u.codUsu === usuarioDrawerId) || null;
+  }, [usuarios, usuarioDrawerId]);
+
+  // Fechar gaveta lateral ao pressionar Escape
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && usuarioDrawerId !== null) {
+        setUsuarioDrawerId(null);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [usuarioDrawerId]);
 
   // Estados Aba 2: Campos por Tela
   const [catalogoTelas, setCatalogoTelas] = useState<CatalogoTela[]>([]);
@@ -301,7 +317,16 @@ export function GestaoAcessosPage() {
   }, [catalogoTelas, telaSelecionadaId]);
 
   async function handleToggleUsuario(usuario: UsuarioAcessoInfo, modulo: keyof ModulosUsuario) {
-    const ehAdmin = ['SUP', 'ANTONY', 'ANTONY.B'].includes(usuario.nomeUsu.toUpperCase()) || !!usuario.modulos.gerenciar_acessos;
+    const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(usuario.nomeUsu.toUpperCase());
+    const ehAdmin = ehAdminPadrao || !!usuario.modulos.gerenciar_acessos;
+
+    if (ehAdminPadrao && modulo === 'gerenciar_acessos') {
+      setFeedback({
+        tipo: 'erro',
+        texto: 'Administrador nativo não pode ter o acesso de gestão revogado.',
+      });
+      return;
+    }
 
     let valorAtual: boolean;
     if (modulo === 'conferencia_entrada_n1' || modulo === 'conferencia_entrada_n2' || modulo === 'conferencia_entrada_n3') {
@@ -313,7 +338,11 @@ export function GestaoAcessosPage() {
     }
 
     const novoValor = !valorAtual;
-    const novosModulos = { ...usuario.modulos, [modulo]: novoValor };
+    const novosModulos: ModulosUsuario = { ...usuario.modulos, [modulo]: novoValor };
+
+    if (ehAdminPadrao) {
+      novosModulos.gerenciar_acessos = true;
+    }
 
     setUsuarios((atuais) =>
       atuais.map((u) => (u.codUsu === usuario.codUsu ? { ...u, modulos: novosModulos } : u)),
@@ -329,11 +358,11 @@ export function GestaoAcessosPage() {
       }
       setFeedback({
         tipo: 'sucesso',
-        texto: `Acessos do usuário ${usuario.nomeUsu} salvos com sucesso!`,
+        texto: `Permissão de ${usuario.nomeUsu} atualizada com sucesso!`,
       });
       setTimeout(() => {
         setFeedback((prev) => (prev?.tipo === 'sucesso' ? null : prev));
-      }, 3500);
+      }, 3000);
     } catch (err: any) {
       setUsuarios((atuais) =>
         atuais.map((u) => (u.codUsu === usuario.codUsu ? { ...u, modulos: usuario.modulos } : u)),
@@ -345,6 +374,215 @@ export function GestaoAcessosPage() {
     } finally {
       setSalvandoId(null);
     }
+  }
+
+  async function handleAplicarPerfil(
+    usuario: UsuarioAcessoInfo,
+    perfil: 'conferente' | 'gestor' | 'admin' | 'limpar'
+  ) {
+    const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(usuario.nomeUsu.toUpperCase());
+
+    let novosModulos: ModulosUsuario;
+    if (perfil === 'conferente') {
+      novosModulos = {
+        conferencia_saida: true,
+        conferencia_entrada: true,
+        gestao_recebimento: false,
+        gestao_recebimento_aba_divergencias: false,
+        gestao_recebimento_aba_envio_sankhya: false,
+        gestao_recebimento_aba_ocorrencias: false,
+        conferencia_entrada_n1: true,
+        conferencia_entrada_n2: true,
+        conferencia_entrada_n3: true,
+        conferencia_entrada_divergente: false,
+        conferencia_entrada_conferido: false,
+        consulta_produtos: true,
+        ver_campos_sensiveis: false,
+        gerenciar_acessos: false,
+      };
+    } else if (perfil === 'gestor') {
+      novosModulos = {
+        conferencia_saida: true,
+        conferencia_entrada: true,
+        gestao_recebimento: true,
+        gestao_recebimento_aba_divergencias: true,
+        gestao_recebimento_aba_envio_sankhya: true,
+        gestao_recebimento_aba_ocorrencias: true,
+        conferencia_entrada_n1: true,
+        conferencia_entrada_n2: true,
+        conferencia_entrada_n3: true,
+        conferencia_entrada_divergente: true,
+        conferencia_entrada_conferido: true,
+        consulta_produtos: true,
+        ver_campos_sensiveis: true,
+        gerenciar_acessos: false,
+      };
+    } else if (perfil === 'admin') {
+      novosModulos = {
+        conferencia_saida: true,
+        conferencia_entrada: true,
+        gestao_recebimento: true,
+        gestao_recebimento_aba_divergencias: true,
+        gestao_recebimento_aba_envio_sankhya: true,
+        gestao_recebimento_aba_ocorrencias: true,
+        conferencia_entrada_n1: true,
+        conferencia_entrada_n2: true,
+        conferencia_entrada_n3: true,
+        conferencia_entrada_divergente: true,
+        conferencia_entrada_conferido: true,
+        consulta_produtos: true,
+        ver_campos_sensiveis: true,
+        gerenciar_acessos: true,
+      };
+    } else {
+      novosModulos = {
+        conferencia_saida: false,
+        conferencia_entrada: false,
+        gestao_recebimento: false,
+        gestao_recebimento_aba_divergencias: false,
+        gestao_recebimento_aba_envio_sankhya: false,
+        gestao_recebimento_aba_ocorrencias: false,
+        conferencia_entrada_n1: false,
+        conferencia_entrada_n2: false,
+        conferencia_entrada_n3: false,
+        conferencia_entrada_divergente: false,
+        conferencia_entrada_conferido: false,
+        consulta_produtos: false,
+        ver_campos_sensiveis: false,
+        gerenciar_acessos: false,
+      };
+    }
+
+    if (ehAdminPadrao) {
+      novosModulos.gerenciar_acessos = true;
+    }
+
+    setUsuarios((atuais) =>
+      atuais.map((u) => (u.codUsu === usuario.codUsu ? { ...u, modulos: novosModulos } : u))
+    );
+
+    setSalvandoId(usuario.codUsu);
+    setFeedback(null);
+
+    try {
+      await acessosService.salvarAcessos(usuario.codUsu, novosModulos);
+      if (
+        user &&
+        (usuario.codUsu === user.codUsu || usuario.nomeUsu.toUpperCase() === user.nomeUsu.toUpperCase())
+      ) {
+        await carregarPermissoes();
+      }
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `Perfil aplicado com sucesso para ${usuario.nomeUsu}!`,
+      });
+      setTimeout(() => {
+        setFeedback((prev) => (prev?.tipo === 'sucesso' ? null : prev));
+      }, 3000);
+    } catch (err: any) {
+      setUsuarios((atuais) =>
+        atuais.map((u) => (u.codUsu === usuario.codUsu ? { ...u, modulos: usuario.modulos } : u))
+      );
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || 'Erro ao aplicar perfil no usuário.',
+      });
+    } finally {
+      setSalvandoId(null);
+    }
+  }
+
+  function renderBadgesUsuario(u: UsuarioAcessoInfo) {
+    const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
+    const ehAdmin = ehAdminPadrao || !!u.modulos.gerenciar_acessos;
+    const divAtivo =
+      u.modulos.conferencia_entrada_divergente === true ||
+      (ehAdmin && u.modulos.conferencia_entrada_divergente !== false);
+    const confAtivo =
+      u.modulos.conferencia_entrada_conferido === true ||
+      (ehAdmin && u.modulos.conferencia_entrada_conferido !== false);
+
+    const badges: ReactNode[] = [];
+
+    if (ehAdmin) {
+      badges.push(
+        <span key="admin" className="badge-flag badge-admin" title="Administrador do Sistema">
+          🛡️ Admin
+        </span>
+      );
+    }
+    if (u.modulos.conferencia_saida) {
+      badges.push(
+        <span key="saida" className="badge-flag badge-saida" title="Conferência de Saída">
+          📦 Saída
+        </span>
+      );
+    }
+    if (u.modulos.conferencia_entrada) {
+      badges.push(
+        <span key="entrada" className="badge-flag badge-entrada" title="Conferência de Entrada (Bipagem)">
+          📥 Entrada
+        </span>
+      );
+    }
+    if (u.modulos.gestao_recebimento) {
+      const abasGestao: string[] = [];
+      if (ehAdmin || u.modulos.gestao_recebimento_aba_divergencias) abasGestao.push('Div');
+      if (ehAdmin || u.modulos.gestao_recebimento_aba_envio_sankhya) abasGestao.push('Envio');
+      if (ehAdmin || u.modulos.gestao_recebimento_aba_ocorrencias) abasGestao.push('Ocorr');
+
+      const detalheAbas = abasGestao.length > 0 ? ` (${abasGestao.join('·')})` : ' (Conf)';
+      badges.push(
+        <span
+          key="gestao"
+          className="badge-flag badge-gestao"
+          title={`Gestão de Recebimento. Abas ativas: Conferências${abasGestao.length > 0 ? ', ' + abasGestao.join(', ') : ''}`}
+        >
+          📋 Gestão{detalheAbas}
+        </span>
+      );
+    }
+    if (u.modulos.consulta_produtos) {
+      badges.push(
+        <span key="prod" className="badge-flag badge-produtos" title="Consulta de Produtos">
+          🔍 Produtos
+        </span>
+      );
+    }
+    if (u.modulos.ver_campos_sensiveis) {
+      badges.push(
+        <span key="sens" className="badge-flag badge-sensiveis" title="Visualiza Campos Sensíveis">
+          👁️ Sensíveis
+        </span>
+      );
+    }
+
+    if (u.modulos.conferencia_entrada || u.modulos.gestao_recebimento) {
+      const niveis: string[] = [];
+      if (u.modulos.conferencia_entrada_n1 !== false) niveis.push('N1');
+      if (u.modulos.conferencia_entrada_n2 !== false) niveis.push('N2');
+      if (u.modulos.conferencia_entrada_n3 !== false) niveis.push('N3');
+      if (divAtivo) niveis.push('Div');
+      if (confAtivo) niveis.push('Conf');
+
+      if (niveis.length > 0) {
+        badges.push(
+          <span
+            key="niveis"
+            className="badge-flag badge-niveis-resumo"
+            title={`Níveis e Visão: ${niveis.join(', ')}`}
+          >
+            {niveis.join(' · ')}
+          </span>
+        );
+      }
+    }
+
+    if (badges.length === 0) {
+      return <span className="badge-sem-flags">Nenhuma permissão ativa</span>;
+    }
+
+    return <div className="acessos-badges-list">{badges}</div>;
   }
 
   async function handleToggleCampoSensivel(idTela: string, chaveCampo: string) {
@@ -496,32 +734,29 @@ export function GestaoAcessosPage() {
                   <Loading mensagem="Carregando usuários do Sankhya..." />
                 ) : (
                   <>
-                    {/* Visualização Desktop: Tabela (> 1024px) */}
+                    {/* Visualização Desktop: Tabela Compacta (> 1024px) */}
                     <div className="acessos-table-wrapper acessos-tabela-desktop">
-                      <table className="acessos-table">
+                      <table className="acessos-table acessos-table-compacta">
                         <thead>
                           <tr>
-                            <th>Usuário</th>
-                            <th title="Data e hora do primeiro acesso do usuário no sistema">1º Acesso</th>
-                            <th title="Data e hora do último acesso do usuário no sistema">Último Acesso</th>
-                            <th title="Acesso ao módulo de conferência de pedidos de saída">Conf. Saída</th>
-                            <th title="Acesso ao módulo de conferência de notas de entrada (recebimento)">Recebimento</th>
-                            <th title="Níveis e status de notas visíveis na conferência de entrada (N1/N2/N3: contagens, Div: divergentes, Conf: conferidos)">Níveis & Status</th>
-                            <th title="Permissão para consultar cadastro de produtos e estoque">Consultar Prod.</th>
-                            <th title="Exibe campos sensíveis: quantidade pedida, código de barras e referência">Ver Sensíveis</th>
-                            <th title="Permite acessar esta tela e alterar permissões">Admin</th>
+                            <th style={{ width: '280px' }}>Usuário</th>
+                            <th style={{ width: '200px' }} title="Último login e primeiro acesso no sistema">Acessos</th>
+                            <th>Módulos & Flags Ativas</th>
+                            <th style={{ width: '130px', textAlign: 'center' }}>Ação</th>
                           </tr>
                         </thead>
                         <tbody>
                           {usuariosFiltrados.map((u) => {
                             const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
-                            const ehAdmin = ehAdminPadrao || !!u.modulos.gerenciar_acessos;
                             const ehUsuarioAtual = u.codUsu === user?.codUsu;
-                            const divAtivo = u.modulos.conferencia_entrada_divergente === true || (ehAdmin && u.modulos.conferencia_entrada_divergente !== false);
-                            const confAtivo = u.modulos.conferencia_entrada_conferido === true || (ehAdmin && u.modulos.conferencia_entrada_conferido !== false);
+                            const isDrawerAbertoParaEsse = usuarioDrawerId === u.codUsu;
 
                             return (
-                              <tr key={u.codUsu}>
+                              <tr
+                                key={u.codUsu}
+                                className={`acessos-linha-clicavel ${isDrawerAbertoParaEsse ? 'linha-selecionada' : ''}`}
+                                onClick={() => setUsuarioDrawerId(u.codUsu)}
+                              >
                                 <td>
                                   <div className="acessos-user-cell">
                                     <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
@@ -529,7 +764,7 @@ export function GestaoAcessosPage() {
                                     </div>
                                     <div className="acessos-user-details">
                                       <span className="acessos-user-name">
-                                        {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
+                                        {u.nomeUsu} {ehUsuarioAtual && <span className="tag-voce">(Você)</span>}
                                       </span>
                                       <span className="acessos-user-meta">
                                         COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
@@ -538,135 +773,36 @@ export function GestaoAcessosPage() {
                                   </div>
                                 </td>
 
-                                {/* 1º Acesso */}
-                                <td className="acessos-data-cell" title={u.primeiroAcessoEm || ''}>
-                                  <span className="badge-data-acesso">
-                                    {formatarAcesso(u.primeiroAcessoEm)}
-                                  </span>
-                                </td>
-
-                                {/* Último Acesso */}
-                                <td className="acessos-data-cell" title={u.ultimoAcessoEm || ''}>
-                                  <span className="badge-ultimo-acesso">
-                                    {formatarAcesso(u.ultimoAcessoEm)}
-                                  </span>
-                                </td>
-
-                                {/* Conferência Saída */}
-                                <td>
-                                  <label className="toggle-switch" title="Conferência de Saída">
-                                    <input
-                                      type="checkbox"
-                                      checked={u.modulos.conferencia_saida}
-                                      disabled={salvandoId === u.codUsu}
-                                      onChange={() => handleToggleUsuario(u, 'conferencia_saida')}
-                                    />
-                                    <span className="toggle-slider" />
-                                  </label>
-                                </td>
-
-                                {/* Conferência Entrada (Recebimento) */}
-                                <td>
-                                  <label className="toggle-switch" title="Conferência de Entrada (Recebimento)">
-                                    <input
-                                      type="checkbox"
-                                      checked={u.modulos.conferencia_entrada}
-                                      disabled={salvandoId === u.codUsu}
-                                      onChange={() => handleToggleUsuario(u, 'conferencia_entrada')}
-                                    />
-                                    <span className="toggle-slider" />
-                                  </label>
-                                </td>
-
-                                {/* Níveis e Status Entrada (N1, N2, N3 | Div, Conf) */}
-                                <td>
-                                  <div className="niveis-entrada-group">
-                                    <button
-                                      type="button"
-                                      className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n1 !== false ? 'ativo' : 'inativo'}`}
-                                      disabled={salvandoId === u.codUsu}
-                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n1')}
-                                      title={u.modulos.conferencia_entrada_n1 !== false ? 'Nível 1 Ativo (clique para desativar)' : 'Nível 1 Inativo (clique para ativar)'}
-                                    >
-                                      N1
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n2 !== false ? 'ativo' : 'inativo'}`}
-                                      disabled={salvandoId === u.codUsu}
-                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n2')}
-                                      title={u.modulos.conferencia_entrada_n2 !== false ? 'Nível 2 Ativo (clique para desativar)' : 'Nível 2 Inativo (clique para ativar)'}
-                                    >
-                                      N2
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n3 !== false ? 'ativo' : 'inativo'}`}
-                                      disabled={salvandoId === u.codUsu}
-                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n3')}
-                                      title={u.modulos.conferencia_entrada_n3 !== false ? 'Nível 3 Ativo (clique para desativar)' : 'Nível 3 Inativo (clique para ativar)'}
-                                    >
-                                      N3
-                                    </button>
-                                    <span className="niveis-divider" />
-                                    <button
-                                      type="button"
-                                      className={`nivel-chip-btn chip-status chip-divergente ${divAtivo ? 'ativo' : 'inativo'}`}
-                                      disabled={salvandoId === u.codUsu}
-                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_divergente')}
-                                      title={divAtivo ? 'Visão de Divergentes Ativa (clique para ocultar)' : 'Visão de Divergentes Oculta (clique para exibir)'}
-                                    >
-                                      Div
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`nivel-chip-btn chip-status chip-conferido ${confAtivo ? 'ativo' : 'inativo'}`}
-                                      disabled={salvandoId === u.codUsu}
-                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_conferido')}
-                                      title={confAtivo ? 'Visão de Conferidos Ativa (clique para ocultar)' : 'Visão de Conferidos Oculta (clique para exibir)'}
-                                    >
-                                      Conf
-                                    </button>
+                                {/* Acessos */}
+                                <td className="acessos-data-cell">
+                                  <div className="acessos-datas-col">
+                                    <span className="badge-ultimo-acesso" title={`Último: ${u.ultimoAcessoEm || 'Nunca'}`}>
+                                      Último: {formatarAcesso(u.ultimoAcessoEm)}
+                                    </span>
+                                    {u.primeiroAcessoEm && (
+                                      <span className="badge-data-sub" title={`1º Acesso: ${u.primeiroAcessoEm}`}>
+                                        1º: {formatarAcesso(u.primeiroAcessoEm)}
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
 
-                                {/* Consulta Produtos */}
+                                {/* Módulos Ativos */}
                                 <td>
-                                  <label className="toggle-switch" title="Consulta de Produtos">
-                                    <input
-                                      type="checkbox"
-                                      checked={u.modulos.consulta_produtos}
-                                      disabled={salvandoId === u.codUsu}
-                                      onChange={() => handleToggleUsuario(u, 'consulta_produtos')}
-                                    />
-                                    <span className="toggle-slider" />
-                                  </label>
+                                  {renderBadgesUsuario(u)}
                                 </td>
 
-                                {/* Ver Campos Sensíveis */}
-                                <td>
-                                  <label className="toggle-switch" title="Ver campos sensíveis (qtd pedida, cód. barras)">
-                                    <input
-                                      type="checkbox"
-                                      checked={u.modulos.ver_campos_sensiveis}
-                                      disabled={salvandoId === u.codUsu}
-                                      onChange={() => handleToggleUsuario(u, 'ver_campos_sensiveis')}
-                                    />
-                                    <span className="toggle-slider" />
-                                  </label>
-                                </td>
-
-                                {/* Gerenciar Acessos (Admin) */}
-                                <td>
-                                  <label className="toggle-switch" title="Gerenciar Acessos">
-                                    <input
-                                      type="checkbox"
-                                      checked={u.modulos.gerenciar_acessos}
-                                      disabled={salvandoId === u.codUsu || ehAdminPadrao}
-                                      onChange={() => handleToggleUsuario(u, 'gerenciar_acessos')}
-                                    />
-                                    <span className="toggle-slider toggle-admin" />
-                                  </label>
+                                {/* Ação de Gerenciar */}
+                                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    className={`btn-gerenciar-flags ${isDrawerAbertoParaEsse ? 'ativo' : ''}`}
+                                    onClick={() => setUsuarioDrawerId(u.codUsu)}
+                                    title="Abrir gaveta lateral de permissões"
+                                  >
+                                    <span className="btn-gerenciar-icone">⚙️</span>
+                                    <span>Gerenciar</span>
+                                  </button>
                                 </td>
                               </tr>
                             );
@@ -674,7 +810,7 @@ export function GestaoAcessosPage() {
 
                           {usuariosFiltrados.length === 0 && (
                             <tr>
-                              <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
+                              <td colSpan={4} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
                                 Nenhum usuário encontrado com o termo informado.
                               </td>
                             </tr>
@@ -683,159 +819,49 @@ export function GestaoAcessosPage() {
                       </table>
                     </div>
 
-                    {/* Visualização Mobile / Tablet: Cards (<= 1024px) */}
+                    {/* Visualização Mobile / Tablet: Cards Compactos (<= 1024px) */}
                     <div className="acessos-cards-mobile">
                       {usuariosFiltrados.map((u) => {
                         const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
-                        const ehAdmin = ehAdminPadrao || !!u.modulos.gerenciar_acessos;
                         const ehUsuarioAtual = u.codUsu === user?.codUsu;
-                        const divAtivo = u.modulos.conferencia_entrada_divergente === true || (ehAdmin && u.modulos.conferencia_entrada_divergente !== false);
-                        const confAtivo = u.modulos.conferencia_entrada_conferido === true || (ehAdmin && u.modulos.conferencia_entrada_conferido !== false);
+                        const isDrawerAbertoParaEsse = usuarioDrawerId === u.codUsu;
 
                         return (
-                          <div key={`card-${u.codUsu}`} className="acesso-card-mobile">
-                            {/* Header do Card */}
+                          <div
+                            key={`card-${u.codUsu}`}
+                            className={`acesso-card-mobile-compacto ${isDrawerAbertoParaEsse ? 'card-selecionado' : ''}`}
+                            onClick={() => setUsuarioDrawerId(u.codUsu)}
+                          >
                             <div className="acesso-card-header">
                               <div className={`acessos-user-avatar ${ehAdminPadrao ? 'admin' : ''}`}>
                                 {u.nomeUsu.charAt(0).toUpperCase()}
                               </div>
                               <div className="acesso-card-user-info">
                                 <span className="acesso-card-user-name">
-                                  {u.nomeUsu} {ehUsuarioAtual && '(Você)'}
+                                  {u.nomeUsu} {ehUsuarioAtual && <span className="tag-voce">(Você)</span>}
                                 </span>
                                 <span className="acesso-card-user-sub">
                                   COD: {u.codUsu} {u.codGrupo ? `• Grupo: ${u.codGrupo}` : ''}
                                 </span>
                               </div>
+                              <button
+                                type="button"
+                                className="btn-gerenciar-flags btn-mobile"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setUsuarioDrawerId(u.codUsu);
+                                }}
+                              >
+                                ⚙️ Editar
+                              </button>
                             </div>
 
-                            {/* Datas de Acesso */}
-                            <div className="acesso-card-datas">
-                              <div className="acesso-card-data-item">
-                                <span className="acesso-card-data-label">1º Acesso:</span>
-                                <span className="badge-data-acesso">{formatarAcesso(u.primeiroAcessoEm)}</span>
-                              </div>
-                              <div className="acesso-card-data-item">
-                                <span className="acesso-card-data-label">Último Acesso:</span>
-                                <span className="badge-ultimo-acesso">{formatarAcesso(u.ultimoAcessoEm)}</span>
-                              </div>
+                            <div className="acesso-card-badges-wrapper">
+                              {renderBadgesUsuario(u)}
                             </div>
 
-                            {/* Grade de Permissões / Toggles */}
-                            <div className="acesso-card-toggles">
-                              <div className="acesso-card-toggle-item">
-                                <span className="acesso-card-toggle-label">📦 Conf. Saída</span>
-                                <label className="toggle-switch">
-                                  <input
-                                    type="checkbox"
-                                    checked={u.modulos.conferencia_saida}
-                                    disabled={salvandoId === u.codUsu}
-                                    onChange={() => handleToggleUsuario(u, 'conferencia_saida')}
-                                  />
-                                  <span className="toggle-slider" />
-                                </label>
-                              </div>
-
-                              <div className="acesso-card-toggle-item">
-                                <span className="acesso-card-toggle-label">📥 Recebimento</span>
-                                <label className="toggle-switch">
-                                  <input
-                                    type="checkbox"
-                                    checked={u.modulos.conferencia_entrada}
-                                    disabled={salvandoId === u.codUsu}
-                                    onChange={() => handleToggleUsuario(u, 'conferencia_entrada')}
-                                  />
-                                  <span className="toggle-slider" />
-                                </label>
-                              </div>
-
-                              <div className="acesso-card-toggle-item">
-                                <span className="acesso-card-toggle-label">🔢 Níveis & Status</span>
-                                <div className="niveis-entrada-group">
-                                  <button
-                                    type="button"
-                                    className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n1 !== false ? 'ativo' : 'inativo'}`}
-                                    disabled={salvandoId === u.codUsu}
-                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n1')}
-                                  >
-                                    N1
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n2 !== false ? 'ativo' : 'inativo'}`}
-                                    disabled={salvandoId === u.codUsu}
-                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n2')}
-                                  >
-                                    N2
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n3 !== false ? 'ativo' : 'inativo'}`}
-                                    disabled={salvandoId === u.codUsu}
-                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n3')}
-                                  >
-                                    N3
-                                  </button>
-                                  <span className="niveis-divider" />
-                                  <button
-                                    type="button"
-                                    className={`nivel-chip-btn chip-status chip-divergente ${divAtivo ? 'ativo' : 'inativo'}`}
-                                    disabled={salvandoId === u.codUsu}
-                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_divergente')}
-                                    title="Divergentes"
-                                  >
-                                    Div
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`nivel-chip-btn chip-status chip-conferido ${confAtivo ? 'ativo' : 'inativo'}`}
-                                    disabled={salvandoId === u.codUsu}
-                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_conferido')}
-                                    title="Conferidos"
-                                  >
-                                    Conf
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="acesso-card-toggle-item">
-                                <span className="acesso-card-toggle-label">🔍 Consultar Prod.</span>
-                                <label className="toggle-switch">
-                                  <input
-                                    type="checkbox"
-                                    checked={u.modulos.consulta_produtos}
-                                    disabled={salvandoId === u.codUsu}
-                                    onChange={() => handleToggleUsuario(u, 'consulta_produtos')}
-                                  />
-                                  <span className="toggle-slider" />
-                                </label>
-                              </div>
-
-                              <div className="acesso-card-toggle-item">
-                                <span className="acesso-card-toggle-label">👁️ Ver Sensíveis</span>
-                                <label className="toggle-switch">
-                                  <input
-                                    type="checkbox"
-                                    checked={u.modulos.ver_campos_sensiveis}
-                                    disabled={salvandoId === u.codUsu}
-                                    onChange={() => handleToggleUsuario(u, 'ver_campos_sensiveis')}
-                                  />
-                                  <span className="toggle-slider" />
-                                </label>
-                              </div>
-
-                              <div className="acesso-card-toggle-item admin-toggle-row">
-                                <span className="acesso-card-toggle-label">🛡️ Administrador</span>
-                                <label className="toggle-switch">
-                                  <input
-                                    type="checkbox"
-                                    checked={u.modulos.gerenciar_acessos}
-                                    disabled={salvandoId === u.codUsu || ehAdminPadrao}
-                                    onChange={() => handleToggleUsuario(u, 'gerenciar_acessos')}
-                                  />
-                                  <span className="toggle-slider toggle-admin" />
-                                </label>
-                              </div>
+                            <div className="acesso-card-footer-datas">
+                              <span>Último login: {formatarAcesso(u.ultimoAcessoEm)}</span>
                             </div>
                           </div>
                         );
@@ -1233,6 +1259,520 @@ export function GestaoAcessosPage() {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════
+                GAVETA LATERAL (DRAWER DE PERMISSÕES DO USUÁRIO)
+                ═══════════════════════════════════════════════════════ */}
+            {usuarioDrawer && (
+              <>
+                <div
+                  className="permissoes-drawer-backdrop open"
+                  onClick={() => setUsuarioDrawerId(null)}
+                  aria-hidden="false"
+                />
+
+                <aside className="permissoes-drawer open" aria-label="Gerenciador de Permissões">
+                  {/* Header do Drawer */}
+                  <div className="permissoes-drawer-header">
+                    <div className="permissoes-drawer-header-topo">
+                      <div className="permissoes-drawer-user-info">
+                        <div
+                          className={`permissoes-drawer-avatar ${
+                            ['SUP', 'ANTONY', 'ANTONY.B'].includes(usuarioDrawer.nomeUsu.toUpperCase())
+                              ? 'admin'
+                              : ''
+                          }`}
+                        >
+                          {usuarioDrawer.nomeUsu.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="permissoes-drawer-username">
+                            {usuarioDrawer.nomeUsu}{' '}
+                            {usuarioDrawer.codUsu === user?.codUsu && (
+                              <span className="tag-voce">(Você)</span>
+                            )}
+                          </h3>
+                          <span className="permissoes-drawer-usermeta">
+                            CODUSU: {usuarioDrawer.codUsu}{' '}
+                            {usuarioDrawer.codGrupo ? `• Grupo: ${usuarioDrawer.codGrupo}` : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="permissoes-drawer-close-btn"
+                        onClick={() => setUsuarioDrawerId(null)}
+                        title="Fechar (Esc)"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Status de Salvamento */}
+                    {salvandoId === usuarioDrawer.codUsu ? (
+                      <div className="permissoes-drawer-status salvando">
+                        <span className="drawer-status-spinner" /> Salvando alterações...
+                      </div>
+                    ) : (
+                      <div className="permissoes-drawer-status pronto">
+                        <span>✓</span> Alterações salvas instantaneamente
+                      </div>
+                    )}
+
+                    {/* Barra de Perfis Rápidos */}
+                    <div className="permissoes-drawer-perfis">
+                      <span className="perfis-title">Atalhos de Perfil:</span>
+                      <div className="perfis-botoes">
+                        <button
+                          type="button"
+                          className="perfil-btn perfil-conferente"
+                          onClick={() => handleAplicarPerfil(usuarioDrawer, 'conferente')}
+                          disabled={salvandoId === usuarioDrawer.codUsu}
+                          title="Ativa Saída, Entrada, N1/N2/N3 e Consulta de Produtos"
+                        >
+                          📦 Conferente
+                        </button>
+                        <button
+                          type="button"
+                          className="perfil-btn perfil-gestor"
+                          onClick={() => handleAplicarPerfil(usuarioDrawer, 'gestor')}
+                          disabled={salvandoId === usuarioDrawer.codUsu}
+                          title="Ativa Gestão de Recebimento, Divergências, Campos Sensíveis e Módulos"
+                        >
+                          📋 Gestor
+                        </button>
+                        <button
+                          type="button"
+                          className="perfil-btn perfil-admin"
+                          onClick={() => handleAplicarPerfil(usuarioDrawer, 'admin')}
+                          disabled={salvandoId === usuarioDrawer.codUsu}
+                          title="Acesso completo a todas as funções e administração"
+                        >
+                          🛡️ Admin
+                        </button>
+                        <button
+                          type="button"
+                          className="perfil-btn perfil-limpar"
+                          onClick={() => handleAplicarPerfil(usuarioDrawer, 'limpar')}
+                          disabled={salvandoId === usuarioDrawer.codUsu}
+                          title="Desativa todas as permissões do usuário"
+                        >
+                          🚫 Bloquear
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conteúdo do Drawer */}
+                  <div className="permissoes-drawer-body">
+                    {/* SEÇÃO 1: Módulos Operacionais */}
+                    <div className="drawer-section">
+                      <h4 className="drawer-section-title">
+                        <span>📦</span> Módulos Operacionais
+                      </h4>
+                      <div className="drawer-items-list">
+                        {/* Conferência de Saída */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">Conferência de Saída</span>
+                            <span className="drawer-toggle-sub">
+                              Separação e conferência de pedidos de venda
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={usuarioDrawer.modulos.conferencia_saida}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() => handleToggleUsuario(usuarioDrawer, 'conferencia_saida')}
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+
+                        {/* Conferência de Entrada (Bipagem) */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">Conferência de Entrada (Bipagem)</span>
+                            <span className="drawer-toggle-sub">
+                              Contagem cega, leitura de código de barras e N1/N2/N3
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={usuarioDrawer.modulos.conferencia_entrada}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() =>
+                                handleToggleUsuario(usuarioDrawer, 'conferencia_entrada')
+                              }
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+
+                        {/* Gestão de Recebimento (NOVA FLAG) */}
+                        <div className="drawer-toggle-row destaque-gestao">
+                          <div className="drawer-toggle-desc">
+                            <div className="drawer-toggle-label-with-badge">
+                              <span className="drawer-toggle-label">Gestão de Recebimento</span>
+                              <span className="badge-flag-nova">Nova Flag</span>
+                            </div>
+                            <span className="drawer-toggle-sub">
+                              Acompanhamento geral, divergências, desmembramentos e envio Sankhya
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={!!usuarioDrawer.modulos.gestao_recebimento}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() =>
+                                handleToggleUsuario(usuarioDrawer, 'gestao_recebimento')
+                              }
+                            />
+                            <span className="toggle-slider toggle-roxo" />
+                          </label>
+                        </div>
+
+                        {/* Sub-painel de abas autorizadas na Gestão de Recebimento */}
+                        {usuarioDrawer.modulos.gestao_recebimento && (
+                          <div className="drawer-subpainel-gestao">
+                            <div className="drawer-subpainel-header">
+                              <span className="drawer-subpainel-titulo">Abas Autorizadas na Gestão de Recebimento</span>
+                              <span className="drawer-subpainel-aviso">Conferências é a visão base fixa</span>
+                            </div>
+                            <div className="drawer-subpainel-lista">
+                              {/* Aba Divergências */}
+                              <div className="drawer-subtoggle-row">
+                                <div className="drawer-toggle-desc">
+                                  <span className="drawer-toggle-label">⚠️ Aba Divergências</span>
+                                  <span className="drawer-toggle-sub">
+                                    Resolução de divergências, aprovação fiscal e desmembramentos
+                                  </span>
+                                </div>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!usuarioDrawer.modulos.gestao_recebimento_aba_divergencias}
+                                    disabled={salvandoId === usuarioDrawer.codUsu}
+                                    onChange={() =>
+                                      handleToggleUsuario(usuarioDrawer, 'gestao_recebimento_aba_divergencias')
+                                    }
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
+
+                              {/* Aba Envio Sankhya */}
+                              <div className="drawer-subtoggle-row">
+                                <div className="drawer-toggle-desc">
+                                  <span className="drawer-toggle-label">🚀 Aba Envio Sankhya</span>
+                                  <span className="drawer-toggle-sub">
+                                    Aprovação final de conferências e integração de estoque ao ERP
+                                  </span>
+                                </div>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!usuarioDrawer.modulos.gestao_recebimento_aba_envio_sankhya}
+                                    disabled={salvandoId === usuarioDrawer.codUsu}
+                                    onChange={() =>
+                                      handleToggleUsuario(usuarioDrawer, 'gestao_recebimento_aba_envio_sankhya')
+                                    }
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
+
+                              {/* Aba Ocorrências */}
+                              <div className="drawer-subtoggle-row">
+                                <div className="drawer-toggle-desc">
+                                  <span className="drawer-toggle-label">💥 Aba Ocorrências</span>
+                                  <span className="drawer-toggle-sub">
+                                    Gestão de avarias, lotes com validade próxima e produtos divergentes
+                                  </span>
+                                </div>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!usuarioDrawer.modulos.gestao_recebimento_aba_ocorrencias}
+                                    disabled={salvandoId === usuarioDrawer.codUsu}
+                                    onChange={() =>
+                                      handleToggleUsuario(usuarioDrawer, 'gestao_recebimento_aba_ocorrencias')
+                                    }
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Consulta de Produtos */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">Consulta de Produtos</span>
+                            <span className="drawer-toggle-sub">
+                              Busca rápida de estoque, referências e código de barras
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={usuarioDrawer.modulos.consulta_produtos}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() =>
+                                handleToggleUsuario(usuarioDrawer, 'consulta_produtos')
+                              }
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SEÇÃO 2: Níveis e Status de Entrada */}
+                    <div className="drawer-section">
+                      <h4 className="drawer-section-title">
+                        <span>🔢</span> Níveis e Visibilidade na Entrada
+                      </h4>
+                      <p className="drawer-section-sub">
+                        Define quais contagens e quais status de notas fiscais o usuário pode visualizar.
+                      </p>
+                      <div className="drawer-chips-grid">
+                        {/* N1 */}
+                        <button
+                          type="button"
+                          className={`drawer-chip-card ${
+                            usuarioDrawer.modulos.conferencia_entrada_n1 !== false ? 'ativo' : ''
+                          }`}
+                          disabled={salvandoId === usuarioDrawer.codUsu}
+                          onClick={() =>
+                            handleToggleUsuario(usuarioDrawer, 'conferencia_entrada_n1')
+                          }
+                        >
+                          <div className="drawer-chip-card-header">
+                            <span className="chip-code">N1</span>
+                            <span className="chip-status-tag">
+                              {usuarioDrawer.modulos.conferencia_entrada_n1 !== false
+                                ? 'Ativo'
+                                : 'Inativo'}
+                            </span>
+                          </div>
+                          <span className="chip-card-title">1ª Contagem Cega</span>
+                          <span className="chip-card-desc">Contagem inicial rápida de volumes</span>
+                        </button>
+
+                        {/* N2 */}
+                        <button
+                          type="button"
+                          className={`drawer-chip-card ${
+                            usuarioDrawer.modulos.conferencia_entrada_n2 !== false ? 'ativo' : ''
+                          }`}
+                          disabled={salvandoId === usuarioDrawer.codUsu}
+                          onClick={() =>
+                            handleToggleUsuario(usuarioDrawer, 'conferencia_entrada_n2')
+                          }
+                        >
+                          <div className="drawer-chip-card-header">
+                            <span className="chip-code">N2</span>
+                            <span className="chip-status-tag">
+                              {usuarioDrawer.modulos.conferencia_entrada_n2 !== false
+                                ? 'Ativo'
+                                : 'Inativo'}
+                            </span>
+                          </div>
+                          <span className="chip-card-title">2ª Contagem Lote/Val</span>
+                          <span className="chip-card-desc">Contagem com lote e validade</span>
+                        </button>
+
+                        {/* N3 */}
+                        <button
+                          type="button"
+                          className={`drawer-chip-card ${
+                            usuarioDrawer.modulos.conferencia_entrada_n3 !== false ? 'ativo' : ''
+                          }`}
+                          disabled={salvandoId === usuarioDrawer.codUsu}
+                          onClick={() =>
+                            handleToggleUsuario(usuarioDrawer, 'conferencia_entrada_n3')
+                          }
+                        >
+                          <div className="drawer-chip-card-header">
+                            <span className="chip-code">N3</span>
+                            <span className="chip-status-tag">
+                              {usuarioDrawer.modulos.conferencia_entrada_n3 !== false
+                                ? 'Ativo'
+                                : 'Inativo'}
+                            </span>
+                          </div>
+                          <span className="chip-card-title">3ª Contagem Desempate</span>
+                          <span className="chip-card-desc">Recontagem de divergências</span>
+                        </button>
+
+                        {/* Divergentes */}
+                        {(() => {
+                          const ehAdmin =
+                            ['SUP', 'ANTONY', 'ANTONY.B'].includes(
+                              usuarioDrawer.nomeUsu.toUpperCase()
+                            ) || !!usuarioDrawer.modulos.gerenciar_acessos;
+                          const divAtivo =
+                            usuarioDrawer.modulos.conferencia_entrada_divergente === true ||
+                            (ehAdmin &&
+                              usuarioDrawer.modulos.conferencia_entrada_divergente !== false);
+                          return (
+                            <button
+                              type="button"
+                              className={`drawer-chip-card chip-card-divergente ${
+                                divAtivo ? 'ativo' : ''
+                              }`}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onClick={() =>
+                                handleToggleUsuario(
+                                  usuarioDrawer,
+                                  'conferencia_entrada_divergente'
+                                )
+                              }
+                            >
+                              <div className="drawer-chip-card-header">
+                                <span className="chip-code">DIV</span>
+                                <span className="chip-status-tag">
+                                  {divAtivo ? 'Visível' : 'Oculto'}
+                                </span>
+                              </div>
+                              <span className="chip-card-title">Ver Divergentes</span>
+                              <span className="chip-card-desc">Notas divergentes no painel</span>
+                            </button>
+                          );
+                        })()}
+
+                        {/* Conferidos */}
+                        {(() => {
+                          const ehAdmin =
+                            ['SUP', 'ANTONY', 'ANTONY.B'].includes(
+                              usuarioDrawer.nomeUsu.toUpperCase()
+                            ) || !!usuarioDrawer.modulos.gerenciar_acessos;
+                          const confAtivo =
+                            usuarioDrawer.modulos.conferencia_entrada_conferido === true ||
+                            (ehAdmin &&
+                              usuarioDrawer.modulos.conferencia_entrada_conferido !== false);
+                          return (
+                            <button
+                              type="button"
+                              className={`drawer-chip-card chip-card-conferido ${
+                                confAtivo ? 'ativo' : ''
+                              }`}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onClick={() =>
+                                handleToggleUsuario(
+                                  usuarioDrawer,
+                                  'conferencia_entrada_conferido'
+                                )
+                              }
+                            >
+                              <div className="drawer-chip-card-header">
+                                <span className="chip-code">CONF</span>
+                                <span className="chip-status-tag">
+                                  {confAtivo ? 'Visível' : 'Oculto'}
+                                </span>
+                              </div>
+                              <span className="chip-card-title">Ver Conferidos</span>
+                              <span className="chip-card-desc">Notas concluídas no painel</span>
+                            </button>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* SEÇÃO 3: Segurança & Administração */}
+                    <div className="drawer-section">
+                      <h4 className="drawer-section-title">
+                        <span>🛡️</span> Segurança e Administração
+                      </h4>
+                      <div className="drawer-items-list">
+                        {/* Ver Campos Sensíveis */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">Visualizar Campos Sensíveis</span>
+                            <span className="drawer-toggle-sub">
+                              Exibe campos confidenciais configurados na aba 'Campos Sensíveis'
+                              (ex: qtd esperada, código de barras)
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={usuarioDrawer.modulos.ver_campos_sensiveis}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() =>
+                                handleToggleUsuario(usuarioDrawer, 'ver_campos_sensiveis')
+                              }
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+
+                        {/* Administrador do Sistema */}
+                        {(() => {
+                          const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(
+                            usuarioDrawer.nomeUsu.toUpperCase()
+                          );
+                          return (
+                            <div
+                              className={`drawer-toggle-row ${
+                                ehAdminPadrao ? 'admin-padrao-row' : ''
+                              }`}
+                            >
+                              <div className="drawer-toggle-desc">
+                                <div className="drawer-toggle-label-with-badge">
+                                  <span className="drawer-toggle-label">
+                                    Administrador do Sistema
+                                  </span>
+                                  {ehAdminPadrao && (
+                                    <span className="badge-admin-nativo">Admin Nativo</span>
+                                  )}
+                                </div>
+                                <span className="drawer-toggle-sub">
+                                  {ehAdminPadrao
+                                    ? 'Administrador raiz protegido (permissão permanente para evitar bloqueio)'
+                                    : 'Acesso total à gestão de usuários, parâmetros operacionais e configurações'}
+                                </span>
+                              </div>
+                              <label className="toggle-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    usuarioDrawer.modulos.gerenciar_acessos || ehAdminPadrao
+                                  }
+                                  disabled={
+                                    salvandoId === usuarioDrawer.codUsu || ehAdminPadrao
+                                  }
+                                  onChange={() =>
+                                    handleToggleUsuario(usuarioDrawer, 'gerenciar_acessos')
+                                  }
+                                />
+                                <span className="toggle-slider toggle-admin" />
+                              </label>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer do Drawer */}
+                  <div className="permissoes-drawer-footer">
+                    <button
+                      type="button"
+                      className="drawer-btn-fechar"
+                      onClick={() => setUsuarioDrawerId(null)}
+                    >
+                      Concluir e Fechar
+                    </button>
+                  </div>
+                </aside>
+              </>
             )}
           </div>
         </div>

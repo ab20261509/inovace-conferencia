@@ -36,6 +36,8 @@ export interface ItemPedido {
   qtdConf: string;
   controle: string | null;
   status: StatusItem;
+  validade?: string | null;
+  fabricacao?: string | null;
 }
 
 export interface ConferenciaIniciada {

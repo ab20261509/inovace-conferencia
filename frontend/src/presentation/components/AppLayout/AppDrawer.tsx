@@ -105,26 +105,27 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
           )}
 
           {temPermissao('conferencia_entrada') && (
-            <>
-              <Link
-                to="/recebimento"
-                className={`app-drawer-item ${isEntradaAtiva ? 'active' : ''}`}
-                onClick={onClose}
-              >
-                <span className="app-drawer-item-icon">📥</span>
-                <span>Conferência de Entrada</span>
-                <span className="app-drawer-item-badge">Bipagem</span>
-              </Link>
-              <Link
-                to="/recebimento/gestao"
-                className={`app-drawer-item ${isGestaoAtiva ? 'active' : ''}`}
-                onClick={onClose}
-              >
-                <span className="app-drawer-item-icon">📋</span>
-                <span>Gestão de Recebimento</span>
-                <span className="app-drawer-item-badge">Divergências</span>
-              </Link>
-            </>
+            <Link
+              to="/recebimento"
+              className={`app-drawer-item ${isEntradaAtiva ? 'active' : ''}`}
+              onClick={onClose}
+            >
+              <span className="app-drawer-item-icon">📥</span>
+              <span>Conferência de Entrada</span>
+              <span className="app-drawer-item-badge">Bipagem</span>
+            </Link>
+          )}
+
+          {temPermissao('gestao_recebimento') && (
+            <Link
+              to="/recebimento/gestao"
+              className={`app-drawer-item ${isGestaoAtiva ? 'active' : ''}`}
+              onClick={onClose}
+            >
+              <span className="app-drawer-item-icon">📋</span>
+              <span>Gestão de Recebimento</span>
+              <span className="app-drawer-item-badge">Divergências</span>
+            </Link>
           )}
 
           {temPermissao('consulta_produtos') && (

@@ -1,5 +1,22 @@
 # Registro de Progresso e Entregas - Conferência de Entrada & Gestão de Recebimento
 
+## Atualização: Redesign e Isolamento da Barra de Bipagem da Conferência de Saída
+
+### 1. Novo Design da Barra de Bipagem da Conferência de Saída
+- **Fidelidade Visual:** A barra de bipagem da Conferência de Saída ([`ConferenciaProdutos.tsx`](file:///c:/Users/inovace/Documents/Sankhya/frontend/src/presentation/pages/ConferenciaProdutos.tsx)) foi atualizada para ficar idêntica ao modelo fornecido:
+  - **Card Container:** Moldura branca com cantos arredondados (`border-radius: 20px`), borda suave (`2px solid #e2e8f0`) e sombra sutil.
+  - **Campo de Código de Barras:** Input com destaque em borda laranja (`border: 2px solid #f97316`), cantos arredondados (`border-radius: 12px`), fonte JetBrains Mono e largura flexível (`flex: 1`).
+  - **Campo de Quantidade:** Input compacto de largura fixa (`72px`), centralizado, com borda arredondada e fonte bold.
+  - **Botão Conferir:** Estilo minimalista com fundo cinza ardósia (`#7e8590`), texto bold branco e cantos arredondados (`border-radius: 12px`), perfeitamente alinhado em altura com os inputs.
+  - **Botão Câmera:** Oculto em telas desktop (> 1024px) e preservado de forma elegante exclusivamente em tablets e smartphones (<= 1024px).
+
+### 2. Isolamento 100% de Estilos (Sem Impacto na Conferência de Entrada)
+- **CSS Exclusivo:** Criado arquivo dedicado [`ConferenciaProdutos.css`](file:///c:/Users/inovace/Documents/Sankhya/frontend/src/presentation/pages/ConferenciaProdutos.css) com seletores de escopo específico (`.scanner-saida-card`, `.scanner-saida-form`, `.scanner-saida-input-codigo-wrapper`, `.scanner-saida-btn-conferir`, etc.).
+- **Zero Efeito Colateral:** Nenhuma classe genérica de `global.css` ou da Conferência de Entrada ([`ConferenciaEntradaPage.tsx`](file:///c:/Users/inovace/Documents/Sankhya/frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)) foi modificada.
+- **Validação de Builds:** Frontend (`npm run build`) e Backend (`npm run build`) compilados com código 0.
+
+---
+
 ## Atualização: Ocultação Dinâmica de Níveis Inativos (N1/N2) e Inteligência Gerencial da Aba Divergências
 
 ### 1. Ocultação Dinâmica de N1 e N2 nas Três Abas (Divergências, Conferências e Envio ERP)

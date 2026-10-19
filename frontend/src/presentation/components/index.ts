@@ -6,3 +6,4 @@ export { Label } from './Label/Label';
 export { Painel } from './Painel/Painel';
 export { ModalCameraScanner } from './ModalCameraScanner/ModalCameraScanner';
 export { AppDrawer, AppHeader, AppLayout } from './AppLayout';
+export { ModalFolhaBipagem } from './ModalFolhaBipagem/ModalFolhaBipagem';

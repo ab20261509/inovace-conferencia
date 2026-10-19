@@ -8,7 +8,7 @@ import {
   BipagemEntrada,
   FinalizarNivelResponse,
 } from '../../domain/models/ConferenciaEntrada';
-import { Botao, Campo, Container, Label, Painel, ModalCameraScanner } from '../components';
+import { Botao, Campo, Container, Label, Painel, ModalCameraScanner, ModalFolhaBipagem } from '../components';
 import { Loading } from '../components/Loading/Loading';
 import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infrastructure/audio/alertas';
 import { extractFieldValue, normalizeDate } from '../../infrastructure/utils/ocrParser';
@@ -16,6 +16,7 @@ import { aplicarMascaraData, completarAnoData, validarData, checarStatusValidade
 import { ModalRegistrarOcorrencia } from '../components/Recebimento/ModalRegistrarOcorrencia';
 import { TipoOcorrenciaRecebimento, OcorrenciaRecebimento } from '../../domain/models/OcorrenciaRecebimento';
 import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
+import { podeVerCamposSensiveis } from '../../domain/permissions';
 
 const recebimentoService = new RecebimentoApiService();
 const configSistemaService = new ConfiguracaoSistemaApiService();
@@ -71,6 +72,10 @@ interface ItemEntradaConferidoVisivel {
 
 export function ConferenciaEntradaPage() {
   const { temPermissao, user } = useAuth();
+  const verCamposSensiveis = podeVerCamposSensiveis(user?.nomeUsu);
+  const ehAdmin =
+    ['SUP', 'ANTONY', 'ANTONY.B'].includes((user?.nomeUsu || '').toUpperCase()) ||
+    temPermissao('gerenciar_acessos');
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -82,6 +87,56 @@ export function ConferenciaEntradaPage() {
   const [itens, setItens] = useState<ItemNotaEntrada[]>([]);
   const [bipagens, setBipagens] = useState<BipagemEntrada[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showFolhaBipagemModal, setShowFolhaBipagemModal] = useState(false);
+
+  const itensFolhaNormalizados = useMemo(() => {
+    return itens.map((it) => {
+      let lotes: Array<{
+        lote: string;
+        validade?: string | null;
+        fabricacao?: string | null;
+        origem: 'ERP' | 'BIP';
+        quantidade?: number;
+      }> = [];
+
+      if (it.lotesConferidos && it.lotesConferidos.length > 0) {
+        lotes = it.lotesConferidos.map((l) => ({
+          lote: l.lote,
+          validade: l.validade || null,
+          fabricacao: l.fabricacao || null,
+          origem: 'BIP' as const,
+          quantidade: l.quantidade,
+        }));
+      } else if (it.lote && it.lote.trim() !== '') {
+        lotes = [
+          {
+            lote: it.lote,
+            validade: it.validade || null,
+            fabricacao: it.fabricacao || null,
+            origem: 'ERP' as const,
+          },
+        ];
+      }
+
+      const codBarraPrincipal =
+        it.codbarra && it.codbarra.trim() !== ''
+          ? it.codbarra.trim()
+          : it.codigosAlternativos && it.codigosAlternativos.length > 0
+          ? it.codigosAlternativos[0].codbarra
+          : null;
+
+      return {
+        sequencia: it.sequencia,
+        codProd: it.codprod,
+        descrProd: it.descrprod,
+        referencia: it.referencia,
+        numnota: it.numnota,
+        codBarra: codBarraPrincipal,
+        qtd: it.qtdneg,
+        lotes,
+      };
+    });
+  }, [itens]);
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
@@ -1233,7 +1288,17 @@ export function ConferenciaEntradaPage() {
                   </span>
                 </div>
 
-                <div className="header-btn-finalizar">
+                <div className="header-btn-finalizar" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {ehAdmin && (
+                    <Botao
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowFolhaBipagemModal(true)}
+                      title="Gerar Folha de Bipagem com Códigos de Barras e Lotes para leitura ótica"
+                    >
+                      📄 Folha de Bipagem
+                    </Botao>
+                  )}
                   <Botao
                     variant="success"
                     size="sm"
@@ -2927,6 +2992,19 @@ export function ConferenciaEntradaPage() {
           tipoPredefinido={tipoOcorrenciaModal}
           origem="COLETOR"
           onSalvar={handleSalvarOcorrencia}
+        />
+      )}
+
+      {/* Modal Folha de Bipagem (PDF / Impressão A4) */}
+      {showFolhaBipagemModal && (
+        <ModalFolhaBipagem
+          modulo="RECEBIMENTO"
+          identificadorNota={`NF(s) ${numerosNFsUnicas.join(', ')}`}
+          nunota={sessao?.nunotas?.join(', ')}
+          parceiro={itens.find((i) => i.nomeparc)?.nomeparc || '—'}
+          itens={itensFolhaNormalizados}
+          verCamposSensiveis={verCamposSensiveis}
+          onClose={() => setShowFolhaBipagemModal(false)}
         />
       )}
     </div>

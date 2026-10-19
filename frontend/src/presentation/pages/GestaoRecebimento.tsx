@@ -490,7 +490,29 @@ export function GestaoRecebimentoPage() {
     );
   };
 
-  const podeAcessar = temPermissao('conferencia_entrada') || temPermissao('gerenciar_acessos');
+  const podeAcessar =
+    temPermissao('gestao_recebimento') ||
+    temPermissao('conferencia_entrada') ||
+    temPermissao('gerenciar_acessos');
+
+  const ehAdmin =
+    ['SUP', 'ANTONY', 'ANTONY.B'].includes((user?.nomeUsu || '').toUpperCase()) ||
+    temPermissao('gerenciar_acessos');
+
+  const podeAbaDivergencias = ehAdmin || temPermissao('gestao_recebimento_aba_divergencias');
+  const podeAbaEnvioSankhya = ehAdmin || temPermissao('gestao_recebimento_aba_envio_sankhya');
+  const podeAbaOcorrencias = ehAdmin || temPermissao('gestao_recebimento_aba_ocorrencias');
+
+  // Redirecionamento automático caso a aba ativa não seja permitida
+  useEffect(() => {
+    if (abaAtiva === 'divergencias' && !podeAbaDivergencias) {
+      setAbaAtiva('conferencias');
+    } else if (abaAtiva === 'aprovacao_sankhya' && !podeAbaEnvioSankhya) {
+      setAbaAtiva('conferencias');
+    } else if (abaAtiva === 'ocorrencias' && !podeAbaOcorrencias) {
+      setAbaAtiva('conferencias');
+    }
+  }, [abaAtiva, podeAbaDivergencias, podeAbaEnvioSankhya, podeAbaOcorrencias]);
 
   // Carregar dados
   const carregarDados = useCallback(async () => {
@@ -674,13 +696,16 @@ export function GestaoRecebimentoPage() {
 
   // Contagens dos filtros da aba Todas as Conferências
   const contagensFiltros = useMemo(() => {
+    let emAberto = 0;
     let emAndamento = 0;
     let recontagem = 0;
     let concluidas = 0;
     let comBackup = 0;
 
     for (const c of todasConferencias) {
-      if (['Iniciado', 'N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento'].includes(c.status)) {
+      if (c.status === 'Em Aberto') {
+        emAberto++;
+      } else if (['Iniciado', 'N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento'].includes(c.status)) {
         emAndamento++;
       }
       if (['Aguardando N2', 'Aguardando N3', 'Divergente'].includes(c.status)) {
@@ -696,6 +721,7 @@ export function GestaoRecebimentoPage() {
 
     return {
       todas: todasConferencias.length,
+      emAberto,
       emAndamento,
       recontagem,
       concluidas,
@@ -706,7 +732,9 @@ export function GestaoRecebimentoPage() {
   // Filtro de texto e status para a Aba 1
   const conferenciasFiltradas = useMemo(() => {
     return todasConferencias.filter((c) => {
-      if (filtroStatus === 'em_andamento') {
+      if (filtroStatus === 'em_aberto') {
+        if (c.status !== 'Em Aberto') return false;
+      } else if (filtroStatus === 'em_andamento') {
         if (!['Iniciado', 'N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento'].includes(c.status)) return false;
       } else if (filtroStatus === 'recontagem') {
         if (!['Aguardando N2', 'Aguardando N3', 'Divergente'].includes(c.status)) return false;
@@ -845,9 +873,31 @@ export function GestaoRecebimentoPage() {
               </div>
             )}
 
-            {/* 1. Cockpit de KPIs (Resumo Executivo Minimalista) */}
+            {/* 1. Cockpit de KPIs (Resumo Executivo Minimalista em Linha Única) */}
             <div className="gestao-rec-kpis">
-              {/* Card 1: Em Conferência */}
+              {/* Card 1: Em Aberto */}
+              <div
+                className="gestao-kpi-card"
+                onClick={() => {
+                  setAbaAtiva('conferencias');
+                  setFiltroStatus('em_aberto');
+                }}
+                title="Filtrar notas de compra pendentes de início no Sankhya"
+              >
+                <div className="gestao-kpi-header">
+                  <span className="gestao-kpi-label">Em Aberto</span>
+                  <span className="gestao-kpi-tag cinza">Aguardando</span>
+                </div>
+                <div className="gestao-kpi-valor" style={{ color: '#64748b' }}>
+                  {contagensFiltros.emAberto}
+                </div>
+                <div className="gestao-kpi-sub">
+                  <span>📥</span>
+                  <span>Aguardando início</span>
+                </div>
+              </div>
+
+              {/* Card 2: Em Conferência */}
               <div
                 className="gestao-kpi-card"
                 onClick={() => {
@@ -858,59 +908,63 @@ export function GestaoRecebimentoPage() {
               >
                 <div className="gestao-kpi-header">
                   <span className="gestao-kpi-label">Em Conferência</span>
-                  <span className="gestao-kpi-tag azul">N1 / N2</span>
+                  <span className="gestao-kpi-tag azul">N1/N2</span>
                 </div>
                 <div className="gestao-kpi-valor">{contagensFiltros.emAndamento}</div>
                 <div className="gestao-kpi-sub">
                   <span>⏱️</span>
-                  <span>Cargas em contagem física</span>
+                  <span>Contagem física</span>
                 </div>
               </div>
 
-              {/* Card 2: Divergências */}
-              <div
-                className={`gestao-kpi-card ${divergencias.length > 0 ? 'alerta-ativo' : ''}`}
-                onClick={() => setAbaAtiva('divergencias')}
-                title="Acessar divergências pendentes de resolução gerencial"
-              >
-                <div className="gestao-kpi-header">
-                  <span className="gestao-kpi-label">Divergências</span>
-                  <span className={`gestao-kpi-tag ${divergencias.length > 0 ? 'ambar' : 'cinza'}`}>
-                    {divergencias.length > 0 ? 'Atenção' : 'Zero'}
-                  </span>
-                </div>
+              {/* Card 3: Divergências */}
+              {podeAbaDivergencias && (
                 <div
-                  className="gestao-kpi-valor"
-                  style={{ color: divergencias.length > 0 ? '#b45309' : undefined }}
+                  className={`gestao-kpi-card ${divergencias.length > 0 ? 'alerta-ativo' : ''}`}
+                  onClick={() => setAbaAtiva('divergencias')}
+                  title="Acessar divergências pendentes de resolução gerencial"
                 >
-                  {divergencias.length}
+                  <div className="gestao-kpi-header">
+                    <span className="gestao-kpi-label">Divergências</span>
+                    <span className={`gestao-kpi-tag ${divergencias.length > 0 ? 'ambar' : 'cinza'}`}>
+                      {divergencias.length > 0 ? 'Atenção' : 'Zero'}
+                    </span>
+                  </div>
+                  <div
+                    className="gestao-kpi-valor"
+                    style={{ color: divergencias.length > 0 ? '#b45309' : undefined }}
+                  >
+                    {divergencias.length}
+                  </div>
+                  <div className="gestao-kpi-sub">
+                    <span>⚠️</span>
+                    <span>Decisão gerencial</span>
+                  </div>
                 </div>
-                <div className="gestao-kpi-sub">
-                  <span>⚠️</span>
-                  <span>Aguardando decisão gerencial</span>
-                </div>
-              </div>
+              )}
 
-              {/* Card 3: Prontas p/ Envio */}
-              <div
-                className="gestao-kpi-card"
-                onClick={() => setAbaAtiva('aprovacao_sankhya')}
-                title="Acessar notas concluídas e aptas para integração"
-              >
-                <div className="gestao-kpi-header">
-                  <span className="gestao-kpi-label">Prontas p/ Envio</span>
-                  <span className="gestao-kpi-tag verde">100% Aptas</span>
+              {/* Card 4: Prontas p/ Envio */}
+              {podeAbaEnvioSankhya && (
+                <div
+                  className="gestao-kpi-card"
+                  onClick={() => setAbaAtiva('aprovacao_sankhya')}
+                  title="Acessar notas concluídas e aptas para integração"
+                >
+                  <div className="gestao-kpi-header">
+                    <span className="gestao-kpi-label">Prontas Envio</span>
+                    <span className="gestao-kpi-tag verde">Aptas</span>
+                  </div>
+                  <div className="gestao-kpi-valor" style={{ color: '#15803d' }}>
+                    {conferenciasProntasAgrupadas.filter((g) => g.status !== 'Enviado ao Sankhya').length}
+                  </div>
+                  <div className="gestao-kpi-sub">
+                    <span>✓</span>
+                    <span>Envio ao ERP</span>
+                  </div>
                 </div>
-                <div className="gestao-kpi-valor" style={{ color: '#15803d' }}>
-                  {conferenciasProntasAgrupadas.filter((g) => g.status !== 'Enviado ao Sankhya').length}
-                </div>
-                <div className="gestao-kpi-sub">
-                  <span>✓</span>
-                  <span>Aguardando envio ao ERP</span>
-                </div>
-              </div>
+              )}
 
-              {/* Card 4: Integradas no ERP */}
+              {/* Card 5: Integradas no ERP */}
               <div
                 className="gestao-kpi-card"
                 onClick={() => {
@@ -920,7 +974,7 @@ export function GestaoRecebimentoPage() {
                 title="Visualizar notas já integradas ao Sankhya"
               >
                 <div className="gestao-kpi-header">
-                  <span className="gestao-kpi-label">Integradas ERP</span>
+                  <span className="gestao-kpi-label">Integradas</span>
                   <span className="gestao-kpi-tag cinza">Hoje</span>
                 </div>
                 <div className="gestao-kpi-valor">
@@ -928,39 +982,41 @@ export function GestaoRecebimentoPage() {
                 </div>
                 <div className="gestao-kpi-sub">
                   <span>🚀</span>
-                  <span>Sincronizadas com o estoque</span>
+                  <span>No estoque ERP</span>
                 </div>
               </div>
 
-              {/* Card 5: Ocorrências & Avarias */}
-              <div
-                className={`gestao-kpi-card ${ocorrencias.some((o) => o.status === 'PENDENTE') ? 'alerta-ativo' : ''}`}
-                onClick={() => setAbaAtiva('ocorrencias')}
-                title="Acessar avarias, produtos vencidos e desvios de recebimento"
-              >
-                <div className="gestao-kpi-header">
-                  <span className="gestao-kpi-label">Ocorrências</span>
-                  <span
-                    className={`gestao-kpi-tag ${
-                      ocorrencias.some((o) => o.status === 'PENDENTE') ? 'alerta' : 'cinza'
-                    }`}
-                  >
-                    {ocorrencias.filter((o) => o.status === 'PENDENTE').length > 0 ? 'Pendentes' : 'Total'}
-                  </span>
-                </div>
+              {/* Card 6: Ocorrências & Avarias */}
+              {podeAbaOcorrencias && (
                 <div
-                  className="gestao-kpi-valor"
-                  style={{
-                    color: ocorrencias.some((o) => o.status === 'PENDENTE') ? '#dc2626' : undefined,
-                  }}
+                  className={`gestao-kpi-card ${ocorrencias.some((o) => o.status === 'PENDENTE') ? 'alerta-ativo' : ''}`}
+                  onClick={() => setAbaAtiva('ocorrencias')}
+                  title="Acessar avarias, produtos vencidos e desvios de recebimento"
                 >
-                  {ocorrencias.length}
+                  <div className="gestao-kpi-header">
+                    <span className="gestao-kpi-label">Ocorrências</span>
+                    <span
+                      className={`gestao-kpi-tag ${
+                        ocorrencias.some((o) => o.status === 'PENDENTE') ? 'alerta' : 'cinza'
+                      }`}
+                    >
+                      {ocorrencias.filter((o) => o.status === 'PENDENTE').length > 0 ? 'Pendentes' : 'Total'}
+                    </span>
+                  </div>
+                  <div
+                    className="gestao-kpi-valor"
+                    style={{
+                      color: ocorrencias.some((o) => o.status === 'PENDENTE') ? '#dc2626' : undefined,
+                    }}
+                  >
+                    {ocorrencias.length}
+                  </div>
+                  <div className="gestao-kpi-sub">
+                    <span>💥</span>
+                    <span>Desvios e avarias</span>
+                  </div>
                 </div>
-                <div className="gestao-kpi-sub">
-                  <span>💥</span>
-                  <span>Avarias, vencidos e desvios</span>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Navegação de Abas Minimalista */}
@@ -974,40 +1030,49 @@ export function GestaoRecebimentoPage() {
                   <span>Conferências</span>
                   <span className="gestao-rec-tab-badge">{todasConferencias.length}</span>
                 </button>
-                <button
-                  type="button"
-                  className={`gestao-rec-tab-btn ${abaAtiva === 'divergencias' ? 'ativa' : ''}`}
-                  onClick={() => setAbaAtiva('divergencias')}
-                >
-                  <span>Divergências</span>
-                  <span className={`gestao-rec-tab-badge ${divergencias.length > 0 ? 'alerta' : ''}`}>
-                    {divergencias.length}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`gestao-rec-tab-btn ${abaAtiva === 'aprovacao_sankhya' ? 'ativa' : ''}`}
-                  onClick={() => setAbaAtiva('aprovacao_sankhya')}
-                >
-                  <span>Envio Sankhya</span>
-                  <span className={`gestao-rec-tab-badge ${totalPendentesEnvio > 0 ? 'alerta' : ''}`}>
-                    {totalPendentesEnvio}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`gestao-rec-tab-btn ${abaAtiva === 'ocorrencias' ? 'ativa' : ''}`}
-                  onClick={() => setAbaAtiva('ocorrencias')}
-                >
-                  <span>Ocorrências</span>
-                  <span
-                    className={`gestao-rec-tab-badge ${
-                      ocorrencias.filter((o) => o.status === 'PENDENTE').length > 0 ? 'alerta' : ''
-                    }`}
+
+                {podeAbaDivergencias && (
+                  <button
+                    type="button"
+                    className={`gestao-rec-tab-btn ${abaAtiva === 'divergencias' ? 'ativa' : ''}`}
+                    onClick={() => setAbaAtiva('divergencias')}
                   >
-                    {ocorrencias.length}
-                  </span>
-                </button>
+                    <span>Divergências</span>
+                    <span className={`gestao-rec-tab-badge ${divergencias.length > 0 ? 'alerta' : ''}`}>
+                      {divergencias.length}
+                    </span>
+                  </button>
+                )}
+
+                {podeAbaEnvioSankhya && (
+                  <button
+                    type="button"
+                    className={`gestao-rec-tab-btn ${abaAtiva === 'aprovacao_sankhya' ? 'ativa' : ''}`}
+                    onClick={() => setAbaAtiva('aprovacao_sankhya')}
+                  >
+                    <span>Envio Sankhya</span>
+                    <span className={`gestao-rec-tab-badge ${totalPendentesEnvio > 0 ? 'alerta' : ''}`}>
+                      {totalPendentesEnvio}
+                    </span>
+                  </button>
+                )}
+
+                {podeAbaOcorrencias && (
+                  <button
+                    type="button"
+                    className={`gestao-rec-tab-btn ${abaAtiva === 'ocorrencias' ? 'ativa' : ''}`}
+                    onClick={() => setAbaAtiva('ocorrencias')}
+                  >
+                    <span>Ocorrências</span>
+                    <span
+                      className={`gestao-rec-tab-badge ${
+                        ocorrencias.filter((o) => o.status === 'PENDENTE').length > 0 ? 'alerta' : ''
+                      }`}
+                    >
+                      {ocorrencias.length}
+                    </span>
+                  </button>
+                )}
               </div>
 
               <button
@@ -1091,7 +1156,7 @@ export function GestaoRecebimentoPage() {
                 )}
 
                 {/* ABA 2: DIVERGÊNCIAS DE ENTRADA */}
-                {abaAtiva === 'divergencias' && (
+                {abaAtiva === 'divergencias' && podeAbaDivergencias && (
                   <AbaDivergenciasView
                     divergencias={divergencias}
                     todasConferencias={todasConferencias}
@@ -1156,7 +1221,7 @@ export function GestaoRecebimentoPage() {
                 )}
 
                 {/* ABA 3: APROVAÇÃO E ENVIO AO SANKHYA */}
-                {abaAtiva === 'aprovacao_sankhya' && (
+                {abaAtiva === 'aprovacao_sankhya' && podeAbaEnvioSankhya && (
                   <AbaEnvioSankhyaView
                     conferenciasProntasAgrupadas={conferenciasProntasAgrupadas}
                     todasConferencias={todasConferencias}
@@ -1201,7 +1266,7 @@ export function GestaoRecebimentoPage() {
                 )}
 
                 {/* ABA 4: OCORRÊNCIAS & PENDÊNCIAS */}
-                {abaAtiva === 'ocorrencias' && (
+                {abaAtiva === 'ocorrencias' && podeAbaOcorrencias && (
                   <AbaOcorrenciasView
                     ocorrencias={ocorrencias}
                     onRecarregar={carregarDados}

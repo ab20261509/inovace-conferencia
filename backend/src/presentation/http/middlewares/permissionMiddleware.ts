@@ -3,11 +3,11 @@ import { IPermissoesRepository } from '../../../domain/ports/IPermissoesReposito
 import { ModulosUsuario } from '../../../domain/entities/PermissaoUsuario.js';
 
 /**
- * Middleware para validar permissão por módulo
+ * Middleware para validar permissão por módulo (ou múltiplos módulos com OU)
  */
 export function createPermissionMiddleware(
   permissoesRepo: IPermissoesRepository,
-  modulo: keyof ModulosUsuario
+  modulo: keyof ModulosUsuario | Array<keyof ModulosUsuario>
 ) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -20,19 +20,28 @@ export function createPermissionMiddleware(
       }
 
       const modulos = await permissoesRepo.obterPermissoes(codUsu, nomeUsu);
+      const modulosRequeridos = Array.isArray(modulo) ? modulo : [modulo];
 
-      if (!modulos[modulo]) {
-        console.warn(`⛔ [permissionMiddleware] ACESSO NEGADO para '${modulo}': codUsu=${codUsu}, nomeUsu='${nomeUsu}', modulos:`, JSON.stringify(modulos));
+      // Administradores nativos ou usuários com gerenciar_acessos têm acesso a todos os módulos
+      const temAcesso =
+        !!modulos.gerenciar_acessos ||
+        modulosRequeridos.some((m) => !!modulos[m]);
+
+      if (!temAcesso) {
+        console.warn(
+          `⛔ [permissionMiddleware] ACESSO NEGADO para '${modulosRequeridos.join(', ')}': codUsu=${codUsu}, nomeUsu='${nomeUsu}', modulos:`,
+          JSON.stringify(modulos)
+        );
         res.status(403).json({
-          error: `Acesso negado: seu usuário não possui permissão para acessar o módulo '${modulo}'.`,
-          modulo,
+          error: `Acesso negado: seu usuário não possui permissão para acessar os recursos de [${modulosRequeridos.join(', ')}].`,
+          modulo: modulosRequeridos,
         });
         return;
       }
 
       next();
     } catch (err: any) {
-      console.error(`❌ Erro no permissionMiddleware para ${modulo}:`, err);
+      console.error(`❌ Erro no permissionMiddleware:`, err);
       res.status(500).json({ error: 'Falha ao validar permissões de acesso' });
     }
   };

@@ -15,6 +15,8 @@ export interface ItemPedido {
   controle: string | null;
   peso: number;
   usoProd: string | null;
+  validade?: string | null;
+  fabricacao?: string | null;
 }
 
 /**
@@ -186,6 +188,8 @@ export class ListarItensPedidoUseCase {
         codBarra: codBarraFinal,
         referencia: referenciaFinal,
         controle: controleFinal,
+        validade: item.validade || null,
+        fabricacao: item.fabricacao || null,
       };
     });
 
@@ -198,7 +202,7 @@ export class ListarItensPedidoUseCase {
   }
 
   /**
-   * Busca todos os itens da nota via SQL com descrição e código de barras
+   * Busca todos os itens da nota via SQL com descrição, código de barras, lote, validade e fabricação
    */
   private async buscarTodosItensDaNota(
     nuNota: number,
@@ -208,14 +212,22 @@ export class ListarItensPedidoUseCase {
       SELECT ITE.CODPROD, ITE.SEQUENCIA, ITE.QTDNEG, ITE.CONTROLE,
              PRO.DESCRPROD, PRO.REFERENCIA, BAR.CODBARRA,
              NVL(PRO.PESOBRUTO, NVL(PRO.PESOLIQ, 0)) AS PESO,
-             PRO.USOPROD
+             PRO.USOPROD,
+             TO_CHAR(EST.DTVAL, 'DD/MM/YYYY') AS DTVAL,
+             TO_CHAR(EST.DTFABRICACAO, 'DD/MM/YYYY') AS DTFABRICACAO
       FROM TGFITE ITE
+      INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
       INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
       LEFT JOIN (
         SELECT CODPROD, MIN(CODBARRA) AS CODBARRA
         FROM TGFBAR
         GROUP BY CODPROD
       ) BAR ON BAR.CODPROD = ITE.CODPROD
+      LEFT JOIN TGFEST EST ON EST.CODPROD = ITE.CODPROD
+                          AND EST.CONTROLE = ITE.CONTROLE
+                          AND EST.CODEMP = CAB.CODEMP
+                          AND EST.TIPO = 'P'
+                          AND EST.CODPARC = 0
       WHERE ITE.NUNOTA = ${nuNota}
       ORDER BY ITE.SEQUENCIA
     `;
@@ -242,6 +254,8 @@ export class ListarItensPedidoUseCase {
         codBarra: row[6] || null,
         peso: Number(row[7] || 0),
         usoProd: row[8] ? String(row[8]).trim() : null,
+        validade: row[9] || null,
+        fabricacao: row[10] || null,
         qtdConf: '0',
       }));
     } catch {

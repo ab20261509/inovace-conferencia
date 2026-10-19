@@ -75,6 +75,8 @@ export interface ItemNotaEntrada {
   diferenca?: number;
   codlocal?: number;
   codlocalorig?: number;
+  nomeparc?: string;
+  codparc?: number;
 }
 
 export interface BackupContagemEntrada {
