@@ -1,6 +1,7 @@
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
 import { IConfiguracaoTelasRepository } from '../../../domain/ports/IConfiguracaoTelasRepository.js';
+import { IPermissoesRepository } from '../../../domain/ports/IPermissoesRepository.js';
 import { NotaEntrada, StatusConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 
 export interface ListarNotasEntradaFiltros {
@@ -8,13 +9,15 @@ export interface ListarNotasEntradaFiltros {
   fornecedor?: string;
   statusConferencia?: string;
   usuario?: string;
+  codUsu?: number;
 }
 
 export class ListarNotasEntradaUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
-    private readonly configTelasRepo?: IConfiguracaoTelasRepository
+    private readonly configTelasRepo?: IConfiguracaoTelasRepository,
+    private readonly permissoesRepo?: IPermissoesRepository
   ) {}
 
   async execute(filtros?: ListarNotasEntradaFiltros, correlationId?: string): Promise<NotaEntrada[]> {
@@ -112,8 +115,61 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
       };
     });
 
+    // Permissões do usuário solicitante (se fornecido)
+    let verDivergente = true;
+    let verConferido = true;
+    let verN1 = true;
+    let verN2 = true;
+    let verN3 = true;
+
+    if (this.permissoesRepo && (filtros?.usuario || filtros?.codUsu)) {
+      const perms = await this.permissoesRepo.obterPermissoes(filtros.codUsu || 0, filtros.usuario || '');
+      const loginNorm = (filtros.usuario || '').trim().toUpperCase();
+      const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(loginNorm);
+      const ehAdmin = ehAdminPadrao || !!perms.gerenciar_acessos;
+
+      verN1 = perms.conferencia_entrada_n1 !== false;
+      verN2 = perms.conferencia_entrada_n2 !== false;
+      verN3 = perms.conferencia_entrada_n3 !== false;
+
+      if (ehAdmin) {
+        verDivergente = perms.conferencia_entrada_divergente !== false;
+        verConferido = perms.conferencia_entrada_conferido !== false;
+      } else {
+        verDivergente = perms.conferencia_entrada_divergente === true;
+        verConferido = perms.conferencia_entrada_conferido === true;
+      }
+    }
+
     // Filtros adicionais em memória
     return notas.filter((n) => {
+      // 1. Filtro de Conferido
+      const isConcluido = n.statusConferencia === 'Conferido' || n.statusConferencia === 'Enviado ao Sankhya';
+      if (isConcluido) {
+        if (!verConferido) return false;
+        if (!verN1 && !verN2 && !verN3) return false;
+      }
+
+      // 2. Filtro de Divergente
+      const isDivergente = n.statusConferencia === 'Divergente' || n.statusConferencia === 'Em Reconferência';
+      if (isDivergente && !verDivergente) {
+        return false;
+      }
+
+      // 3. Filtro de Nível
+      let nivel = n.nivelAtual || 1;
+      if (['Aguardando N2', 'N2 em Andamento'].includes(n.statusConferencia)) {
+        nivel = 2;
+      } else if (['Aguardando N3', 'N3 em Andamento'].includes(n.statusConferencia)) {
+        nivel = 3;
+      } else if (['Em Aberto', 'N1 em Andamento'].includes(n.statusConferencia)) {
+        nivel = 1;
+      }
+
+      if (nivel === 1 && !verN1) return false;
+      if (nivel === 2 && !verN2) return false;
+      if (nivel === 3 && !verN3) return false;
+
       if (filtros?.numeroNota && !String(n.numnota).includes(filtros.numeroNota)) {
         return false;
       }
@@ -129,13 +185,13 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         }
         if (
           filtros.statusConferencia === 'conferindo' &&
-          !['N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento', 'Em Reconferência'].includes(
+          !['N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento', 'Em Reconferência', 'Divergente'].includes(
             n.statusConferencia
           )
         ) {
           return false;
         }
-        if (filtros.statusConferencia === 'concluidos' && n.statusConferencia !== 'Conferido') {
+        if (filtros.statusConferencia === 'concluidos' && n.statusConferencia !== 'Conferido' && n.statusConferencia !== 'Enviado ao Sankhya') {
           return false;
         }
       }

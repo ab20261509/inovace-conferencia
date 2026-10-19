@@ -41,12 +41,14 @@ export class ConferenciaEntradaController {
     try {
       const { numeroNota, fornecedor, status } = req.query;
       const usuario = req.username || (req as any).user?.username || (req as any).username || '';
+      const codUsu = Number(req.userId || (req as any).user?.userId || 0);
       const notas = await this.listarNotasUseCase.execute(
         {
           numeroNota: numeroNota ? String(numeroNota) : undefined,
           fornecedor: fornecedor ? String(fornecedor) : undefined,
           statusConferencia: status ? String(status) : undefined,
           usuario,
+          codUsu,
         },
         req.correlationId
       );

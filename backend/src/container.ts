@@ -165,7 +165,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const listarNotasEntradaUseCase = new ListarNotasEntradaUseCase(
     gatewayAdapter,
     conferenciaEntradaRepo,
-    configTelasRepo
+    configTelasRepo,
+    permissoesRepo
   );
   const obterItensConferenciaEntradaUseCase = new ObterItensConferenciaEntradaUseCase(
     gatewayAdapter,

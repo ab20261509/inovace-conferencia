@@ -34,7 +34,7 @@ function formatarData(dataStr?: string): string {
 }
 
 export function RecebimentoPage() {
-  const { temPermissao } = useAuth();
+  const { temPermissao, carregarPermissoes } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -60,6 +60,11 @@ export function RecebimentoPage() {
     setLoading(true);
     setErro(null);
     try {
+      try {
+        await carregarPermissoes();
+      } catch (e) {
+        console.warn('Erro ao atualizar permissões:', e);
+      }
       const dados = await recebimentoService.listarNotas();
       setNotas(dados);
       setSelectedNunotas(new Set());
@@ -68,7 +73,7 @@ export function RecebimentoPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [carregarPermissoes]);
 
   useEffect(() => {
     if (!podeAcessar) return;
