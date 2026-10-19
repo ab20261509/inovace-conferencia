@@ -12,6 +12,7 @@ export interface RegistrarBipagemEntradaInput {
   lote?: string;
   validade?: string;
   fabricacao?: string;
+  nunota?: number;
 }
 
 export interface RegistrarBipagemEntradaOutput {
@@ -103,16 +104,27 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     });
 
     const nivelAtual = input.nivel || sessao.nivelAtual || 1;
-    let targetRow = rows[0];
+    let candidateRows = rows;
+
+    if (input.nunota) {
+      const rowsDaNota = rows.filter((r) => Number(r[fieldIndex['NUNOTA']]) === input.nunota);
+      if (rowsDaNota.length === 0) {
+        const outraNota = rows[0][fieldIndex['NUNOTA']];
+        throw new Error(`Código "${codigoLimpo}" pertence à NF #${outraNota} e não à NF #${input.nunota} selecionada.`);
+      }
+      candidateRows = rowsDaNota;
+    }
+
+    let targetRow = candidateRows[0];
 
     // Se houver múltiplas ocorrências do produto na carga (ex: em notas diferentes da conferência conjunta),
     // aloca na nota/linha que ainda possui saldo pendente de conferência no nível atual
-    if (rows.length > 1) {
+    if (candidateRows.length > 1) {
       const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
-      let melhorLinha = rows[0];
+      let melhorLinha = candidateRows[0];
       let encontrouComSaldo = false;
 
-      for (const row of rows) {
+      for (const row of candidateRows) {
         const rowNunota = Number(row[fieldIndex['NUNOTA']]);
         const rowSeq = Number(row[fieldIndex['SEQUENCIA']]);
         const rowCodprod = Number(row[fieldIndex['CODPROD']]);

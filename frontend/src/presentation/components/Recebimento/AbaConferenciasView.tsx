@@ -9,6 +9,9 @@ import {
   getStatusBadgeClass,
   formatarConferentes,
   formatarDataSimples,
+  BadgePrevisaoEntrega,
+  calcularStatusPrevisaoEntrega,
+  BadgeConferente,
 } from './recebimentoHelpers';
 
 export type FiltroStatusConferencia =
@@ -36,7 +39,7 @@ export interface AbaConferenciasViewProps {
   conferenciasExpandidas: Record<string, boolean>;
   detalhesConferencias: Record<string, ObterItensConferenciaResponse>;
   loadingDetalhes: string | null;
-  toggleDetalhesConferencia: (conferenciaId: string, nunotas: number[]) => void;
+  toggleDetalhesConferencia: (conferenciaId: string, nunotas: number[], cardKey?: string) => void;
   onSolicitarRecontagem: (
     conf: ConferenciaEntradaResumo,
     itensSelecionados?: Array<{ nunota: number; sequencia: number; codprod: number }>
@@ -182,9 +185,13 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
           const isExpandido = !!conferenciasExpandidas[conf.id];
           const isCarregandoDetalhes = loadingDetalhes === conf.id;
           const detalhes = detalhesConferencias[conf.id];
+          const prevInfo = calcularStatusPrevisaoEntrega(conf.adPreventrega);
+          const isEmAndamento =
+            conf.status !== 'Em Aberto' && conf.status !== 'Conferido' && conf.status !== 'Enviado ao Sankhya';
+          const isAtrasadoNaoAndamento = prevInfo.isAtrasado && !isEmAndamento;
 
           return (
-            <div key={conf.id} className="gestao-rec-card">
+            <div key={conf.id} className={`gestao-rec-card ${isAtrasadoNaoAndamento ? 'card-atrasado' : ''}`}>
               {/* Ribbon Minimalista de Backup (se existir contagem anterior arquivada) */}
               {conf.temBackupContagem && (conf.backupContagem || (conf.backupsDisponiveis && conf.backupsDisponiveis.length > 0)) && (
                 <div className="gestao-card-backup-ribbon">
@@ -228,7 +235,27 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
               <div className="gestao-rec-card-header">
                 <div className="gestao-rec-card-info">
                   <div className="gestao-rec-card-notas" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span className="gestao-rec-card-nf-badge">📄 NF(s): {conf.numerosNotas}</span>
+                    <span className="gestao-rec-card-nf-badge">📄 NF: {conf.numerosNotas}</span>
+                    {conf.sessaoConjunta && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                        }}
+                        title={`Esta nota faz parte da conferência física #${(conf.conferenciaIdOrig || conf.id).slice(0, 8)}`}
+                      >
+                        📦 Sessão Conjunta
+                      </span>
+                    )}
+                    <BadgePrevisaoEntrega data={conf.adPreventrega} />
                     {conf.status === 'Enviado ao Sankhya' && conf.enviadoSankhyaEm && (
                       <span
                         style={{
@@ -294,8 +321,17 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                       </>
                     ) : (
                       <>
-                        Conferente: <strong>{conf.conferente || '—'}</strong> • Iniciado em:{' '}
-                        {new Date(conf.criadoEm).toLocaleString('pt-BR')}
+                        Conferente:{' '}
+                        <strong>
+                          {conf.conferenteN1 || conf.conferenteN2 || conf.conferenteN3
+                            ? formatarConferentes({
+                                conferenteN1: conf.conferenteN1,
+                                conferenteN2: conf.conferenteN2,
+                                conferenteN3: conf.conferenteN3,
+                              })
+                            : (conf.conferente ? conf.conferente.toUpperCase() : '—')}
+                        </strong>{' '}
+                        • Iniciado em: {new Date(conf.criadoEm).toLocaleString('pt-BR')}
                         {conf.finalizadoEm &&
                           ` • Concluído em: ${new Date(conf.finalizadoEm).toLocaleString('pt-BR')}`}
                       </>
@@ -304,6 +340,14 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                 </div>
 
                 <div className="gestao-rec-card-badges">
+                  {conf.status !== 'Em Aberto' && (
+                    <BadgeConferente
+                      conferente={conf.conferente}
+                      conferenteN1={conf.conferenteN1}
+                      conferenteN2={conf.conferenteN2}
+                      conferenteN3={conf.conferenteN3}
+                    />
+                  )}
                   {conf.status !== 'Em Aberto' && (
                     <span className="badge-nivel-rec">Nível Atual: N{conf.nivelAtual}</span>
                   )}
@@ -984,7 +1028,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                 <button
                   type="button"
                   className={`gestao-btn-clean-toggle ${isExpandido ? 'ativo' : ''}`}
-                  onClick={() => toggleDetalhesConferencia(conf.id, conf.nunotas)}
+                  onClick={() => toggleDetalhesConferencia(conf.conferenciaIdOrig || conf.id, conf.nunotas, conf.id)}
                 >
                   <span>{isExpandido ? '▲ Ocultar Itens' : `🔍 Ver Itens (${conf.totalItens})`}</span>
                 </button>
@@ -1000,7 +1044,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                         const selecionados = itensSelecionadosRecontagem[conf.id] || new Set();
                         if (selecionados.size === 0) {
                           if (!isExpandido) {
-                            toggleDetalhesConferencia(conf.id, conf.nunotas);
+                            toggleDetalhesConferencia(conf.conferenciaIdOrig || conf.id, conf.nunotas, conf.id);
                           }
                           alert('Selecione ao menos um item da tabela para recontar na N2.');
                           return;

@@ -28,7 +28,8 @@ Todos os relatórios e folhas de conferência devem seguir a seguinte estrutura 
 │ 2. GRID EM 2 COLUNAS (Apresentação sequencial item a item)              │
 │    ┌───────────────────────────────┬────────────────────────────────┐  │
 │    │ ITEM 1 (Coluna Esquerda)      │ ITEM 2 (Coluna Direita)        │  │
-│    │ • Cód, Descr, Ref, Qtd        │ • Cód, Descr, Ref, Qtd         │  │
+│    │ • L1: #Seq [Cód] NF:... Qtd:..│ • L1: #Seq [Cód] NF:... Qtd:.. │  │
+│    │ • L2: Descrição do Produto    │ • L2: Descrição do Produto     │  │
 │    │ • Lote (ERP/Bip) + Val + Fab  │ • Lote (ERP/Bip) + Val + Fab   │  │
 │    │ ┌──────────────┬────────────┐ │ ┌──────────────┬─────────────┐ │  │
 │    │ │ Barcode Prod │Barcode Lote│ │ │ Barcode Prod │Barcode Lote │ │  │
@@ -56,8 +57,9 @@ Para assegurar leitura imediata pelas pistolas óticas em layout compacto:
 | **Altura da Barra** | `32px` | Redução que economiza até 40% de espaço vertical mantendo leitura rápida. |
 | **Largura da Barra** | `1.25` | Proporção ideal para caber 2 códigos lado a lado na largura de uma meia folha. |
 | **Texto Inferior** | `displayValue: true` | Texto legível abaixo das barras (`monospace`, `10px`). |
-| **Fallback de Produto**| `CODBARRA` ou `CODPROD` | Se o produto não tiver EAN, gera com o código interno. |
-| **Código do Lote** | Individual quando houver | Exibido ao lado do produto. Se não houver lote, o espaço fica livre. |
+| **Prioridade do Código de Barras** | 1º Referência (`referencia`)<br>2º Demais Códigos (`codBarra`/EAN)<br>3º Código do Produto (`codProd`) | Prioriza a referência do fabricante/produto; se não houver, utiliza o EAN/código de barras alternativo; se nenhum existir, utiliza o código interno do Sankhya. |
+| **Rótulo do Código de Produto** | `CÓDIGO DE BARRAS` | Rótulo padronizado e limpo exibido acima das barras do produto. |
+| **Código do Lote** | Individual quando houver (rótulo `LOTE`) | Exibido ao lado do produto. Se não houver lote, o espaço fica livre. |
 
 ---
 
@@ -108,9 +110,24 @@ Para que a impressão em formato A4 funcione com acabamento profissional e sem d
   .barcode-svg-wrapper-compact svg {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  /* 5. Quebra de página automática entre notas fiscais em conferências conjuntas */
+  .folha-secao-nota + .folha-secao-nota {
+    page-break-before: always !important;
+    break-before: page !important;
+    margin-top: 0 !important;
+    border-top: none !important;
+    padding-top: 0 !important;
   }
 }
 ```
+
+### 4.1 Conferências Conjuntas com Múltiplas Notas Fiscais
+Quando uma conferência abranger duas ou mais notas fiscais simultaneamente (podendo ser inclusive de fornecedores distintos):
+- **Agrupamento Automático**: Os itens são separados por nota fiscal (`numnota` / `nunota`).
+- **Cabeçalho Dedicado por Nota**: Cada nota fiscal ganha seu próprio cabeçalho contendo o número da nota, número único (`NUNOTA`), razão social do parceiro (`NOMEPARC`), data de emissão e quantidade de produtos daquela nota.
+- **Quebra de Página (`page-break-before: always`)**: Cada nota fiscal é impressa em folhas distintas, permitindo que a equipe de conferência manuseie a folha de bipagem separadamente por nota física ou palete.
+- **Reinício da Sequência (#1, #2...)**: A numeração dos itens reinicia em `#1` a cada bloco de nota fiscal, facilitando a identificação imediata dos itens daquela NF.
+- **IDs Únicos de Código de Barras**: O identificador do elemento SVG de cada código de barras incorpora o índice do grupo e do item (`barcode-prod-${gIdx}-${itemIdx}`), eliminando colisões de ID no DOM causadas por sequências idênticas entre notas fiscais.
 
 ---
 

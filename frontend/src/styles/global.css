@@ -569,6 +569,118 @@ body {
 }
 .card-conferencia:hover::before { opacity: 1; background: var(--orange-500); }
 .card-conferencia.em-andamento::before { opacity: 1; background: var(--amber-500); }
+.card-conferencia.card-atrasado {
+  border-color: #ef4444 !important;
+}
+.card-conferencia.card-atrasado::before {
+  opacity: 1;
+  background: #ef4444;
+}
+
+/* Badges de Previsão de Entrega (AD_PREVENTREGA) */
+.badge-previsao-entrega {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-previsao-entrega.badge-prev-prazo {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-previsao-entrega.badge-prev-hoje {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.badge-previsao-entrega.badge-prev-atrasado {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.badge-previsao-entrega.badge-prev-sem-data {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.badge-conferente-coletor {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Badge de Chave de Acesso da NF-e (44 dígitos) */
+.badge-chave-nfe {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: default;
+  transition: all 0.2s ease;
+}
+
+.badge-chave-nfe:hover {
+  background-color: #e2e8f0;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+/* Botão de Ordenação por Previsão de Entrega */
+.btn-ordenar-previsao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.btn-ordenar-previsao:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-ordenar-previsao:active {
+  transform: translateY(1px);
+}
+
+.btn-ordenar-previsao-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
 
 .card-header {
   display: flex;

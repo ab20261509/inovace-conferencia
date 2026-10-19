@@ -940,6 +940,9 @@ export function ConferenciaProdutosPage() {
               referencia: it.referencia,
               codBarra: it.codBarra,
               qtd: it.qtdPed,
+              numnota: conferencia?.numNota || nuNotaNum,
+              nunota: nuNotaNum,
+              nomeparc: conferencia?.parceiro,
               lotes,
             };
           })}

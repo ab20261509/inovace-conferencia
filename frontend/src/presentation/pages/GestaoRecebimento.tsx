@@ -584,11 +584,13 @@ export function GestaoRecebimentoPage() {
     carregarDados();
   }, [carregarDados]);
 
-  const carregarDetalhesConferencia = async (conferenciaId: string, nunotas: number[]) => {
-    setLoadingDetalhes(conferenciaId);
+  const carregarDetalhesConferencia = async (conferenciaId: string, nunotas: number[], cardKey?: string) => {
+    const key = cardKey || conferenciaId;
+    const confIdReal = conferenciaId.includes('_') ? conferenciaId.split('_')[0] : conferenciaId;
+    setLoadingDetalhes(key);
     try {
-      const resp = await recebimentoService.obterItensConferencia(conferenciaId, nunotas, 'gestao');
-      setDetalhesConferencias((prev) => ({ ...prev, [conferenciaId]: resp }));
+      const resp = await recebimentoService.obterItensConferencia(confIdReal, nunotas, 'gestao');
+      setDetalhesConferencias((prev) => ({ ...prev, [key]: resp }));
     } catch (err: any) {
       console.error('Erro ao obter detalhes da conferência:', err);
     } finally {
@@ -604,9 +606,9 @@ export function GestaoRecebimentoPage() {
       return;
     }
 
-    const detalhesAtuais = detalhesConferencias[conferenciaId];
+    const detalhesAtuais = detalhesConferencias[key];
     if (!detalhesAtuais || !detalhesAtuais.itens || detalhesAtuais.itens.length === 0) {
-      await carregarDetalhesConferencia(conferenciaId, nunotas);
+      await carregarDetalhesConferencia(conferenciaId, nunotas, key);
     }
     setConferenciasExpandidas((prev) => ({ ...prev, [key]: true }));
   };
@@ -1106,34 +1108,42 @@ export function GestaoRecebimentoPage() {
                     toggleDetalhesConferencia={toggleDetalhesConferencia}
                     onSolicitarRecontagem={(conf, itensSelecionados) => {
                       const itens = itensSelecionados || [];
+                      const confIdReal = conf.conferenciaIdOrig || conf.id;
                       setNivelRecontagemModal(2);
                       setItensRecontagemModal(itens);
                       setModalAcao({
                         tipo: 'SOLICITAR_RECONTAGEM',
-                        conferenciaId: conf.id,
+                        conferenciaId: confIdReal,
                         titulo: itens.length > 0
                           ? `Solicitar Recontagem na N2 (${itens.length} produto(s) selecionado(s))`
                           : 'Solicitar Recontagem da Conferência',
                         descricao: itens.length > 0
-                          ? `A recontagem será realizada no Nível 2 apenas para os ${itens.length} item(ns) selecionado(s) da(s) nota(s) ${conf.numerosNotas}. Os demais itens já conferidos serão mantidos intactos e consolidados ao final.`
-                          : `Defina o nível para recontagem da(s) nota(s) ${conf.numerosNotas}. A conferência ficará disponível para os operadores realizarem a nova contagem cega.`,
+                          ? `A recontagem será realizada no Nível 2 apenas para os ${itens.length} item(ns) selecionado(s) da nota ${conf.numerosNotas}. Os demais itens já conferidos serão mantidos intactos e consolidados ao final.`
+                          : `Defina o nível para recontagem da nota ${conf.numerosNotas}. A conferência ficará disponível para os operadores realizarem a nova contagem cega.`,
                         placeholder: 'Instrução ou motivo da recontagem para a equipe...',
+                        dadosExtras: {
+                          conferenciaIdOrig: confIdReal,
+                          nunota: conf.nunotas[0],
+                          numnota: conf.numerosNotas,
+                        },
                       });
                     }}
                     onReiniciar={(conf) => {
-                      setNunotaReiniciarModal(undefined);
+                      const confIdReal = conf.conferenciaIdOrig || conf.id;
+                      const nunotaAlvo = conf.sessaoConjunta ? conf.nunotas[0] : undefined;
+                      setNunotaReiniciarModal(nunotaAlvo);
                       setModalAcao({
                         tipo: 'REINICIAR',
-                        conferenciaId: conf.id,
-                        titulo: 'Reiniciar Conferência (com Backup de Segurança)',
-                        descricao: conf.nunotas.length > 1
-                          ? `Esta conferência contém ${conf.nunotas.length} notas conjuntas (${conf.numerosNotas}). Escolha abaixo se deseja reiniciar todas as notas juntas ou desmembrar e reiniciar apenas uma nota específica:`
+                        conferenciaId: confIdReal,
+                        titulo: `Reiniciar Conferência (NF ${conf.numerosNotas})`,
+                        descricao: conf.sessaoConjunta
+                          ? `ATENÇÃO: Todas as bipagens ativas da nota ${conf.numerosNotas} serão arquivadas em um backup seguro e ela voltará ao Nível 2. Como ela pertence a uma conferência conjunta, ela será desmembrada para uma conferência exclusiva sem afetar as demais notas.`
                           : `ATENÇÃO: Todas as bipagens ativas da nota ${conf.numerosNotas} serão arquivadas em um backup seguro e a conferência voltará ao Nível 2. Você poderá recuperar esta contagem a qualquer momento usando a opção "Recuperar Contagem".`,
                         placeholder: 'Motivo obrigatório do reinício...',
                         dadosExtras: {
-                          conferenciaIdOrig: conf.id,
-                          nunotas: conf.nunotas,
-                          numerosNotas: conf.numerosNotas,
+                          conferenciaIdOrig: confIdReal,
+                          nunota: conf.nunotas[0],
+                          numnota: conf.numerosNotas,
                           notasDetalhadas: conf.notasDetalhadas,
                         },
                       });
@@ -1142,9 +1152,10 @@ export function GestaoRecebimentoPage() {
                       setConferenciaParaRestaurar(conf);
                     }}
                     onAbrirColetor={(conf) => {
+                      const confIdReal = conf.conferenciaIdOrig || conf.id;
                       navigate('/recebimento/conferencia', {
                         state: {
-                          conferenciaId: conf.id,
+                          conferenciaId: confIdReal,
                           nunotas: conf.nunotas,
                           nivel: conf.nivelAtual,
                         },

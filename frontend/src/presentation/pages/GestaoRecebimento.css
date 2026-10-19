@@ -533,6 +533,47 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
+.gestao-rec-card.card-atrasado {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px #ef4444, var(--shadow) !important;
+}
+
+/* Badges de Previsão de Entrega (AD_PREVENTREGA) */
+.badge-previsao-entrega {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-previsao-entrega.badge-prev-prazo {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-previsao-entrega.badge-prev-hoje {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.badge-previsao-entrega.badge-prev-atrasado {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.badge-previsao-entrega.badge-prev-sem-data {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
 /* Ribbon Minimalista de Backup Superior */
 .gestao-card-backup-ribbon {
   background: #fffbeb;
@@ -773,6 +814,20 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.badge-conferente-rec {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.02em;
 }
 
 .badge-nivel-rec {

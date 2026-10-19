@@ -119,6 +119,18 @@
   line-height: 1.35;
 }
 
+/* Seções de Notas Fiscais */
+.folha-secao-nota {
+  display: flex;
+  flex-direction: column;
+}
+
+.folha-secao-nota + .folha-secao-nota {
+  margin-top: 24px;
+  border-top: 2px dashed #cbd5e1;
+  padding-top: 20px;
+}
+
 /* Cabeçalho Ultra Compacto de 2 Linhas */
 .folha-cabecalho-compact {
   border-bottom: 2px solid #0f172a;
@@ -189,15 +201,26 @@
   justify-content: space-between;
 }
 
-/* Linha Superior: Sequência + Código + Descrição */
+/* Topo do Item: Linha 1 (Metadados) + Linha 2 (Descrição) */
 .folha-item-topo-compact {
   font-size: 0.78rem;
   line-height: 1.25;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 4px;
+}
+
+.folha-item-meta-linha1 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.folha-item-descr-linha2 {
+  font-size: 0.78rem;
+  line-height: 1.2;
 }
 
 .item-seq-badge-compact {
@@ -219,6 +242,7 @@
 .item-descr-compact {
   font-weight: 700;
   color: #0f172a;
+  word-break: break-word;
 }
 
 .item-ref-compact,
@@ -438,5 +462,14 @@
   .barcode-svg-wrapper-compact svg {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Quebra de página automática para cada nota fiscal */
+  .folha-secao-nota + .folha-secao-nota {
+    page-break-before: always !important;
+    break-before: page !important;
+    margin-top: 0 !important;
+    border-top: none !important;
+    padding-top: 0 !important;
   }
 }

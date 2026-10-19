@@ -57,6 +57,7 @@ export class RecebimentoApiService {
       lote?: string;
       validade?: string;
       fabricacao?: string;
+      nunota?: number;
     }
   ): Promise<BiparResponse> {
     const response = await httpClient.post<BiparResponse>(

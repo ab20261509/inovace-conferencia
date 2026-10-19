@@ -28,6 +28,7 @@ SELECT
     NVL(CAB.SERIENOTA, ' ') AS SERIENOTA,
     CAB.DTNEG,
     CAB.DTENTSAI,
+    TO_CHAR(CAB.AD_PREVENTREGA, 'YYYY-MM-DD') AS AD_PREVENTREGA,
     CAB.CODPARC,
     NVL(PAR.RAZAOSOCIAL, NVL(PAR.NOMEPARC, 'FORNECEDOR NÃO INFORMADO')) AS NOMEPARC,
     CAB.CODTIPOPER,
@@ -35,6 +36,7 @@ SELECT
     NVL(CAB.VLRNOTA, 0) AS VLRNOTA,
     CAB.STATUSNOTA,
     CAB.CODEMP,
+    CAB.CHAVENFE,
     NVL(ITE.QTD_ITENS, 0) AS QTD_ITENS
 FROM TGFCAB CAB
 LEFT JOIN TGFPAR PAR
@@ -112,6 +114,9 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         statusConferencia: statusConf,
         conferenciaId: statusInfo?.id,
         nivelAtual: statusInfo?.nivel,
+        adPreventrega: getVal(r, 'AD_PREVENTREGA') ? String(getVal(r, 'AD_PREVENTREGA')).trim() : null,
+        conferente: statusInfo?.conferente || null,
+        chavenfe: getVal(r, 'CHAVENFE') ? String(getVal(r, 'CHAVENFE')).trim() : null,
       };
     });
 

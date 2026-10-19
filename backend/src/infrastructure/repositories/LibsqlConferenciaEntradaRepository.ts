@@ -351,11 +351,11 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
   async obterMapaStatusNotas(
     nunotas: number[]
-  ): Promise<Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number }>> {
+  ): Promise<Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number; conferente?: string }>> {
     if (nunotas.length === 0) return {};
 
     const res = await this.client.execute({
-      sql: `SELECT c.id, c.nunotas_json, c.status, c.nivel_atual, c.status_por_nota_json, c.atualizado_em,
+      sql: `SELECT c.id, c.nunotas_json, c.status, c.nivel_atual, c.status_por_nota_json, c.atualizado_em, c.conferente,
                    (SELECT COUNT(*) FROM bipagens_entrada b WHERE b.conferencia_id = c.id AND b.anulado = 0) AS total_bipagens
             FROM conferencias_entrada c
             ORDER BY c.atualizado_em DESC`,
@@ -366,7 +366,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       sessao: this.mapSessao(r),
       totalBipagens: Number(r.total_bipagens || 0),
     }));
-    const mapa: Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number }> = {};
+    const mapa: Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number; conferente?: string }> = {};
 
     for (const nunota of nunotas) {
       const sessoesDaNota = sessoes.filter((s) => s.sessao.nunotas.includes(nunota));
@@ -406,6 +406,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         status: statusNota,
         id: escolhida.sessao.id,
         nivel: escolhida.sessao.nivelAtual,
+        conferente: escolhida.sessao.conferente,
       };
     }
 

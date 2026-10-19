@@ -28,6 +28,9 @@ export interface NotaEntrada {
   statusConferencia: StatusConferenciaEntrada;
   conferenciaId?: string;
   nivelAtual?: number;
+  adPreventrega?: string | null;
+  conferente?: string | null;
+  chavenfe?: string | null;
 }
 
 export interface CodigoAlternativoEntrada {
@@ -162,7 +165,13 @@ export interface ConferenciaEntradaResumo {
   chavenfe?: string;
   numnota?: number;
   codparc?: number;
+  adPreventrega?: string | null;
+  conferenteN1?: string;
+  conferenteN2?: string;
+  conferenteN3?: string;
   backupsDisponiveis?: BackupDisponivelResumo[];
+  conferenciaIdOrig?: string;
+  sessaoConjunta?: boolean;
 }
 
 export interface BipagemEntrada {

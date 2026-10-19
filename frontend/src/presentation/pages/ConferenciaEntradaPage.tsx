@@ -17,6 +17,7 @@ import { ModalRegistrarOcorrencia } from '../components/Recebimento/ModalRegistr
 import { TipoOcorrenciaRecebimento, OcorrenciaRecebimento } from '../../domain/models/OcorrenciaRecebimento';
 import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
+import './ConferenciaEntradaPage.css';
 
 const recebimentoService = new RecebimentoApiService();
 const configSistemaService = new ConfiguracaoSistemaApiService();
@@ -89,8 +90,29 @@ export function ConferenciaEntradaPage() {
   const [loading, setLoading] = useState(true);
   const [showFolhaBipagemModal, setShowFolhaBipagemModal] = useState(false);
 
+  // Filtro de nota individual na conferência (para conferências com múltiplas notas agrupadas)
+  const [notaFiltro, setNotaFiltro] = useState<number | 'todas'>(() => {
+    if (navState?.nunotas && navState.nunotas.length === 1) {
+      return navState.nunotas[0];
+    }
+    return 'todas';
+  });
+
+  // Se o usuário navegou especificando 1 única nota, assegura que o filtro acompanhe
+  useEffect(() => {
+    if (navState?.nunotas && navState.nunotas.length === 1) {
+      setNotaFiltro(navState.nunotas[0]);
+    }
+  }, [navState]);
+
+  // Itens da nota atualmente em foco (ou todos caso o usuário selecione "todas")
+  const itensExibidos = useMemo(() => {
+    if (notaFiltro === 'todas') return itens;
+    return itens.filter((it) => it.nunota === notaFiltro);
+  }, [itens, notaFiltro]);
+
   const itensFolhaNormalizados = useMemo(() => {
-    return itens.map((it) => {
+    return itensExibidos.map((it) => {
       let lotes: Array<{
         lote: string;
         validade?: string | null;
@@ -131,12 +153,14 @@ export function ConferenciaEntradaPage() {
         descrProd: it.descrprod,
         referencia: it.referencia,
         numnota: it.numnota,
+        nunota: it.nunota,
+        nomeparc: it.nomeparc,
         codBarra: codBarraPrincipal,
         qtd: it.qtdneg,
         lotes,
       };
     });
-  }, [itens]);
+  }, [itensExibidos]);
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
@@ -347,13 +371,35 @@ export function ConferenciaEntradaPage() {
   const isDivergentePendente = sessao?.status === 'Divergente' && sessao?.nivelAtual !== 3;
   const isSomenteLeitura = isEnviadoSankhya || isConferido || isDivergentePendente;
 
-  // Estatísticas consolidadas e por nota
+  // Lista de notas distintas da sessão para o seletor de NF
+  const listaNotasDisponiveis = useMemo(() => {
+    const mapa = new Map<number, { nunota: number; numnota: number; countItens: number; conferidosOk: number }>();
+    itens.forEach((it) => {
+      const nunota = it.nunota;
+      const numnota = it.numnota || nunota;
+      if (!mapa.has(nunota)) {
+        mapa.set(nunota, { nunota, numnota, countItens: 0, conferidosOk: 0 });
+      }
+      const entry = mapa.get(nunota)!;
+      entry.countItens++;
+      const conferido =
+        nivelAtual === 1 ? it.qtdConferidaN1 : nivelAtual === 2 ? it.qtdConferidaN2 : it.qtdConferidaN3;
+      const esperado = it.qtdneg !== null ? it.qtdneg : null;
+      if (esperado !== null ? conferido >= esperado : conferido > 0) {
+        entry.conferidosOk++;
+      }
+    });
+    return Array.from(mapa.values());
+  }, [itens, nivelAtual]);
+
+  // Estatísticas da nota em foco (ou consolidadas)
   const estatisticas = useMemo(() => {
-    const totalItensDistintos = itens.length;
+    const baseItens = itensExibidos;
+    const totalItensDistintos = baseItens.length;
     let totalEsperado = 0;
     let totalConferidoNivel = 0;
 
-    itens.forEach((item) => {
+    baseItens.forEach((item) => {
       if (item.qtdneg !== null) {
         totalEsperado += item.qtdneg;
       }
@@ -367,7 +413,7 @@ export function ConferenciaEntradaPage() {
     let itensSemBipagem = 0;
     let itensComFalta = 0;
 
-    itens.forEach((i) => {
+    baseItens.forEach((i) => {
       const conferido =
         nivelAtual === 1 ? i.qtdConferidaN1 : nivelAtual === 2 ? i.qtdConferidaN2 : i.qtdConferidaN3;
       if (i.qtdneg !== null) {
@@ -385,7 +431,7 @@ export function ConferenciaEntradaPage() {
 
     const itensConferidosOk = itensExatos + itensComSobra;
 
-    // Estatísticas por Nota Fiscal individual
+    // Estatísticas por Nota Fiscal individual (calculadas com todos os itens da conferência)
     const notasMap: Record<number, {
       nunota: number;
       numnota: number;
@@ -458,7 +504,7 @@ export function ConferenciaEntradaPage() {
       pendentes: Math.max(0, totalItensDistintos - itensConferidosOk),
       porNota,
     };
-  }, [itens, nivelAtual]);
+  }, [itensExibidos, itens, nivelAtual]);
 
   const numerosNFsUnicas = useMemo(() => {
     const nfs = Array.from(new Set(itens.map((i) => i.numnota).filter(Boolean)));
@@ -466,6 +512,11 @@ export function ConferenciaEntradaPage() {
     return sessao?.nunotas.map(String) || [];
   }, [itens, sessao]);
   const multiplasNotas = numerosNFsUnicas.length > 1;
+
+  const notaSelecionadaObj = useMemo(() => {
+    if (notaFiltro === 'todas') return null;
+    return listaNotasDisponiveis.find((n) => n.nunota === notaFiltro) || null;
+  }, [notaFiltro, listaNotasDisponiveis]);
 
   // Bloqueio de colar
   const handleTentativaColar = () => {
@@ -599,6 +650,7 @@ export function ConferenciaEntradaPage() {
             lote: dados.lote || lote.trim() || undefined,
             validade: dados.validade || validade.trim() || undefined,
             fabricacao: dados.fabricacao || fabricacao.trim() || undefined,
+            nunota: notaFiltro !== 'todas' ? notaFiltro : undefined,
           });
 
           // Atualiza status da sessão local se retornado
@@ -774,6 +826,24 @@ export function ConferenciaEntradaPage() {
       }
     }
 
+    // Validação de nota selecionada em conferências conjuntas
+    const itemEmOutraNota = itens.find(
+      (it) =>
+        it.codbarra === codLimpo ||
+        String(it.codprod) === codLimpo ||
+        (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
+    );
+
+    if (itemEmOutraNota && notaFiltro !== 'todas' && itemEmOutraNota.nunota !== notaFiltro) {
+      const notaAlvo = listaNotasDisponiveis.find((n) => n.nunota === itemEmOutraNota.nunota);
+      const numNotaStr = notaAlvo ? `NF ${notaAlvo.numnota}` : `Nota Fiscal #${itemEmOutraNota.nunota}`;
+      setErro(
+        `⚠️ O produto "${itemEmOutraNota.descrprod}" pertence à ${numNotaStr} desta conferência conjunta. Alterne para essa nota no seletor para conferi-lo.`
+      );
+      tocarAlertaErro();
+      return;
+    }
+
     setProcessando(true);
     setErro(null);
     setSucesso(null);
@@ -787,6 +857,7 @@ export function ConferenciaEntradaPage() {
         lote: lote.trim() || undefined,
         validade: validadeFinal || undefined,
         fabricacao: fabricacaoFinal || undefined,
+        nunota: notaFiltro !== 'todas' ? notaFiltro : undefined,
       });
 
       tocarAlertaSucesso();
@@ -1055,7 +1126,7 @@ export function ConferenciaEntradaPage() {
   );
 
   const itensPendentesVisiveis = useMemo(() => {
-    return itens.filter((item) => {
+    return itensExibidos.filter((item) => {
       // No Nível 3, se uma nota já estiver aprovada/conferida, seus itens não aparecem para conferência
       if (nivelAtual === 3 && sessao?.statusPorNota) {
         const statusNota = sessao.statusPorNota[item.nunota];
@@ -1069,10 +1140,10 @@ export function ConferenciaEntradaPage() {
       const completo = esperado !== null ? conferido >= esperado : conferido > 0;
       return !completo;
     });
-  }, [itens, nivelAtual, sessao]);
+  }, [itensExibidos, nivelAtual, sessao]);
 
   const itensConferidosVisiveis = useMemo<ItemEntradaConferidoVisivel[]>(() => {
-    return itens
+    return itensExibidos
       .filter((item) => {
         // No Nível 3, não polui a visualização com itens de notas que já foram aprovadas
         if (nivelAtual === 3 && sessao?.statusPorNota) {
@@ -1147,7 +1218,7 @@ export function ConferenciaEntradaPage() {
           ultimoBip,
         };
       });
-  }, [itens, bipagensValidas, nivelAtual]);
+  }, [itensExibidos, bipagensValidas, nivelAtual, sessao]);
 
   if (!podeAcessar) {
     return (
@@ -1219,7 +1290,9 @@ export function ConferenciaEntradaPage() {
         {scannerRecolhido ? (
           <div className="conferencia-topo-compacto-wrapper">
             <div className="conferencia-topo-compacto-info">
-              <span className="mini-info-nf">NF(s) {numerosNFsUnicas.join(', ')}</span>
+              <span className="mini-info-nf">
+                {notaSelecionadaObj ? `NF ${notaSelecionadaObj.numnota}` : `NF(s) ${numerosNFsUnicas.join(', ')}`}
+              </span>
               <span className="mini-info-badge">
                 {isEnviadoSankhya ? 'Enviado' : isConferido ? 'Conferido' : isDivergentePendente ? 'Divergente' : `N${nivelAtual}`}
               </span>
@@ -1284,8 +1357,15 @@ export function ConferenciaEntradaPage() {
                 <div className="header-info-centro">
                   <h1>Conferência #{sessao?.id.slice(0, 8)}</h1>
                   <span className="nota-info">
-                    NF(s) {numerosNFsUnicas.join(', ')} — Recebimento
+                    {notaSelecionadaObj
+                      ? `Nota Fiscal ${notaSelecionadaObj.numnota} — Recebimento`
+                      : `NF(s) ${numerosNFsUnicas.join(', ')} — Recebimento`}
                   </span>
+                  {multiplasNotas && (
+                    <span className="conferencia-conjunta-tag" title="Esta conferência agrupa múltiplas Notas Fiscais">
+                      📦 Conferência Conjunta ({numerosNFsUnicas.length} Notas)
+                    </span>
+                  )}
                 </div>
 
                 <div className="header-btn-finalizar" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

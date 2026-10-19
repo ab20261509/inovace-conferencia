@@ -5,6 +5,7 @@ import { RecebimentoApiService } from '../../infrastructure/api/RecebimentoApiSe
 import { NotaEntrada, StatusConferenciaEntrada } from '../../domain/models/ConferenciaEntrada';
 import { AppLayout, AppHeader, Botao, Campo, Container, Painel, Label } from '../components';
 import { Loading } from '../components/Loading/Loading';
+import { BadgePrevisaoEntrega, calcularStatusPrevisaoEntrega } from '../components/Recebimento/recebimentoHelpers';
 
 const recebimentoService = new RecebimentoApiService();
 
@@ -33,6 +34,40 @@ function formatarData(dataStr?: string): string {
   return limpa.split(' ')[0] || dataStr;
 }
 
+type OrdenacaoPrevisao = 'urgentes' | 'distantes';
+
+function extrairTimestampPrevisao(dataStr?: string | null): number | null {
+  if (!dataStr || dataStr.trim() === '') return null;
+  const limpa = dataStr.trim().split('T')[0];
+  let ano = 0;
+  let mes = 0;
+  let dia = 0;
+
+  if (limpa.includes('-')) {
+    const p = limpa.split('-').map(Number);
+    ano = p[0];
+    mes = p[1];
+    dia = p[2];
+  } else if (limpa.includes('/')) {
+    const p = limpa.split('/').map(Number);
+    dia = p[0];
+    mes = p[1];
+    ano = p[2];
+  } else if (limpa.length === 8 && /^\d{8}$/.test(limpa)) {
+    dia = Number(limpa.substring(0, 2));
+    mes = Number(limpa.substring(2, 4));
+    ano = Number(limpa.substring(4, 8));
+  }
+
+  if (!ano || !mes || !dia || isNaN(ano) || isNaN(mes) || isNaN(dia)) {
+    return null;
+  }
+
+  const data = new Date(ano, mes - 1, dia);
+  data.setHours(0, 0, 0, 0);
+  return data.getTime();
+}
+
 export function RecebimentoPage() {
   const { temPermissao, carregarPermissoes } = useAuth();
   const navigate = useNavigate();
@@ -44,6 +79,7 @@ export function RecebimentoPage() {
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
+  const [ordenacaoPrevisao, setOrdenacaoPrevisao] = useState<OrdenacaoPrevisao>('urgentes');
   const [selectedNunotas, setSelectedNunotas] = useState<Set<number>>(new Set());
 
   const podeAcessar = temPermissao('conferencia_entrada');
@@ -143,11 +179,17 @@ export function RecebimentoPage() {
     const termo = busca.trim().toLowerCase();
 
     if (termo) {
+      const termoLimpo = termo.replace(/\s+/g, '');
+      const termoNumerico = termo.replace(/\D/g, '');
       resultado = resultado.filter(
         (n) =>
           String(n.numnota).includes(termo) ||
           n.nomeparc.toLowerCase().includes(termo) ||
-          String(n.nunota).includes(termo)
+          String(n.nunota).includes(termo) ||
+          (n.chavenfe && (
+            n.chavenfe.toLowerCase().includes(termoLimpo) ||
+            (termoNumerico.length >= 4 && n.chavenfe.replace(/\D/g, '').includes(termoNumerico))
+          ))
       );
     }
 
@@ -165,8 +207,35 @@ export function RecebimentoPage() {
       );
     }
 
+    // Ordenação por Previsão de Entrega
+    resultado.sort((a, b) => {
+      const tA = extrairTimestampPrevisao(a.adPreventrega);
+      const tB = extrairTimestampPrevisao(b.adPreventrega);
+
+      // Notas sem data de previsão vão sempre para o final da lista
+      if (tA !== null && tB === null) return -1;
+      if (tA === null && tB !== null) return 1;
+      if (tA === null && tB === null) {
+        return (b.nunota || 0) - (a.nunota || 0);
+      }
+
+      // Ambas possuem data de previsão
+      if (tA !== null && tB !== null) {
+        if (ordenacaoPrevisao === 'urgentes') {
+          // Mais Urgentes (menor timestamp primeiro: atrasadas, hoje, amanhã, futuras)
+          if (tA !== tB) return tA - tB;
+        } else {
+          // Mais Distantes (maior timestamp primeiro: futuras distantes decrescendo)
+          if (tA !== tB) return tB - tA;
+        }
+      }
+
+      // Desempate por NUNOTA decrescente
+      return (b.nunota || 0) - (a.nunota || 0);
+    });
+
     return resultado;
-  }, [notasPermitidas, busca, filtroStatus]);
+  }, [notasPermitidas, busca, filtroStatus, ordenacaoPrevisao]);
 
   const toggleSelectNota = (nunota: number) => {
     setSelectedNunotas((prev) => {
@@ -261,10 +330,10 @@ export function RecebimentoPage() {
                 </Botao>
               )}
 
-              <div style={{ flex: '1', minWidth: '220px', maxWidth: '380px' }}>
+              <div style={{ flex: '1', minWidth: '220px', maxWidth: '420px' }}>
                 <Campo
                   type="text"
-                  placeholder="Filtrar por NF, fornecedor ou NUNOTA..."
+                  placeholder="Filtrar por NF, fornecedor, NUNOTA ou chave NF-e..."
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                 />
@@ -330,19 +399,39 @@ export function RecebimentoPage() {
 
           {/* Lista de Cards de Conferência */}
           {!loading && (
-            <Painel titulo="Notas de Entrada (Recebimento)" className="lista-painel">
+            <Painel
+              titulo="Notas de Entrada (Recebimento)"
+              className="lista-painel"
+              acoes={
+                <button
+                  type="button"
+                  className="btn-ordenar-previsao"
+                  onClick={() => setOrdenacaoPrevisao((prev) => (prev === 'urgentes' ? 'distantes' : 'urgentes'))}
+                  title={
+                    ordenacaoPrevisao === 'urgentes'
+                      ? 'Ordenando por Previsão de Entrega: Mais urgentes primeiro (atrasadas e hoje). Clique para inverter (mais distantes).'
+                      : 'Ordenando por Previsão de Entrega: Mais distantes primeiro. Clique para inverter (mais urgentes).'
+                  }
+                >
+                  <span className="btn-ordenar-previsao-icon">📅</span>
+                  <span>Previsão {ordenacaoPrevisao === 'urgentes' ? '↑' : '↓'}</span>
+                </button>
+              }
+            >
               <div className="lista-conferencias">
                 {notasFiltradas.map((n) => {
                   const isEmAndamento =
                     n.statusConferencia !== 'Em Aberto' && n.statusConferencia !== 'Conferido';
                   const isSelected = selectedNunotas.has(n.nunota);
+                  const prevInfo = calcularStatusPrevisaoEntrega(n.adPreventrega);
+                  const isAtrasadoNaoAndamento = prevInfo.isAtrasado && !isEmAndamento;
 
                   return (
                     <Container
                       key={n.nunota}
                       variant="outlined"
                       padding="md"
-                      className={`card-conferencia ${isEmAndamento ? 'em-andamento' : ''}`}
+                      className={`card-conferencia ${isEmAndamento ? 'em-andamento' : ''} ${isAtrasadoNaoAndamento ? 'card-atrasado' : ''}`}
                     >
                       <div
                         onClick={() => handleIniciarConferencia([n.nunota], n.conferenciaId, n.nivelAtual)}
@@ -375,11 +464,22 @@ export function RecebimentoPage() {
                             <Label variant="title">Nota {n.numnota}</Label>
                             <span className="card-nunota">#{n.nunota}</span>
                             <span className="card-parceiro">{n.nomeparc}</span>
+                            <BadgePrevisaoEntrega data={n.adPreventrega} />
+                            {n.chavenfe && (
+                              <span
+                                className="badge-chave-nfe"
+                                title={`Chave de Acesso NF-e (44 dígitos):\n${n.chavenfe}`}
+                              >
+                                🔑 NF-e
+                              </span>
+                            )}
                           </div>
 
-                          <span className={`status-badge ${classeStatusEntrada(n.statusConferencia)}`}>
-                            {n.statusConferencia}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className={`status-badge ${classeStatusEntrada(n.statusConferencia)}`}>
+                              {n.statusConferencia}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="card-body-compact">
@@ -390,6 +490,12 @@ export function RecebimentoPage() {
                             <span><strong>Data:</strong> {formatarData(n.dtneg)}</span>
                             {n.serie && <span><strong>Série:</strong> {n.serie}</span>}
                             {n.nivelAtual && <span><strong>Nível Atual:</strong> N{n.nivelAtual}</span>}
+                            {n.conferente && (
+                              <span>
+                                <strong>Conferente:</strong>{' '}
+                                <strong style={{ color: '#1d4ed8' }}>{n.conferente.toUpperCase()}</strong>
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

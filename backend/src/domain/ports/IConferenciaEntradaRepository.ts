@@ -16,7 +16,7 @@ export interface IConferenciaEntradaRepository {
   restaurarBipagens(conferenciaId: string): Promise<number>;
   migrarBipagens(deConferenciaId: string, paraConferenciaId: string, nunotas?: number[]): Promise<number>;
   excluirSessao(id: string): Promise<void>;
-  obterMapaStatusNotas(nunotas: number[]): Promise<Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number }>>;
+  obterMapaStatusNotas(nunotas: number[]): Promise<Record<number, { status: StatusConferenciaEntrada; id: string; nivel: number; conferente?: string }>>;
   reatribuirSequenciasBipagens(
     conferenciaId: string,
     nunota: number,

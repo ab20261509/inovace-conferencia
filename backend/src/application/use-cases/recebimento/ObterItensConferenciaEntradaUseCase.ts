@@ -51,7 +51,7 @@ export class ObterItensConferenciaEntradaUseCase {
       sessao = sessoes.find((s) => s.status !== 'Conferido' && s.status !== 'Enviado ao Sankhya') || null;
     }
 
-    if (sessao && nunotas.length > sessao.nunotas.length) {
+    if (sessao && !input.conferenciaId && nunotas.length > sessao.nunotas.length) {
       sessao.nunotas = nunotas;
       sessao.atualizadoEm = new Date().toISOString();
       await this.conferenciaRepo.salvarSessao(sessao);
@@ -376,15 +376,23 @@ WHERE BAR.CODPROD IN (
       });
     }
 
+    // Se nunotas específicas foram solicitadas no input (ex: expansão do card de uma nota específica na Gestão ou foco no coletor)
+    if (input.nunotas && input.nunotas.length > 0) {
+      const setFiltro = new Set(input.nunotas);
+      itensRetornados = itensRetornados.filter((i) => setFiltro.has(i.nunota));
+    }
+
     // Enriquecer bipagens com dados descritivos do produto
-    const bipagensEnriquecidas = bipagens.map((b) => {
-      const prod = mapaProdutos[b.codprod];
-      return {
-        ...b,
-        descrprod: prod?.descrprod || 'PRODUTO NÃO IDENTIFICADO',
-        referencia: prod?.referencia || '',
-      };
-    });
+    const bipagensEnriquecidas = bipagens
+      .filter((b) => !input.nunotas || input.nunotas.length === 0 || input.nunotas.includes(b.nunota))
+      .map((b) => {
+        const prod = mapaProdutos[b.codprod];
+        return {
+          ...b,
+          descrprod: prod?.descrprod || 'PRODUTO NÃO IDENTIFICADO',
+          referencia: prod?.referencia || '',
+        };
+      });
 
     return {
       sessao,

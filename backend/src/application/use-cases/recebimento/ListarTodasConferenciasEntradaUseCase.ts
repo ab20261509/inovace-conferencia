@@ -61,6 +61,7 @@ export class ListarTodasConferenciasEntradaUseCase {
         dtneg?: string;
         dtentsai?: string;
         statusnota?: string;
+        adPreventrega?: string;
       }
     > = {};
 
@@ -77,6 +78,7 @@ SELECT
     CAB.CHAVENFE,
     CAB.DTNEG,
     CAB.DTENTSAI,
+    TO_CHAR(CAB.AD_PREVENTREGA, 'YYYY-MM-DD') AS AD_PREVENTREGA,
     CAB.STATUSNOTA,
     NVL(PAR.RAZAOSOCIAL, NVL(PAR.NOMEPARC, 'FORNECEDOR NÃO INFORMADO')) AS NOMEPARC,
     NVL(ITE.QTD_ITENS, 0) AS QTD_ITENS
@@ -115,8 +117,9 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         const dtneg = r[fieldIndexMap['DTNEG']] ? String(r[fieldIndexMap['DTNEG']]) : undefined;
         const dtentsai = r[fieldIndexMap['DTENTSAI']] ? String(r[fieldIndexMap['DTENTSAI']]) : undefined;
         const statusnota = r[fieldIndexMap['STATUSNOTA']] ? String(r[fieldIndexMap['STATUSNOTA']]) : undefined;
+        const adPreventrega = r[fieldIndexMap['AD_PREVENTREGA']] ? String(r[fieldIndexMap['AD_PREVENTREGA']]).trim() : undefined;
 
-        mapaNotasSankhya[nunota] = { numnota, codparc, chavenfe, fornecedor, qtdItens, dtneg, dtentsai, statusnota };
+        mapaNotasSankhya[nunota] = { numnota, codparc, chavenfe, fornecedor, qtdItens, dtneg, dtentsai, statusnota, adPreventrega };
       }
     } catch (err) {
       console.warn('⚠️ Falha ao buscar dados de cabeçalho das notas no Sankhya:', err);
@@ -137,13 +140,23 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
       let totalBipadoN1 = 0;
       let totalBipadoN2 = 0;
       let totalBipadoN3 = 0;
+      let conferenteN1: string | undefined;
+      let conferenteN2: string | undefined;
+      let conferenteN3: string | undefined;
 
       for (const b of bipagens) {
         if (b.anulado) continue;
         const qtd = Number(b.qtdConferida) || 0;
-        if (b.nivel === 1) totalBipadoN1 += qtd;
-        else if (b.nivel === 2) totalBipadoN2 += qtd;
-        else if (b.nivel === 3) totalBipadoN3 += qtd;
+        if (b.nivel === 1) {
+          totalBipadoN1 += qtd;
+          if (!conferenteN1 && b.conferente) conferenteN1 = b.conferente;
+        } else if (b.nivel === 2) {
+          totalBipadoN2 += qtd;
+          if (!conferenteN2 && b.conferente) conferenteN2 = b.conferente;
+        } else if (b.nivel === 3) {
+          totalBipadoN3 += qtd;
+          if (!conferenteN3 && b.conferente) conferenteN3 = b.conferente;
+        }
       }
 
       // Dados das notas fiscais vinculadas
@@ -226,38 +239,123 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         }
       }
 
-      const numerosNotas =
-        numerosNotasArr.length > 0 ? numerosNotasArr.join(', ') : sessao.nunotas.join(', ');
-      const fornecedor =
-        fornecedoresSet.size > 0 ? Array.from(fornecedoresSet).join(' / ') : 'Fornecedor da Nota';
+      if (sessao.nunotas.length > 1) {
+        // Conferência Conjunta: gerar um card independente para cada Nota Fiscal
+        for (const nunota of sessao.nunotas) {
+          const info = mapaNotasSankhya[nunota];
+          if (!info && Object.keys(mapaNotasSankhya).length > 0) continue;
 
-      resultado.push({
-        id: sessao.id,
-        nunotas: sessao.nunotas,
-        numerosNotas,
-        fornecedor,
-        status: sessao.status,
-        nivelAtual: sessao.nivelAtual,
-        conferente: sessao.conferente || 'Operador',
-        criadoEm: sessao.criadoEm,
-        atualizadoEm: sessao.atualizadoEm,
-        finalizadoEm: sessao.finalizadoEm,
-        enviadoSankhyaEm: sessao.enviadoSankhyaEm,
-        aprovadoPor: sessao.aprovadoPor,
-        totalItens,
-        totalBipadoN1,
-        totalBipadoN2,
-        totalBipadoN3,
-        temBackupContagem: backupsDisponiveis.length > 0,
-        backupContagem: sessao.backupContagem,
-        observacaoAprovacao: sessao.observacaoAprovacao,
-        statusPorNota: sessao.statusPorNota,
-        notasDetalhadas,
-        chavenfe,
-        numnota,
-        codparc,
-        backupsDisponiveis,
-      });
+          let totalBipadoN1Nota = 0;
+          let totalBipadoN2Nota = 0;
+          let totalBipadoN3Nota = 0;
+          let confN1Nota: string | undefined;
+          let confN2Nota: string | undefined;
+          let confN3Nota: string | undefined;
+
+          for (const b of bipagens) {
+            if (b.anulado || b.nunota !== nunota) continue;
+            const qtd = Number(b.qtdConferida) || 0;
+            if (b.nivel === 1) {
+              totalBipadoN1Nota += qtd;
+              if (!confN1Nota && b.conferente) confN1Nota = b.conferente;
+            } else if (b.nivel === 2) {
+              totalBipadoN2Nota += qtd;
+              if (!confN2Nota && b.conferente) confN2Nota = b.conferente;
+            } else if (b.nivel === 3) {
+              totalBipadoN3Nota += qtd;
+              if (!confN3Nota && b.conferente) confN3Nota = b.conferente;
+            }
+          }
+
+          const statusNota =
+            sessao.statusPorNota && sessao.statusPorNota[nunota]
+              ? sessao.statusPorNota[nunota]
+              : sessao.status;
+
+          const numnotaReal = info?.numnota || nunota;
+          const fornecedorNota = info?.fornecedor || 'Fornecedor da Nota';
+          const totalItensNota = info?.qtdItens || 0;
+          const chavenfeNota = info?.chavenfe || sessao.chavenfe;
+          const codparcNota = info?.codparc || sessao.codparc;
+
+          const backupsNota = backupsDisponiveis.filter(
+            (bk) => bk.nunotaOrigem === nunota || bk.conferenciaIdOrigem === sessao.id
+          );
+
+          resultado.push({
+            id: `${sessao.id}_${nunota}`,
+            conferenciaIdOrig: sessao.id,
+            sessaoConjunta: true,
+            nunotas: [nunota],
+            numerosNotas: String(numnotaReal),
+            fornecedor: fornecedorNota,
+            status: statusNota,
+            nivelAtual: sessao.nivelAtual,
+            conferente: sessao.conferente || 'Operador',
+            criadoEm: sessao.criadoEm,
+            atualizadoEm: sessao.atualizadoEm,
+            finalizadoEm: sessao.finalizadoEm,
+            enviadoSankhyaEm: sessao.enviadoSankhyaEm,
+            aprovadoPor: sessao.aprovadoPor,
+            totalItens: totalItensNota,
+            totalBipadoN1: totalBipadoN1Nota,
+            totalBipadoN2: totalBipadoN2Nota,
+            totalBipadoN3: totalBipadoN3Nota,
+            temBackupContagem: backupsNota.length > 0,
+            backupContagem: sessao.backupContagem,
+            observacaoAprovacao: sessao.observacaoAprovacao,
+            statusPorNota: { [nunota]: statusNota },
+            notasDetalhadas: [{ nunota, numnota: numnotaReal }],
+            chavenfe: chavenfeNota,
+            numnota: numnotaReal,
+            codparc: codparcNota,
+            adPreventrega: info?.adPreventrega,
+            conferenteN1: confN1Nota,
+            conferenteN2: confN2Nota,
+            conferenteN3: confN3Nota,
+            backupsDisponiveis: backupsNota,
+          });
+        }
+      } else {
+        const numerosNotas =
+          numerosNotasArr.length > 0 ? numerosNotasArr.join(', ') : sessao.nunotas.join(', ');
+        const fornecedor =
+          fornecedoresSet.size > 0 ? Array.from(fornecedoresSet).join(' / ') : 'Fornecedor da Nota';
+
+        resultado.push({
+          id: sessao.id,
+          conferenciaIdOrig: sessao.id,
+          sessaoConjunta: false,
+          nunotas: sessao.nunotas,
+          numerosNotas,
+          fornecedor,
+          status: sessao.status,
+          nivelAtual: sessao.nivelAtual,
+          conferente: sessao.conferente || 'Operador',
+          criadoEm: sessao.criadoEm,
+          atualizadoEm: sessao.atualizadoEm,
+          finalizadoEm: sessao.finalizadoEm,
+          enviadoSankhyaEm: sessao.enviadoSankhyaEm,
+          aprovadoPor: sessao.aprovadoPor,
+          totalItens,
+          totalBipadoN1,
+          totalBipadoN2,
+          totalBipadoN3,
+          temBackupContagem: backupsDisponiveis.length > 0,
+          backupContagem: sessao.backupContagem,
+          observacaoAprovacao: sessao.observacaoAprovacao,
+          statusPorNota: sessao.statusPorNota,
+          notasDetalhadas,
+          chavenfe,
+          numnota,
+          codparc,
+          adPreventrega: primeiraNotaInfo?.adPreventrega,
+          conferenteN1,
+          conferenteN2,
+          conferenteN3,
+          backupsDisponiveis,
+        });
+      }
     }
 
     // 5. Adicionar notas de compra do Sankhya que ainda não possuem sessão iniciada (status 'Em Aberto')
@@ -301,6 +399,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         chavenfe: info.chavenfe,
         numnota,
         codparc: info.codparc,
+        adPreventrega: info.adPreventrega,
         backupsDisponiveis: [],
       });
     }

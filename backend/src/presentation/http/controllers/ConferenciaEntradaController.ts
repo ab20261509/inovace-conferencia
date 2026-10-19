@@ -105,7 +105,7 @@ export class ConferenciaEntradaController {
   async bipar(req: Request, res: Response): Promise<void> {
     try {
       const conferenciaId = req.params.id;
-      const { codigo, quantidade, nivel, lote, validade, fabricacao } = req.body;
+      const { codigo, quantidade, nivel, lote, validade, fabricacao, nunota } = req.body;
       const conferente = (req as any).user?.username || (req as any).username || 'Operador';
 
       const resultado = await this.registrarBipagemUseCase.execute(
@@ -118,6 +118,7 @@ export class ConferenciaEntradaController {
           lote,
           validade,
           fabricacao,
+          nunota: nunota ? Number(nunota) : undefined,
         },
         req.correlationId
       );
