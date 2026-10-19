@@ -160,6 +160,32 @@ export function ConferenciaEntradaPage() {
 
   const podeAcessar = temPermissao('conferencia_entrada');
 
+  const podeAcessarNivel = useMemo(() => {
+    if (!sessao) return true;
+    const n = sessao.nivelAtual;
+    if (n === 1) return temPermissao('conferencia_entrada_n1');
+    if (n === 2) return temPermissao('conferencia_entrada_n2');
+    if (n === 3) return temPermissao('conferencia_entrada_n3');
+    return true;
+  }, [sessao, temPermissao]);
+
+  const podeAcessarStatus = useMemo(() => {
+    if (!sessao) return true;
+    if (
+      (sessao.status === 'Divergente' || sessao.status === 'Em Reconferência') &&
+      !temPermissao('conferencia_entrada_divergente')
+    ) {
+      return false;
+    }
+    if (
+      (sessao.status === 'Conferido' || sessao.status === 'Enviado ao Sankhya') &&
+      !temPermissao('conferencia_entrada_conferido')
+    ) {
+      return false;
+    }
+    return true;
+  }, [sessao, temPermissao]);
+
   const carregarOcorrencias = useCallback(async (confId: string) => {
     try {
       const res = await recebimentoService.listarOcorrencias({ conferenciaId: confId });
@@ -1078,6 +1104,48 @@ export function ConferenciaEntradaPage() {
             <p style={{ color: 'var(--slate-500)', marginTop: '8px' }}>
               Seu usuário não possui permissão para acessar o módulo de Conferência de Entrada (Recebimento).
             </p>
+          </div>
+        </Container>
+      </div>
+    );
+  }
+
+  if (sessao && !podeAcessarNivel) {
+    return (
+      <div className="page-container">
+        <Container variant="default" padding="lg">
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <span style={{ fontSize: '3rem' }}>🔒</span>
+            <h2 style={{ marginTop: '16px', color: 'var(--slate-800)' }}>Acesso Restrito ao Nível {sessao.nivelAtual}</h2>
+            <p style={{ color: 'var(--slate-500)', marginTop: '8px' }}>
+              Seu usuário não possui permissão para conferir o Nível {sessao.nivelAtual} desta nota/conferência.
+            </p>
+            <div style={{ marginTop: '20px' }}>
+              <Botao variant="primary" onClick={() => navigate('/recebimento')}>
+                Voltar para Lista de Notas
+              </Botao>
+            </div>
+          </div>
+        </Container>
+      </div>
+    );
+  }
+
+  if (sessao && !podeAcessarStatus) {
+    return (
+      <div className="page-container">
+        <Container variant="default" padding="lg">
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <span style={{ fontSize: '3rem' }}>🔒</span>
+            <h2 style={{ marginTop: '16px', color: 'var(--slate-800)' }}>Acesso Restrito ao Status</h2>
+            <p style={{ color: 'var(--slate-500)', marginTop: '8px' }}>
+              Seu usuário não possui permissão para visualizar conferências com status "{sessao.status}".
+            </p>
+            <div style={{ marginTop: '20px' }}>
+              <Botao variant="primary" onClick={() => navigate('/recebimento')}>
+                Voltar para Lista de Notas
+              </Botao>
+            </div>
           </div>
         </Container>
       </div>
@@ -2724,7 +2792,7 @@ export function ConferenciaEntradaPage() {
               >
                 Voltar ao Recebimento
               </Botao>
-              {resultadoFinalizacao.statusFinal === 'Aguardando N2' && (
+              {resultadoFinalizacao.statusFinal === 'Aguardando N2' && temPermissao('conferencia_entrada_n2') && (
                 <Botao
                   variant="primary"
                   size="md"

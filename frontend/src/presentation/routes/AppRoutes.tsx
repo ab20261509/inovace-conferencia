@@ -9,6 +9,18 @@ import { GestaoAcessosPage } from '../pages/GestaoAcessos';
 import { BancoDadosPage } from '../pages/BancoDados/BancoDadosPage';
 import { PrivateRoute } from './PrivateRoute';
 
+import { useAuth } from '../../application/contexts/AuthContext';
+
+function RotaInicialRedirect() {
+  const { isAuthenticated, temPermissao, loadingPermissoes, permissoes } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (loadingPermissoes && !permissoes) return null;
+  if (temPermissao('conferencia_saida')) return <Navigate to="/conferencias" replace />;
+  if (temPermissao('conferencia_entrada')) return <Navigate to="/recebimento" replace />;
+  if (temPermissao('gerenciar_acessos')) return <Navigate to="/configuracoes/acessos" replace />;
+  return <Navigate to="/login" replace />;
+}
+
 export function AppRoutes() {
   return (
     <BrowserRouter>
@@ -79,8 +91,8 @@ export function AppRoutes() {
           }
         />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/conferencias" replace />} />
+        {/* Fallback Inteligente */}
+        <Route path="*" element={<RotaInicialRedirect />} />
       </Routes>
     </BrowserRouter>
   );

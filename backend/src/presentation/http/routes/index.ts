@@ -36,32 +36,47 @@ export interface RouteControllers {
   ocorrenciasRecebimentoController: OcorrenciasRecebimentoController;
 }
 
+import { IPermissoesRepository } from '../../../domain/ports/IPermissoesRepository.js';
+import { createPermissionMiddleware } from '../middlewares/permissionMiddleware.js';
+
 /**
  * Registra todas as rotas na aplicação
  */
-export function registerRoutes(app: Application, controllers: RouteControllers, authMiddleware: RequestHandler): void {
+export function registerRoutes(
+  app: Application,
+  controllers: RouteControllers,
+  authMiddleware: RequestHandler,
+  permissoesRepo: IPermissoesRepository
+): void {
   // Rotas públicas
   app.use('/auth', createAuthRoutes(controllers.authController));
 
   // Imagem de produto (pública — usada por tags <img>)
   app.get('/api/crud/produto/:codProd/imagem', (req, res) => controllers.crudController.produtoImagem(req, res));
 
+  // Middlewares de permissão por módulo
+  const permSaida = createPermissionMiddleware(permissoesRepo, 'conferencia_saida');
+  const permEntrada = createPermissionMiddleware(permissoesRepo, 'conferencia_entrada');
+  const permProdutos = createPermissionMiddleware(permissoesRepo, 'consulta_produtos');
+  const permAdmin = createPermissionMiddleware(permissoesRepo, 'gerenciar_acessos');
+
   // Rotas protegidas
-  app.use('/api/conferencias', authMiddleware, createConferenciasRoutes(controllers.conferenciasController));
+  app.use('/api/conferencias', authMiddleware, permSaida, createConferenciasRoutes(controllers.conferenciasController));
   app.use(
     '/api/recebimento',
     authMiddleware,
+    permEntrada,
     createConferenciaEntradaRoutes(
       controllers.conferenciaEntradaController,
       controllers.ocorrenciasRecebimentoController
     )
   );
   app.use('/api/crud', authMiddleware, createCrudRoutes(controllers.crudController));
-  app.use('/api/produtos', authMiddleware, createProdutoRoutes(controllers.produtoController));
-  app.use('/api/acessos', authMiddleware, createAcessosRoutes(controllers.acessosController));
-  app.use('/api/configuracoes/telas', authMiddleware, createConfiguracaoTelasRoutes(controllers.configuracaoTelasController));
-  app.use('/api/configuracoes/sistema', authMiddleware, createConfiguracaoSistemaRoutes(controllers.configuracaoSistemaController));
-  app.use('/api/database', authMiddleware, createDatabaseRoutes(controllers.databaseExplorerController));
+  app.use('/api/produtos', authMiddleware, permProdutos, createProdutoRoutes(controllers.produtoController));
+  app.use('/api/acessos', authMiddleware, createAcessosRoutes(controllers.acessosController, permAdmin));
+  app.use('/api/configuracoes/telas', authMiddleware, permAdmin, createConfiguracaoTelasRoutes(controllers.configuracaoTelasController));
+  app.use('/api/configuracoes/sistema', authMiddleware, permAdmin, createConfiguracaoSistemaRoutes(controllers.configuracaoSistemaController));
+  app.use('/api/database', authMiddleware, permAdmin, createDatabaseRoutes(controllers.databaseExplorerController));
   app.use('/api', authMiddleware, createApiRoutes(controllers.apiProxyController));
 
   // Health check

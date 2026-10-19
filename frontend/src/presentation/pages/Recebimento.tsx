@@ -75,28 +75,66 @@ export function RecebimentoPage() {
     carregarNotas();
   }, [podeAcessar, carregarNotas]);
 
+  // Contadores e notas visíveis conforme permissões de nível e status do usuário
+  const notasPermitidas = useMemo(() => {
+    const n1 = temPermissao('conferencia_entrada_n1');
+    const n2 = temPermissao('conferencia_entrada_n2');
+    const n3 = temPermissao('conferencia_entrada_n3');
+    const verDivergente = temPermissao('conferencia_entrada_divergente');
+    const verConferido = temPermissao('conferencia_entrada_conferido');
+
+    return notas.filter((n) => {
+      // Concluídas (Conferido / Enviado ao Sankhya): requer permissão de conferido + qualquer nível
+      const isConcluido = n.statusConferencia === 'Conferido' || n.statusConferencia === 'Enviado ao Sankhya';
+      if (isConcluido) {
+        if (!verConferido) return false;
+        return n1 || n2 || n3;
+      }
+
+      // Divergentes (Divergente / Em Reconferência): requer permissão de divergente
+      const isDivergente = n.statusConferencia === 'Divergente' || n.statusConferencia === 'Em Reconferência';
+      if (isDivergente && !verDivergente) {
+        return false;
+      }
+
+      let nivel = n.nivelAtual || 1;
+      if (['Aguardando N2', 'N2 em Andamento'].includes(n.statusConferencia)) {
+        nivel = 2;
+      } else if (['Aguardando N3', 'N3 em Andamento'].includes(n.statusConferencia)) {
+        nivel = 3;
+      } else if (['Em Aberto', 'N1 em Andamento'].includes(n.statusConferencia)) {
+        nivel = 1;
+      }
+
+      if (nivel === 1) return n1;
+      if (nivel === 2) return n2;
+      if (nivel === 3) return n3;
+      return n1;
+    });
+  }, [notas, temPermissao]);
+
   // Contadores
   const contadores = useMemo(() => {
-    const pendentes = notas.filter((n) => n.statusConferencia === 'Em Aberto').length;
-    const conferindo = notas.filter((n) =>
+    const pendentes = notasPermitidas.filter((n) => n.statusConferencia === 'Em Aberto').length;
+    const conferindo = notasPermitidas.filter((n) =>
       ['N1 em Andamento', 'Aguardando N2', 'N2 em Andamento', 'Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Divergente'].includes(
         n.statusConferencia
       )
     ).length;
-    const concluidos = notas.filter(
+    const concluidos = notasPermitidas.filter(
       (n) => n.statusConferencia === 'Conferido' || n.statusConferencia === 'Enviado ao Sankhya'
     ).length;
     return {
-      todos: notas.length,
+      todos: notasPermitidas.length,
       pendentes,
       conferindo,
       concluidos,
     };
-  }, [notas]);
+  }, [notasPermitidas]);
 
   // Filtro
   const notasFiltradas = useMemo(() => {
-    let resultado = [...notas];
+    let resultado = [...notasPermitidas];
     const termo = busca.trim().toLowerCase();
 
     if (termo) {
@@ -123,7 +161,7 @@ export function RecebimentoPage() {
     }
 
     return resultado;
-  }, [notas, busca, filtroStatus]);
+  }, [notasPermitidas, busca, filtroStatus]);
 
   const toggleSelectNota = (nunota: number) => {
     setSelectedNunotas((prev) => {

@@ -1,29 +1,30 @@
 .acessos-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .acessos-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
+  padding: 8px 12px !important;
 }
 
 .acessos-search {
   flex: 1;
-  min-width: 250px;
+  min-width: 220px;
 }
 
 .acessos-count {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--slate-500);
   font-weight: 600;
 }
 
-/* Tabela de Usuários */
+/* Tabela de Usuários Compacta */
 .acessos-table-wrapper {
   overflow-x: auto;
   background: #ffffff;
@@ -36,20 +37,21 @@
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .acessos-table th {
   background: var(--slate-100);
-  padding: 14px 16px;
+  padding: 8px 10px;
   font-weight: 700;
+  font-size: 0.78rem;
   color: var(--slate-700);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 .acessos-table td {
-  padding: 14px 16px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--slate-100);
   color: var(--slate-800);
   vertical-align: middle;
@@ -66,12 +68,12 @@
 .acessos-user-cell {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .acessos-user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: var(--slate-800);
   color: #ffffff;
@@ -79,7 +81,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.78rem;
   flex-shrink: 0;
 }
 
@@ -94,19 +96,23 @@
 
 .acessos-user-name {
   font-weight: 700;
+  font-size: 0.82rem;
   color: var(--slate-900);
+  line-height: 1.2;
 }
 
 .acessos-user-meta {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--slate-400);
+  line-height: 1.2;
 }
 
-/* Switch / Toggle estilizado */
+/* Switch / Toggle estilizado Compacto (32px x 18px) */
 .toggle-switch {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   cursor: pointer;
   user-select: none;
 }
@@ -120,8 +126,8 @@
 
 .toggle-slider {
   position: relative;
-  width: 44px;
-  height: 24px;
+  width: 32px;
+  height: 18px;
   background-color: var(--slate-300);
   border-radius: 999px;
   transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -130,13 +136,13 @@
 .toggle-slider::before {
   content: "";
   position: absolute;
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
   background-color: white;
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -149,7 +155,7 @@
 }
 
 .toggle-switch input:checked + .toggle-slider::before {
-  transform: translateX(20px);
+  transform: translateX(14px);
 }
 
 .toggle-switch input:disabled + .toggle-slider {
@@ -195,34 +201,111 @@
 }
 
 .acessos-data-cell {
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   color: var(--slate-600);
   white-space: nowrap;
+  text-align: center;
+}
+
+.acessos-table th:not(:first-child),
+.acessos-table td:not(:first-child) {
+  text-align: center;
 }
 
 .badge-data-acesso {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   background: var(--slate-100);
   color: var(--slate-700);
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-weight: 500;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
 }
 
 .badge-ultimo-acesso {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   background: #eff6ff;
   color: #1d4ed8;
   border: 1px solid #dbeafe;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
+}
+
+/* Grupo de Chips Compactos de Níveis de Entrada */
+.niveis-entrada-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--slate-100);
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.nivel-chip-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--slate-400);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  line-height: 1.1;
+  user-select: none;
+}
+
+.nivel-chip-btn:hover:not(:disabled) {
+  border-color: var(--slate-300);
+  background: #ffffff;
+}
+
+.nivel-chip-btn.ativo {
+  background: #ffffff;
+  color: var(--emerald-700);
+  border-color: #a7f3d0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.nivel-chip-btn.inativo {
+  color: var(--slate-400);
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.nivel-chip-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.niveis-divider {
+  width: 1px;
+  height: 12px;
+  background-color: var(--slate-300);
+  margin: 0 1px;
+}
+
+.nivel-chip-btn.chip-status {
+  letter-spacing: -0.2px;
+}
+
+.nivel-chip-btn.chip-divergente.ativo {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+
+.nivel-chip-btn.chip-conferido.ativo {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -342,13 +425,13 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   NAVEGAÇÃO POR ABAS PRINCIPAIS
+   NAVEGAÇÃO POR ABAS PRINCIPAIS (COMPACTA)
    ═══════════════════════════════════════════════════════ */
 .gestao-abas-nav {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   background: var(--slate-100);
-  padding: 6px;
+  padding: 4px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   overflow-x: auto;
@@ -357,41 +440,41 @@
 .gestao-aba-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: 6px;
+  padding: 6px 14px;
   border: none;
   background: transparent;
   color: var(--slate-600);
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .gestao-aba-btn:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.7);
   color: var(--slate-900);
 }
 
 .gestao-aba-btn.ativa {
   background: #ffffff;
   color: var(--emerald-700);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   font-weight: 700;
 }
 
 .gestao-aba-icone {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
 }
 
 .gestao-aba-badge {
   background: var(--slate-200);
   color: var(--slate-700);
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
@@ -401,30 +484,30 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   ABA 2: CONFIGURAÇÃO DE CAMPOS POR TELA
+   ABA 2: CONFIGURAÇÃO DE CAMPOS POR TELA (COMPACTA)
    ═══════════════════════════════════════════════════════ */
 .gestao-telas-secao {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
-/* Seletor de Telas (Chips) */
+/* Seletor de Telas (Chips Compactos) */
 .gestao-telas-selector {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 
 .gestao-tela-chip {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 18px;
+  border-radius: 8px;
+  padding: 6px 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
@@ -439,25 +522,25 @@
 .gestao-tela-chip.ativo {
   border-color: var(--emerald-500);
   background: #ecfdf5;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 0 1.5px rgba(16, 185, 129, 0.2);
 }
 
 .tela-chip-icone {
-  font-size: 1.25rem;
+  font-size: 1rem;
 }
 
 .tela-chip-nome {
   font-weight: 700;
   color: var(--slate-800);
-  font-size: 0.95rem;
+  font-size: 0.84rem;
 }
 
 .tela-chip-count {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   background: var(--slate-100);
   color: var(--slate-600);
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
 }
 
@@ -466,45 +549,45 @@
   color: #065f46;
 }
 
-/* Detalhes da Tela */
+/* Detalhes da Tela (Compacto) */
 .gestao-tela-detalhes {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .gestao-tela-info-card {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px 20px;
+  padding: 10px 14px;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
 }
 
 .gestao-tela-info-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .gestao-tela-info-header h3 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 0.95rem;
   color: var(--slate-900);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .badge-idtela {
   background: var(--slate-100);
   color: var(--slate-600);
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
   font-family: monospace;
   font-weight: 600;
   border: 1px solid var(--slate-200);
@@ -513,25 +596,25 @@
 .gestao-tela-info-desc {
   margin: 0;
   color: var(--slate-600);
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .gestao-tela-info-banner {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 6px;
+  padding: 8px 12px;
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-start;
   color: #1e3a8a;
-  font-size: 0.85rem;
-  line-height: 1.45;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .gestao-tela-banner-icone {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   flex-shrink: 0;
 }
 
@@ -541,29 +624,29 @@
   gap: 2px;
 }
 
-/* Grid de Cards dos Campos (Responsivo) */
+/* Grid de Cards dos Campos (Responsivo e Denso) */
 .gestao-campos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
 }
 
 .gestao-campo-card {
   background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
+  border-radius: 8px;
+  padding: 10px 12px;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   transition: all 0.2s ease;
 }
 
 .gestao-campo-card:hover {
   border-color: var(--slate-300);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .gestao-campo-card.campo-sensivel-ativo {
@@ -575,28 +658,28 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .gestao-campo-identificacao {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .gestao-campo-rotulo {
-  font-size: 0.98rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--slate-900);
 }
 
 .gestao-campo-chave {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-family: monospace;
   background: var(--slate-100);
   color: var(--slate-600);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
   width: fit-content;
 }
 
@@ -608,33 +691,33 @@
   background: #ffedd5;
   color: #c2410c;
   border: 1px solid #fed7aa;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .badge-publico {
   background: var(--slate-100);
   color: var(--slate-600);
   border: 1px solid var(--slate-200);
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .gestao-campo-descricao {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--slate-500);
-  line-height: 1.4;
+  line-height: 1.35;
   flex: 1;
 }
 
@@ -642,14 +725,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   border-top: 1px solid var(--slate-100);
-  padding-top: 12px;
-  margin-top: 4px;
+  padding-top: 8px;
+  margin-top: 2px;
 }
 
 .gestao-campo-toggle-label {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--slate-600);
 }
@@ -688,24 +771,24 @@
 }
 
 .gestao-parametro-resumo-curto {
-  margin: 0 0 8px 0;
-  font-size: 0.88rem;
+  margin: 0 0 4px 0;
+  font-size: 0.8rem;
   color: var(--slate-600);
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .gestao-parametro-btn-toggle {
   background: var(--slate-100);
   border: 1px solid var(--border);
   color: var(--slate-700);
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   transition: all 0.2s ease;
 }
 
@@ -717,8 +800,8 @@
 .gestao-parametro-detalhes-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-top: 14px;
+  gap: 12px;
+  padding-top: 10px;
   border-top: 1px dashed var(--border);
   animation: fadeIn 0.2s ease-in-out;
 }
@@ -726,13 +809,13 @@
 .gestao-parametros-secao {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .gestao-parametros-lista {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .gestao-parametro-card {
@@ -740,48 +823,48 @@
   border-radius: var(--radius);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  padding: 24px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
 .gestao-parametro-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
 .gestao-parametro-info {
   flex: 1;
-  min-width: 280px;
+  min-width: 240px;
 }
 
 .gestao-parametro-titulo-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .gestao-parametro-icone {
-  font-size: 1.4rem;
+  font-size: 1.15rem;
 }
 
 .gestao-parametro-titulo {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: var(--slate-800);
 }
 
 .badge-parametro-status {
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 0.78rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
@@ -799,9 +882,9 @@
 
 .gestao-parametro-detalhes {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   color: var(--slate-600);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .gestao-parametro-toggle-wrapper {
@@ -810,7 +893,7 @@
 }
 
 .toggle-switch-lg {
-  transform: scale(1.15);
+  transform: none;
 }
 
 .toggle-switch input:checked + .toggle-slider.toggle-operacao {
@@ -819,42 +902,42 @@
 
 .gestao-parametro-fluxo-explicacao {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-  margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 6px;
 }
 
 .fluxo-modo-box {
   background: var(--slate-50);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 6px;
+  padding: 12px;
   transition: all 0.2s ease;
 }
 
 .fluxo-modo-box.modo-destaque {
   border-color: #10b981;
   background: #f0fdf4;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.1);
 }
 
 .fluxo-modo-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 8px;
   color: var(--slate-800);
-  font-size: 0.92rem;
+  font-size: 0.84rem;
 }
 
 .fluxo-modo-box ul {
   margin: 0;
-  padding-left: 20px;
-  font-size: 0.84rem;
+  padding-left: 18px;
+  font-size: 0.78rem;
   color: var(--slate-600);
-  line-height: 1.5;
+  line-height: 1.4;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 

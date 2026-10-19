@@ -44,11 +44,10 @@ export class ListarUsuariosAcessosUseCase {
       throw new AcessoNegadoError('Apenas administradores podem gerenciar acessos');
     }
 
-    // 2. Consulta usuários ativos na TSIUSU do Sankhya
+    // 2. Consulta usuários na TSIUSU do Sankhya
     const sql = `
-      SELECT CODUSU, NOMEUSU, CODGRUPO, ATIVO 
+      SELECT CODUSU, NOMEUSU, CODGRUPO 
       FROM TSIUSU 
-      WHERE ATIVO = 'S' 
       ORDER BY NOMEUSU
     `.trim();
 
@@ -89,7 +88,7 @@ export class ListarUsuariosAcessosUseCase {
       const codUsu = Number(r[0]);
       const nomeUsu = String(r[1] || '').trim();
       const codGrupo = r[2] ? Number(r[2]) : undefined;
-      const ativo = String(r[3] || 'S').trim();
+      const ativo = 'S';
 
       usuariosProcessados.add(codUsu);
 

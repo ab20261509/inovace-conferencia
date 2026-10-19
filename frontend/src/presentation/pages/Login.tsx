@@ -18,8 +18,16 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(usuario, senha);
-      navigate('/conferencias');
+      const perms = await login(usuario, senha);
+      if (perms?.conferencia_saida) {
+        navigate('/conferencias');
+      } else if (perms?.conferencia_entrada) {
+        navigate('/recebimento');
+      } else if (perms?.gerenciar_acessos) {
+        navigate('/configuracoes/acessos');
+      } else {
+        navigate('/recebimento');
+      }
     } catch (err: unknown) {
       setError(mensagemErroLogin(err));
     } finally {

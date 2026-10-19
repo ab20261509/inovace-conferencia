@@ -12,7 +12,7 @@ interface AuthContextData {
   permissoes: ModulosUsuario | null;
   isAuthenticated: boolean;
   loadingPermissoes: boolean;
-  login(usuario: string, senha: string): Promise<void>;
+  login(usuario: string, senha: string): Promise<ModulosUsuario | null>;
   logout(): void;
   temPermissao(modulo: keyof ModulosUsuario): boolean;
   carregarPermissoes(): Promise<void>;
@@ -59,15 +59,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, carregarPermissoes]);
 
-  const login = useCallback(async (usuario: string, senha: string) => {
+  const login = useCallback(async (usuario: string, senha: string): Promise<ModulosUsuario | null> => {
     const response = await authService.loginSankhya(usuario, senha);
     setUser(response.user);
     try {
       const modulos = await acessosService.obterMeusAcessos();
       setPermissoes(modulos);
       localStorage.setItem(PERMISSOES_KEY, JSON.stringify(modulos));
+      return modulos;
     } catch (err) {
       console.warn('Erro ao carregar permissões pós-login:', err);
+      return null;
     }
   }, []);
 
@@ -79,23 +81,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const temPermissao = useCallback((modulo: keyof ModulosUsuario): boolean => {
-    const ehAdmin = !!(user?.nomeUsu && ADMINS_PADRAO.includes(user.nomeUsu.toUpperCase()));
+    const ehAdminPadrao = !!(user?.nomeUsu && ADMINS_PADRAO.includes(user.nomeUsu.toUpperCase()));
 
     // Se as permissões já foram carregadas do backend, respeitamos o que está configurado
     if (permissoes) {
-      if (ehAdmin && modulo === 'gerenciar_acessos') {
+      if (ehAdminPadrao && modulo === 'gerenciar_acessos') {
         return true; // Administradores padrão nunca perdem acesso ao painel de gestão
+      }
+      if (
+        modulo === 'conferencia_entrada_n1' ||
+        modulo === 'conferencia_entrada_n2' ||
+        modulo === 'conferencia_entrada_n3'
+      ) {
+        return permissoes[modulo] !== false;
+      }
+      if (modulo === 'conferencia_entrada_divergente' || modulo === 'conferencia_entrada_conferido') {
+        // Administradores/supervisores: true por padrão
+        if (ehAdminPadrao || permissoes.gerenciar_acessos) {
+          return permissoes[modulo] !== false;
+        }
+        // Operadores padrão: inativo (false) por padrão
+        return permissoes[modulo] === true;
       }
       return !!permissoes[modulo];
     }
 
-    // Se ainda não carregou do backend, administradores têm acesso total por padrão
-    if (ehAdmin) {
+    // Se ainda não carregou do backend, administradores nativos têm acesso total por padrão
+    if (ehAdminPadrao) {
       return true;
     }
 
-    // Operador sem permissões carregadas ainda: padrão seguro
-    return modulo === 'conferencia_saida';
+    // Padrão seguro e estrito: sem permissões carregadas, bloqueia até que o backend responda
+    return false;
   }, [user, permissoes]);
 
   return (

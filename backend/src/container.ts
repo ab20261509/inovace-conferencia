@@ -355,6 +355,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
       ocorrenciasRecebimentoController,
     },
     authMiddleware,
+    permissoesRepo,
   );
 
   return app;

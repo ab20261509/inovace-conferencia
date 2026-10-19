@@ -301,7 +301,18 @@ export function GestaoAcessosPage() {
   }, [catalogoTelas, telaSelecionadaId]);
 
   async function handleToggleUsuario(usuario: UsuarioAcessoInfo, modulo: keyof ModulosUsuario) {
-    const novoValor = !usuario.modulos[modulo];
+    const ehAdmin = ['SUP', 'ANTONY', 'ANTONY.B'].includes(usuario.nomeUsu.toUpperCase()) || !!usuario.modulos.gerenciar_acessos;
+
+    let valorAtual: boolean;
+    if (modulo === 'conferencia_entrada_n1' || modulo === 'conferencia_entrada_n2' || modulo === 'conferencia_entrada_n3') {
+      valorAtual = usuario.modulos[modulo] !== false;
+    } else if (modulo === 'conferencia_entrada_divergente' || modulo === 'conferencia_entrada_conferido') {
+      valorAtual = usuario.modulos[modulo] === true || (ehAdmin && usuario.modulos[modulo] !== false);
+    } else {
+      valorAtual = !!usuario.modulos[modulo];
+    }
+
+    const novoValor = !valorAtual;
     const novosModulos = { ...usuario.modulos, [modulo]: novoValor };
 
     setUsuarios((atuais) =>
@@ -495,6 +506,7 @@ export function GestaoAcessosPage() {
                             <th title="Data e hora do último acesso do usuário no sistema">Último Acesso</th>
                             <th title="Acesso ao módulo de conferência de pedidos de saída">Conf. Saída</th>
                             <th title="Acesso ao módulo de conferência de notas de entrada (recebimento)">Recebimento</th>
+                            <th title="Níveis e status de notas visíveis na conferência de entrada (N1/N2/N3: contagens, Div: divergentes, Conf: conferidos)">Níveis & Status</th>
                             <th title="Permissão para consultar cadastro de produtos e estoque">Consultar Prod.</th>
                             <th title="Exibe campos sensíveis: quantidade pedida, código de barras e referência">Ver Sensíveis</th>
                             <th title="Permite acessar esta tela e alterar permissões">Admin</th>
@@ -503,7 +515,10 @@ export function GestaoAcessosPage() {
                         <tbody>
                           {usuariosFiltrados.map((u) => {
                             const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
+                            const ehAdmin = ehAdminPadrao || !!u.modulos.gerenciar_acessos;
                             const ehUsuarioAtual = u.codUsu === user?.codUsu;
+                            const divAtivo = u.modulos.conferencia_entrada_divergente === true || (ehAdmin && u.modulos.conferencia_entrada_divergente !== false);
+                            const confAtivo = u.modulos.conferencia_entrada_conferido === true || (ehAdmin && u.modulos.conferencia_entrada_conferido !== false);
 
                             return (
                               <tr key={u.codUsu}>
@@ -563,6 +578,58 @@ export function GestaoAcessosPage() {
                                   </label>
                                 </td>
 
+                                {/* Níveis e Status Entrada (N1, N2, N3 | Div, Conf) */}
+                                <td>
+                                  <div className="niveis-entrada-group">
+                                    <button
+                                      type="button"
+                                      className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n1 !== false ? 'ativo' : 'inativo'}`}
+                                      disabled={salvandoId === u.codUsu}
+                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n1')}
+                                      title={u.modulos.conferencia_entrada_n1 !== false ? 'Nível 1 Ativo (clique para desativar)' : 'Nível 1 Inativo (clique para ativar)'}
+                                    >
+                                      N1
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n2 !== false ? 'ativo' : 'inativo'}`}
+                                      disabled={salvandoId === u.codUsu}
+                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n2')}
+                                      title={u.modulos.conferencia_entrada_n2 !== false ? 'Nível 2 Ativo (clique para desativar)' : 'Nível 2 Inativo (clique para ativar)'}
+                                    >
+                                      N2
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n3 !== false ? 'ativo' : 'inativo'}`}
+                                      disabled={salvandoId === u.codUsu}
+                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n3')}
+                                      title={u.modulos.conferencia_entrada_n3 !== false ? 'Nível 3 Ativo (clique para desativar)' : 'Nível 3 Inativo (clique para ativar)'}
+                                    >
+                                      N3
+                                    </button>
+                                    <span className="niveis-divider" />
+                                    <button
+                                      type="button"
+                                      className={`nivel-chip-btn chip-status chip-divergente ${divAtivo ? 'ativo' : 'inativo'}`}
+                                      disabled={salvandoId === u.codUsu}
+                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_divergente')}
+                                      title={divAtivo ? 'Visão de Divergentes Ativa (clique para ocultar)' : 'Visão de Divergentes Oculta (clique para exibir)'}
+                                    >
+                                      Div
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`nivel-chip-btn chip-status chip-conferido ${confAtivo ? 'ativo' : 'inativo'}`}
+                                      disabled={salvandoId === u.codUsu}
+                                      onClick={() => handleToggleUsuario(u, 'conferencia_entrada_conferido')}
+                                      title={confAtivo ? 'Visão de Conferidos Ativa (clique para ocultar)' : 'Visão de Conferidos Oculta (clique para exibir)'}
+                                    >
+                                      Conf
+                                    </button>
+                                  </div>
+                                </td>
+
                                 {/* Consulta Produtos */}
                                 <td>
                                   <label className="toggle-switch" title="Consulta de Produtos">
@@ -607,7 +674,7 @@ export function GestaoAcessosPage() {
 
                           {usuariosFiltrados.length === 0 && (
                             <tr>
-                              <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
+                              <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
                                 Nenhum usuário encontrado com o termo informado.
                               </td>
                             </tr>
@@ -620,7 +687,10 @@ export function GestaoAcessosPage() {
                     <div className="acessos-cards-mobile">
                       {usuariosFiltrados.map((u) => {
                         const ehAdminPadrao = ['SUP', 'ANTONY', 'ANTONY.B'].includes(u.nomeUsu.toUpperCase());
+                        const ehAdmin = ehAdminPadrao || !!u.modulos.gerenciar_acessos;
                         const ehUsuarioAtual = u.codUsu === user?.codUsu;
+                        const divAtivo = u.modulos.conferencia_entrada_divergente === true || (ehAdmin && u.modulos.conferencia_entrada_divergente !== false);
+                        const confAtivo = u.modulos.conferencia_entrada_conferido === true || (ehAdmin && u.modulos.conferencia_entrada_conferido !== false);
 
                         return (
                           <div key={`card-${u.codUsu}`} className="acesso-card-mobile">
@@ -677,6 +747,55 @@ export function GestaoAcessosPage() {
                                   />
                                   <span className="toggle-slider" />
                                 </label>
+                              </div>
+
+                              <div className="acesso-card-toggle-item">
+                                <span className="acesso-card-toggle-label">🔢 Níveis & Status</span>
+                                <div className="niveis-entrada-group">
+                                  <button
+                                    type="button"
+                                    className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n1 !== false ? 'ativo' : 'inativo'}`}
+                                    disabled={salvandoId === u.codUsu}
+                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n1')}
+                                  >
+                                    N1
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n2 !== false ? 'ativo' : 'inativo'}`}
+                                    disabled={salvandoId === u.codUsu}
+                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n2')}
+                                  >
+                                    N2
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`nivel-chip-btn ${u.modulos.conferencia_entrada_n3 !== false ? 'ativo' : 'inativo'}`}
+                                    disabled={salvandoId === u.codUsu}
+                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_n3')}
+                                  >
+                                    N3
+                                  </button>
+                                  <span className="niveis-divider" />
+                                  <button
+                                    type="button"
+                                    className={`nivel-chip-btn chip-status chip-divergente ${divAtivo ? 'ativo' : 'inativo'}`}
+                                    disabled={salvandoId === u.codUsu}
+                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_divergente')}
+                                    title="Divergentes"
+                                  >
+                                    Div
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`nivel-chip-btn chip-status chip-conferido ${confAtivo ? 'ativo' : 'inativo'}`}
+                                    disabled={salvandoId === u.codUsu}
+                                    onClick={() => handleToggleUsuario(u, 'conferencia_entrada_conferido')}
+                                    title="Conferidos"
+                                  >
+                                    Conf
+                                  </button>
+                                </div>
                               </div>
 
                               <div className="acesso-card-toggle-item">

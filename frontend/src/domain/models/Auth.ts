@@ -1,6 +1,11 @@
 export interface ModulosUsuario {
   conferencia_saida: boolean;
   conferencia_entrada: boolean;
+  conferencia_entrada_n1: boolean;
+  conferencia_entrada_n2: boolean;
+  conferencia_entrada_n3: boolean;
+  conferencia_entrada_divergente?: boolean;
+  conferencia_entrada_conferido?: boolean;
   consulta_produtos: boolean;
   ver_campos_sensiveis: boolean;
   gerenciar_acessos: boolean;
