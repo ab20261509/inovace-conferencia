@@ -569,9 +569,10 @@
 }
 
 .badge-previsao-entrega.badge-prev-sem-data {
-  background-color: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background-color: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
 }
 
 /* Ribbon Minimalista de Backup Superior */
@@ -617,13 +618,14 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 16px;
   border-bottom: 1px solid var(--slate-100);
   padding-bottom: 10px;
 }
 
 .gestao-rec-card-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -742,8 +744,11 @@
 .gestao-rec-card-badges {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 
 .badge-status-rec {
@@ -1334,6 +1339,11 @@
   .gestao-rec-card-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .gestao-rec-card-badges {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .gestao-rec-card-acoes {
@@ -2009,6 +2019,35 @@
   cursor: wait;
 }
 
+/* Botão Gerar Ocorrência de Sobra */
+.btn-sobra-ocorrencia {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.btn-sobra-ocorrencia:hover:not(:disabled) {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  transform: translateY(-1px);
+}
+
+.btn-sobra-ocorrencia:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 /* Botão Sincronizar Desmembramento do ERP no Card */
 .gestao-btn-sincronizar-desmembramento {
   background: #f8fafc;
@@ -2255,6 +2294,167 @@
   background: #d1fae5;
   border-color: #6ee7b7;
 }
+
+/* =========================================================================
+   Cabeçalho Card Proposta A - Reorganização e Balanceamento
+   ========================================================================= */
+.gestao-rec-card-header-moderno {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid var(--slate-100, #f1f5f9);
+  padding-bottom: 12px;
+}
+
+.gestao-rec-card-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gestao-rec-card-top-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gestao-rec-card-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gestao-rec-card-time-info {
+  font-size: 0.74rem;
+  color: var(--slate-500, #64748b);
+  font-weight: 500;
+}
+
+.gestao-rec-card-corpo-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.gestao-rec-fornecedor-col {
+  min-width: 0;
+}
+
+.gestao-rec-label-muted {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--slate-400, #94a3b8);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.gestao-rec-fornecedor-nome {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--slate-900, #0f172a);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+/* Card do Responsável / Conferente */
+.gestao-rec-responsavel-box {
+  flex-shrink: 0;
+}
+
+.gestao-rec-responsavel-ativo,
+.gestao-rec-responsavel-aberto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--slate-200, #e2e8f0);
+  border-radius: 10px;
+  padding: 6px 12px;
+}
+
+.gestao-rec-avatar-conferente {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.gestao-rec-avatar-placeholder {
+  font-size: 1.1rem;
+}
+
+.gestao-rec-responsavel-detalhes {
+  display: flex;
+  flex-direction: column;
+}
+
+.gestao-rec-responsavel-nome {
+  font-size: 0.80rem;
+  font-weight: 700;
+  color: var(--slate-800, #1e293b);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-sessao-conjunta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.badge-integrado-sankhya {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .gestao-rec-card-corpo-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .gestao-rec-responsavel-box {
+    width: 100%;
+  }
+  .gestao-rec-responsavel-ativo,
+  .gestao-rec-responsavel-aberto {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
 
 
 

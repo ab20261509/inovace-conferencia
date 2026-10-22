@@ -98,14 +98,22 @@ export class IniciarConferenciaEntradaUseCase {
       // A seleção atual do operador é soberana.
       // Desmembra as notas solicitadas criando uma nova sessão exclusiva
       // e migra apenas as bipagens dessas notas para a nova sessão.
+      const statusInicial = statusPorNivel[nivel] || 'N2 em Andamento';
+      const statusPorNotaInicial: Record<number, StatusConferenciaEntrada> = {};
+      for (const n of nunotasSorted) {
+        statusPorNotaInicial[n] = statusInicial;
+      }
+
       const novaSessao: SessaoConferenciaEntrada = {
         id: randomUUID(),
         nunotas: nunotasSorted,
-        status: statusPorNivel[nivel] || 'N2 em Andamento',
+        status: statusInicial,
         nivelAtual: nivel,
         criadoEm: agora,
         atualizadoEm: agora,
         conferente: input.conferente || 'Operador',
+        statusPorNota: statusPorNotaInicial,
+        statusPorNotaJson: JSON.stringify(statusPorNotaInicial),
         chavenfe,
         numnota,
         codparc,
@@ -155,14 +163,22 @@ export class IniciarConferenciaEntradaUseCase {
       }
 
       // 4. Cria uma nova sessão com todas as nunotas
+      const statusInicial = statusPorNivel[nivel] || 'N2 em Andamento';
+      const statusPorNotaInicial: Record<number, StatusConferenciaEntrada> = {};
+      for (const n of nunotasSorted) {
+        statusPorNotaInicial[n] = statusInicial;
+      }
+
       const novaSessao: SessaoConferenciaEntrada = {
         id: randomUUID(),
         nunotas: nunotasSorted,
-        status: statusPorNivel[nivel] || 'N2 em Andamento',
+        status: statusInicial,
         nivelAtual: nivel,
         criadoEm: agora,
         atualizadoEm: agora,
         conferente: input.conferente || 'Operador',
+        statusPorNota: statusPorNotaInicial,
+        statusPorNotaJson: JSON.stringify(statusPorNotaInicial),
         chavenfe,
         numnota,
         codparc,
@@ -177,22 +193,57 @@ export class IniciarConferenciaEntradaUseCase {
     if (numnota && !sessaoParaUsar.numnota) sessaoParaUsar.numnota = numnota;
     if (codparc && !sessaoParaUsar.codparc) sessaoParaUsar.codparc = codparc;
 
+    const statusRecontagemPorNivel: Record<number, StatusConferenciaEntrada> = {
+      1: 'Recontagem N1 em Andamento',
+      2: 'Recontagem N2 em Andamento',
+      3: 'Recontagem N3 em Andamento',
+    };
+
+    const ehRecontagem =
+      sessaoParaUsar.status.includes('Recontagem') ||
+      sessaoParaUsar.status === 'Aguardando Recontagem N1' ||
+      sessaoParaUsar.status === 'Aguardando Recontagem N2' ||
+      sessaoParaUsar.status === 'Aguardando Recontagem N3' ||
+      sessaoParaUsar.status === 'Em Reconferência' ||
+      Boolean(sessaoParaUsar.itensRecontagem && sessaoParaUsar.itensRecontagem.length > 0);
+
     if (input.nivel && [1, 2, 3].includes(input.nivel) && input.nivel !== sessaoParaUsar.nivelAtual) {
       sessaoParaUsar.nivelAtual = input.nivel;
-      sessaoParaUsar.status = statusPorNivel[input.nivel] || sessaoParaUsar.status;
+      sessaoParaUsar.status = ehRecontagem
+        ? (statusRecontagemPorNivel[input.nivel] || 'Recontagem N2 em Andamento')
+        : (statusPorNivel[input.nivel] || sessaoParaUsar.status);
     } else {
       // Ativa o status de andamento para o nível corrente
-      if (sessaoParaUsar.nivelAtual === 2) {
-        sessaoParaUsar.status = 'N2 em Andamento';
-      } else if (sessaoParaUsar.nivelAtual === 3) {
-        sessaoParaUsar.status = 'N3 em Andamento';
+      if (ehRecontagem) {
+        sessaoParaUsar.status = statusRecontagemPorNivel[sessaoParaUsar.nivelAtual] || 'Recontagem N2 em Andamento';
       } else {
-        sessaoParaUsar.status = 'N1 em Andamento';
+        if (sessaoParaUsar.nivelAtual === 2) {
+          sessaoParaUsar.status = 'N2 em Andamento';
+        } else if (sessaoParaUsar.nivelAtual === 3) {
+          sessaoParaUsar.status = 'N3 em Andamento';
+        } else {
+          sessaoParaUsar.status = 'N1 em Andamento';
+        }
       }
     }
 
     sessaoParaUsar.conferente = input.conferente || sessaoParaUsar.conferente;
     sessaoParaUsar.atualizadoEm = agora;
+
+    // Sincronizar statusPorNota de todas as notas da sessão para refletir o andamento
+    if (!sessaoParaUsar.statusPorNota) {
+      sessaoParaUsar.statusPorNota = {};
+    }
+    for (const n of sessaoParaUsar.nunotas) {
+      if (
+        sessaoParaUsar.statusPorNota[n] !== 'Conferido' &&
+        sessaoParaUsar.statusPorNota[n] !== 'Enviado ao Sankhya'
+      ) {
+        sessaoParaUsar.statusPorNota[n] = sessaoParaUsar.status;
+      }
+    }
+    sessaoParaUsar.statusPorNotaJson = JSON.stringify(sessaoParaUsar.statusPorNota);
+
     await this.conferenciaRepo.salvarSessao(sessaoParaUsar);
     return sessaoParaUsar;
   }

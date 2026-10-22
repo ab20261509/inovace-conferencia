@@ -21,6 +21,7 @@ export interface RegistrarBipagemEntradaOutput {
   referencia: string;
   fatorAplicado: number;
   statusSessao?: string;
+  conferidoCompleto?: boolean;
 }
 
 export class RegistrarBipagemEntradaUseCase {
@@ -227,7 +228,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
 
     await this.conferenciaRepo.salvarBipagem(novaBipagem);
 
-    // Garantir que a conferência reflita o status de andamento no nível corrente
+    // Garantir que a conferência e a nota reflitam o status de andamento no nível corrente
     const statusEsperado =
       (novaBipagem.nivel === 2)
         ? 'N2 em Andamento'
@@ -235,15 +236,43 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         ? 'N3 em Andamento'
         : 'N1 em Andamento';
 
+    let sessaoAlterada = false;
     if (
       sessao.status !== statusEsperado &&
       sessao.status !== 'Conferido' &&
       sessao.status !== 'Enviado ao Sankhya'
     ) {
       sessao.status = statusEsperado;
+      sessaoAlterada = true;
+    }
+
+    if (
+      sessao.statusPorNota &&
+      (sessao.statusPorNota[nunota] === 'Em Aberto' ||
+        sessao.statusPorNota[nunota] === 'Aguardando N2' ||
+        sessao.statusPorNota[nunota] === 'Aguardando N3' ||
+        (sessao.statusPorNota[nunota] === 'Divergente' && sessao.nivelAtual === 3))
+    ) {
+      sessao.statusPorNota[nunota] = statusEsperado;
+      sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
+      sessaoAlterada = true;
+    }
+
+    if (sessaoAlterada) {
       sessao.atualizadoEm = new Date().toISOString();
       await this.conferenciaRepo.salvarSessao(sessao);
     }
+
+    // Verificar se a contagem deste item atingiu a quantidade da nota fiscal no nível atual
+    const todasBipagensItem = await this.conferenciaRepo.listarBipagens(sessao.id);
+    let totalConferidoNivelItem = 0;
+    for (const b of todasBipagensItem) {
+      if (!b.anulado && b.nunota === nunota && b.codprod === codprod && b.sequencia === sequencia && b.nivel === novaBipagem.nivel) {
+        totalConferidoNivelItem += b.qtdConferida;
+      }
+    }
+    const qtdEsperadaItem = Number(targetRow[fieldIndex['QTDNEG']] || 0);
+    const conferidoCompleto = qtdEsperadaItem > 0 ? totalConferidoNivelItem >= qtdEsperadaItem : totalConferidoNivelItem > 0;
 
     return {
       bipagem: novaBipagem,
@@ -251,6 +280,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       referencia,
       fatorAplicado: fator,
       statusSessao: sessao.status,
+      conferidoCompleto,
     };
   }
 }

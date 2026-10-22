@@ -58,10 +58,12 @@ export class ListarTodasConferenciasEntradaUseCase {
         chavenfe?: string;
         fornecedor: string;
         qtdItens: number;
+        qtdUnidades: number;
         dtneg?: string;
         dtentsai?: string;
         statusnota?: string;
         adPreventrega?: string;
+        adConferencia?: string;
       }
     > = {};
 
@@ -80,12 +82,14 @@ SELECT
     CAB.DTENTSAI,
     TO_CHAR(CAB.AD_PREVENTREGA, 'YYYY-MM-DD') AS AD_PREVENTREGA,
     CAB.STATUSNOTA,
+    NVL(CAB.AD_CONFERENCIA, '') AS AD_CONFERENCIA,
     NVL(PAR.RAZAOSOCIAL, NVL(PAR.NOMEPARC, 'FORNECEDOR NÃO INFORMADO')) AS NOMEPARC,
-    NVL(ITE.QTD_ITENS, 0) AS QTD_ITENS
+    NVL(ITE.QTD_ITENS, 0) AS QTD_ITENS,
+    NVL(ITE.QTD_UNIDADES, 0) AS QTD_UNIDADES
 FROM TGFCAB CAB
 LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
 LEFT JOIN (
-    SELECT NUNOTA, COUNT(DISTINCT CODPROD) AS QTD_ITENS
+    SELECT NUNOTA, COUNT(DISTINCT CODPROD) AS QTD_ITENS, SUM(NVL(QTDNEG, 0)) AS QTD_UNIDADES
     FROM TGFITE
     GROUP BY NUNOTA
 ) ITE ON ITE.NUNOTA = CAB.NUNOTA
@@ -114,12 +118,14 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         const chavenfe = r[fieldIndexMap['CHAVENFE']] ? String(r[fieldIndexMap['CHAVENFE']]).trim() : undefined;
         const fornecedor = String(r[fieldIndexMap['NOMEPARC']] || 'FORNECEDOR NÃO INFORMADO').trim();
         const qtdItens = Number(r[fieldIndexMap['QTD_ITENS']]) || 0;
+        const qtdUnidades = Number(r[fieldIndexMap['QTD_UNIDADES']]) || 0;
         const dtneg = r[fieldIndexMap['DTNEG']] ? String(r[fieldIndexMap['DTNEG']]) : undefined;
         const dtentsai = r[fieldIndexMap['DTENTSAI']] ? String(r[fieldIndexMap['DTENTSAI']]) : undefined;
         const statusnota = r[fieldIndexMap['STATUSNOTA']] ? String(r[fieldIndexMap['STATUSNOTA']]) : undefined;
         const adPreventrega = r[fieldIndexMap['AD_PREVENTREGA']] ? String(r[fieldIndexMap['AD_PREVENTREGA']]).trim() : undefined;
+        const adConferencia = String(r[fieldIndexMap['AD_CONFERENCIA']] || '').trim().toUpperCase();
 
-        mapaNotasSankhya[nunota] = { numnota, codparc, chavenfe, fornecedor, qtdItens, dtneg, dtentsai, statusnota, adPreventrega };
+        mapaNotasSankhya[nunota] = { numnota, codparc, chavenfe, fornecedor, qtdItens, qtdUnidades, dtneg, dtentsai, statusnota, adPreventrega, adConferencia };
       }
     } catch (err) {
       console.warn('⚠️ Falha ao buscar dados de cabeçalho das notas no Sankhya:', err);
@@ -133,6 +139,47 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
       const temNotaNoSankhya = sessao.nunotas.some((n) => !!mapaNotasSankhya[n]);
       if (!temNotaNoSankhya && Object.keys(mapaNotasSankhya).length > 0) {
         continue;
+      }
+
+      // Regra de integridade com o Sankhya: se a conferência já havia sido INTEGRADA ('Enviado ao Sankhya'),
+      // mas no Sankhya ERP o campo AD_CONFERENCIA foi limpo/removido (diferente de 'CONFERIDO'),
+      // significa que a conferência foi cancelada/desfeita no ERP e deve voltar a 'Em Aberto'.
+      // Notas com status 'Conferido' ou 'Aguardando Aprovação' ainda estão aguardando envio na aba Envio Sankhya
+      // e NÃO foram integradas ainda, portanto NÃO devem ser resetadas.
+      const algumaNotaNaoConferidaNoSankhya = sessao.nunotas.some((n) => {
+        const info = mapaNotasSankhya[n];
+        return info && info.adConferencia !== 'CONFERIDO';
+      });
+
+      if (
+        algumaNotaNaoConferidaNoSankhya &&
+        sessao.status === 'Enviado ao Sankhya' &&
+        Boolean(sessao.enviadoSankhyaEm)
+      ) {
+        const bipagensValidas = (await this.conferenciaRepo.listarBipagens(sessao.id)).filter((b) => !b.anulado);
+        sessao.backupContagem = {
+          statusAnterior: sessao.status,
+          nivelAnterior: sessao.nivelAtual,
+          reiniciadoEm: new Date().toISOString(),
+          reiniciadoPor: 'SANKHYA (AD_CONFERENCIA)',
+          motivo: 'Conferência resetada no ERP Sankhya (AD_CONFERENCIA não está CONFERIDO)',
+          totalBipagensAnuladas: bipagensValidas.length,
+        };
+        sessao.status = 'Em Aberto';
+        sessao.conferente = '';
+        sessao.nivelAtual = 1;
+        sessao.finalizadoEm = undefined;
+        sessao.aprovadoPor = undefined;
+        sessao.aprovadoEm = undefined;
+        sessao.enviadoSankhyaEm = undefined;
+        sessao.statusPorNota = {};
+        for (const n of sessao.nunotas) {
+          sessao.statusPorNota[n] = 'Em Aberto';
+        }
+        for (const b of bipagensValidas) {
+          await this.conferenciaRepo.anularBipagem(b.id, true);
+        }
+        await this.conferenciaRepo.salvarSessao(sessao);
       }
 
       const bipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
@@ -163,6 +210,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
       const numerosNotasArr: number[] = [];
       const fornecedoresSet = new Set<string>();
       let totalItens = 0;
+      let totalQtdEsperada = 0;
       const notasDetalhadas: Array<{ nunota: number; numnota: number }> = [];
 
       for (const nunota of sessao.nunotas) {
@@ -171,6 +219,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
           if (info.numnota) numerosNotasArr.push(info.numnota);
           if (info.fornecedor) fornecedoresSet.add(info.fornecedor);
           totalItens += info.qtdItens;
+          totalQtdEsperada += (info.qtdUnidades || 0);
           notasDetalhadas.push({ nunota, numnota: info.numnota || nunota });
         } else {
           numerosNotasArr.push(nunota);
@@ -282,6 +331,8 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
             (bk) => bk.nunotaOrigem === nunota || bk.conferenciaIdOrigem === sessao.id
           );
 
+          const ehAbertoNota = statusNota === 'Em Aberto';
+
           resultado.push({
             id: `${sessao.id}_${nunota}`,
             conferenciaIdOrig: sessao.id,
@@ -290,14 +341,15 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
             numerosNotas: String(numnotaReal),
             fornecedor: fornecedorNota,
             status: statusNota,
-            nivelAtual: sessao.nivelAtual,
-            conferente: sessao.conferente || 'Operador',
+            nivelAtual: ehAbertoNota ? 1 : sessao.nivelAtual,
+            conferente: ehAbertoNota ? 'Aguardando Início' : (sessao.conferente || 'Operador'),
             criadoEm: sessao.criadoEm,
             atualizadoEm: sessao.atualizadoEm,
             finalizadoEm: sessao.finalizadoEm,
             enviadoSankhyaEm: sessao.enviadoSankhyaEm,
             aprovadoPor: sessao.aprovadoPor,
             totalItens: totalItensNota,
+            totalQtdEsperada: info?.qtdUnidades || 0,
             totalBipadoN1: totalBipadoN1Nota,
             totalBipadoN2: totalBipadoN2Nota,
             totalBipadoN3: totalBipadoN3Nota,
@@ -310,9 +362,9 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
             numnota: numnotaReal,
             codparc: codparcNota,
             adPreventrega: info?.adPreventrega,
-            conferenteN1: confN1Nota,
-            conferenteN2: confN2Nota,
-            conferenteN3: confN3Nota,
+            conferenteN1: ehAbertoNota ? undefined : confN1Nota,
+            conferenteN2: ehAbertoNota ? undefined : confN2Nota,
+            conferenteN3: ehAbertoNota ? undefined : confN3Nota,
             backupsDisponiveis: backupsNota,
           });
         }
@@ -321,6 +373,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
           numerosNotasArr.length > 0 ? numerosNotasArr.join(', ') : sessao.nunotas.join(', ');
         const fornecedor =
           fornecedoresSet.size > 0 ? Array.from(fornecedoresSet).join(' / ') : 'Fornecedor da Nota';
+        const ehAbertoSessao = sessao.status === 'Em Aberto';
 
         resultado.push({
           id: sessao.id,
@@ -330,14 +383,15 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
           numerosNotas,
           fornecedor,
           status: sessao.status,
-          nivelAtual: sessao.nivelAtual,
-          conferente: sessao.conferente || 'Operador',
+          nivelAtual: ehAbertoSessao ? 1 : sessao.nivelAtual,
+          conferente: ehAbertoSessao ? 'Aguardando Início' : (sessao.conferente || 'Operador'),
           criadoEm: sessao.criadoEm,
           atualizadoEm: sessao.atualizadoEm,
           finalizadoEm: sessao.finalizadoEm,
           enviadoSankhyaEm: sessao.enviadoSankhyaEm,
           aprovadoPor: sessao.aprovadoPor,
           totalItens,
+          totalQtdEsperada,
           totalBipadoN1,
           totalBipadoN2,
           totalBipadoN3,
@@ -350,9 +404,9 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
           numnota,
           codparc,
           adPreventrega: primeiraNotaInfo?.adPreventrega,
-          conferenteN1,
-          conferenteN2,
-          conferenteN3,
+          conferenteN1: ehAbertoSessao ? undefined : conferenteN1,
+          conferenteN2: ehAbertoSessao ? undefined : conferenteN2,
+          conferenteN3: ehAbertoSessao ? undefined : conferenteN3,
           backupsDisponiveis,
         });
       }
@@ -391,6 +445,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         criadoEm: dataCriacao,
         atualizadoEm: dataCriacao,
         totalItens: info.qtdItens || 0,
+        totalQtdEsperada: info.qtdUnidades || 0,
         totalBipadoN1: 0,
         totalBipadoN2: 0,
         totalBipadoN3: 0,

@@ -54,7 +54,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
       nunotas,
       status: row.status as StatusConferenciaEntrada,
       nivelAtual: Number(row.nivel_atual),
-      conferente: String(row.conferente || 'Operador'),
+      conferente: row.conferente ? String(row.conferente).trim() : '',
       criadoEm: String(row.criado_em),
       atualizadoEm: String(row.atualizado_em),
       finalizadoEm: row.finalizado_em ? String(row.finalizado_em) : undefined,
@@ -198,7 +198,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         JSON.stringify(sessao.nunotas || []),
         sessao.status,
         sessao.nivelAtual,
-        sessao.conferente || 'Operador',
+        sessao.conferente ? sessao.conferente.trim() : '',
         sessao.criadoEm || agora,
         sessao.atualizadoEm || agora,
         sessao.finalizadoEm || null,
@@ -262,21 +262,23 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     });
   }
 
-  async anularBipagem(bipagemId: string): Promise<void> {
-    const checkRes = await this.client.execute({
-      sql: `SELECT c.status, c.status_por_nota_json, b.nunota
-            FROM bipagens_entrada b
-            JOIN conferencias_entrada c ON c.id = b.conferencia_id
-            WHERE b.id = ?`,
-      args: [bipagemId],
-    });
+  async anularBipagem(bipagemId: string, forcar = false): Promise<void> {
+    if (!forcar) {
+      const checkRes = await this.client.execute({
+        sql: `SELECT c.status, c.status_por_nota_json, b.nunota
+              FROM bipagens_entrada b
+              JOIN conferencias_entrada c ON c.id = b.conferencia_id
+              WHERE b.id = ?`,
+        args: [bipagemId],
+      });
 
-    if (checkRes.rows.length > 0) {
-      const row = checkRes.rows[0];
-      const statusConf = String(row.status || '');
-      const statusBloqueados = ['Conferido', 'Enviado ao Sankhya', 'Divergente'];
-      if (statusBloqueados.includes(statusConf)) {
-        throw new Error(`Esta conferência está no status "${statusConf}" e não permite estorno de bipagens.`);
+      if (checkRes.rows.length > 0) {
+        const row = checkRes.rows[0];
+        const statusConf = String(row.status || '');
+        const statusBloqueados = ['Conferido', 'Enviado ao Sankhya', 'Divergente'];
+        if (statusBloqueados.includes(statusConf)) {
+          throw new Error(`Esta conferência está no status "${statusConf}" e não permite estorno de bipagens.`);
+        }
       }
     }
 
@@ -401,12 +403,24 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
         escolhida = ativaQualquer;
       }
 
-      const statusNota = escolhida.sessao.statusPorNota?.[nunota] || escolhida.sessao.status;
+      let statusNota = escolhida.sessao.statusPorNota?.[nunota] || escolhida.sessao.status;
+      // Se a sessão está em andamento (N1/N2/N3 em Andamento, Divergente, etc.) mas statusPorNota continha 'Em Aberto',
+      // o status real da sessão prevalece para não mascarar a conferência ativa
+      if (
+        statusNota === 'Em Aberto' &&
+        escolhida.sessao.status !== 'Em Aberto' &&
+        escolhida.sessao.status !== 'Conferido' &&
+        escolhida.sessao.status !== 'Enviado ao Sankhya'
+      ) {
+        statusNota = escolhida.sessao.status;
+      }
+
+      const ehEmAberto = statusNota === 'Em Aberto';
       mapa[nunota] = {
         status: statusNota,
         id: escolhida.sessao.id,
         nivel: escolhida.sessao.nivelAtual,
-        conferente: escolhida.sessao.conferente,
+        conferente: ehEmAberto ? undefined : (escolhida.sessao.conferente?.trim() || undefined),
       };
     }
 
@@ -563,6 +577,85 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
     }
 
     return total;
+  }
+
+  async abaterSobraBipagens(
+    conferenciaId: string,
+    nunota: number,
+    codprod: number,
+    sequencia: number | undefined,
+    quantidadeSobra: number
+  ): Promise<{ abatido: number }> {
+    // 1. Busca bipagens ativas da conferência para este produto e nota
+    // Se houver sequência específica, filtra também por ela se houver correspondência
+    let sql = `
+      SELECT id, qtd_conferida, nivel, lote, sequencia
+      FROM bipagens_entrada
+      WHERE conferencia_id = ? AND nunota = ? AND codprod = ? AND anulado = 0
+      ORDER BY nivel DESC, timestamp DESC
+    `;
+    let res = await this.client.execute({ sql, args: [conferenciaId, nunota, codprod] });
+
+    if (res.rows.length === 0) {
+      return { abatido: 0 };
+    }
+
+    // Se sequência foi informada e houver linhas com essa sequência, prioriza
+    let rowsParaUso = res.rows;
+    if (sequencia !== undefined) {
+      const comSeq = res.rows.filter((r) => Number(r.sequencia) === Number(sequencia));
+      if (comSeq.length > 0) {
+        rowsParaUso = comSeq;
+      }
+    }
+
+    // Prioriza o nível mais alto registrado (ex: N3 ou N2)
+    const nivelAlvo = Number(rowsParaUso[0].nivel);
+    const bipagensAlvo = rowsParaUso.filter((r) => Number(r.nivel) === nivelAlvo);
+
+    let restante = quantidadeSobra;
+    let totalAbatido = 0;
+
+    for (const b of bipagensAlvo) {
+      if (restante <= 0) break;
+      const qtdBip = Number(b.qtd_conferida);
+      if (qtdBip <= restante) {
+        // Anula a bipagem inteira pois foi toda absorvida pelo excedente
+        await this.client.execute({
+          sql: `UPDATE bipagens_entrada SET anulado = 1 WHERE id = ?`,
+          args: [String(b.id)],
+        });
+        restante -= qtdBip;
+        totalAbatido += qtdBip;
+      } else {
+        // Deduz parcialmente da bipagem excedente
+        const novaQtd = qtdBip - restante;
+        await this.client.execute({
+          sql: `UPDATE bipagens_entrada SET qtd_conferida = ? WHERE id = ?`,
+          args: [novaQtd, String(b.id)],
+        });
+        totalAbatido += restante;
+        restante = 0;
+      }
+    }
+
+    if (this.auditService) {
+      await this.auditService.registrar({
+        usuario: 'Gestor',
+        acao: 'ABATER_SOBRA_BIPAGEM',
+        recurso: `conferencia:${conferenciaId}`,
+        detalhes: {
+          conferenciaId,
+          nunota,
+          codprod,
+          sequencia,
+          quantidadeSobra,
+          totalAbatido,
+        },
+      });
+    }
+
+    return { abatido: totalAbatido };
   }
 }
 

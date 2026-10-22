@@ -108,3 +108,17 @@
   border: 1px solid #bfdbfe;
   margin-top: 4px;
 }
+
+/* =========================================================================
+   Ajuste de espaçamento - Eliminar espaço entre Scanner e Abas de Produtos
+   ========================================================================= */
+
+.conferencia-entrada-page .conferencia-top-fixo {
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.conferencia-entrada-page .conferencia-top-fixo .ui-painel {
+  margin-bottom: 0 !important;
+}
+

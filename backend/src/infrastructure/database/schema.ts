@@ -138,6 +138,7 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
       id TEXT PRIMARY KEY,
       conferencia_id TEXT,
       nunota INTEGER,
+      numnota INTEGER,
       sequencia INTEGER,
       codprod INTEGER,
       descrprod TEXT,
@@ -180,6 +181,10 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   await garantirColuna(client, 'conferencias_entrada', 'itens_recontagem_json', 'TEXT');
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_chavenfe ON conferencias_entrada(chavenfe);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_conf_numnota ON conferencias_entrada(numnota);`);
+
+  // Evolução da tabela ocorrencias_conferencia_entrada (numnota para identificação fiscal direta)
+  await garantirColuna(client, 'ocorrencias_conferencia_entrada', 'numnota', 'INTEGER');
+  await client.execute(`CREATE INDEX IF NOT EXISTS idx_ocorr_numnota ON ocorrencias_conferencia_entrada(numnota);`);
 
   // Migração segura para ocorrencias_conferencia_entrada (remover NOT NULL e FK de conferencia_id / nunota se existir)
   try {

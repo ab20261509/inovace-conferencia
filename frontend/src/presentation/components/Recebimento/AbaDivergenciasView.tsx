@@ -13,6 +13,7 @@ import {
 } from './recebimentoHelpers';
 import { ModalDesmembrarItem } from './ModalDesmembrarItem';
 import { ModalPesquisaLocalEstoque } from './ModalPesquisaLocalEstoque';
+import { ModalOcorrenciaSobra } from './ModalOcorrenciaSobra';
 import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
 
 export interface AbaDivergenciasViewProps {
@@ -47,6 +48,21 @@ export interface AbaDivergenciasViewProps {
   ) => Promise<void>;
   processandoDesmembramento?: string | null;
   onLocalAlterado?: (nunota: number, sequencia: number, novoCodlocal: number) => void;
+  onRegistrarOcorrenciaSobra?: (dados: {
+    conferenciaId: string;
+    nunota: number;
+    numnota?: number;
+    sequencia?: number;
+    codprod: number;
+    descrprod?: string;
+    quantidadeSobra: number;
+    lote?: string;
+    validade?: string;
+    fabricacao?: string;
+    motivo?: string;
+    codlocalDestino?: number;
+    fotos?: string[];
+  }) => Promise<void>;
 }
 
 export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
@@ -64,6 +80,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   onExecutarDesmembramento,
   processandoDesmembramento,
   onLocalAlterado,
+  onRegistrarOcorrenciaSobra,
 }) => {
   const recebimentoService = React.useMemo(() => new RecebimentoApiService(), []);
   const [locaisAlterados, setLocaisAlterados] = useState<Record<string, number>>({});
@@ -126,6 +143,11 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
     grupo: ConferenciaDivergenciaGrupo;
   } | null>(null);
   const [executandoDesmembramento, setExecutandoDesmembramento] = useState(false);
+  const [modalOcorrenciaSobra, setModalOcorrenciaSobra] = useState<{
+    item: ItemDivergenciaResumo;
+    grupo: ConferenciaDivergenciaGrupo;
+  } | null>(null);
+  const [executandoOcorrenciaSobra, setExecutandoOcorrenciaSobra] = useState(false);
   const [lotesExpandidosDiv, setLotesExpandidosDiv] = useState<Record<string, boolean>>({});
   const [decisoesFiscaisPorGrupo, setDecisoesFiscaisPorGrupo] = useState<
     Record<string, Record<string, DecisaoFiscalItem>>
@@ -899,6 +921,17 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                             ? `+${diferenca} (Sobra)`
                                             : '✓ OK'}
                                         </span>
+                                        {diferenca > 0 && (
+                                          <button
+                                            type="button"
+                                            className="btn-sobra-ocorrencia"
+                                            disabled={executandoOcorrenciaSobra}
+                                            onClick={() => setModalOcorrenciaSobra({ item, grupo })}
+                                            title="Registrar ocorrência formal de SOBRA e deduzir o excedente da contagem para sanar a divergência"
+                                          >
+                                            📦 Gerar Ocorrência de Sobra
+                                          </button>
+                                        )}
                                         {diferenca < 0 && (
                                           isFaltaIsolada ? (
                                             <span
@@ -1309,6 +1342,17 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       ? `+${diferenca} (Sobra)`
                                       : '✓ OK'}
                                   </span>
+                                  {diferenca > 0 && (
+                                    <button
+                                      type="button"
+                                      className="btn-sobra-ocorrencia"
+                                      disabled={executandoOcorrenciaSobra}
+                                      onClick={() => setModalOcorrenciaSobra({ item, grupo })}
+                                      title="Registrar ocorrência formal de SOBRA e deduzir o excedente da contagem para sanar a divergência"
+                                    >
+                                      📦 Gerar Ocorrência de Sobra
+                                    </button>
+                                  )}
                                   {diferenca < 0 && (
                                     isFaltaIsolada ? (
                                       <span
@@ -1648,6 +1692,29 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
               setModalDesmembrarItem(null);
             } finally {
               setExecutandoDesmembramento(false);
+            }
+          }}
+        />
+      )}
+
+      {modalOcorrenciaSobra && (
+        <ModalOcorrenciaSobra
+          isOpen={Boolean(modalOcorrenciaSobra)}
+          onClose={() => setModalOcorrenciaSobra(null)}
+          item={modalOcorrenciaSobra.item}
+          grupo={modalOcorrenciaSobra.grupo}
+          loading={executandoOcorrenciaSobra}
+          onConfirmar={async (dados) => {
+            setExecutandoOcorrenciaSobra(true);
+            try {
+              if (onRegistrarOcorrenciaSobra) {
+                await onRegistrarOcorrenciaSobra(dados);
+              } else {
+                await recebimentoService.registrarOcorrenciaSobra(dados.conferenciaId, dados);
+              }
+              setModalOcorrenciaSobra(null);
+            } finally {
+              setExecutandoOcorrenciaSobra(false);
             }
           }}
         />

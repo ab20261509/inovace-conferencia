@@ -391,6 +391,7 @@ export function GestaoAcessosPage() {
         gestao_recebimento_aba_divergencias: false,
         gestao_recebimento_aba_envio_sankhya: false,
         gestao_recebimento_aba_ocorrencias: false,
+        gestao_recebimento_backup: false,
         conferencia_entrada_n1: true,
         conferencia_entrada_n2: true,
         conferencia_entrada_n3: true,
@@ -408,6 +409,7 @@ export function GestaoAcessosPage() {
         gestao_recebimento_aba_divergencias: true,
         gestao_recebimento_aba_envio_sankhya: true,
         gestao_recebimento_aba_ocorrencias: true,
+        gestao_recebimento_backup: true,
         conferencia_entrada_n1: true,
         conferencia_entrada_n2: true,
         conferencia_entrada_n3: true,
@@ -425,6 +427,7 @@ export function GestaoAcessosPage() {
         gestao_recebimento_aba_divergencias: true,
         gestao_recebimento_aba_envio_sankhya: true,
         gestao_recebimento_aba_ocorrencias: true,
+        gestao_recebimento_backup: true,
         conferencia_entrada_n1: true,
         conferencia_entrada_n2: true,
         conferencia_entrada_n3: true,
@@ -442,6 +445,7 @@ export function GestaoAcessosPage() {
         gestao_recebimento_aba_divergencias: false,
         gestao_recebimento_aba_envio_sankhya: false,
         gestao_recebimento_aba_ocorrencias: false,
+        gestao_recebimento_backup: false,
         conferencia_entrada_n1: false,
         conferencia_entrada_n2: false,
         conferencia_entrada_n3: false,
@@ -530,6 +534,7 @@ export function GestaoAcessosPage() {
       if (ehAdmin || u.modulos.gestao_recebimento_aba_divergencias) abasGestao.push('Div');
       if (ehAdmin || u.modulos.gestao_recebimento_aba_envio_sankhya) abasGestao.push('Envio');
       if (ehAdmin || u.modulos.gestao_recebimento_aba_ocorrencias) abasGestao.push('Ocorr');
+      if (ehAdmin || u.modulos.gestao_recebimento_backup) abasGestao.push('Bkp');
 
       const detalheAbas = abasGestao.length > 0 ? ` (${abasGestao.join('·')})` : ' (Conf)';
       badges.push(
@@ -1501,6 +1506,27 @@ export function GestaoAcessosPage() {
                                     disabled={salvandoId === usuarioDrawer.codUsu}
                                     onChange={() =>
                                       handleToggleUsuario(usuarioDrawer, 'gestao_recebimento_aba_ocorrencias')
+                                    }
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
+
+                              {/* Rotina de Backup */}
+                              <div className="drawer-subtoggle-row">
+                                <div className="drawer-toggle-desc">
+                                  <span className="drawer-toggle-label">📦 Rotina de Backup</span>
+                                  <span className="drawer-toggle-sub">
+                                    Visualização de contagens arquivadas e restauração de backups de conferência
+                                  </span>
+                                </div>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!usuarioDrawer.modulos.gestao_recebimento_backup}
+                                    disabled={salvandoId === usuarioDrawer.codUsu}
+                                    onChange={() =>
+                                      handleToggleUsuario(usuarioDrawer, 'gestao_recebimento_backup')
                                     }
                                   />
                                   <span className="toggle-slider" />

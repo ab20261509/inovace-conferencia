@@ -14,7 +14,8 @@ export type StatusOcorrenciaEntrada =
   | 'PENDENTE'
   | 'RESOLVIDO'
   | 'INTEGRADO_ERP'
-  | 'DEVOLVIDO';
+  | 'DEVOLVIDO'
+  | 'CANCELADO';
 
 export type OrigemOcorrenciaEntrada = 'COLETOR' | 'GESTAO';
 
@@ -22,6 +23,7 @@ export interface OcorrenciaConferenciaEntrada {
   id: string;
   conferenciaId?: string;
   nunota?: number;
+  numnota?: number;
   sequencia?: number;
   codprod?: number;
   descrprod?: string;
@@ -33,6 +35,7 @@ export interface OcorrenciaConferenciaEntrada {
   motivo?: string;
   codlocalDestino?: number;
   fotos?: string[]; // URLs ou Base64 das fotos anexadas
+  jaBipado?: boolean;
   status: StatusOcorrenciaEntrada;
   origem: OrigemOcorrenciaEntrada;
   criadoPor?: string;

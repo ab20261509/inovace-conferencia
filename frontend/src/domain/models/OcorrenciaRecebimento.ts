@@ -14,7 +14,8 @@ export type StatusOcorrenciaRecebimento =
   | 'PENDENTE'
   | 'RESOLVIDO'
   | 'INTEGRADO_ERP'
-  | 'DEVOLVIDO';
+  | 'DEVOLVIDO'
+  | 'CANCELADO';
 
 export type OrigemOcorrenciaRecebimento = 'COLETOR' | 'GESTAO';
 
@@ -22,6 +23,7 @@ export interface OcorrenciaRecebimento {
   id: string;
   conferenciaId?: string;
   nunota?: number;
+  numnota?: number;
   sequencia?: number;
   codprod?: number;
   descrprod?: string;
@@ -33,6 +35,7 @@ export interface OcorrenciaRecebimento {
   motivo?: string;
   codlocalDestino?: number;
   fotos?: string[];
+  jaBipado?: boolean;
   status: StatusOcorrenciaRecebimento;
   origem: OrigemOcorrenciaRecebimento;
   criadoPor?: string;
@@ -43,6 +46,7 @@ export interface OcorrenciaRecebimento {
 export interface RegistrarOcorrenciaInput {
   conferenciaId?: string;
   nunota?: number;
+  numnota?: number;
   sequencia?: number;
   codprod?: number;
   descrprod?: string;
@@ -54,6 +58,7 @@ export interface RegistrarOcorrenciaInput {
   motivo?: string;
   codlocalDestino?: number;
   fotos?: string[];
+  jaBipado?: boolean;
   origem?: OrigemOcorrenciaRecebimento;
   criadoPor?: string;
 }
@@ -96,4 +101,38 @@ export const TIPOS_OCORRENCIA_LABELS: Record<TipoOcorrenciaRecebimento, string> 
   DIVERGENCIA_VALIDADE: 'Divergência de Validade',
   QUANTIDADE_DIVERGENTE: 'Quantidade Divergente',
 };
+
+export interface TermosOcorrencia {
+  nome: string;
+  adjetivoUnidade: string;
+  termoAcao: string;
+  marcadaComo: string;
+}
+
+export function obterTermosOcorrencia(tipo: TipoOcorrenciaRecebimento): TermosOcorrencia {
+  switch (tipo) {
+    case 'VENCIDO':
+      return {
+        nome: 'Produto Vencido',
+        adjetivoUnidade: 'vencida',
+        termoAcao: 'produto vencido',
+        marcadaComo: 'vencida',
+      };
+    case 'VALIDADE_PROXIMA':
+      return {
+        nome: 'Validade Próxima',
+        adjetivoUnidade: 'com validade próxima',
+        termoAcao: 'validade próxima',
+        marcadaComo: 'com validade próxima',
+      };
+    case 'AVARIA':
+    default:
+      return {
+        nome: 'Avaria',
+        adjetivoUnidade: 'avariada',
+        termoAcao: 'avaria',
+        marcadaComo: 'avariada',
+      };
+  }
+}
 

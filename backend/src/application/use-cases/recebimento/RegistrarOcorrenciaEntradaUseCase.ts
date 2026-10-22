@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { IOcorrenciaConferenciaEntradaRepository } from '../../../domain/ports/IOcorrenciaConferenciaEntradaRepository.js';
 import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
+import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import {
   OcorrenciaConferenciaEntrada,
   TipoOcorrenciaEntrada,
@@ -10,6 +11,7 @@ import {
 export interface RegistrarOcorrenciaEntradaInput {
   conferenciaId?: string;
   nunota?: number;
+  numnota?: number;
   sequencia?: number;
   codprod?: number;
   descrprod?: string;
@@ -21,6 +23,7 @@ export interface RegistrarOcorrenciaEntradaInput {
   motivo?: string;
   codlocalDestino?: number;
   fotos?: string[];
+  jaBipado?: boolean;
   origem?: OrigemOcorrenciaEntrada;
   criadoPor?: string;
 }
@@ -28,7 +31,8 @@ export interface RegistrarOcorrenciaEntradaInput {
 export class RegistrarOcorrenciaEntradaUseCase {
   constructor(
     private readonly ocorrenciaRepo: IOcorrenciaConferenciaEntradaRepository,
-    private readonly configRepo?: IConfiguracaoSistemaRepository
+    private readonly configRepo?: IConfiguracaoSistemaRepository,
+    private readonly sankhyaGateway?: IGatewayPort
   ) {}
 
   async execute(
@@ -46,6 +50,25 @@ export class RegistrarOcorrenciaEntradaUseCase {
       throw new Error(
         'Para produtos sem código de cadastro no Sankhya, é obrigatório anexar ao menos uma foto comprobatória.'
       );
+    }
+
+    let numnotaFinal = input.numnota;
+    if (!numnotaFinal && input.nunota && this.sankhyaGateway) {
+      try {
+        const sql = `SELECT NUMNOTA FROM TGFCAB WHERE NUNOTA = ${Number(input.nunota)}`;
+        const res = await this.sankhyaGateway.serviceCall<any>(
+          'DbExplorerSP.executeQuery',
+          { requestBody: { sql } }
+        );
+        const rows: any[] = res?.responseBody?.rows || [];
+        const fields: any[] = res?.responseBody?.fieldsMetadata || [];
+        const numIdx = fields.findIndex((f) => f.name.toUpperCase() === 'NUMNOTA');
+        if (numIdx !== -1 && rows.length > 0) {
+          numnotaFinal = Number(rows[0][numIdx]) || undefined;
+        }
+      } catch {
+        // Fallback silencioso
+      }
     }
 
     let codlocalFinal = input.codlocalDestino;
@@ -81,6 +104,7 @@ export class RegistrarOcorrenciaEntradaUseCase {
       id: randomUUID(),
       conferenciaId: input.conferenciaId,
       nunota: input.nunota,
+      numnota: numnotaFinal,
       sequencia: input.sequencia,
       codprod: input.codprod,
       descrprod: input.descrprod,
@@ -92,6 +116,7 @@ export class RegistrarOcorrenciaEntradaUseCase {
       motivo: input.motivo?.trim() || undefined,
       codlocalDestino: codlocalFinal,
       fotos: input.fotos || [],
+      jaBipado: input.jaBipado,
       status: 'PENDENTE',
       origem: input.origem || 'COLETOR',
       criadoPor: input.criadoPor || 'SISTEMA',

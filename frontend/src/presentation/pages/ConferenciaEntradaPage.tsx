@@ -14,7 +14,8 @@ import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infras
 import { extractFieldValue, normalizeDate } from '../../infrastructure/utils/ocrParser';
 import { aplicarMascaraData, completarAnoData, validarData, checarStatusValidade } from '../utils/dateMaskHelper';
 import { ModalRegistrarOcorrencia } from '../components/Recebimento/ModalRegistrarOcorrencia';
-import { TipoOcorrenciaRecebimento, OcorrenciaRecebimento } from '../../domain/models/OcorrenciaRecebimento';
+import { ModalListaOcorrenciasSessao, getStatusOcorrenciaInfo } from '../components/Recebimento/ModalListaOcorrenciasSessao';
+import { TipoOcorrenciaRecebimento, OcorrenciaRecebimento, obterTermosOcorrencia } from '../../domain/models/OcorrenciaRecebimento';
 import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
 import './ConferenciaEntradaPage.css';
@@ -225,6 +226,7 @@ export function ConferenciaEntradaPage() {
 
   // Ocorrências e Avarias
   const [modalOcorrenciaAberto, setModalOcorrenciaAberto] = useState(false);
+  const [modalListaOcorrenciasAberto, setModalListaOcorrenciasAberto] = useState(false);
   const [itemParaOcorrencia, setItemParaOcorrencia] = useState<any>(null);
   const [tipoOcorrenciaModal, setTipoOcorrenciaModal] = useState<TipoOcorrenciaRecebimento>('AVARIA');
   const [modoAvariaAtivo, setModoAvariaAtivo] = useState(false);
@@ -254,6 +256,10 @@ export function ConferenciaEntradaPage() {
       (sessao.status === 'Divergente' || sessao.status === 'Em Reconferência') &&
       !temPermissao('conferencia_entrada_divergente')
     ) {
+      // Se a conferência estiver no Nível 3 (recontagem N3) e o conferente tiver permissão N3, libera o acesso para reconferência!
+      if (sessao.nivelAtual === 3 && temPermissao('conferencia_entrada_n3')) {
+        return true;
+      }
       return false;
     }
     if (
@@ -293,11 +299,15 @@ export function ConferenciaEntradaPage() {
 
         const notasFaltando = (navState.nunotas || []).filter((n) => !sessaoAtual.nunotas.includes(n));
 
-        // Se a sessão estiver como "Em Aberto", "Aguardando N2", "Aguardando N3" ou faltam notas passadas pela seleção:
+        // Se a sessão estiver como "Em Aberto", "Aguardando N2", "Aguardando N3", "Divergente" no Nível 3, ou faltam notas passadas pela seleção:
         if (
           sessaoAtual.status === 'Em Aberto' ||
           sessaoAtual.status === 'Aguardando N2' ||
           sessaoAtual.status === 'Aguardando N3' ||
+          sessaoAtual.status === 'Aguardando Recontagem N1' ||
+          sessaoAtual.status === 'Aguardando Recontagem N2' ||
+          sessaoAtual.status === 'Aguardando Recontagem N3' ||
+          (sessaoAtual.status === 'Divergente' && sessaoAtual.nivelAtual === 3) ||
           notasFaltando.length > 0
         ) {
           const nunotasParaIniciar = Array.from(new Set([...sessaoAtual.nunotas, ...(navState.nunotas || [])]));
@@ -370,6 +380,8 @@ export function ConferenciaEntradaPage() {
   const isConferido = sessao?.status === 'Conferido';
   const isDivergentePendente = sessao?.status === 'Divergente' && sessao?.nivelAtual !== 3;
   const isSomenteLeitura = isEnviadoSankhya || isConferido || isDivergentePendente;
+  const isRecontagem = Boolean(sessao?.status?.includes('Recontagem') || (sessao?.itensRecontagem && sessao.itensRecontagem.length > 0));
+  const isCega = useMemo(() => itens.length > 0 && itens.some((i) => i.qtdneg === null), [itens]);
 
   // Lista de notas distintas da sessão para o seletor de NF
   const listaNotasDisponiveis = useMemo(() => {
@@ -384,8 +396,13 @@ export function ConferenciaEntradaPage() {
       entry.countItens++;
       const conferido =
         nivelAtual === 1 ? it.qtdConferidaN1 : nivelAtual === 2 ? it.qtdConferidaN2 : it.qtdConferidaN3;
-      const esperado = it.qtdneg !== null ? it.qtdneg : null;
-      if (esperado !== null ? conferido >= esperado : conferido > 0) {
+      const completo =
+        it.conferidoCompleto !== undefined
+          ? it.conferidoCompleto
+          : it.qtdneg !== null
+          ? conferido >= it.qtdneg
+          : false;
+      if (completo) {
         entry.conferidosOk++;
       }
     });
@@ -424,8 +441,12 @@ export function ConferenciaEntradaPage() {
           if (conferido === 0) itensSemBipagem++;
         }
       } else {
-        if (conferido > 0) itensExatos++;
-        else itensSemBipagem++;
+        const completo = i.conferidoCompleto !== undefined ? i.conferidoCompleto : false;
+        if (completo) itensExatos++;
+        else {
+          itensComFalta++;
+          if (conferido === 0) itensSemBipagem++;
+        }
       }
     });
 
@@ -482,8 +503,15 @@ export function ConferenciaEntradaPage() {
           }
         }
       } else {
-        if (conferido > 0) notasMap[nunota].itensOk++;
-        else notasMap[nunota].itensSemBipagem++;
+        const completo = it.conferidoCompleto !== undefined ? it.conferidoCompleto : false;
+        if (completo) {
+          notasMap[nunota].itensOk++;
+        } else {
+          notasMap[nunota].itensComFalta++;
+          if (conferido === 0) {
+            notasMap[nunota].itensSemBipagem++;
+          }
+        }
       }
     });
 
@@ -531,6 +559,8 @@ export function ConferenciaEntradaPage() {
   ) => {
     if (it) {
       setItemParaOcorrencia({
+        nunota: it.nunota,
+        numnota: it.numnota,
         codprod: it.codprod,
         descrprod: it.descrprod,
         sequencia: it.sequencia,
@@ -569,6 +599,8 @@ export function ConferenciaEntradaPage() {
       );
 
       setItemParaOcorrencia({
+        nunota: itemEncontrado?.nunota || sessao?.nunotas[0],
+        numnota: itemEncontrado?.numnota,
         codprod: itemEncontrado?.codprod,
         descrprod: itemEncontrado?.descrprod || (codLimpo ? `Item [${codLimpo}]` : 'Produto em Conferência'),
         sequencia: itemEncontrado?.sequencia,
@@ -585,45 +617,78 @@ export function ConferenciaEntradaPage() {
     return false;
   };
 
-  // Renderiza tags visuais de ocorrências registradas para o item ou lote
+  // Renderiza tags visuais de ocorrências registradas para o item ou lote, agrupando e contabilizando por tipo
   const renderTagsOcorrencia = (ocorrencias: OcorrenciaRecebimento[]) => {
     if (!ocorrencias || ocorrencias.length === 0) return null;
 
-    return (
-      <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '3px' }}>
-        {ocorrencias.map((oc, idx) => {
-          const isVencido = oc.tipo === 'VENCIDO';
-          const isAvaria = oc.tipo === 'AVARIA';
-          const isValidadeProx = oc.tipo === 'VALIDADE_PROXIMA';
+    // Agrupa ocorrências por tipo somando as quantidades
+    const mapaGrupos = new Map<
+      TipoOcorrenciaRecebimento,
+      { tipo: TipoOcorrenciaRecebimento; quantidadeTotal: number; statuses: Set<string> }
+    >();
 
-          const bg = isVencido ? '#fef2f2' : isAvaria ? '#fff1f2' : isValidadeProx ? '#fffbeb' : '#f1f5f9';
-          const border = isVencido ? '#f87171' : isAvaria ? '#fda4af' : isValidadeProx ? '#fcd34d' : '#cbd5e1';
-          const color = isVencido ? '#991b1b' : isAvaria ? '#be123c' : isValidadeProx ? '#92400e' : '#334155';
+    for (const oc of ocorrencias) {
+      const atual = mapaGrupos.get(oc.tipo);
+      const qtd = Number(oc.quantidade) || 1;
+      if (atual) {
+        atual.quantidadeTotal += qtd;
+        if (oc.status) atual.statuses.add(oc.status);
+      } else {
+        mapaGrupos.set(oc.tipo, {
+          tipo: oc.tipo,
+          quantidadeTotal: qtd,
+          statuses: new Set(oc.status ? [oc.status] : ['PENDENTE']),
+        });
+      }
+    }
+
+    const grupos = Array.from(mapaGrupos.values());
+
+    return (
+      <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '5px', marginTop: '3px', alignItems: 'center' }}>
+        {grupos.map((g) => {
+          const isVencido = g.tipo === 'VENCIDO';
+          const isAvaria = g.tipo === 'AVARIA';
+          const isValidadeProx = g.tipo === 'VALIDADE_PROXIMA';
+
+          // Cores suaves e elegantes (estilo clean e agradável aos olhos)
+          const bg = isVencido ? '#fef2f2' : isAvaria ? '#fff1f2' : isValidadeProx ? '#fffbeb' : '#f8fafc';
+          const border = isVencido ? '#fca5a5' : isAvaria ? '#fda4af' : isValidadeProx ? '#fde68a' : '#e2e8f0';
+          const color = isVencido ? '#b91c1c' : isAvaria ? '#be123c' : isValidadeProx ? '#b45309' : '#334155';
           const emoji = isVencido ? '⛔' : isAvaria ? '💥' : isValidadeProx ? '⚠️' : 'ℹ️';
           const label =
-            isVencido ? 'Vencido' : isAvaria ? 'Avaria' : isValidadeProx ? 'Validade Próxima' : oc.tipo;
+            isVencido ? 'Vencido' : isAvaria ? 'Avaria' : isValidadeProx ? 'Validade Próx.' : g.tipo;
+
+          const temResolvido = g.statuses.has('RESOLVIDO') || g.statuses.has('INTEGRADO_ERP');
+          const statusTxt = temResolvido ? 'Resolvido' : 'Pendente';
 
           return (
             <span
-              key={`tag-oc-${oc.id || idx}`}
+              key={`tag-oc-grupo-${g.tipo}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setModalListaOcorrenciasAberto(true);
+              }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '3px',
-                fontSize: '0.68rem',
+                gap: '4px',
+                fontSize: '0.70rem',
                 fontWeight: 700,
-                padding: '1px 6px',
-                borderRadius: '4px',
+                padding: '2px 8px',
+                borderRadius: '6px',
                 background: bg,
                 border: `1px solid ${border}`,
                 color: color,
-                lineHeight: '1.2',
+                cursor: 'pointer',
+                lineHeight: '1.25',
+                transition: 'all 0.15s ease',
               }}
-              title={`Ocorrência de ${label} registrada (+${oc.quantidade} un)`}
+              title={`${label}: ${g.quantidadeTotal} un (${statusTxt}) — Clique para ver detalhes`}
             >
               <span>{emoji}</span>
               <span>
-                {label} ({oc.quantidade} un)
+                {label} ({g.quantidadeTotal} un)
               </span>
             </span>
           );
@@ -637,7 +702,24 @@ export function ConferenciaEntradaPage() {
     await recebimentoService.registrarOcorrencia(dados);
     tocarAlertaSucesso();
 
-    // Se for AVARIA, VENCIDO ou VALIDADE_PROXIMA, contabiliza também na conferência física da sessão
+    const termos = obterTermosOcorrencia(dados.tipo);
+
+    // Se o operador indicou que a unidade JÁ FOI BIPADA previamente na conferência:
+    if (dados.jaBipado === true) {
+      if (sessao) await carregarOcorrencias(sessao.id);
+      setSucesso(
+        `Ocorrência de ${termos.nome.toUpperCase()} registrada com sucesso! A unidade foi marcada como ${termos.marcadaComo} sem alterar a contagem física.`
+      );
+      setCodigo('');
+      setQuantidade('1');
+      setLote('');
+      setValidade('');
+      setFabricacao('');
+      return;
+    }
+
+    // Se for AVARIA, VENCIDO ou VALIDADE_PROXIMA e NÃO foi bipada ainda (dados.jaBipado === false ou ausente),
+    // contabiliza também na conferência física da sessão
     if (sessao && ['AVARIA', 'VENCIDO', 'VALIDADE_PROXIMA'].includes(dados.tipo)) {
       const codIdentificador = dados.codprod ? String(dados.codprod) : codigo.trim();
       const qtdNum = Number(dados.quantidade) || 1;
@@ -677,6 +759,7 @@ export function ConferenciaEntradaPage() {
                   qtdConferidaN1: nivelAtual === 1 ? it.qtdConferidaN1 + add : it.qtdConferidaN1,
                   qtdConferidaN2: nivelAtual === 2 ? it.qtdConferidaN2 + add : it.qtdConferidaN2,
                   qtdConferidaN3: nivelAtual === 3 ? it.qtdConferidaN3 + add : it.qtdConferidaN3,
+                  conferidoCompleto: resp.conferidoCompleto !== undefined ? resp.conferidoCompleto : it.conferidoCompleto,
                 };
               }
               return it;
@@ -684,7 +767,7 @@ export function ConferenciaEntradaPage() {
           );
 
           setSucesso(
-            `Ocorrência de ${dados.tipo} registrada e CONTABILIZADA na conferência física (+${resp.bipagem.qtdConferida} un)!`
+            `Ocorrência de ${termos.nome.toUpperCase()} registrada e ADICIONADA à conferência física (+${resp.bipagem.qtdConferida} un)!`
           );
           setCodigo('');
           setQuantidade('1');
@@ -693,13 +776,13 @@ export function ConferenciaEntradaPage() {
           setFabricacao('');
         } catch (bipErr: any) {
           console.warn('Aviso: Falha ao contabilizar bipagem física para a ocorrência:', bipErr);
-          setSucesso(`Ocorrência de ${dados.tipo} registrada com sucesso.`);
+          setSucesso(`Ocorrência de ${termos.nome.toUpperCase()} registrada com sucesso.`);
         }
       } else {
-        setSucesso(`Ocorrência de ${dados.tipo} registrada com sucesso.`);
+        setSucesso(`Ocorrência de ${termos.nome.toUpperCase()} registrada com sucesso.`);
       }
     } else {
-      setSucesso(`Ocorrência de ${dados.tipo} registrada com sucesso.`);
+      setSucesso(`Ocorrência de ${termos.nome.toUpperCase()} registrada com sucesso.`);
     }
 
     if (sessao) {
@@ -730,6 +813,8 @@ export function ConferenciaEntradaPage() {
       );
 
       setItemParaOcorrencia({
+        nunota: itemEncontrado?.nunota || sessao?.nunotas[0],
+        numnota: itemEncontrado?.numnota,
         codprod: itemEncontrado?.codprod,
         descrprod: itemEncontrado?.descrprod || `Item [${codLimpo}]`,
         sequencia: itemEncontrado?.sequencia,
@@ -890,6 +975,7 @@ export function ConferenciaEntradaPage() {
               qtdConferidaN1: nivelAtual === 1 ? it.qtdConferidaN1 + add : it.qtdConferidaN1,
               qtdConferidaN2: nivelAtual === 2 ? it.qtdConferidaN2 + add : it.qtdConferidaN2,
               qtdConferidaN3: nivelAtual === 3 ? it.qtdConferidaN3 + add : it.qtdConferidaN3,
+              conferidoCompleto: resp.conferidoCompleto !== undefined ? resp.conferidoCompleto : it.conferidoCompleto,
             };
           }
           return it;
@@ -1137,7 +1223,12 @@ export function ConferenciaEntradaPage() {
       const conferido =
         nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
       const esperado = item.qtdneg !== null ? item.qtdneg : null;
-      const completo = esperado !== null ? conferido >= esperado : conferido > 0;
+      const completo =
+        item.conferidoCompleto !== undefined
+          ? item.conferidoCompleto
+          : esperado !== null
+          ? conferido >= esperado
+          : false;
       return !completo;
     });
   }, [itensExibidos, nivelAtual, sessao]);
@@ -1160,7 +1251,12 @@ export function ConferenciaEntradaPage() {
         const conferido =
           nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
         const esperado = item.qtdneg !== null ? item.qtdneg : null;
-        const completo = esperado !== null ? conferido >= esperado : conferido > 0;
+        const completo =
+          item.conferidoCompleto !== undefined
+            ? item.conferidoCompleto
+            : esperado !== null
+            ? conferido >= esperado
+            : false;
 
         // Agrupar bipagens deste item por Lote + Validade + Fabricação
         const bipsDesteItem = bipagensValidas.filter(
@@ -1283,8 +1379,7 @@ export function ConferenciaEntradaPage() {
   }
 
   return (
-    <div className="page-container">
-      {/* Top Fixo: Header + Scanner Panel */}
+    <div className="page-container conferencia-entrada-page">
       {/* Top Fixo: Header + Scanner Panel */}
       <div className="conferencia-top-fixo">
         {scannerRecolhido ? (
@@ -1294,7 +1389,15 @@ export function ConferenciaEntradaPage() {
                 {notaSelecionadaObj ? `NF ${notaSelecionadaObj.numnota}` : `NF(s) ${numerosNFsUnicas.join(', ')}`}
               </span>
               <span className="mini-info-badge">
-                {isEnviadoSankhya ? 'Enviado' : isConferido ? 'Conferido' : isDivergentePendente ? 'Divergente' : `N${nivelAtual}`}
+                {isEnviadoSankhya
+                  ? 'Enviado'
+                  : isConferido
+                  ? 'Conferido'
+                  : isDivergentePendente
+                  ? 'Divergente'
+                  : isRecontagem
+                  ? `Recontagem N${nivelAtual}`
+                  : `N${nivelAtual}`}
               </span>
               <span className="mini-info-kpis">
                 {estatisticas.totalItensDistintos} Tot • {estatisticas.itensConferidosOk} Conf • {estatisticas.pendentes} Pend
@@ -1391,7 +1494,7 @@ export function ConferenciaEntradaPage() {
                     style={isSomenteLeitura ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(1)' } : undefined}
                     className="btn-finalizar-n"
                   >
-                    {isEnviadoSankhya ? 'Enviado Sankhya' : isConferido ? 'Conferido' : `Finalizar N${nivelAtual}`}
+                    {isEnviadoSankhya ? 'Enviado Sankhya' : isConferido ? 'Conferido' : isRecontagem ? `Finalizar Recontagem N${nivelAtual}` : `Finalizar N${nivelAtual}`}
                   </Botao>
                 </div>
               </div>
@@ -1437,18 +1540,42 @@ export function ConferenciaEntradaPage() {
                     >
                       ⚠️ Divergente
                     </span>
-                  ) : (
+                  ) : isRecontagem ? (
                     <span
                       className="badge-recontagem-header"
                       style={{
-                        background: '#f3e8ff',
-                        color: '#6b21a8',
-                        border: '1px solid #d8b4fe',
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        border: '1px solid #fcd34d',
                         fontWeight: 800,
                       }}
+                      title="Esta conferência está em processo de recontagem"
+                    >
+                      {`🔁 RECONTAGEM N${nivelAtual}: ${nivelAtual === 1 ? 'CONTAGEM CEGA' : nivelAtual === 2 ? 'LOTE E VALIDADE' : 'DESEMPATE'}`}
+                    </span>
+                  ) : (
+                    <span
+                      className="badge-recontagem-header"
+                      style={
+                        nivelAtual === 3
+                          ? {
+                              background: '#fff1f2',
+                              color: 'var(--rose-500, #e11d48)',
+                              border: '1px solid #fecdd3',
+                              fontWeight: 800,
+                            }
+                          : {
+                              background: '#f3e8ff',
+                              color: '#6b21a8',
+                              border: '1px solid #d8b4fe',
+                              fontWeight: 800,
+                            }
+                      }
                       title="Nível atual da conferência"
                     >
-                      N{nivelAtual}: {nivelAtual === 1 ? 'CONTAGEM CEGA' : nivelAtual === 2 ? 'LOTE E VALIDADE' : 'DESEMPATE'}
+                      {nivelAtual === 3
+                        ? 'N3: RECONFERÊNCIA (DESEMPATE)'
+                        : `N${nivelAtual}: ${nivelAtual === 1 ? 'CONTAGEM CEGA' : 'LOTE E VALIDADE'}`}
                     </span>
                   )}
                 </div>
@@ -1500,9 +1627,9 @@ export function ConferenciaEntradaPage() {
             {nivelAtual === 3 && !isSomenteLeitura && (
               <div
                 style={{
-                  background: '#fef3c7',
-                  color: '#92400e',
-                  border: '1px solid #fde68a',
+                  background: '#fff1f2',
+                  color: '#9f1239',
+                  border: '1px solid #fecdd3',
                   borderRadius: '8px',
                   padding: '10px 14px',
                   margin: '0 0 10px 0',
@@ -1513,7 +1640,7 @@ export function ConferenciaEntradaPage() {
                   gap: '8px',
                 }}
               >
-                <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                <span style={{ fontSize: '1.1rem' }}>🚨</span>
                 <span>
                   <strong>Reconferência Nível 3:</strong> Apenas os itens divergentes ({itens.length}) foram carregados para desempate.
                 </span>
@@ -1599,24 +1726,40 @@ export function ConferenciaEntradaPage() {
                   </div>
 
                   {ocorrenciasSessao.length > 0 && (
-                    <span
+                    <button
+                      type="button"
+                      onClick={() => setModalListaOcorrenciasAberto(true)}
                       style={{
                         background: '#fef3c7',
                         color: '#92400e',
                         border: '1px solid #fde68a',
                         borderRadius: '12px',
-                        padding: '2px 8px',
-                        fontSize: '0.74rem',
+                        padding: '4px 10px',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
+                        cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px',
+                        gap: '6px',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                        transition: 'all 0.15s ease',
                       }}
-                      title={`${ocorrenciasSessao.length} ocorrência(s) registrada(s) nesta conferência`}
+                      title="Clique para ver a lista detalhada de ocorrências desta conferência"
                     >
                       <span>⚠️</span>
                       <span>{ocorrenciasSessao.length} Ocorrência(s)</span>
-                    </span>
+                      <span
+                        style={{
+                          fontSize: '0.66rem',
+                          background: '#fde68a',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Ver Lista
+                      </span>
+                    </button>
                   )}
                 </div>
 
@@ -1667,6 +1810,8 @@ export function ConferenciaEntradaPage() {
                       type="button"
                       onClick={() => {
                         setItemParaOcorrencia({
+                          nunota: sessao?.nunotas[0],
+                          numnota: itens[0]?.numnota,
                           descrprod: `Produto Trocado / Divergente (${codigoNaoEncontradoOcorr})`,
                         });
                         setTipoOcorrenciaModal('PRODUTO_TROCADO');
@@ -2096,8 +2241,8 @@ export function ConferenciaEntradaPage() {
                         const isExpandido = !!lotesExpandidos[chave];
                         const esperado = confItem.item.qtdneg !== null ? confItem.item.qtdneg : null;
                         const conferido = confItem.conferido;
-                        const temSobra = esperado !== null && conferido > esperado;
-                        const temFalta = esperado !== null && conferido < esperado;
+                        const temSobra = !isCega && esperado !== null && conferido > esperado;
+                        const temFalta = !isCega && esperado !== null && conferido < esperado;
                         const temLotes = confItem.lotesDetalhes && confItem.lotesDetalhes.length > 0;
                         const ocorrenciasDoItem = ocorrenciasSessao.filter(
                           (oc) =>
@@ -2386,6 +2531,7 @@ export function ConferenciaEntradaPage() {
                         oc.codprod === confItem.item.codprod &&
                         (oc.sequencia ? oc.sequencia === confItem.item.sequencia : true)
                     );
+
                     return (
                     <div key={`card-conf-${confItem.item.nunota}-${confItem.item.sequencia}`} className="item-card-mobile item-card-conferido">
                       <div className="item-card-header">
@@ -2731,8 +2877,8 @@ export function ConferenciaEntradaPage() {
                   Detalhamento por Nota Fiscal ({estatisticas.porNota.length}):
                 </div>
                 {estatisticas.porNota.map((nota) => {
-                  const is100Ok = nota.itensOk === nota.totalItens && nota.itensComSobra === 0;
-                  const temSobra = nota.itensComSobra > 0;
+                  const is100Ok = nota.itensOk === nota.totalItens && (!isCega ? nota.itensComSobra === 0 : true);
+                  const temSobra = !isCega && nota.itensComSobra > 0;
                   const temFalta = nota.itensComFalta > 0;
 
                   return (
@@ -2767,11 +2913,15 @@ export function ConferenciaEntradaPage() {
                       </div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--slate-600)', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                         <span>Itens: <strong>{nota.itensOk}/{nota.totalItens} OK</strong></span>
-                        <span>Unidades: <strong>{nota.totalConferido}/{nota.totalEsperado}</strong></span>
+                        {isCega ? (
+                          <span>Unidades Bipadas: <strong>{nota.totalConferido}</strong></span>
+                        ) : (
+                          <span>Unidades: <strong>{nota.totalConferido}/{nota.totalEsperado}</strong></span>
+                        )}
                         {nota.itensSemBipagem > 0 && (
                           <span style={{ color: '#d97706', fontWeight: 600 }}>Zero bipagens: {nota.itensSemBipagem}</span>
                         )}
-                        {nota.itensComSobra > 0 && (
+                        {!isCega && nota.itensComSobra > 0 && (
                           <span style={{ color: '#dc2626', fontWeight: 600 }}>Sobras: {nota.itensComSobra}</span>
                         )}
                       </div>
@@ -2812,7 +2962,7 @@ export function ConferenciaEntradaPage() {
             )}
 
             {/* Alerta de Sobra */}
-            {estatisticas.itensComSobra > 0 && (
+            {!isCega && estatisticas.itensComSobra > 0 && (
               <div
                 style={{
                   margin: '8px 0',
@@ -3068,10 +3218,26 @@ export function ConferenciaEntradaPage() {
           onClose={() => setModalOcorrenciaAberto(false)}
           conferenciaId={sessao?.id || ''}
           nunota={itemParaOcorrencia?.nunota || sessao?.nunotas[0] || 0}
+          numnota={itemParaOcorrencia?.numnota || itens.find((i) => i.nunota === (itemParaOcorrencia?.nunota || sessao?.nunotas[0]))?.numnota}
           item={itemParaOcorrencia}
           tipoPredefinido={tipoOcorrenciaModal}
           origem="COLETOR"
+          bipagensSessao={bipagens}
           onSalvar={handleSalvarOcorrencia}
+        />
+      )}
+
+      {/* Modal de Lista de Ocorrências da Sessão */}
+      {modalListaOcorrenciasAberto && (
+        <ModalListaOcorrenciasSessao
+          isOpen={modalListaOcorrenciasAberto}
+          onClose={() => setModalListaOcorrenciasAberto(false)}
+          ocorrencias={ocorrenciasSessao}
+          isSomenteLeitura={isSomenteLeitura}
+          onRemoverOcorrencia={async (id) => {
+            await recebimentoService.removerOcorrencia(id);
+            if (sessao) await carregarOcorrencias(sessao.id);
+          }}
         />
       )}
 

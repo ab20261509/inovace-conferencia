@@ -41,6 +41,8 @@ export class ResolverDivergenciaUseCase {
       }
       sessao.status = 'Divergente';
       sessao.nivelAtual = 3;
+      sessao.finalizadoEm = undefined;
+      sessao.conferente = '';
       sessao.atualizadoEm = agora;
       sessao.observacaoAprovacao = input.observacao
         ? `Reconferência N3${input.nunota ? ` (Nota #${input.nunota})` : ''}: ${input.observacao}`

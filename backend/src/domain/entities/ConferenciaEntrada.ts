@@ -5,6 +5,12 @@ export type StatusConferenciaEntrada =
   | 'N2 em Andamento'
   | 'Aguardando N3'
   | 'N3 em Andamento'
+  | 'Aguardando Recontagem N1'
+  | 'Recontagem N1 em Andamento'
+  | 'Aguardando Recontagem N2'
+  | 'Recontagem N2 em Andamento'
+  | 'Aguardando Recontagem N3'
+  | 'Recontagem N3 em Andamento'
   | 'Divergente'
   | 'Em Reconferência'
   | 'Conferido'
@@ -24,6 +30,7 @@ export interface NotaEntrada {
   vlrnota: number;
   statusnota: string;
   qtdItens: number;
+  qtdUnidades?: number;
   codemp: number;
   statusConferencia: StatusConferenciaEntrada;
   conferenciaId?: string;
@@ -63,6 +70,7 @@ export interface ItemNotaEntrada {
   codbarra?: string;
   codvol: string;
   qtdneg: number | null; // pode ser mascarado se for campo sensível
+  conferidoCompleto?: boolean;
   qtdConferidaN1: number;
   qtdConferidaN2: number;
   qtdConferidaN3: number;
@@ -165,6 +173,7 @@ export interface ConferenciaEntradaResumo {
   enviadoSankhyaEm?: string;
   aprovadoPor?: string;
   totalItens: number;
+  totalQtdEsperada?: number;
   totalBipadoN1: number;
   totalBipadoN2: number;
   totalBipadoN3: number;

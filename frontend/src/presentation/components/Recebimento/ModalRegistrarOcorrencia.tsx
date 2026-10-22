@@ -1,11 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   TipoOcorrenciaRecebimento,
   RegistrarOcorrenciaInput,
   OcorrenciaRecebimento,
   LocalEstoqueItem,
   ProdutoCatalogoItem,
+  obterTermosOcorrencia,
 } from '../../../domain/models/OcorrenciaRecebimento';
+import { BipagemEntrada } from '../../../domain/models/ConferenciaEntrada';
 import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
 import { aplicarMascaraData, completarAnoData, validarData } from '../../utils/dateMaskHelper';
 
@@ -14,7 +16,10 @@ export interface ModalRegistrarOcorrenciaProps {
   onClose: () => void;
   conferenciaId?: string;
   nunota?: number;
+  numnota?: number;
   item?: {
+    nunota?: number;
+    numnota?: number;
     codprod?: number;
     descrprod?: string;
     sequencia?: number;
@@ -28,6 +33,7 @@ export interface ModalRegistrarOcorrenciaProps {
   ocorrenciaEdicao?: OcorrenciaRecebimento;
   origem?: 'COLETOR' | 'GESTAO';
   usuario?: string;
+  bipagensSessao?: BipagemEntrada[];
   onSalvar: (dados: RegistrarOcorrenciaInput) => Promise<void>;
 }
 
@@ -59,11 +65,13 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
   onClose,
   conferenciaId,
   nunota,
+  numnota,
   item,
   tipoPredefinido,
   ocorrenciaEdicao,
   origem,
   usuario,
+  bipagensSessao,
   onSalvar,
 }) => {
   const [nunotaInput, setNunotaInput] = useState<string>(
@@ -149,6 +157,49 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
   const [fotos, setFotos] = useState<string[]>(ocorrenciaEdicao?.fotos || []);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  // Pergunta inteligente de contabilização da avaria
+  const [jaBipado, setJaBipado] = useState<boolean>(true);
+  const [usuarioAlterouJaBipado, setUsuarioAlterouJaBipado] = useState<boolean>(false);
+
+  const codprodAtual = produtoSelecionado?.codprod || item?.codprod;
+
+  // Bipagens deste produto já registradas na conferência
+  const bipagensDoProduto = useMemo(() => {
+    if (!bipagensSessao || !codprodAtual) return [];
+    return bipagensSessao.filter((b) => !b.anulado && b.codprod === codprodAtual);
+  }, [bipagensSessao, codprodAtual]);
+
+  // Checagem se o lote e validade informados já existem nas contagens ativas
+  const existeLoteExatoBipado = useMemo(() => {
+    if (bipagensDoProduto.length === 0) return false;
+    const loteNorm = lote.trim().toUpperCase();
+    const valNorm = validade.trim();
+    if (loteNorm) {
+      return bipagensDoProduto.some((b) => {
+        const bLote = (b.lote || '').trim().toUpperCase();
+        const bVal = (b.validade || '').trim();
+        const matchLote = bLote === loteNorm;
+        if (valNorm && bVal) {
+          return matchLote && (bVal.startsWith(valNorm) || valNorm.startsWith(bVal));
+        }
+        return matchLote;
+      });
+    }
+    return bipagensDoProduto.length > 0;
+  }, [bipagensDoProduto, lote, validade]);
+
+  // Sugere automaticamente Sim/Não com base na presença do lote nas bipagens
+  useEffect(() => {
+    if (usuarioAlterouJaBipado) return;
+    if (origem !== 'COLETOR' || !['AVARIA', 'VENCIDO', 'VALIDADE_PROXIMA'].includes(tipo)) return;
+
+    if (bipagensDoProduto.length > 0 && existeLoteExatoBipado) {
+      setJaBipado(true);
+    } else {
+      setJaBipado(false);
+    }
+  }, [existeLoteExatoBipado, bipagensDoProduto.length, usuarioAlterouJaBipado, origem, tipo]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -350,10 +401,12 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
     setSalvando(true);
     try {
       const nunotaFinal = nunota || (nunotaInput && nunotaInput.trim() ? Number(nunotaInput) : undefined);
+      const numnotaFinal = numnota || item?.numnota || ocorrenciaEdicao?.numnota;
 
       await onSalvar({
         conferenciaId: conferenciaId || undefined,
         nunota: nunotaFinal,
+        numnota: numnotaFinal,
         sequencia: item?.sequencia,
         codprod: codprodFinal,
         descrprod: descrFinal,
@@ -365,6 +418,7 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
         motivo: motivo.trim() || undefined,
         codlocalDestino: localNum,
         fotos,
+        jaBipado: origem === 'COLETOR' && ['AVARIA', 'VENCIDO', 'VALIDADE_PROXIMA'].includes(tipo) ? jaBipado : undefined,
         origem: origem || 'COLETOR',
         criadoPor: usuario,
       });
@@ -426,7 +480,9 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                 {ocorrenciaEdicao ? 'Editar Ocorrência' : 'Registrar Ocorrência / Avaria'}
               </h3>
               <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                {nunota ? `NF #${nunota}` : 'Ocorrência Avulsa'} {item?.descrprod ? `• ${item.descrprod}` : ''}
+                {numnota || nunota
+                  ? `NF ${numnota || nunota}${nunota && numnota && nunota !== numnota ? ` (#${nunota})` : ''}`
+                  : 'Ocorrência Avulsa'} {item?.descrprod ? `• ${item.descrprod}` : ''}
               </p>
             </div>
             <button
@@ -468,14 +524,20 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
             {isOrigemNota ? (
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                  <span>🔒 NUNOTA da Nota Fiscal</span>
+                  <span>🔒 Nota Fiscal</span>
                   <span style={{ fontWeight: 600, color: '#64748b', fontSize: '0.70rem' }}>(Conferência - Somente Leitura)</span>
                 </label>
                 <input
                   type="text"
                   readOnly
                   disabled
-                  value={nunota ? `NF #${nunota}` : ocorrenciaEdicao?.nunota ? `NF #${ocorrenciaEdicao.nunota}` : 'Conferência de Entrada'}
+                  value={
+                    numnota || nunota
+                      ? `NF ${numnota || nunota}${nunota && numnota && nunota !== numnota ? ` (#${nunota})` : ''}`
+                      : ocorrenciaEdicao?.numnota || ocorrenciaEdicao?.nunota
+                      ? `NF ${ocorrenciaEdicao.numnota || ocorrenciaEdicao.nunota}${ocorrenciaEdicao.nunota && ocorrenciaEdicao.numnota && ocorrenciaEdicao.nunota !== ocorrenciaEdicao.numnota ? ` (#${ocorrenciaEdicao.nunota})` : ''}`
+                      : 'Conferência de Entrada'
+                  }
                   style={{
                     width: '100%',
                     padding: '8px 10px',
@@ -759,7 +821,7 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                     lineHeight: '1.4',
                   }}
                 >
-                  <strong>⛔ Atenção (Produto Vencido):</strong> A data de validade informada expirou. Esta quantidade <strong>será contabilizada na conferência física</strong> e a ocorrência será enviada para o gestor definir o local e o desmembramento.
+                  <strong>⛔ Atenção (Produto Vencido):</strong> A data de validade informada expirou. A ocorrência será enviada para o gestor definir o local e o desmembramento na gestão de recebimento.
                 </div>
               )}
 
@@ -776,7 +838,7 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                     lineHeight: '1.4',
                   }}
                 >
-                  <strong>⚠️ Alerta de Shelf-Life (Validade Próxima):</strong> Lote com vencimento próximo ao prazo limite. A quantidade <strong>será contabilizada na conferência física</strong> e o gestor definirá o local de estoque na aba de Divergências ou Ocorrências.
+                  <strong>⚠️ Alerta de Shelf-Life (Validade Próxima):</strong> Lote com vencimento próximo ao prazo limite. O gestor definirá o local de estoque na aba de Divergências ou Ocorrências.
                 </div>
               )}
 
@@ -793,7 +855,7 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                     lineHeight: '1.4',
                   }}
                 >
-                  <strong>📦 Produto Avariado:</strong> A quantidade <strong>será contabilizada na conferência física</strong>. Anexe fotos do dano. O gestor definirá o local na gestão de ocorrências/divergências.
+                  <strong>📦 Produto Avariado:</strong> Anexe fotos do dano. O gestor definirá o local na gestão de ocorrências/divergências.
                 </div>
               )}
             </div>
@@ -958,6 +1020,145 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                 />
               </div>
             </div>
+
+            {/* Pergunta de Contabilização Física para Coletor (Avaria / Vencido) */}
+            {origem === 'COLETOR' && ['AVARIA', 'VENCIDO', 'VALIDADE_PROXIMA'].includes(tipo) && (
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  marginTop: '6px',
+                  marginBottom: '6px',
+                }}
+              >
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    color: '#1e293b',
+                    marginBottom: '8px',
+                  }}
+                >
+                  ❓ Você já bipou esta unidade {obterTermosOcorrencia(tipo).adjetivoUnidade} durante a conferência?
+                </label>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJaBipado(true);
+                      setUsuarioAlterouJaBipado(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: jaBipado ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: jaBipado ? '#f0f9ff' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: jaBipado ? '#0369a1' : '#475569' }}>
+                      🔘 Sim
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        color: jaBipado ? '#0284c7' : '#64748b',
+                        marginTop: '2px',
+                        lineHeight: '1.2',
+                      }}
+                    >
+                      Já bipada (apenas marcar {obterTermosOcorrencia(tipo).termoAcao}, não somar na contagem física)
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJaBipado(false);
+                      setUsuarioAlterouJaBipado(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: !jaBipado ? '2px solid #ea580c' : '1px solid #cbd5e1',
+                      background: !jaBipado ? '#fff7ed' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: !jaBipado ? '#c2410c' : '#475569' }}>
+                      🔘 Não
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        color: !jaBipado ? '#ea580c' : '#64748b',
+                        marginTop: '2px',
+                        lineHeight: '1.2',
+                      }}
+                    >
+                      Ainda não bipada (adicionar +{quantidade || 1} un à contagem física)
+                    </span>
+                  </button>
+                </div>
+
+                {/* Card informativo de lote existente vs novo */}
+                {bipagensDoProduto.length > 0 && existeLoteExatoBipado ? (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '0.74rem',
+                      color: '#166534',
+                      background: '#dcfce7',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>✓</span>
+                    <span>
+                      Lote <strong>{lote || 'padrão'}</strong> já possui contagens registradas nesta conferência.
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '0.74rem',
+                      color: '#9a3412',
+                      background: '#ffedd5',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>⚠️</span>
+                    <span>
+                      Lote <strong>{lote || 'novo'}</strong> / Validade não encontrado nas bipagens anteriores deste produto.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 6. Motivo / Descrição */}
             <div>

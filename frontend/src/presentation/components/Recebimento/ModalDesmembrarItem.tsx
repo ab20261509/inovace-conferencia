@@ -147,7 +147,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
         quantidade: qtdFalta,
         validade: formatarDataSimples(item.validadeOriginal || item.validade),
         fabricacao: formatarDataSimples(item.fabricacaoOriginal || item.fabricacao),
-        codlocal: (item as any).codlocalDestino ? Number((item as any).codlocalDestino) : undefined,
+        codlocal: undefined, // Campo vazio para o usuário editar e selecionar o local específico da falta
         isFalta: true,
       });
     }
@@ -182,7 +182,10 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
     const fabOk = f.fabricacao.trim() ? validarData(completarAnoData(f.fabricacao), false).valida : true;
     return valOk && fabOk;
   });
-  const podeConfirmar = isSomaCorreta && lotesPreenchidos && datasValidas && fracoes.length > 0 && !loading;
+  const faltasComLocalDefinido = fracoes
+    .filter((f) => f.isFalta)
+    .every((f) => f.codlocal !== undefined && !isNaN(Number(f.codlocal)));
+  const podeConfirmar = isSomaCorreta && lotesPreenchidos && datasValidas && faltasComLocalDefinido && fracoes.length > 0 && !loading;
 
   // Comparativos de divergência
   const loteErp = item.controleOriginal || '';
@@ -1011,9 +1014,17 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           }}
         >
           <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981' }} />
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: podeConfirmar ? '#10b981' : '#f59e0b' }} />
             <span>
-              Ação no ERP: Gerará <strong>{fracoes.length} sequências</strong> correspondentes na nota fiscal.
+              {!faltasComLocalDefinido ? (
+                <strong style={{ color: '#b45309' }}>
+                  ⚠️ Selecione o Local de Estoque de destino no ERP para a fração de FALTA (botão 🔍 Local ERP).
+                </strong>
+              ) : (
+                <>
+                  Ação no ERP: Gerará <strong>{fracoes.length} sequências</strong> correspondentes na nota fiscal.
+                </>
+              )}
             </span>
           </div>
 

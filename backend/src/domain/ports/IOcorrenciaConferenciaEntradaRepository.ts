@@ -3,6 +3,7 @@ import { OcorrenciaConferenciaEntrada } from '../entities/OcorrenciaConferenciaE
 export interface FiltroOcorrenciasInput {
   conferenciaId?: string;
   nunota?: number;
+  numnota?: number;
   tipo?: string;
   status?: string;
 }

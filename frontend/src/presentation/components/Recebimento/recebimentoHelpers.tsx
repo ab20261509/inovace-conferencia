@@ -3,7 +3,8 @@ import React from 'react';
 export function getStatusBadgeClass(status: string): string {
   if (status === 'Em Aberto') return 'em-aberto';
   if (status === 'Divergente') return 'divergente';
-  if (status.includes('Aguardando N') || status.includes('Reconferência')) return 'reconferencia';
+  if (status.includes('Aguardando Recontagem') || status.includes('Aguardando N') || status.includes('Reconferência')) return 'reconferencia';
+  if (status.includes('Recontagem')) return 'andamento';
   if (status === 'Conferido') return 'conferido';
   if (status === 'Aguardando Aprovação') return 'aguardando';
   if (status === 'Enviado ao Sankhya') return 'enviado';
@@ -148,7 +149,7 @@ export function calcularStatusPrevisaoEntrega(dataStr?: string | null): InfoPrev
       isAtrasado: false,
       diffDias: null,
       dataFormatada: dataStr,
-      texto: '🚫 Sem data entrega',
+      texto: '📅 Prev: Não informada',
       classe: 'badge-prev-sem-data',
     };
   }

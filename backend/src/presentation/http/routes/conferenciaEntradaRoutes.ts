@@ -25,6 +25,9 @@ export function createConferenciaEntradaRoutes(
         'gerenciar_acessos',
       ])
     : passthrough;
+  const permBackup = permissoesRepo
+    ? createPermissionMiddleware(permissoesRepo, ['gestao_recebimento_backup', 'gerenciar_acessos'])
+    : passthrough;
 
   // Listagem de notas
   router.get('/notas', (req, res) => controller.listarNotas(req, res));
@@ -58,13 +61,14 @@ export function createConferenciaEntradaRoutes(
   router.put('/conferencia/:id/resolver-divergencia', permDivergencias, (req, res) => controller.resolverDivergencia(req, res));
   router.post('/conferencia/:id/sincronizar-desmembramento', permDivergencias, (req, res) => controller.sincronizarDesmembramento(req, res));
   router.post('/conferencia/:id/desmembrar-item', permDivergencias, (req, res) => controller.desmembrarItem(req, res));
+  router.post('/conferencia/:id/ocorrencia-sobra', permDivergencias, (req, res) => controller.registrarOcorrenciaSobra(req, res));
   router.put('/conferencia/item/local', permDivergencias, (req, res) => controller.alterarLocalItem(req, res));
   router.post('/conferencia/item/local', permDivergencias, (req, res) => controller.alterarLocalItem(req, res));
 
   // Controles de recontagem/reinício
   router.post('/conferencia/:id/reiniciar', (req, res) => controller.reiniciarConferencia(req, res));
   router.post('/conferencia/:id/recontar', (req, res) => controller.solicitarRecontagem(req, res));
-  router.post('/conferencia/:id/recuperar', (req, res) => controller.recuperarContagem(req, res));
+  router.post('/conferencia/:id/recuperar', permBackup, (req, res) => controller.recuperarContagem(req, res));
 
   // Envio ao Sankhya (protegido por gestao_recebimento_aba_envio_sankhya)
   router.post('/conferencia/:id/enviar-sankhya', permEnvio, (req, res) => controller.enviarSankhya(req, res));

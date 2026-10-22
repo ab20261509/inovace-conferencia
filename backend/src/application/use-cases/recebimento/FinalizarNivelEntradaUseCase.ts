@@ -337,11 +337,13 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       sessao.status = statusFinal;
       sessao.atualizadoEm = agora;
     } else if (possuiDivergenciasQtd) {
-      // Divergência de quantidade (falta, sobra ou contagens desencontradas) -> vai para reconferência N3 no coletor
+      // Divergência de quantidade (falta, sobra ou contagens desencontradas) -> Fica retida como Divergente no nível atual (ex: 2)
+      // aguardando parecer ou solicitação manual de reconferência N3 pelo gestor na Gestão de Recebimento.
       statusFinal = 'Divergente';
-      sessao.nivelAtual = 3;
+      sessao.nivelAtual = input.nivel; // Mantém no nível conferido (ex: 2). NÃO avança para N3 automaticamente!
       sessao.status = statusFinal;
       sessao.atualizadoEm = agora;
+      sessao.finalizadoEm = agora;
     } else if (possuiDivergenciasLote) {
       // Quantidade 100% conferida e bate com a NF, mas lote/validade divergem do XML/cadastro da nota.
       // NÃO vai para reconferência física N3 no coletor!

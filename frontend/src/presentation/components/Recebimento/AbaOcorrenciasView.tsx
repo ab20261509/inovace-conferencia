@@ -76,7 +76,9 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
 
       if (buscaTexto.trim()) {
         const termo = buscaTexto.toLowerCase();
-        const nfMatch = oc.nunota ? String(oc.nunota).includes(termo) : false;
+        const nfMatch =
+          (oc.numnota ? String(oc.numnota).includes(termo) : false) ||
+          (oc.nunota ? String(oc.nunota).includes(termo) : false);
         const prodMatch =
           (oc.descrprod || '').toLowerCase().includes(termo) ||
           (oc.codprod ? String(oc.codprod).includes(termo) : false);
@@ -126,7 +128,7 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
     };
   }, [ocorrencias]);
 
-  // Agrupamento por NUNOTA para o envio ao Discord
+  // Agrupamento por NF / NUNOTA para o envio ao Discord
   const notasComOcorrencias = useMemo(() => {
     const map = new Map<number, OcorrenciaRecebimento[]>();
     for (const oc of ocorrencias) {
@@ -134,11 +136,15 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
       if (!map.has(oc.nunota)) map.set(oc.nunota, []);
       map.get(oc.nunota)!.push(oc);
     }
-    return Array.from(map.entries()).map(([nunota, itens]) => ({
-      nunota,
-      total: itens.length,
-      pendentes: itens.filter((i) => i.status === 'PENDENTE').length,
-    }));
+    return Array.from(map.entries()).map(([nunota, itens]) => {
+      const numnota = itens.find((i) => i.numnota)?.numnota;
+      return {
+        nunota,
+        numnota,
+        total: itens.length,
+        pendentes: itens.filter((i) => i.status === 'PENDENTE').length,
+      };
+    });
   }, [ocorrencias]);
 
   // Ações de alteração de status
@@ -708,9 +714,14 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
                     </span>
 
                     {/* Nota Fiscal */}
-                    {oc.nunota ? (
+                    {oc.numnota || oc.nunota ? (
                       <span style={{ fontSize: '0.82rem', color: 'var(--slate-600)', fontWeight: 600 }}>
-                        NUNOTA: <strong style={{ color: 'var(--slate-800)' }}>{oc.nunota}</strong>
+                        NF: <strong style={{ color: 'var(--slate-800)' }}>{oc.numnota || oc.nunota}</strong>
+                        {oc.nunota && (
+                          <span style={{ fontSize: '0.74rem', color: '#94a3b8', marginLeft: '4px', fontWeight: 500 }}>
+                            (#{oc.nunota})
+                          </span>
+                        )}
                         {oc.sequencia ? ` • Seq: ${oc.sequencia}` : ''}
                       </span>
                     ) : (
@@ -1126,7 +1137,7 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
                     <option value="todas">Todas as Notas ({ocorrencias.length} ocorrências no total)</option>
                     {notasComOcorrencias.map((n) => (
                       <option key={n.nunota} value={n.nunota}>
-                        NUNOTA #{n.nunota} ({n.total} ocorrência{n.total > 1 ? 's' : ''})
+                        NF {n.numnota || n.nunota} {n.numnota ? `(#${n.nunota})` : ''} ({n.total} ocorrência{n.total > 1 ? 's' : ''})
                       </option>
                     ))}
                   </select>
@@ -1356,6 +1367,7 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
               await recebimentoService.atualizarOcorrencia(ocorrenciaEdicao.id, {
                 tipo: dados.tipo,
                 quantidade: dados.quantidade,
+                numnota: dados.numnota,
                 lote: dados.lote,
                 validade: dados.validade,
                 fabricacao: dados.fabricacao,

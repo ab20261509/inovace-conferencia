@@ -84,7 +84,8 @@ export class EnviarConferenciaSankhyaUseCase {
         NVL(ITE.QTDNEG, 0) AS QTDNEG, 
         ITE.CODLOCALORIG,
         PRO.DESCRPROD,
-        CAB.NUMNOTA
+        CAB.NUMNOTA,
+        ITE.CONTROLE
       FROM TGFITE ITE
       INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
       INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
@@ -258,6 +259,7 @@ export class EnviarConferenciaSankhyaUseCase {
       const sequencia = Number(r[1]);
       const codprod = Number(r[2]);
       const codlocal = Number(r[4]);
+      const loteAntigoIte = r[7] ? String(r[7]).trim() : '';
 
       const key = `${nunota}|${codprod}`;
       const lotesDoItem = mapaLotesPorProd[key] || [];
@@ -327,6 +329,113 @@ export class EnviarConferenciaSankhyaUseCase {
           const validadeFormatada = formatarDataSankhya(loteObj.validade);
           const fabricacaoFormatada = formatarDataSankhya(loteObj.fabricacao);
 
+          // 3.2.1 Verificar se na TGFITE existia um lote antigo (ex: vindo do XML) diferente do conferido
+          let loteAntigoReaproveitado = false;
+          if (loteAntigoIte && loteAntigoIte.toUpperCase() !== lLimpo.toUpperCase()) {
+            const checkAntigoSql = `
+              SELECT NVL(ESTOQUE, 0) AS ESTOQUE, NVL(RESERVADO, 0) AS RESERVADO
+              FROM TGFEST
+              WHERE CODPROD = ${codprod}
+                AND CODLOCAL = ${localLote}
+                AND CODEMP = ${codemp}
+                AND CONTROLE = '${loteAntigoIte}'
+                AND CODPARC = 0
+                AND TIPO = 'P'
+            `.trim();
+
+            try {
+              const respAntigo = await this.gateway.serviceCall<any>(
+                'DbExplorerSP.executeQuery',
+                { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: checkAntigoSql } },
+                correlationId
+              );
+
+              if (respAntigo?.responseBody?.rows?.length > 0) {
+                const estoqueAntigo = Number(respAntigo.responseBody.rows[0][0]) || 0;
+                const reservadoAntigo = Number(respAntigo.responseBody.rows[0][1]) || 0;
+
+                if (estoqueAntigo === 0 && reservadoAntigo === 0) {
+                  // Estoque igual a zero: verificar se o novo lote já existe na TGFEST
+                  const checkNovoSql = `
+                    SELECT COUNT(1) FROM TGFEST
+                    WHERE CODPROD = ${codprod}
+                      AND CODLOCAL = ${localLote}
+                      AND CODEMP = ${codemp}
+                      AND CONTROLE = '${lLimpo}'
+                      AND CODPARC = 0
+                      AND TIPO = 'P'
+                  `.trim();
+                  const respNovo = await this.gateway.serviceCall<any>(
+                    'DbExplorerSP.executeQuery',
+                    { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: checkNovoSql } },
+                    correlationId
+                  );
+                  const novoJaExiste = Number(respNovo?.responseBody?.rows?.[0]?.[0]) > 0;
+
+                  if (!novoJaExiste) {
+                    // Novo lote não existe: realizamos o UPDATE do lote antigo para o novo lote na TGFEST via DatasetSP.save
+                    const fieldsUpdateLote = ['CONTROLE'];
+                    const valuesUpdateLote: Record<string, string | number> = { '0': lLimpo };
+                    let idxF = 1;
+                    if (validadeFormatada) {
+                      fieldsUpdateLote.push('DTVAL');
+                      valuesUpdateLote[String(idxF++)] = validadeFormatada;
+                    }
+                    if (fabricacaoFormatada) {
+                      fieldsUpdateLote.push('DTFABRICACAO');
+                      valuesUpdateLote[String(idxF++)] = fabricacaoFormatada;
+                    }
+
+                    await this.gateway.serviceCall<any>(
+                      'DatasetSP.save',
+                      {
+                        serviceName: 'DatasetSP.save',
+                        requestBody: {
+                          entityName: 'Estoque',
+                          standAlone: false,
+                          fields: fieldsUpdateLote,
+                          records: [
+                            {
+                              pk: {
+                                CODPROD: String(codprod),
+                                CODLOCAL: localLote,
+                                CODEMP: String(codemp),
+                                CODPARC: '0',
+                                TIPO: 'P',
+                                CONTROLE: loteAntigoIte,
+                              },
+                              values: valuesUpdateLote,
+                            },
+                          ],
+                        },
+                      },
+                      correlationId
+                    );
+                    console.log(
+                      `[TGFEST] Lote antigo com saldo zero '${loteAntigoIte}' atualizado com sucesso para '${lLimpo}' via DatasetSP.save (Prod #${codprod}, Local ${localLote}).`
+                    );
+                    loteAntigoReaproveitado = true;
+                    estoqueAtualizado++;
+                  } else {
+                    console.log(
+                      `[TGFEST] Novo lote '${lLimpo}' já existe na TGFEST. As datas serão atualizadas na linha existente.`
+                    );
+                  }
+                } else {
+                  console.log(
+                    `[TGFEST] Lote anterior '${loteAntigoIte}' possui saldo real (${estoqueAntigo}/${reservadoAntigo}). Mantido intacto no estoque.`
+                  );
+                }
+              }
+            } catch (errAntigo: any) {
+              console.warn(`[TGFEST] Aviso ao validar estoque do lote anterior '${loteAntigoIte}':`, errAntigo.message);
+            }
+          }
+
+          if (loteAntigoReaproveitado) {
+            continue;
+          }
+
           // Verificar se já existe saldo/registro na TGFEST para esta chave
           const checkEstSql = `
             SELECT COUNT(1) FROM TGFEST
@@ -373,7 +482,7 @@ export class EnviarConferenciaSankhyaUseCase {
                         {
                           pk: {
                             CODPROD: String(codprod),
-                            CODLOCAL: codlocal,
+                            CODLOCAL: localLote,
                             CODEMP: String(codemp),
                             CODPARC: '0',
                             TIPO: 'P',
@@ -391,7 +500,7 @@ export class EnviarConferenciaSankhyaUseCase {
               // Se não existe, cria novo registro com ESTOQUE = 0 e RESERVADO = 0 via foreignKey
               const fieldsInsert = ['CODLOCAL', 'CONTROLE', 'TIPO', 'ESTOQUE', 'RESERVADO'];
               const valuesInsert: Record<string, string | number> = {
-                '0': codlocal,
+                '0': localLote,
                 '1': lLimpo,
                 '2': 'P',
                 '3': 0,

@@ -259,6 +259,55 @@ export function GestaoRecebimentoPage() {
   const [itensRecontagemModal, setItensRecontagemModal] = useState<Array<{ nunota: number; sequencia: number; codprod: number }>>([]);
   const [nunotaReiniciarModal, setNunotaReiniciarModal] = useState<number | undefined>(undefined);
   const [observacaoModal, setObservacaoModal] = useState('');
+  const [segundosRestantesReinicio, setSegundosRestantesReinicio] = useState<number>(3);
+
+  // Efeito de contagem regressiva de 3s para habilitar o botão de confirmar reinício
+  useEffect(() => {
+    if (!modalAcao || modalAcao.tipo !== 'REINICIAR') {
+      setSegundosRestantesReinicio(3);
+      return;
+    }
+
+    setSegundosRestantesReinicio(3);
+    const intervalo = setInterval(() => {
+      setSegundosRestantesReinicio((prev) => {
+        if (prev <= 1) {
+          clearInterval(intervalo);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalo);
+  }, [modalAcao]);
+
+  // Ocorrências vinculadas à conferência/nota sendo reiniciada
+  const ocorrenciasReiniciar = useMemo(() => {
+    if (!modalAcao || modalAcao.tipo !== 'REINICIAR') return [];
+    const confId = modalAcao.dadosExtras?.conferenciaIdOrig || modalAcao.conferenciaId;
+    const nunotaAlvo = nunotaReiniciarModal !== undefined ? nunotaReiniciarModal : modalAcao.dadosExtras?.nunota;
+
+    return ocorrencias.filter((o) => {
+      if (o.status === 'CANCELADO' || o.status === 'RESOLVIDO') return false;
+      const matchConf = o.conferenciaId === confId;
+      const matchNota = nunotaAlvo && o.nunota ? o.nunota === nunotaAlvo : true;
+      return matchConf && matchNota;
+    });
+  }, [modalAcao, ocorrencias, nunotaReiniciarModal]);
+
+  // Divergências vinculadas à conferência/nota sendo reiniciada
+  const divergenciasReiniciar = useMemo(() => {
+    if (!modalAcao || modalAcao.tipo !== 'REINICIAR') return [];
+    const confId = modalAcao.dadosExtras?.conferenciaIdOrig || modalAcao.conferenciaId;
+    const nunotaAlvo = nunotaReiniciarModal !== undefined ? nunotaReiniciarModal : modalAcao.dadosExtras?.nunota;
+
+    return divergencias.filter((d) => {
+      const matchConf = (d.conferenciaId || d.id) === confId;
+      const matchNota = nunotaAlvo && d.nunota ? d.nunota === nunotaAlvo : true;
+      return matchConf && matchNota;
+    });
+  }, [modalAcao, divergencias, nunotaReiniciarModal]);
   const [processandoAcao, setProcessandoAcao] = useState(false);
   const [processandoDesmembramento, setProcessandoDesmembramento] = useState<string | null>(null);
   const [conferenciaParaRestaurar, setConferenciaParaRestaurar] = useState<ConferenciaEntradaResumo | null>(null);
@@ -270,6 +319,13 @@ export function GestaoRecebimentoPage() {
     motivo?: string,
     backupConferenciaId?: string
   ) => {
+    if (!podeGerenciarBackup) {
+      setFeedback({
+        tipo: 'erro',
+        texto: 'Você não possui permissão para restaurar backups de conferência.',
+      });
+      return;
+    }
     setProcessandoRestauracao(true);
     try {
       await recebimentoService.recuperarContagem(conferenciaId, motivo, backupConferenciaId);
@@ -473,6 +529,40 @@ export function GestaoRecebimentoPage() {
     }
   };
 
+  const handleRegistrarOcorrenciaSobra = async (dados: {
+    conferenciaId: string;
+    nunota: number;
+    numnota?: number;
+    sequencia?: number;
+    codprod: number;
+    descrprod?: string;
+    quantidadeSobra: number;
+    lote?: string;
+    validade?: string;
+    fabricacao?: string;
+    motivo?: string;
+    codlocalDestino?: number;
+    fotos?: string[];
+  }) => {
+    try {
+      const res = await recebimentoService.registrarOcorrenciaSobra(dados.conferenciaId, dados);
+      if (res.divergencias) {
+        setDivergencias(res.divergencias);
+      }
+      await carregarDados();
+      setFeedback({
+        tipo: 'sucesso',
+        texto: res.mensagem || 'Ocorrência de sobra registrada com sucesso e contagem ajustada!',
+      });
+    } catch (err: any) {
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || err.message || 'Erro ao registrar ocorrência de sobra.',
+      });
+      throw err;
+    }
+  };
+
   const handleLocalAlteradoDivergencia = (nunota: number, sequencia: number, novoCodlocal: number) => {
     setDivergencias((prev) =>
       prev.map((grupo) => {
@@ -502,6 +592,7 @@ export function GestaoRecebimentoPage() {
   const podeAbaDivergencias = ehAdmin || temPermissao('gestao_recebimento_aba_divergencias');
   const podeAbaEnvioSankhya = ehAdmin || temPermissao('gestao_recebimento_aba_envio_sankhya');
   const podeAbaOcorrencias = ehAdmin || temPermissao('gestao_recebimento_aba_ocorrencias');
+  const podeGerenciarBackup = ehAdmin || temPermissao('gestao_recebimento_backup');
 
   // Redirecionamento automático caso a aba ativa não seja permitida
   useEffect(() => {
@@ -512,7 +603,10 @@ export function GestaoRecebimentoPage() {
     } else if (abaAtiva === 'ocorrencias' && !podeAbaOcorrencias) {
       setAbaAtiva('conferencias');
     }
-  }, [abaAtiva, podeAbaDivergencias, podeAbaEnvioSankhya, podeAbaOcorrencias]);
+    if (filtroStatus === 'com_backup' && !podeGerenciarBackup) {
+      setFiltroStatus('todas');
+    }
+  }, [abaAtiva, podeAbaDivergencias, podeAbaEnvioSankhya, podeAbaOcorrencias, filtroStatus, podeGerenciarBackup]);
 
   // Carregar dados
   const carregarDados = useCallback(async () => {
@@ -659,7 +753,7 @@ export function GestaoRecebimentoPage() {
           tipo: 'sucesso',
           texto: nunotaParaReiniciar
             ? `Nota desmembrada e reiniciada com sucesso! Uma conferência individual exclusiva foi iniciada no Nível 2.`
-            : 'Conferência reiniciada! Bipagens anteriores foram arquivadas em backup de segurança e a sessão voltou ao início.',
+            : 'Conferência reiniciada com sucesso! As contagens foram canceladas e a conferência voltou ao início (Nível 2).',
         });
       } else if (modalAcao.tipo === 'SOLICITAR_RECONTAGEM') {
         await recebimentoService.solicitarRecontagem(modalAcao.conferenciaId, {
@@ -707,10 +801,10 @@ export function GestaoRecebimentoPage() {
     for (const c of todasConferencias) {
       if (c.status === 'Em Aberto') {
         emAberto++;
-      } else if (['Iniciado', 'N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento'].includes(c.status)) {
+      } else if (['Iniciado', 'N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento', 'Recontagem N1 em Andamento', 'Recontagem N2 em Andamento', 'Recontagem N3 em Andamento'].includes(c.status)) {
         emAndamento++;
       }
-      if (['Aguardando N2', 'Aguardando N3', 'Divergente'].includes(c.status)) {
+      if (['Aguardando N2', 'Aguardando N3', 'Divergente', 'Aguardando Recontagem N1', 'Aguardando Recontagem N2', 'Aguardando Recontagem N3', 'Recontagem N1 em Andamento', 'Recontagem N2 em Andamento', 'Recontagem N3 em Andamento'].includes(c.status)) {
         recontagem++;
       }
       if (['Conferido', 'Aguardando Aprovação', 'Enviado ao Sankhya'].includes(c.status)) {
@@ -737,9 +831,9 @@ export function GestaoRecebimentoPage() {
       if (filtroStatus === 'em_aberto') {
         if (c.status !== 'Em Aberto') return false;
       } else if (filtroStatus === 'em_andamento') {
-        if (!['Iniciado', 'N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento'].includes(c.status)) return false;
+        if (!['Iniciado', 'N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento', 'Recontagem N1 em Andamento', 'Recontagem N2 em Andamento', 'Recontagem N3 em Andamento'].includes(c.status)) return false;
       } else if (filtroStatus === 'recontagem') {
-        if (!['Aguardando N2', 'Aguardando N3', 'Divergente'].includes(c.status)) return false;
+        if (!['Aguardando N2', 'Aguardando N3', 'Divergente', 'Aguardando Recontagem N1', 'Aguardando Recontagem N2', 'Aguardando Recontagem N3', 'Recontagem N1 em Andamento', 'Recontagem N2 em Andamento', 'Recontagem N3 em Andamento'].includes(c.status)) return false;
       } else if (filtroStatus === 'concluidas') {
         if (!['Conferido', 'Aguardando Aprovação', 'Enviado ao Sankhya'].includes(c.status)) return false;
       } else if (filtroStatus === 'com_backup') {
@@ -1137,8 +1231,8 @@ export function GestaoRecebimentoPage() {
                         conferenciaId: confIdReal,
                         titulo: `Reiniciar Conferência (NF ${conf.numerosNotas})`,
                         descricao: conf.sessaoConjunta
-                          ? `ATENÇÃO: Todas as bipagens ativas da nota ${conf.numerosNotas} serão arquivadas em um backup seguro e ela voltará ao Nível 2. Como ela pertence a uma conferência conjunta, ela será desmembrada para uma conferência exclusiva sem afetar as demais notas.`
-                          : `ATENÇÃO: Todas as bipagens ativas da nota ${conf.numerosNotas} serão arquivadas em um backup seguro e a conferência voltará ao Nível 2. Você poderá recuperar esta contagem a qualquer momento usando a opção "Recuperar Contagem".`,
+                          ? `ATENÇÃO: Todas as contagens ativas da nota ${conf.numerosNotas} serão canceladas e ela voltará ao Nível 2. Como ela pertence a uma conferência conjunta, ela será desmembrada para uma conferência exclusiva sem afetar as demais notas.`
+                          : `ATENÇÃO: Todas as contagens ativas da nota ${conf.numerosNotas} serão canceladas e a conferência voltará ao Nível 2.`,
                         placeholder: 'Motivo obrigatório do reinício...',
                         dadosExtras: {
                           conferenciaIdOrig: confIdReal,
@@ -1149,6 +1243,7 @@ export function GestaoRecebimentoPage() {
                       });
                     }}
                     onRecuperarContagem={(conf) => {
+                      if (!podeGerenciarBackup) return;
                       setConferenciaParaRestaurar(conf);
                     }}
                     onAbrirColetor={(conf) => {
@@ -1163,6 +1258,7 @@ export function GestaoRecebimentoPage() {
                     }}
                     nivel1Ativo={paramN1Ativo}
                     nivel2Ativo={paramN2Ativo}
+                    podeGerenciarBackup={podeGerenciarBackup}
                   />
                 )}
 
@@ -1212,7 +1308,7 @@ export function GestaoRecebimentoPage() {
                         tipo: 'REINICIAR',
                         conferenciaId: grupo.conferenciaId || grupo.id,
                         titulo: `Reiniciar Conferência (NF ${grupo.numnota || grupo.numerosNotas})`,
-                        descricao: `ATENÇÃO: As bipagens registradas da nota ${grupo.numnota || grupo.numerosNotas} serão salvas em backup e ela voltará ao início (Nível 2). Se ela fazia parte de uma conferência conjunta, será desmembrada para uma sessão individual exclusiva.`,
+                        descricao: `ATENÇÃO: As contagens registradas da nota ${grupo.numnota || grupo.numerosNotas} serão canceladas e ela voltará ao início (Nível 2). Se ela fazia parte de uma conferência conjunta, será desmembrada para uma sessão individual exclusiva.`,
                         placeholder: 'Motivo obrigatório do cancelamento e reinício...',
                         dadosExtras: {
                           conferenciaIdOrig: grupo.conferenciaId || grupo.id,
@@ -1221,13 +1317,16 @@ export function GestaoRecebimentoPage() {
                         },
                       });
                     }}
-                    onRecuperarContagem={(conf) => {
-                      setConferenciaParaRestaurar(conf);
-                    }}
+                    onRecuperarContagem={
+                      podeGerenciarBackup
+                        ? (conf) => setConferenciaParaRestaurar(conf)
+                        : undefined
+                    }
                     onSincronizarDesmembramento={handleSincronizarDesmembramento}
                     onExecutarDesmembramento={handleExecutarDesmembramento}
                     processandoDesmembramento={processandoDesmembramento}
                     onLocalAlterado={handleLocalAlteradoDivergencia}
+                    onRegistrarOcorrenciaSobra={handleRegistrarOcorrenciaSobra}
                   />
                 )}
 
@@ -1266,9 +1365,11 @@ export function GestaoRecebimentoPage() {
                         fornecedor: conf?.fornecedor,
                       });
                     }}
-                    onRecuperarContagem={(conf) => {
-                      setConferenciaParaRestaurar(conf);
-                    }}
+                    onRecuperarContagem={
+                      podeGerenciarBackup
+                        ? (conf) => setConferenciaParaRestaurar(conf)
+                        : undefined
+                    }
                     onExecutarDesmembramento={handleExecutarDesmembramento}
                     obterLotesItem={obterLotesItem}
                     nivel1Ativo={paramN1Ativo}
@@ -1523,6 +1624,47 @@ export function GestaoRecebimentoPage() {
                   )}
 
 
+                  {/* Alerta Crítico para Reinício de Conferência com Ocorrências / Divergências */}
+                  {modalAcao.tipo === 'REINICIAR' && (
+                    <div
+                      style={{
+                        backgroundColor: '#fef2f2',
+                        border: '1.5px solid #f87171',
+                        borderRadius: '10px',
+                        padding: '12px 16px',
+                        margin: '12px 0',
+                        color: '#991b1b',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem', fontWeight: 800 }}>
+                        <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                        <span>ALERTA DE REINÍCIO: CANCELAMENTO E EXCLUSÃO DE DADOS</span>
+                      </div>
+
+                      <div style={{ fontSize: '0.80rem', marginTop: '8px', lineHeight: '1.5', color: '#b91c1c' }}>
+                        {ocorrenciasReiniciar.length > 0 ? (
+                          <div>
+                            • <strong>{ocorrenciasReiniciar.length} ocorrência(s) ativa(s)</strong> vinculada(s) (avarias, vencidos, etc.) serão marcadas como <strong>CANCELADAS</strong>.
+                          </div>
+                        ) : (
+                          <div>• Nenhuma ocorrência física ativa vinculada a esta conferência.</div>
+                        )}
+
+                        {divergenciasReiniciar.length > 0 ? (
+                          <div>
+                            • <strong>Divergências fiscais pendentes</strong> desta conferência serão desfeitas e zeradas.
+                          </div>
+                        ) : (
+                          <div>• As divergências pendentes serão desfeitas.</div>
+                        )}
+
+                        <div style={{ marginTop: '4px', fontWeight: 700, color: '#991b1b' }}>
+                          • Todas as contagens físicas registradas serão canceladas e a conferência voltará para o início.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="gestao-modal-acoes">
                     <button
                       type="button"
@@ -1540,9 +1682,28 @@ export function GestaoRecebimentoPage() {
                       type="button"
                       className="gestao-modal-btn-confirmar"
                       onClick={handleConfirmarAcaoModal}
-                      disabled={processandoAcao}
+                      disabled={processandoAcao || (modalAcao.tipo === 'REINICIAR' && segundosRestantesReinicio > 0)}
+                      style={
+                        modalAcao.tipo === 'REINICIAR'
+                          ? {
+                              backgroundColor: segundosRestantesReinicio > 0 ? '#fca5a5' : '#dc2626',
+                              color: '#ffffff',
+                              border: 'none',
+                              cursor: segundosRestantesReinicio > 0 ? 'not-allowed' : 'pointer',
+                              minWidth: '185px',
+                              transition: 'all 0.2s ease',
+                              fontWeight: 700,
+                            }
+                          : undefined
+                      }
                     >
-                      {processandoAcao ? 'Processando...' : 'Confirmar Ação'}
+                      {processandoAcao
+                        ? 'Processando...'
+                        : modalAcao.tipo === 'REINICIAR'
+                        ? segundosRestantesReinicio > 0
+                          ? `Confirmar Reinício (${segundosRestantesReinicio}s)`
+                          : 'Confirmar Reinício'
+                        : 'Confirmar Ação'}
                     </button>
                   </div>
                 </div>

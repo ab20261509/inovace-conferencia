@@ -279,5 +279,38 @@ export class RecebimentoApiService {
     );
     return response.data;
   }
+
+  async registrarOcorrenciaSobra(
+    conferenciaId: string,
+    dados: {
+      nunota: number;
+      numnota?: number;
+      sequencia?: number;
+      codprod: number;
+      descrprod?: string;
+      quantidadeSobra: number;
+      lote?: string;
+      validade?: string;
+      fabricacao?: string;
+      motivo?: string;
+      codlocalDestino?: number;
+      fotos?: string[];
+    }
+  ): Promise<{
+    sucesso: boolean;
+    mensagem: string;
+    ocorrenciaId: string;
+    quantidadeAbatida: number;
+    divergencias?: any[];
+  }> {
+    const response = await httpClient.post<{
+      sucesso: boolean;
+      mensagem: string;
+      ocorrenciaId: string;
+      quantidadeAbatida: number;
+      divergencias?: any[];
+    }>(`/api/recebimento/conferencia/${conferenciaId}/ocorrencia-sobra`, dados);
+    return response.data;
+  }
 }
 

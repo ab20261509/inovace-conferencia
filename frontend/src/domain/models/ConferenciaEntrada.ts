@@ -5,6 +5,12 @@ export type StatusConferenciaEntrada =
   | 'N2 em Andamento'
   | 'Aguardando N3'
   | 'N3 em Andamento'
+  | 'Aguardando Recontagem N1'
+  | 'Recontagem N1 em Andamento'
+  | 'Aguardando Recontagem N2'
+  | 'Recontagem N2 em Andamento'
+  | 'Aguardando Recontagem N3'
+  | 'Recontagem N3 em Andamento'
   | 'Divergente'
   | 'Em Reconferência'
   | 'Conferido'
@@ -24,6 +30,7 @@ export interface NotaEntrada {
   vlrnota: number;
   statusnota: string;
   qtdItens: number;
+  qtdUnidades?: number;
   codemp: number;
   statusConferencia: StatusConferenciaEntrada;
   conferenciaId?: string;
@@ -63,6 +70,7 @@ export interface ItemNotaEntrada {
   codbarra?: string;
   codvol: string;
   qtdneg: number | null; // pode ser null se for campo sensível protegido
+  conferidoCompleto?: boolean;
   qtdConferidaN1: number;
   qtdConferidaN2: number;
   qtdConferidaN3: number;
@@ -154,6 +162,7 @@ export interface ConferenciaEntradaResumo {
   enviadoSankhyaEm?: string;
   aprovadoPor?: string;
   totalItens: number;
+  totalQtdEsperada?: number;
   totalBipadoN1: number;
   totalBipadoN2: number;
   totalBipadoN3: number;
@@ -205,6 +214,7 @@ export interface BiparResponse {
   referencia: string;
   fatorAplicado: number;
   statusSessao?: StatusConferenciaEntrada;
+  conferidoCompleto?: boolean;
 }
 
 export interface ResumoNotaFinalizacao {
@@ -212,6 +222,7 @@ export interface ResumoNotaFinalizacao {
   numnota: number;
   status: StatusConferenciaEntrada;
   totalItens: number;
+  totalQtdEsperada?: number;
   itensConferidosOk: number;
   itensPendentes: number;
   itensComSobra: number;
@@ -226,6 +237,7 @@ export interface FinalizarNivelResponse {
   possuiDivergenciasQtd?: boolean;
   possuiDivergenciasLote?: boolean;
   totalItens: number;
+  totalQtdEsperada?: number;
   totalConferidos: number;
   resumoPorNota?: ResumoNotaFinalizacao[];
 }

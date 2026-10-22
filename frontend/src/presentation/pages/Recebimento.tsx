@@ -9,9 +9,26 @@ import { BadgePrevisaoEntrega, calcularStatusPrevisaoEntrega } from '../componen
 
 const recebimentoService = new RecebimentoApiService();
 
-function classeStatusEntrada(status: StatusConferenciaEntrada): string {
+function classeStatusEntrada(status: StatusConferenciaEntrada, nivel?: number): string {
   if (status === 'Conferido' || status === 'Enviado ao Sankhya') return 'badge-success';
-  if (['N1 em Andamento', 'N2 em Andamento', 'N3 em Andamento', 'Aguardando N2', 'Aguardando N3'].includes(status)) return 'badge-warning';
+  if (
+    nivel === 3 ||
+    status === 'N3 em Andamento' ||
+    status === 'Aguardando N3' ||
+    status === 'Aguardando Recontagem N3' ||
+    status === 'Recontagem N3 em Andamento'
+  ) return 'badge-danger';
+  if (
+    [
+      'N1 em Andamento',
+      'N2 em Andamento',
+      'Aguardando N2',
+      'Aguardando Recontagem N1',
+      'Recontagem N1 em Andamento',
+      'Aguardando Recontagem N2',
+      'Recontagem N2 em Andamento',
+    ].includes(status)
+  ) return 'badge-warning';
   if (['Divergente', 'Em Reconferência'].includes(status)) return 'badge-danger';
   return 'badge-pending';
 }
@@ -83,6 +100,7 @@ export function RecebimentoPage() {
   const [selectedNunotas, setSelectedNunotas] = useState<Set<number>>(new Set());
 
   const podeAcessar = temPermissao('conferencia_entrada');
+  const podeVerConferido = temPermissao('conferencia_entrada_conferido');
 
   useEffect(() => {
     const locState = location.state as { mensagem?: string } | null;
@@ -116,6 +134,13 @@ export function RecebimentoPage() {
     carregarNotas();
   }, [podeAcessar, carregarNotas]);
 
+  // Se o usuário não tem permissão de ver conferidos e estava filtrando por concluídos, reseta para 'todos'
+  useEffect(() => {
+    if (!podeVerConferido && filtroStatus === 'concluidos') {
+      setFiltroStatus('todos');
+    }
+  }, [podeVerConferido, filtroStatus]);
+
   // Contadores e notas visíveis conforme permissões de nível e status do usuário
   const notasPermitidas = useMemo(() => {
     const n1 = temPermissao('conferencia_entrada_n1');
@@ -135,15 +160,19 @@ export function RecebimentoPage() {
       // Divergentes (Divergente / Em Reconferência): requer permissão de divergente
       const isDivergente = n.statusConferencia === 'Divergente' || n.statusConferencia === 'Em Reconferência';
       if (isDivergente && !verDivergente) {
-        return false;
+        // Se a nota divergente estiver no Nível 3 (recontagem N3) e o usuário tiver permissão N3, libera visualização
+        const ehN3Recontagem = (n.nivelAtual === 3 || ['Aguardando N3', 'N3 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(n.statusConferencia)) && n3;
+        if (!ehN3Recontagem) {
+          return false;
+        }
       }
 
       let nivel = n.nivelAtual || 1;
-      if (['Aguardando N2', 'N2 em Andamento'].includes(n.statusConferencia)) {
+      if (['Aguardando N2', 'N2 em Andamento', 'Aguardando Recontagem N2', 'Recontagem N2 em Andamento'].includes(n.statusConferencia)) {
         nivel = 2;
-      } else if (['Aguardando N3', 'N3 em Andamento'].includes(n.statusConferencia)) {
+      } else if (['Aguardando N3', 'N3 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(n.statusConferencia)) {
         nivel = 3;
-      } else if (['Em Aberto', 'N1 em Andamento'].includes(n.statusConferencia)) {
+      } else if (['Em Aberto', 'N1 em Andamento', 'Aguardando Recontagem N1', 'Recontagem N1 em Andamento'].includes(n.statusConferencia)) {
         nivel = 1;
       }
 
@@ -158,7 +187,7 @@ export function RecebimentoPage() {
   const contadores = useMemo(() => {
     const pendentes = notasPermitidas.filter((n) => n.statusConferencia === 'Em Aberto').length;
     const conferindo = notasPermitidas.filter((n) =>
-      ['N1 em Andamento', 'Aguardando N2', 'N2 em Andamento', 'Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Divergente'].includes(
+      ['N1 em Andamento', 'Aguardando N2', 'N2 em Andamento', 'Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Divergente', 'Aguardando Recontagem N1', 'Recontagem N1 em Andamento', 'Aguardando Recontagem N2', 'Recontagem N2 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(
         n.statusConferencia
       )
     ).length;
@@ -197,7 +226,7 @@ export function RecebimentoPage() {
       resultado = resultado.filter((n) => n.statusConferencia === 'Em Aberto');
     } else if (filtroStatus === 'conferindo') {
       resultado = resultado.filter((n) =>
-        ['N1 em Andamento', 'Aguardando N2', 'N2 em Andamento', 'Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Divergente'].includes(
+        ['N1 em Andamento', 'Aguardando N2', 'N2 em Andamento', 'Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Divergente', 'Aguardando Recontagem N1', 'Recontagem N1 em Andamento', 'Aguardando Recontagem N2', 'Recontagem N2 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(
           n.statusConferencia
         )
       );
@@ -376,15 +405,17 @@ export function RecebimentoPage() {
                 <span className="status-contador-txt">Em Andamento</span>
               </button>
 
-              <button
-                type="button"
-                className={`status-contador badge-success ${filtroStatus === 'concluidos' ? 'status-contador--ativo' : ''}`}
-                onClick={() => setFiltroStatus(filtroStatus === 'concluidos' ? 'todos' : 'concluidos')}
-                title="Mostrar notas concluídas"
-              >
-                <span className="status-contador-num">{contadores.concluidos}</span>
-                <span className="status-contador-txt">Concluídas</span>
-              </button>
+              {podeVerConferido && (
+                <button
+                  type="button"
+                  className={`status-contador badge-success ${filtroStatus === 'concluidos' ? 'status-contador--ativo' : ''}`}
+                  onClick={() => setFiltroStatus(filtroStatus === 'concluidos' ? 'todos' : 'concluidos')}
+                  title="Mostrar notas concluídas"
+                >
+                  <span className="status-contador-num">{contadores.concluidos}</span>
+                  <span className="status-contador-txt">Concluídas</span>
+                </button>
+              )}
 
               {filtroStatus !== 'todos' && (
                 <Botao variant="ghost" size="sm" onClick={() => setFiltroStatus('todos')}>
@@ -476,8 +507,10 @@ export function RecebimentoPage() {
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span className={`status-badge ${classeStatusEntrada(n.statusConferencia)}`}>
-                              {n.statusConferencia}
+                            <span className={`status-badge ${classeStatusEntrada(n.statusConferencia, n.nivelAtual)}`}>
+                              {(n.statusConferencia === 'Divergente' || n.statusConferencia === 'Em Reconferência') && n.nivelAtual === 3
+                                ? 'Divergente - Reconferência N3'
+                                : n.statusConferencia}
                             </span>
                           </div>
                         </div>
@@ -489,8 +522,8 @@ export function RecebimentoPage() {
                             <span><strong>Valor:</strong> {formatarMoeda(n.vlrnota)}</span>
                             <span><strong>Data:</strong> {formatarData(n.dtneg)}</span>
                             {n.serie && <span><strong>Série:</strong> {n.serie}</span>}
-                            {n.nivelAtual && <span><strong>Nível Atual:</strong> N{n.nivelAtual}</span>}
-                            {n.conferente && (
+                            {n.statusConferencia !== 'Em Aberto' && n.nivelAtual && <span><strong>Nível Atual:</strong> N{n.nivelAtual}</span>}
+                            {n.statusConferencia !== 'Em Aberto' && n.conferente && (
                               <span>
                                 <strong>Conferente:</strong>{' '}
                                 <strong style={{ color: '#1d4ed8' }}>{n.conferente.toUpperCase()}</strong>

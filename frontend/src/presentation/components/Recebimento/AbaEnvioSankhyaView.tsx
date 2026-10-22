@@ -569,6 +569,104 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                 </div>
 
                 <div className="gestao-rec-card-badges">
+                  {/* 1. Quantidades Físicas */}
+                  <span
+                    className={`gestao-micro-chip-status ${
+                      jaEnviado || grupo.status === 'Conferido' ? 'ok' : 'alerta'
+                    }`}
+                    title={
+                      jaEnviado
+                        ? 'Conferência sincronizada com sucesso no Sankhya'
+                        : grupo.status === 'Conferido'
+                        ? 'Quantidades físicas 100% conferidas e correspondentes à NF'
+                        : 'Conferência ainda pendente ou aguardando aprovação gerencial'
+                    }
+                  >
+                    <span>{jaEnviado || grupo.status === 'Conferido' ? '✓' : '⚠️'}</span>
+                    <span>
+                      {jaEnviado
+                        ? 'Quantidades Físicas OK'
+                        : grupo.status === 'Conferido'
+                        ? 'Quantidades Físicas 100% OK'
+                        : 'Aguardando Aprovação'}
+                    </span>
+                  </span>
+
+                  {/* 2. Lotes e Validades */}
+                  <span
+                    className={`gestao-micro-chip-status ${
+                      jaEnviado || (detalhes && todosLotesOk)
+                        ? 'ok'
+                        : detalhes && !todosLotesOk
+                        ? 'alerta'
+                        : 'ok'
+                    }`}
+                    title={
+                      jaEnviado
+                        ? 'Lotes e validades já integrados no ERP'
+                        : detalhes
+                        ? todosLotesOk
+                          ? 'Todos os itens conferidos possuem lote vinculado para o ERP'
+                          : `${totalItens - itensComLote} item(ns) ainda sem lote configurado`
+                        : 'Lotes e validades configurados'
+                    }
+                  >
+                    <span>{jaEnviado || !detalhes || todosLotesOk ? '✓' : '⚠️'}</span>
+                    <span>
+                      {jaEnviado
+                        ? 'Lotes & Validades Integrados'
+                        : detalhes
+                        ? todosLotesOk
+                          ? 'Lotes & Validades OK'
+                          : `${totalItens - itensComLote} sem Lote`
+                        : 'Lotes & Validades OK'}
+                    </span>
+                  </span>
+
+                  {/* 3. Locais de Estoque no ERP */}
+                  <span
+                    className={`gestao-micro-chip-status ${
+                      jaEnviado || (detalhes && todosLocaisOk)
+                        ? 'ok'
+                        : detalhes && !todosLocaisOk
+                        ? 'perigo'
+                        : 'ok'
+                    }`}
+                    title={
+                      jaEnviado
+                        ? 'Locais de origem no ERP gravados com sucesso'
+                        : detalhes
+                        ? todosLocaisOk
+                          ? 'Todos os itens possuem Local de Origem definido no ERP'
+                          : `${itensSemLocal.length} item(ns) sem Local de Origem (CODLOCALORIG) na nota`
+                        : 'Locais de Estoque no ERP OK'
+                    }
+                  >
+                    <span>{jaEnviado || !detalhes || todosLocaisOk ? '✓' : '⚠️'}</span>
+                    <span>
+                      {jaEnviado
+                        ? 'Locais no ERP OK'
+                        : detalhes
+                        ? todosLocaisOk
+                          ? 'Locais no ERP OK'
+                          : `${itensSemLocal.length} sem Local no ERP`
+                        : 'Locais no ERP OK'}
+                    </span>
+                  </span>
+
+                  {/* 4. Alerta de Desmembramento (quando aplicável) */}
+                  {!jaEnviado && temBloqueioDesmembramento && (
+                    <span
+                      className="gestao-micro-chip-status perigo"
+                      title="Existem múltiplos lotes para a mesma sequência de produto sem desmembramento no Sankhya"
+                    >
+                      <span>⚠️</span>
+                      <span>
+                        {itensMultiplosLotesNaoDesmembrados.length} produto(s) requerem desmembramento Sankhya
+                      </span>
+                    </span>
+                  )}
+
                   <span
                     className={`badge-status-rec ${
                       jaEnviado
@@ -583,110 +681,9 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                 </div>
               </div>
 
-              {/* Linha Única de Micro-Chips de Validação Operacional (Status Strip Minimalista) */}
-              <div className="gestao-rec-status-strip">
-                {/* 1. Quantidades Físicas */}
-                <span
-                  className={`gestao-micro-chip-status ${
-                    jaEnviado || grupo.status === 'Conferido' ? 'ok' : 'alerta'
-                  }`}
-                  title={
-                    jaEnviado
-                      ? 'Conferência sincronizada com sucesso no Sankhya'
-                      : grupo.status === 'Conferido'
-                      ? 'Quantidades físicas 100% conferidas e correspondentes à NF'
-                      : 'Conferência ainda pendente ou aguardando aprovação gerencial'
-                  }
-                >
-                  <span>{jaEnviado || grupo.status === 'Conferido' ? '✓' : '⚠️'}</span>
-                  <span>
-                    {jaEnviado
-                      ? 'Quantidades Físicas OK'
-                      : grupo.status === 'Conferido'
-                      ? 'Quantidades Físicas 100% OK'
-                      : 'Aguardando Aprovação'}
-                  </span>
-                </span>
-
-                {/* 2. Lotes e Validades */}
-                <span
-                  className={`gestao-micro-chip-status ${
-                    jaEnviado || (detalhes && todosLotesOk)
-                      ? 'ok'
-                      : detalhes && !todosLotesOk
-                      ? 'alerta'
-                      : 'ok'
-                  }`}
-                  title={
-                    jaEnviado
-                      ? 'Lotes e validades já integrados no ERP'
-                      : detalhes
-                      ? todosLotesOk
-                        ? 'Todos os itens conferidos possuem lote vinculado para o ERP'
-                        : `${totalItens - itensComLote} item(ns) ainda sem lote configurado`
-                      : 'Lotes e validades configurados'
-                  }
-                >
-                  <span>{jaEnviado || !detalhes || todosLotesOk ? '✓' : '⚠️'}</span>
-                  <span>
-                    {jaEnviado
-                      ? 'Lotes & Validades Integrados'
-                      : detalhes
-                      ? todosLotesOk
-                        ? 'Lotes & Validades OK'
-                        : `${totalItens - itensComLote} sem Lote`
-                      : 'Lotes & Validades OK'}
-                  </span>
-                </span>
-
-                {/* 3. Locais de Estoque no ERP */}
-                <span
-                  className={`gestao-micro-chip-status ${
-                    jaEnviado || (detalhes && todosLocaisOk)
-                      ? 'ok'
-                      : detalhes && !todosLocaisOk
-                      ? 'perigo'
-                      : 'ok'
-                  }`}
-                  title={
-                    jaEnviado
-                      ? 'Locais de origem no ERP gravados com sucesso'
-                      : detalhes
-                      ? todosLocaisOk
-                        ? 'Todos os itens possuem Local de Origem definido no ERP'
-                        : `${itensSemLocal.length} item(ns) sem Local de Origem (CODLOCALORIG) na nota`
-                      : 'Locais de Estoque no ERP OK'
-                  }
-                >
-                  <span>{jaEnviado || !detalhes || todosLocaisOk ? '✓' : '⚠️'}</span>
-                  <span>
-                    {jaEnviado
-                      ? 'Locais no ERP OK'
-                      : detalhes
-                      ? todosLocaisOk
-                        ? 'Locais no ERP OK'
-                        : `${itensSemLocal.length} sem Local no ERP`
-                      : 'Locais no ERP OK'}
-                  </span>
-                </span>
-
-                {/* 4. Alerta de Desmembramento (quando aplicável) */}
-                {!jaEnviado && temBloqueioDesmembramento && (
-                  <span
-                    className="gestao-micro-chip-status perigo"
-                    title="Existem múltiplos lotes para a mesma sequência de produto sem desmembramento no Sankhya"
-                  >
-                    <span>⚠️</span>
-                    <span>
-                      {itensMultiplosLotesNaoDesmembrados.length} produto(s) requerem desmembramento Sankhya
-                    </span>
-                  </span>
-                )}
-              </div>
-
               {/* Barra de Ações Minimalista e Alinhada */}
               {grupo.conferenciaId && (
-                <div style={{ marginTop: '6px' }}>
+                <div style={{ marginTop: '10px' }}>
                   <div
                     style={{
                       display: 'flex',

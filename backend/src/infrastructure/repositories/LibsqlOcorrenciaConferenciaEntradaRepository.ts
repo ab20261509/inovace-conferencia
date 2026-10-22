@@ -32,6 +32,10 @@ export class LibsqlOcorrenciaConferenciaEntradaRepository
         row.nunota !== null && row.nunota !== undefined && Number(row.nunota) > 0
           ? Number(row.nunota)
           : undefined,
+      numnota:
+        row.numnota !== null && row.numnota !== undefined && Number(row.numnota) > 0
+          ? Number(row.numnota)
+          : undefined,
       sequencia:
         row.sequencia !== null && row.sequencia !== undefined
           ? Number(row.sequencia)
@@ -68,16 +72,17 @@ export class LibsqlOcorrenciaConferenciaEntradaRepository
     await this.client.execute({
       sql: `
         INSERT INTO ocorrencias_conferencia_entrada (
-          id, conferencia_id, nunota, sequencia, codprod, descrprod,
+          id, conferencia_id, nunota, numnota, sequencia, codprod, descrprod,
           tipo, quantidade, lote, validade, fabricacao, motivo,
           codlocal_destino, fotos_json, status, origem, criado_por,
           criado_em, atualizado_em
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         ocorrencia.id,
         ocorrencia.conferenciaId ?? null,
         ocorrencia.nunota ?? null,
+        ocorrencia.numnota ?? null,
         ocorrencia.sequencia ?? null,
         ocorrencia.codprod ?? null,
         ocorrencia.descrprod ?? null,
@@ -124,6 +129,10 @@ export class LibsqlOcorrenciaConferenciaEntradaRepository
       conditions.push(`nunota = ?`);
       args.push(filtros.nunota);
     }
+    if (filtros?.numnota) {
+      conditions.push(`numnota = ?`);
+      args.push(filtros.numnota);
+    }
     if (filtros?.tipo) {
       conditions.push(`tipo = ?`);
       args.push(filtros.tipo);
@@ -169,6 +178,10 @@ export class LibsqlOcorrenciaConferenciaEntradaRepository
     const camposParaAtualizar: string[] = ['atualizado_em = ?'];
     const args: any[] = [agora];
 
+    if (dados.numnota !== undefined) {
+      camposParaAtualizar.push('numnota = ?');
+      args.push(dados.numnota);
+    }
     if (dados.tipo !== undefined) {
       camposParaAtualizar.push('tipo = ?');
       args.push(dados.tipo);

@@ -34,20 +34,21 @@ export class SolicitarRecontagemEntradaUseCase {
     }
 
     const agora = new Date().toISOString();
-    let novoStatus: StatusConferenciaEntrada = 'Aguardando N2';
+    let novoStatus: StatusConferenciaEntrada = 'Aguardando Recontagem N2';
 
     if (nivelAlvo === 1) {
-      novoStatus = 'N1 em Andamento';
+      novoStatus = 'Aguardando Recontagem N1';
     } else if (nivelAlvo === 2) {
-      novoStatus = 'Aguardando N2';
+      novoStatus = 'Aguardando Recontagem N2';
     } else if (nivelAlvo === 3) {
-      novoStatus = 'Aguardando N3';
+      novoStatus = 'Aguardando Recontagem N3';
     }
 
     sessao.status = novoStatus;
     sessao.nivelAtual = nivelAlvo;
     sessao.atualizadoEm = agora;
     sessao.finalizadoEm = undefined;
+    sessao.conferente = '';
     sessao.aprovadoPor = undefined;
     sessao.aprovadoEm = undefined;
     sessao.enviadoSankhyaEm = undefined;

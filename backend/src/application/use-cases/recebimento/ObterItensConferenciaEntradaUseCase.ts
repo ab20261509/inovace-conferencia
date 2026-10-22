@@ -285,6 +285,11 @@ WHERE BAR.CODPROD IN (
       const contagemFinal = bip.n3 > 0 ? bip.n3 : bip.n2 > 0 ? bip.n2 : bip.n1;
       const diferenca = contagemFinal - rawQtd;
 
+      // Na conferência cega, indica se a contagem do nível ativo atingiu ou superou a quantidade esperada da NF
+      const nivelAtivo = sessao?.nivelAtual || 1;
+      const conferidoNivelAtivo = nivelAtivo === 1 ? bip.n1 : nivelAtivo === 2 ? bip.n2 : bip.n3;
+      const conferidoCompleto = rawQtd > 0 ? conferidoNivelAtivo >= rawQtd : conferidoNivelAtivo > 0;
+
       let codigosAlternativos = mapaBarras[codprod] || [];
       if (ocultarCodBarra) {
         codigosAlternativos = [];
@@ -303,6 +308,7 @@ WHERE BAR.CODPROD IN (
         codbarra: codigosAlternativos[0]?.codbarra || '',
         codvol: String(r[itensIndex['CODVOL']] || 'UN'),
         qtdneg: ocultarQtdNota ? null : rawQtd,
+        conferidoCompleto,
         qtdConferidaN1: bip.n1,
         qtdConferidaN2: bip.n2,
         qtdConferidaN3: bip.n3,
@@ -341,7 +347,9 @@ WHERE BAR.CODPROD IN (
     // ('Conferido', 'Aguardando Aprovação', 'Enviado ao Sankhya'), SEMPRE retornamos
     // todos os itens para que o gestor possa visualizar na tela e enviar ao Sankhya.
     const statusPermiteFiltragemN3 =
-      sessao?.status === 'Aguardando N3' || sessao?.status === 'N3 em Andamento';
+      sessao?.status === 'Aguardando N3' ||
+      sessao?.status === 'N3 em Andamento' ||
+      (sessao?.status === 'Divergente' && sessao?.nivelAtual === 3);
 
     const ehNivel3AtivoNoColetor =
       statusPermiteFiltragemN3 &&

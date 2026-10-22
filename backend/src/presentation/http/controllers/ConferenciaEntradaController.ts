@@ -15,6 +15,7 @@ import { RecuperarContagemReiniciadaUseCase } from '../../../application/use-cas
 import { SincronizarDesmembramentoNotaUseCase } from '../../../application/use-cases/recebimento/SincronizarDesmembramentoNotaUseCase.js';
 import { ExecutarDesmembramentoItemUseCase } from '../../../application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.js';
 import { AlterarLocalItemNotaUseCase } from '../../../application/use-cases/recebimento/AlterarLocalItemNotaUseCase.js';
+import { RegistrarOcorrenciaSobraUseCase } from '../../../application/use-cases/recebimento/RegistrarOcorrenciaSobraUseCase.js';
 
 export class ConferenciaEntradaController {
   constructor(
@@ -33,7 +34,8 @@ export class ConferenciaEntradaController {
     private readonly recuperarContagemUseCase?: RecuperarContagemReiniciadaUseCase,
     private readonly sincronizarDesmembramentoUseCase?: SincronizarDesmembramentoNotaUseCase,
     private readonly executarDesmembramentoUseCase?: ExecutarDesmembramentoItemUseCase,
-    private readonly alterarLocalItemUseCase?: AlterarLocalItemNotaUseCase
+    private readonly alterarLocalItemUseCase?: AlterarLocalItemNotaUseCase,
+    private readonly registrarOcorrenciaSobraUseCase?: RegistrarOcorrenciaSobraUseCase
   ) {}
 
   /** GET /api/recebimento/notas */
@@ -415,6 +417,64 @@ export class ConferenciaEntradaController {
     } catch (error: any) {
       console.error('❌ Erro ao alterar local do item no Sankhya:', error);
       res.status(400).json({ error: error.message || 'Erro ao alterar local do item.' });
+    }
+  }
+
+  /** POST /api/recebimento/conferencia/:id/ocorrencia-sobra */
+  async registrarOcorrenciaSobra(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.registrarOcorrenciaSobraUseCase) {
+        res.status(501).json({ error: 'Funcionalidade de registro de ocorrência de sobra não configurada.' });
+        return;
+      }
+
+      const { id } = req.params;
+      const {
+        nunota,
+        numnota,
+        sequencia,
+        codprod,
+        descrprod,
+        quantidadeSobra,
+        lote,
+        validade,
+        fabricacao,
+        motivo,
+        codlocalDestino,
+        fotos,
+      } = req.body;
+
+      if (!nunota || !codprod || !quantidadeSobra) {
+        res.status(400).json({ error: 'nunota, codprod e quantidadeSobra são obrigatórios.' });
+        return;
+      }
+
+      const usuario = req.username || (req as any).user?.username || (req as any).username || 'GESTOR';
+
+      const resultado = await this.registrarOcorrenciaSobraUseCase.execute(
+        {
+          conferenciaId: id,
+          nunota: Number(nunota),
+          numnota: numnota ? Number(numnota) : undefined,
+          sequencia: sequencia ? Number(sequencia) : undefined,
+          codprod: Number(codprod),
+          descrprod,
+          quantidadeSobra: Number(quantidadeSobra),
+          lote,
+          validade,
+          fabricacao,
+          motivo,
+          codlocalDestino: codlocalDestino ? Number(codlocalDestino) : undefined,
+          fotos,
+          usuario,
+        },
+        req.correlationId
+      );
+
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error('❌ Erro ao registrar ocorrência de sobra e abater contagem:', error);
+      res.status(400).json({ error: error.message || 'Erro ao registrar ocorrência de sobra.' });
     }
   }
 }

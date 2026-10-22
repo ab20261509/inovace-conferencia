@@ -8,6 +8,7 @@ import { SkeletonItens } from './SkeletonItens';
 import {
   getStatusBadgeClass,
   formatarConferentes,
+  formatarConferentesTexto,
   formatarDataSimples,
   BadgePrevisaoEntrega,
   calcularStatusPrevisaoEntrega,
@@ -49,6 +50,7 @@ export interface AbaConferenciasViewProps {
   onAbrirColetor: (conf: ConferenciaEntradaResumo) => void;
   nivel1Ativo?: boolean;
   nivel2Ativo?: boolean;
+  podeGerenciarBackup?: boolean;
 }
 
 export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
@@ -68,6 +70,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
   onAbrirColetor,
   nivel1Ativo,
   nivel2Ativo,
+  podeGerenciarBackup = true,
 }) => {
   const [filtroItensCards, setFiltroItensCards] = useState<
     Record<string, 'todos' | 'divergentes' | 'semlote'>
@@ -147,14 +150,16 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
           >
             Concluídas <span className="chip-count">{contagensFiltros.concluidas}</span>
           </button>
-          <button
-            type="button"
-            className={`gestao-filtro-chip ${filtroStatus === 'com_backup' ? 'ativo' : ''}`}
-            onClick={() => setFiltroStatus('com_backup')}
-            title="Conferências que foram reiniciadas e possuem contagem anterior recuperável"
-          >
-            💾 Com Backup <span className="chip-count">{contagensFiltros.comBackup}</span>
-          </button>
+          {podeGerenciarBackup && (
+            <button
+              type="button"
+              className={`gestao-filtro-chip ${filtroStatus === 'com_backup' ? 'ativo' : ''}`}
+              onClick={() => setFiltroStatus('com_backup')}
+              title="Conferências que foram reiniciadas e possuem contagem anterior recuperável"
+            >
+              💾 Com Backup <span className="chip-count">{contagensFiltros.comBackup}</span>
+            </button>
+          )}
         </div>
 
         <input
@@ -193,7 +198,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
           return (
             <div key={conf.id} className={`gestao-rec-card ${isAtrasadoNaoAndamento ? 'card-atrasado' : ''}`}>
               {/* Ribbon Minimalista de Backup (se existir contagem anterior arquivada) */}
-              {conf.temBackupContagem && (conf.backupContagem || (conf.backupsDisponiveis && conf.backupsDisponiveis.length > 0)) && (
+              {podeGerenciarBackup && conf.temBackupContagem && (conf.backupContagem || (conf.backupsDisponiveis && conf.backupsDisponiveis.length > 0)) && (
                 <div className="gestao-card-backup-ribbon">
                   <div className="gestao-backup-ribbon-texto">
                     <span>
@@ -231,131 +236,126 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                 </div>
               )}
 
-              {/* Cabeçalho */}
-              <div className="gestao-rec-card-header">
-                <div className="gestao-rec-card-info">
-                  <div className="gestao-rec-card-notas" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span className="gestao-rec-card-nf-badge">📄 NF: {conf.numerosNotas}</span>
-                    {conf.sessaoConjunta && (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          background: '#eff6ff',
-                          color: '#1d4ed8',
-                          border: '1px solid #bfdbfe',
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                        }}
-                        title={`Esta nota faz parte da conferência física #${(conf.conferenciaIdOrig || conf.id).slice(0, 8)}`}
-                      >
-                        📦 Sessão Conjunta
-                      </span>
-                    )}
-                    <BadgePrevisaoEntrega data={conf.adPreventrega} />
-                    {conf.status === 'Enviado ao Sankhya' && conf.enviadoSankhyaEm && (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          background: '#ecfdf5',
-                          color: '#065f46',
-                          border: '1px solid #a7f3d0',
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                        }}
-                        title="Data/hora e responsável pela integração no Sankhya"
-                      >
-                        <span>✓</span>
-                        <span>
-                          Integrado em {new Date(conf.enviadoSankhyaEm).toLocaleDateString('pt-BR')} às{' '}
-                          {new Date(conf.enviadoSankhyaEm).toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {conf.aprovadoPor ? ` por ${conf.aprovadoPor}` : ''}
-                        </span>
-                      </span>
-                    )}
-                    {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
-                      <div className="gestao-notas-status-inline">
-                        {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => {
-                          const numnotaReal =
-                            conf.notasDetalhadas?.find((nd) => nd.nunota === Number(nunotaStr))?.numnota ||
-                            (() => {
-                              const idx = conf.nunotas.indexOf(Number(nunotaStr));
-                              if (idx !== -1 && conf.numerosNotas) {
-                                const nums = conf.numerosNotas.split(',').map((s) => s.trim());
-                                if (nums[idx]) return nums[idx];
-                              }
-                              return nunotaStr;
-                            })();
+              {/* Cabeçalho Proposta A: Reorganização e Balanceamento */}
+              {(() => {
+                const textoConferentes = formatarConferentesTexto({
+                  conferenteN1: conf.conferenteN1,
+                  conferenteN2: conf.conferenteN2,
+                  conferenteN3: conf.conferenteN3,
+                });
+                const conferenteNomeFormatado: string =
+                  textoConferentes || (conf.conferente?.trim() ? conf.conferente.trim().toUpperCase() : '—');
 
-                          return (
-                            <span
-                              key={nunotaStr}
-                              className={`gestao-mini-nota-status badge-status-rec ${getStatusBadgeClass(st)}`}
-                              title={`Nota Fiscal ${numnotaReal}`}
-                            >
-                              NF #{numnotaReal}: {st}
+                return (
+                  <div className="gestao-rec-card-header-moderno">
+                    {/* Linha Superior: NF, Tags e Status Principal com Horário */}
+                    <div className="gestao-rec-card-top-bar">
+                      <div className="gestao-rec-card-top-left">
+                        <span className="gestao-rec-card-nf-badge">📄 NF #{conf.numerosNotas}</span>
+                        {conf.sessaoConjunta && (
+                          <span
+                            className="badge-sessao-conjunta"
+                            title={`Esta nota faz parte da conferência física #${(conf.conferenciaIdOrig || conf.id).slice(0, 8)}`}
+                          >
+                            📦 Sessão Conjunta
+                          </span>
+                        )}
+                        <BadgePrevisaoEntrega data={conf.adPreventrega} />
+                        {conf.status === 'Enviado ao Sankhya' && conf.enviadoSankhyaEm && (
+                          <span className="badge-integrado-sankhya" title="Data/hora e responsável pela integração no Sankhya">
+                            <span>✓</span>
+                            <span>
+                              Integrado em {new Date(conf.enviadoSankhyaEm).toLocaleDateString('pt-BR')} às{' '}
+                              {new Date(conf.enviadoSankhyaEm).toLocaleTimeString('pt-BR', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                              {conf.aprovadoPor ? ` por ${conf.aprovadoPor}` : ''}
                             </span>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <span className="gestao-rec-card-fornecedor">
-                    Fornecedor: {conf.fornecedor}
-                  </span>
-                  <span className="gestao-rec-card-meta">
-                    {conf.status === 'Em Aberto' ? (
-                      <>
-                        Status ERP: <strong>Aguardando Início de Conferência</strong>
-                        {conf.criadoEm && ` • Data da Nota: ${new Date(conf.criadoEm).toLocaleDateString('pt-BR')}`}
-                      </>
-                    ) : (
-                      <>
-                        Conferente:{' '}
-                        <strong>
-                          {conf.conferenteN1 || conf.conferenteN2 || conf.conferenteN3
-                            ? formatarConferentes({
-                                conferenteN1: conf.conferenteN1,
-                                conferenteN2: conf.conferenteN2,
-                                conferenteN3: conf.conferenteN3,
-                              })
-                            : (conf.conferente ? conf.conferente.toUpperCase() : '—')}
-                        </strong>{' '}
-                        • Iniciado em: {new Date(conf.criadoEm).toLocaleString('pt-BR')}
-                        {conf.finalizadoEm &&
-                          ` • Concluído em: ${new Date(conf.finalizadoEm).toLocaleString('pt-BR')}`}
-                      </>
-                    )}
-                  </span>
-                </div>
+                          </span>
+                        )}
+                        {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
+                          <div className="gestao-notas-status-inline">
+                            {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => {
+                              const numnotaReal =
+                                conf.notasDetalhadas?.find((nd) => nd.nunota === Number(nunotaStr))?.numnota ||
+                                (() => {
+                                  const idx = conf.nunotas.indexOf(Number(nunotaStr));
+                                  if (idx !== -1 && conf.numerosNotas) {
+                                    const nums = conf.numerosNotas.split(',').map((s) => s.trim());
+                                    if (nums[idx]) return nums[idx];
+                                  }
+                                  return nunotaStr;
+                                })();
 
-                <div className="gestao-rec-card-badges">
-                  {conf.status !== 'Em Aberto' && (
-                    <BadgeConferente
-                      conferente={conf.conferente}
-                      conferenteN1={conf.conferenteN1}
-                      conferenteN2={conf.conferenteN2}
-                      conferenteN3={conf.conferenteN3}
-                    />
-                  )}
-                  {conf.status !== 'Em Aberto' && (
-                    <span className="badge-nivel-rec">Nível Atual: N{conf.nivelAtual}</span>
-                  )}
-                  <span className={`badge-status-rec ${statusClasse}`}>
-                    {conf.status}
-                  </span>
-                </div>
-              </div>
+                              return (
+                                <span
+                                  key={nunotaStr}
+                                  className={`gestao-mini-nota-status badge-status-rec ${getStatusBadgeClass(st)}`}
+                                  title={`Nota Fiscal ${numnotaReal}`}
+                                >
+                                  NF #{numnotaReal}: {st}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="gestao-rec-card-top-right">
+                        <span className={`badge-status-rec ${statusClasse}`}>
+                          {conf.status}
+                        </span>
+                        <span className="gestao-rec-card-time-info">
+                          {conf.status === 'Em Aberto' ? (
+                            conf.criadoEm && `Data: ${new Date(conf.criadoEm).toLocaleDateString('pt-BR')}`
+                          ) : conf.finalizadoEm ? (
+                            `✓ Concluído às ${new Date(conf.finalizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                          ) : (
+                            `Iniciado às ${new Date(conf.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Linha Central: 2 Colunas Balanceadas (Fornecedor à esquerda, Box do Conferente à direita) */}
+                    <div className="gestao-rec-card-corpo-grid">
+                      <div className="gestao-rec-fornecedor-col">
+                        <span className="gestao-rec-label-muted">FORNECEDOR</span>
+                        <h4 className="gestao-rec-fornecedor-nome" title={conf.fornecedor}>
+                          {conf.fornecedor}
+                        </h4>
+                      </div>
+
+                      <div className="gestao-rec-responsavel-box">
+                        {conf.status === 'Em Aberto' ? (
+                          <div className="gestao-rec-responsavel-aberto">
+                            <span className="gestao-rec-avatar-placeholder">⏳</span>
+                            <div className="gestao-rec-responsavel-detalhes">
+                              <span className="gestao-rec-label-muted">STATUS ERP</span>
+                              <strong className="gestao-rec-responsavel-nome">Aguardando Início</strong>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="gestao-rec-responsavel-ativo">
+                            <div className="gestao-rec-avatar-conferente">
+                              {conferenteNomeFormatado && conferenteNomeFormatado !== '—'
+                                ? conferenteNomeFormatado[0].toUpperCase()
+                                : 'C'}
+                            </div>
+                            <div className="gestao-rec-responsavel-detalhes">
+                              <span className="gestao-rec-label-muted">CONFERENTE</span>
+                              <strong className="gestao-rec-responsavel-nome" title={conferenteNomeFormatado}>
+                                {conferenteNomeFormatado}
+                              </strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Progresso & Resumo de Contagem Unificado Minimalista */}
               {conf.totalItens > 0 && (() => {
@@ -369,10 +369,13 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                   conf.status === 'Conferido' || conf.status === 'Enviado ao Sankhya';
                 const isDivergente =
                   conf.status === 'Divergente' || conf.status === 'Em Reconferência';
-                const percentual = Math.min(
-                  100,
-                  Math.round(((totalBipadoNivel || 0) / conf.totalItens) * 100)
-                );
+
+                const totalEsperadoUnidades = conf.totalQtdEsperada || 0;
+                const baseCalculo = totalEsperadoUnidades > 0 ? totalEsperadoUnidades : conf.totalItens;
+                const pctReal = baseCalculo > 0 ? Math.round(((totalBipadoNivel || 0) / baseCalculo) * 100) : 0;
+                const percentualBarra = Math.min(100, Math.max(0, pctReal));
+                const isExcedente = totalEsperadoUnidades > 0 && (totalBipadoNivel || 0) > totalEsperadoUnidades;
+                const sobraUnidades = isExcedente ? (totalBipadoNivel || 0) - totalEsperadoUnidades : 0;
 
                 const houveN1Card = conf.totalBipadoN1 > 0;
                 const houveN2Card = conf.totalBipadoN2 > 0;
@@ -393,8 +396,16 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                         </span>
                         <span>•</span>
                         <span>
-                          Bipado (N{conf.nivelAtual}): <strong>{totalBipadoNivel} un.</strong>
+                          Bipado (N{conf.nivelAtual}):{' '}
+                          <strong>
+                            {totalBipadoNivel} {totalEsperadoUnidades > 0 ? `de ${totalEsperadoUnidades} un.` : 'un.'}
+                          </strong>
                         </span>
+                        {isExcedente && (
+                          <span style={{ fontSize: '0.74rem', color: '#b91c1c', fontWeight: 700 }}>
+                            ⚠️ Sobra: +{sobraUnidades} un.
+                          </span>
+                        )}
                         {partesNiveis.length > 0 && (
                           <span style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
                             ({partesNiveis.join(' • ')})
@@ -404,14 +415,16 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
 
                       <div
                         className={`gestao-progresso-pct ${
-                          isConferido ? 'ok' : isDivergente ? 'alerta' : 'andamento'
+                          isConferido ? 'ok' : isExcedente || isDivergente ? 'alerta' : 'andamento'
                         }`}
                       >
                         {isConferido
                           ? '✓ 100% Batendo'
+                          : isExcedente
+                          ? `⚠️ ${pctReal}% Bipado (+${sobraUnidades} un. Excedente)`
                           : isDivergente
                           ? '⚠️ Divergência Detectada'
-                          : `${percentual}% Bipado`}
+                          : `${pctReal}% Bipado`}
                       </div>
                     </div>
 
@@ -419,9 +432,11 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                       <div
                         className="gestao-progresso-fill-mini"
                         style={{
-                          width: `${isConferido ? 100 : percentual}%`,
+                          width: `${isConferido ? 100 : percentualBarra}%`,
                           background: isConferido
                             ? '#10b981'
+                            : isExcedente
+                            ? 'linear-gradient(90deg, #ef4444, #dc2626)'
                             : isDivergente
                             ? '#f59e0b'
                             : 'linear-gradient(90deg, #3b82f6, #2563eb)',

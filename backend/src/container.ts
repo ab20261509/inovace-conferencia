@@ -82,6 +82,7 @@ import { RecuperarContagemReiniciadaUseCase } from './application/use-cases/rece
 import { SincronizarDesmembramentoNotaUseCase } from './application/use-cases/recebimento/SincronizarDesmembramentoNotaUseCase.js';
 import { ExecutarDesmembramentoItemUseCase } from './application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.js';
 import { AlterarLocalItemNotaUseCase } from './application/use-cases/recebimento/AlterarLocalItemNotaUseCase.js';
+import { RegistrarOcorrenciaSobraUseCase } from './application/use-cases/recebimento/RegistrarOcorrenciaSobraUseCase.js';
 
 // Application (Use Cases) - Conferências (ciclo de vida)
 import { IniciarConferenciaUseCase } from './application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.js';
@@ -187,7 +188,12 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     configSistemaRepo
   );
   const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(conferenciaEntradaRepo);
-  const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(conferenciaEntradaRepo, auditService, configSistemaRepo);
+  const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(
+    conferenciaEntradaRepo,
+    auditService,
+    configSistemaRepo,
+    ocorrenciaEntradaRepo
+  );
   const desmembrarItemService = new SankhyaDesmembrarItemService(gatewayAdapter);
   const enviarConferenciaSankhyaUseCase = new EnviarConferenciaSankhyaUseCase(
     gatewayAdapter,
@@ -215,6 +221,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     ocorrenciaEntradaRepo
   );
   const alterarLocalItemNotaUseCase = new AlterarLocalItemNotaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const registrarOcorrenciaSobraUseCase = new RegistrarOcorrenciaSobraUseCase(conferenciaEntradaRepo, ocorrenciaEntradaRepo, listarDivergenciasEntradaUseCase, auditService);
 
   const loadRecordsUseCase = new LoadRecordsUseCase(gatewayAdapter);
   const loadRecordUseCase = new LoadRecordUseCase(gatewayAdapter);
@@ -280,7 +287,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     recuperarContagemReiniciadaUseCase,
     sincronizarDesmembramentoNotaUseCase,
     executarDesmembramentoItemUseCase,
-    alterarLocalItemNotaUseCase
+    alterarLocalItemNotaUseCase,
+    registrarOcorrenciaSobraUseCase
   );
   const crudController = new CrudController(
     loadRecordsUseCase,
@@ -313,8 +321,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const databaseExplorerController = new DatabaseExplorerController(databaseExplorerRepo, permissoesRepo);
 
   // Ocorrências do Recebimento (Avaria, Vencidos, Trocados, etc.)
-  const registrarOcorrenciaEntradaUseCase = new RegistrarOcorrenciaEntradaUseCase(ocorrenciaEntradaRepo, configSistemaRepo);
-  const listarOcorrenciasEntradaUseCase = new ListarOcorrenciasEntradaUseCase(ocorrenciaEntradaRepo);
+  const registrarOcorrenciaEntradaUseCase = new RegistrarOcorrenciaEntradaUseCase(ocorrenciaEntradaRepo, configSistemaRepo, gatewayAdapter);
+  const listarOcorrenciasEntradaUseCase = new ListarOcorrenciasEntradaUseCase(ocorrenciaEntradaRepo, gatewayAdapter);
   const atualizarOcorrenciaEntradaUseCase = new AtualizarOcorrenciaEntradaUseCase(
     ocorrenciaEntradaRepo,
     conferenciaEntradaRepo,

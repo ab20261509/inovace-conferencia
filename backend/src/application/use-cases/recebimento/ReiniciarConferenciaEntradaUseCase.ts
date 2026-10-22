@@ -3,6 +3,7 @@ import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenci
 import { SessaoConferenciaEntrada, StatusConferenciaEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
 import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
+import { IOcorrenciaConferenciaEntradaRepository } from '../../../domain/ports/IOcorrenciaConferenciaEntradaRepository.js';
 
 export interface ReiniciarConferenciaInput {
   conferenciaId: string;
@@ -15,8 +16,35 @@ export class ReiniciarConferenciaEntradaUseCase {
   constructor(
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
     private readonly audit?: AuditService,
-    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository
+    private readonly configSistemaRepo?: IConfiguracaoSistemaRepository,
+    private readonly ocorrenciaRepo?: IOcorrenciaConferenciaEntradaRepository
   ) {}
+
+  private async cancelarOcorrenciasVinculadas(
+    conferenciaId: string,
+    nunota?: number,
+    motivo?: string
+  ): Promise<void> {
+    if (!this.ocorrenciaRepo) return;
+    try {
+      const ocorrencias = await this.ocorrenciaRepo.listar({ conferenciaId });
+      for (const oc of ocorrencias) {
+        if (oc.status !== 'CANCELADO') {
+          if (nunota && oc.nunota && oc.nunota !== nunota) {
+            continue;
+          }
+          await this.ocorrenciaRepo.atualizar(oc.id, {
+            status: 'CANCELADO',
+            motivo: oc.motivo
+              ? `${oc.motivo} [Cancelada pelo reinício da conferência: ${motivo || 'Gestor'}]`
+              : `Cancelada devido ao reinício da conferência pelo gestor.`,
+          });
+        }
+      }
+    } catch (errOcorr) {
+      console.warn('[ReiniciarConferencia] Erro ao cancelar ocorrências vinculadas:', errOcorr);
+    }
+  }
 
   async execute(input: ReiniciarConferenciaInput): Promise<SessaoConferenciaEntrada> {
     const sessao = await this.conferenciaRepo.obterSessaoPorId(input.conferenciaId);
@@ -47,7 +75,7 @@ export class ReiniciarConferenciaEntradaUseCase {
         nivelAtual: nivelInicial,
         criadoEm: agora,
         atualizadoEm: agora,
-        conferente: input.usuario || 'Gestor',
+        conferente: '',
         observacaoAprovacao: input.motivo
           ? `Desmembrada da sessão ${sessao.id} e reiniciada: ${input.motivo}`
           : `Nota desmembrada da sessão conjunta e reiniciada pelo gestor.`,
@@ -78,7 +106,7 @@ export class ReiniciarConferenciaEntradaUseCase {
         novaSessao.backupContagem = backup;
 
         for (const b of bipagensAtivasNota) {
-          await this.conferenciaRepo.anularBipagem(b.id);
+          await this.conferenciaRepo.anularBipagem(b.id, true);
         }
       }
 
@@ -118,6 +146,8 @@ export class ReiniciarConferenciaEntradaUseCase {
 
       await this.conferenciaRepo.salvarSessao(novaSessao);
       await this.conferenciaRepo.salvarSessao(sessao);
+    await this.cancelarOcorrenciasVinculadas(sessao.id, input.nunota, input.motivo);
+      await this.cancelarOcorrenciasVinculadas(sessao.id, nunotaAlvo, input.motivo);
 
       if (this.audit) {
         await this.audit.registrar({
@@ -154,16 +184,21 @@ export class ReiniciarConferenciaEntradaUseCase {
     }
 
     for (const b of bipagensAtivas) {
-      await this.conferenciaRepo.anularBipagem(b.id);
+      await this.conferenciaRepo.anularBipagem(b.id, true);
     }
 
     sessao.status = 'Em Aberto';
     sessao.nivelAtual = nivelInicial;
+    sessao.conferente = '';
     sessao.atualizadoEm = agora;
     sessao.finalizadoEm = undefined;
     sessao.aprovadoPor = undefined;
     sessao.aprovadoEm = undefined;
     sessao.enviadoSankhyaEm = undefined;
+    sessao.itensRecontagem = undefined;
+    sessao.itensRecontagemJson = undefined;
+    sessao.decisoesFiscais = undefined;
+    sessao.decisoesFiscaisJson = undefined;
     sessao.observacaoAprovacao = input.motivo ? `Reiniciada: ${input.motivo}` : 'Conferência reiniciada pelo gestor.';
 
     const statusResetado: Record<number, StatusConferenciaEntrada> = {};
@@ -174,6 +209,7 @@ export class ReiniciarConferenciaEntradaUseCase {
     sessao.statusPorNotaJson = JSON.stringify(statusResetado);
 
     await this.conferenciaRepo.salvarSessao(sessao);
+    await this.cancelarOcorrenciasVinculadas(sessao.id, input.nunota, input.motivo);
 
     if (this.audit) {
       await this.audit.registrar({

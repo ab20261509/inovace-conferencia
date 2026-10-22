@@ -9,6 +9,7 @@ export interface ModulosUsuario {
   gestao_recebimento_aba_divergencias?: boolean;
   gestao_recebimento_aba_envio_sankhya?: boolean;
   gestao_recebimento_aba_ocorrencias?: boolean;
+  gestao_recebimento_backup?: boolean;
   conferencia_entrada_n1: boolean;
   conferencia_entrada_n2: boolean;
   conferencia_entrada_n3: boolean;
@@ -39,6 +40,7 @@ export const PERMISSOES_ADMINISTRADOR: ModulosUsuario = {
   gestao_recebimento_aba_divergencias: true,
   gestao_recebimento_aba_envio_sankhya: true,
   gestao_recebimento_aba_ocorrencias: true,
+  gestao_recebimento_backup: true,
   conferencia_entrada_n1: true,
   conferencia_entrada_n2: true,
   conferencia_entrada_n3: true,
@@ -59,6 +61,7 @@ export const PERMISSOES_PADRAO_OPERADOR: ModulosUsuario = {
   gestao_recebimento_aba_divergencias: false,
   gestao_recebimento_aba_envio_sankhya: false,
   gestao_recebimento_aba_ocorrencias: false,
+  gestao_recebimento_backup: false,
   conferencia_entrada_n1: true,
   conferencia_entrada_n2: true,
   conferencia_entrada_n3: true,

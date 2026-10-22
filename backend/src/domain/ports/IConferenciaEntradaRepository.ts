@@ -12,7 +12,7 @@ export interface IConferenciaEntradaRepository {
   salvarSessao(sessao: SessaoConferenciaEntrada): Promise<void>;
   listarBipagens(conferenciaId: string, nivel?: number): Promise<BipagemEntrada[]>;
   salvarBipagem(bipagem: BipagemEntrada): Promise<void>;
-  anularBipagem(bipagemId: string): Promise<void>;
+  anularBipagem(bipagemId: string, forcar?: boolean): Promise<void>;
   restaurarBipagens(conferenciaId: string): Promise<number>;
   migrarBipagens(deConferenciaId: string, paraConferenciaId: string, nunotas?: number[]): Promise<number>;
   excluirSessao(id: string): Promise<void>;
@@ -40,5 +40,12 @@ export interface IConferenciaEntradaRepository {
     nivel: number,
     itens: Array<{ nunota: number; sequencia: number; codprod: number }>
   ): Promise<number>;
+  abaterSobraBipagens(
+    conferenciaId: string,
+    nunota: number,
+    codprod: number,
+    sequencia: number | undefined,
+    quantidadeSobra: number
+  ): Promise<{ abatido: number }>;
 }
 
