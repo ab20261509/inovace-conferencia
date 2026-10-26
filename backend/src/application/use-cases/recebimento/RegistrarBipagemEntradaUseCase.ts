@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { IGatewayPort } from '../../../domain/ports/IGatewayPort.js';
 import { IConferenciaEntradaRepository } from '../../../domain/ports/IConferenciaEntradaRepository.js';
+import { IPermissoesRepository } from '../../../domain/ports/IPermissoesRepository.js';
 import { BipagemEntrada } from '../../../domain/entities/ConferenciaEntrada.js';
 
 export interface RegistrarBipagemEntradaInput {
@@ -27,7 +28,8 @@ export interface RegistrarBipagemEntradaOutput {
 export class RegistrarBipagemEntradaUseCase {
   constructor(
     private readonly gateway: IGatewayPort,
-    private readonly conferenciaRepo: IConferenciaEntradaRepository
+    private readonly conferenciaRepo: IConferenciaEntradaRepository,
+    private readonly permissoesRepo?: IPermissoesRepository
   ) {}
 
   async execute(input: RegistrarBipagemEntradaInput, correlationId?: string): Promise<RegistrarBipagemEntradaOutput> {
@@ -46,9 +48,36 @@ export class RegistrarBipagemEntradaUseCase {
       throw new Error(`Esta conferência está com status "${sessao.status}" e não aceita novas bipagens.`);
     }
 
+    // Verificar permissão para bipagem direta por CODPROD/Referência
+    let podeBiparPorCodprod = false;
+    if (input.conferente && this.permissoesRepo) {
+      try {
+        const perms = await this.permissoesRepo.obterPermissoes(0, input.conferente);
+        const ehAdmin =
+          Boolean(perms?.gerenciar_acessos) ||
+          ['SUP', 'ANTONY', 'ANTONY.B'].includes(input.conferente.trim().toUpperCase());
+        podeBiparPorCodprod = ehAdmin
+          ? perms?.bipar_por_codprod !== false
+          : Boolean(perms?.bipar_por_codprod);
+      } catch (e) {
+        console.warn('Falha ao obter permissões do conferente:', e);
+      }
+    }
+
+    const condicaoIdentificador = podeBiparPorCodprod
+      ? `(
+           UPPER(PRO.REFERENCIA) = UPPER('${codigoLimpo}')
+        OR UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}')
+        OR TO_CHAR(PRO.CODPROD) = '${codigoLimpo}'
+      )`
+      : `(
+           UPPER(PRO.REFERENCIA) = UPPER('${codigoLimpo}')
+        OR UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}')
+      )`;
+
     const nunotasStr = sessao.nunotas.join(', ');
 
-    // 1. Buscar se o código corresponde a produto principal (REFERENCIA) ou alternativo (TGFVOA + TGFBAR)
+    // 1. Buscar se o código corresponde a produto principal ou alternativo (TGFVOA + TGFBAR)
     const sql = `
 SELECT
     ITE.NUNOTA,
@@ -78,11 +107,7 @@ LEFT JOIN (
 ) BAR ON BAR.CODPROD = ITE.CODPROD
      AND (UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}') OR UPPER(BAR.CODBARRA) = UPPER(TRIM('${codigoLimpo}')))
 WHERE ITE.NUNOTA IN (${nunotasStr})
-  AND (
-       UPPER(PRO.REFERENCIA) = UPPER('${codigoLimpo}')
-    OR UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}')
-    OR TO_CHAR(PRO.CODPROD) = '${codigoLimpo}'
-  )
+  AND ${condicaoIdentificador}
 ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     `.trim();
 

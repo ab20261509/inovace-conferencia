@@ -13,11 +13,14 @@ import { FinalizarConferenciaUseCase } from '../../../application/use-cases/conf
 import { CortarNotaUseCase } from '../../../application/use-cases/conferencias/ciclo-vida/CortarNotaUseCase.js';
 import { ExcluirItemConferidoUseCase } from '../../../application/use-cases/conferencias/operacao/ExcluirItemConferidoUseCase.js';
 import { NotificarDiscordUseCase } from '../../../application/use-cases/conferencias/operacao/NotificarDiscordUseCase.js';
+import { limparErroSankhya } from '../utils/formatarErro.js';
 
 /**
  * Controller de Conferências
  * Agrupa todos os endpoints do fluxo de conferência de saída
  */
+
+
 export class ConferenciasController {
   constructor(
     private readonly getConferenciaSaidaUseCase: GetConferenciaSaidaUseCase,
@@ -42,7 +45,7 @@ export class ConferenciasController {
       const result = await this.getConferenciaSaidaUseCase.execute(req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -55,7 +58,7 @@ export class ConferenciasController {
       const result = await this.verificarExcluidosUseCase.execute({ nuNota }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -71,7 +74,7 @@ export class ConferenciasController {
       );
       res.status(201).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -84,7 +87,7 @@ export class ConferenciasController {
       const result = await this.excluirConferenciaUseCase.execute({ nuNota }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -102,7 +105,7 @@ export class ConferenciasController {
       );
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -115,7 +118,7 @@ export class ConferenciasController {
       const result = await this.listarItensConferidosUseCase.execute({ nuNota, nuConf }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -128,7 +131,7 @@ export class ConferenciasController {
       const result = await this.getProdutoUseCase.execute({ nuNota, codBarra, controle }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -142,7 +145,7 @@ export class ConferenciasController {
       }
 
       const result = await this.salvarItemConferidoUseCase.execute(
-        { numConf, nuNota, codBarra, controle, qtdConf, substituirProduto, volume, exigeIdentificadores, codUMA },
+        { numConf, nuNota, codBarra, controle, qtdConf, substituirProduto, volume, exigeIdentificadores, codUMA, usuario: req.username },
         req.correlationId,
       );
 
@@ -162,7 +165,7 @@ export class ConferenciasController {
         itensConferidos: itensConfResult.itens,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -193,7 +196,7 @@ export class ConferenciasController {
         itensConferidos: itensConfResult.itens,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -206,7 +209,7 @@ export class ConferenciasController {
       const result = await this.getProdutosDivergentesUseCase.execute({ nuNota }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -222,7 +225,7 @@ export class ConferenciasController {
       const result = await this.salvarVolumeUseCase.execute({ numConf, nuNota, volume }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -235,7 +238,7 @@ export class ConferenciasController {
       const result = await this.finalizarConferenciaUseCase.execute({ nuConf, peso, qtdVol }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -248,7 +251,7 @@ export class ConferenciasController {
       const result = await this.cortarNotaUseCase.execute({ nuNota, peso, qtdVol }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -262,7 +265,7 @@ export class ConferenciasController {
       const result = await this.notificarDiscordUseCase.obterPrevia({ nuNota, usuario: usuarioSnk }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 
@@ -276,7 +279,7 @@ export class ConferenciasController {
       const result = await this.notificarDiscordUseCase.execute({ nuNota, usuario: usuarioSnk }, req.correlationId);
       res.status(200).json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: limparErroSankhya(error) });
     }
   }
 }

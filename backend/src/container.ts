@@ -179,7 +179,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     configSistemaRepo,
     gatewayAdapter
   );
-  const registrarBipagemEntradaUseCase = new RegistrarBipagemEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo);
+  const registrarBipagemEntradaUseCase = new RegistrarBipagemEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo, permissoesRepo);
   const anularBipagemEntradaUseCase = new AnularBipagemEntradaUseCase(conferenciaEntradaRepo);
   const finalizarNivelEntradaUseCase = new FinalizarNivelEntradaUseCase(gatewayAdapter, conferenciaEntradaRepo, configSistemaRepo);
   const listarDivergenciasEntradaUseCase = new ListarDivergenciasEntradaUseCase(
@@ -243,7 +243,7 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const listarItensPedidoUseCase = new ListarItensPedidoUseCase(gatewayAdapter, permissoesRepo, configTelasRepo);
   const listarItensConferidosUseCase = new ListarItensConferidosUseCase(gatewayAdapter);
   const getProdutoUseCase = new GetProdutoUseCase(gatewayAdapter);
-  const salvarItemConferidoUseCase = new SalvarItemConferidoUseCase(gatewayAdapter);
+  const salvarItemConferidoUseCase = new SalvarItemConferidoUseCase(gatewayAdapter, permissoesRepo);
   const getProdutosDivergentesUseCase = new GetProdutosDivergentesUseCase(gatewayAdapter);
   const salvarVolumeUseCase = new SalvarVolumeUseCase(gatewayAdapter);
   const excluirItemConferidoUseCase = new ExcluirItemConferidoUseCase(gatewayAdapter);

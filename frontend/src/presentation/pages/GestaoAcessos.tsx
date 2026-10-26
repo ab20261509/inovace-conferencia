@@ -400,6 +400,7 @@ export function GestaoAcessosPage() {
         consulta_produtos: true,
         ver_campos_sensiveis: false,
         gerenciar_acessos: false,
+        bipar_por_codprod: false,
       };
     } else if (perfil === 'gestor') {
       novosModulos = {
@@ -418,6 +419,7 @@ export function GestaoAcessosPage() {
         consulta_produtos: true,
         ver_campos_sensiveis: true,
         gerenciar_acessos: false,
+        bipar_por_codprod: false,
       };
     } else if (perfil === 'admin') {
       novosModulos = {
@@ -436,6 +438,7 @@ export function GestaoAcessosPage() {
         consulta_produtos: true,
         ver_campos_sensiveis: true,
         gerenciar_acessos: true,
+        bipar_por_codprod: true,
       };
     } else {
       novosModulos = {
@@ -454,6 +457,7 @@ export function GestaoAcessosPage() {
         consulta_produtos: false,
         ver_campos_sensiveis: false,
         gerenciar_acessos: false,
+        bipar_por_codprod: false,
       };
     }
 
@@ -558,6 +562,13 @@ export function GestaoAcessosPage() {
       badges.push(
         <span key="sens" className="badge-flag badge-sensiveis" title="Visualiza Campos Sensíveis">
           👁️ Sensíveis
+        </span>
+      );
+    }
+    if (u.modulos.bipar_por_codprod) {
+      badges.push(
+        <span key="codprod" className="badge-flag" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }} title="Pode Bipar por Código do Produto (CODPROD)">
+          🔢 CODPROD
         </span>
       );
     }
@@ -1733,6 +1744,27 @@ export function GestaoAcessosPage() {
                               disabled={salvandoId === usuarioDrawer.codUsu}
                               onChange={() =>
                                 handleToggleUsuario(usuarioDrawer, 'ver_campos_sensiveis')
+                              }
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+
+                        {/* Bipar por Código do Produto */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">Bipar por Código do Produto (CODPROD)</span>
+                            <span className="drawer-toggle-sub">
+                              Permite buscar o item pelo código interno na TGFPRO/TGFITE. Quando desativado, bloqueia essa consulta e obriga o leitor no código de barras cadastrado.
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(usuarioDrawer.modulos.bipar_por_codprod)}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() =>
+                                handleToggleUsuario(usuarioDrawer, 'bipar_por_codprod')
                               }
                             />
                             <span className="toggle-slider" />

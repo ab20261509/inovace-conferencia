@@ -7,6 +7,7 @@ import {
   ItemConferidoDetalhe,
 } from '../../domain/models/Conferencia';
 import { ConferenciaApiService } from '../../infrastructure/api/ConferenciaApiService';
+import { limparMensagemErro } from '../../presentation/utils/erro';
 import { AuthApiService } from '../../infrastructure/api/AuthApiService';
 
 const service = new ConferenciaApiService();
@@ -43,7 +44,7 @@ export function useConferenciaAtiva(nuNota: number) {
         }
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao iniciar conferência');
+      setError(limparMensagemErro(err.response?.data?.error || 'Erro ao iniciar conferência'));
     } finally {
       setLoading(false);
     }
@@ -56,7 +57,7 @@ export function useConferenciaAtiva(nuNota: number) {
       setProdutoAtual(produto);
       return produto;
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Produto não encontrado';
+      const msg = limparMensagemErro(err.response?.data?.error || 'Produto não encontrado');
       setError(msg);
       setProdutoAtual(null);
       throw new Error(msg);
@@ -103,7 +104,7 @@ export function useConferenciaAtiva(nuNota: number) {
 
       return resultado;
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Erro ao conferir item';
+      const msg = limparMensagemErro(err.response?.data?.error || 'Erro ao conferir item');
       setError(msg);
       throw new Error(msg);
     }
@@ -129,7 +130,7 @@ export function useConferenciaAtiva(nuNota: number) {
       }
       return res;
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Erro ao estornar item';
+      const msg = limparMensagemErro(err.response?.data?.error || err.message || 'Erro ao estornar item');
       setError(msg);
       throw new Error(msg);
     } finally {
@@ -145,7 +146,7 @@ export function useConferenciaAtiva(nuNota: number) {
       setError(null);
       await service.finalizarConferencia(conferencia.numConf, peso, qtdVol);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao finalizar');
+      setError(limparMensagemErro(err.response?.data?.error || 'Erro ao finalizar'));
       throw err;
     } finally {
       setLoading(false);

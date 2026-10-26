@@ -73,6 +73,7 @@ A barra de bipagem da Conferência de Saída deve manter rigorosamente o padrão
    - Texto centralizado, números em negrito (`font-weight: 700`).
    - Cantos arredondados (`border-radius: 12px`), borda `2px solid #e2e8f0`.
 5. **Botão Conferir (`.scanner-saida-btn-conferir`):**
-   - Fundo cinza ardósia suave (`background: #7e8590`).
+   - **Ativo (com código digitado):** Fundo escuro normal (`background: #0f172a`), hover (`#1e293b`).
+   - **Inativo / Disabled (campo vazio):** Fundo cinza ardósia suave (`background: #7e8590`), `opacity: 0.65`, `cursor: not-allowed`.
    - Texto em branco negrito (`font-weight: 700`, `color: #ffffff`).
    - Cantos arredondados (`border-radius: 12px`), altura `48px`.

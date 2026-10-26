@@ -128,7 +128,7 @@
 .scanner-saida-btn-conferir {
   height: 48px !important;
   padding: 0 32px !important;
-  background: #7e8590 !important;
+  background: #0f172a !important;
   color: #ffffff !important;
   font-size: 0.95rem !important;
   font-weight: 700 !important;
@@ -144,7 +144,7 @@
 }
 
 .scanner-saida-btn-conferir:hover:not(:disabled) {
-  background: #6c737e !important;
+  background: #1e293b !important;
   transform: translateY(-1px) !important;
 }
 
@@ -153,6 +153,7 @@
 }
 
 .scanner-saida-btn-conferir:disabled {
+  background: #7e8590 !important;
   opacity: 0.65 !important;
   cursor: not-allowed !important;
 }

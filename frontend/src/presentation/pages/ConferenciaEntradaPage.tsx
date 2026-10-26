@@ -72,6 +72,19 @@ interface ItemEntradaConferidoVisivel {
   ultimoBip?: BipagemEntrada;
 }
 
+type TipoOrdenacaoEntrada =
+  | 'padrao'
+  | 'produto_nome_asc'
+  | 'produto_nome_desc'
+  | 'produto_cod_asc'
+  | 'produto_cod_desc'
+  | 'volume_asc'
+  | 'volume_desc'
+  | 'esperado_asc'
+  | 'esperado_desc'
+  | 'conferido_asc'
+  | 'conferido_desc';
+
 export function ConferenciaEntradaPage() {
   const { temPermissao, user } = useAuth();
   const verCamposSensiveis = podeVerCamposSensiveis(user?.nomeUsu);
@@ -89,7 +102,58 @@ export function ConferenciaEntradaPage() {
   const [itens, setItens] = useState<ItemNotaEntrada[]>([]);
   const [bipagens, setBipagens] = useState<BipagemEntrada[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ocultarStatus, setOcultarStatus] = useState<boolean>(false);
   const [showFolhaBipagemModal, setShowFolhaBipagemModal] = useState(false);
+  const [popoverVolume, setPopoverVolume] = useState<{
+    codprod: number;
+    descrprod: string;
+    codvolPadrao: string;
+    unidades: { codvol: string; quantidade: number }[];
+    targetRect: DOMRect;
+  } | null>(null);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setPopoverVolume(null);
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  function renderCelulaVolume(
+    codprod: number,
+    descrprod: string,
+    codvol: string,
+    unidadesAlternativas?: { codvol: string; quantidade: number }[]
+  ) {
+    const temAlternativas = unidadesAlternativas && unidadesAlternativas.length > 0;
+    if (!temAlternativas) {
+      return <span className="volume-badge-padrao">{codvol || 'UN'}</span>;
+    }
+    return (
+      <button
+        type="button"
+        className="volume-badge-clicavel"
+        title="Clique para ver unidades alternativas"
+        onClick={(e) => {
+          e.stopPropagation();
+          const rect = e.currentTarget.getBoundingClientRect();
+          setPopoverVolume({
+            codprod,
+            descrprod,
+            codvolPadrao: codvol,
+            unidades: unidadesAlternativas!,
+            targetRect: rect,
+          });
+        }}
+      >
+        <span>{codvol || 'UN'}</span>
+        <span className="volume-badge-indicador" title={`${unidadesAlternativas.length} unidade(s) alternativa(s)`}>
+          +{unidadesAlternativas.length}
+        </span>
+      </button>
+    );
+  }
 
   // Filtro de nota individual na conferência (para conferências com múltiplas notas agrupadas)
   const [notaFiltro, setNotaFiltro] = useState<number | 'todas'>(() => {
@@ -212,6 +276,66 @@ export function ConferenciaEntradaPage() {
     quantidade: number;
   } | null>(null);
 
+  // Ordenação de Itens da Conferência
+  const [ordenacao, setOrdenacao] = useState<TipoOrdenacaoEntrada>('padrao');
+
+  const handleAlternarOrdenacaoProduto = () => {
+    setOrdenacao((prev) => {
+      if (prev === 'produto_nome_asc') return 'produto_nome_desc';
+      if (prev === 'produto_nome_desc') return 'produto_cod_asc';
+      if (prev === 'produto_cod_asc') return 'produto_cod_desc';
+      if (prev === 'produto_cod_desc') return 'padrao';
+      return 'produto_nome_asc';
+    });
+  };
+
+  const handleAlternarOrdenacaoVolume = () => {
+    setOrdenacao((prev) => {
+      if (prev === 'volume_asc') return 'volume_desc';
+      if (prev === 'volume_desc') return 'padrao';
+      return 'volume_asc';
+    });
+  };
+
+  const handleAlternarOrdenacaoEsperado = () => {
+    setOrdenacao((prev) => {
+      if (prev === 'esperado_asc') return 'esperado_desc';
+      if (prev === 'esperado_desc') return 'padrao';
+      return 'esperado_asc';
+    });
+  };
+
+  const handleAlternarOrdenacaoConferido = () => {
+    setOrdenacao((prev) => {
+      if (prev === 'conferido_asc') return 'conferido_desc';
+      if (prev === 'conferido_desc') return 'padrao';
+      return 'conferido_asc';
+    });
+  };
+
+  const renderIndicadorProduto = () => {
+    switch (ordenacao) {
+      case 'produto_nome_asc':
+        return <span className="th-sort-badge ativo">Nome ▲</span>;
+      case 'produto_nome_desc':
+        return <span className="th-sort-badge ativo">Nome ▼</span>;
+      case 'produto_cod_asc':
+        return <span className="th-sort-badge ativo">Cód ▲</span>;
+      case 'produto_cod_desc':
+        return <span className="th-sort-badge ativo">Cód ▼</span>;
+      default:
+        return <span className="th-sort-icon-neutral">⇅</span>;
+    }
+  };
+
+  const renderIndicadorGeral = (col: 'volume' | 'esperado' | 'conferido') => {
+    const isAsc = ordenacao === `${col}_asc`;
+    const isDesc = ordenacao === `${col}_desc`;
+    if (isAsc) return <span className="th-sort-badge ativo">▲</span>;
+    if (isDesc) return <span className="th-sort-badge ativo">▼</span>;
+    return <span className="th-sort-icon-neutral">⇅</span>;
+  };
+
   // Modais
   const [modalOcrAberto, setModalOcrAberto] = useState(false);
   const [textoOcrBruto, setTextoOcrBruto] = useState('');
@@ -296,6 +420,7 @@ export function ConferenciaEntradaPage() {
         const resp = await recebimentoService.obterItensConferencia(navState.conferenciaId);
         if (!resp.sessao) throw new Error('Sessão não encontrada.');
         sessaoAtual = resp.sessao;
+        if (resp.ocultarStatus !== undefined) setOcultarStatus(resp.ocultarStatus);
 
         const notasFaltando = (navState.nunotas || []).filter((n) => !sessaoAtual.nunotas.includes(n));
 
@@ -984,6 +1109,9 @@ export function ConferenciaEntradaPage() {
 
       setCodigo('');
       setQuantidade('1');
+      setLote('');
+      setValidade('');
+      setFabricacao('');
       setErroValidade(null);
       setErroFabricacao(null);
       setTecladoVirtualAtivo(false);
@@ -1150,6 +1278,7 @@ export function ConferenciaEntradaPage() {
 
       // Recarrega itens atualizados da conferência para garantir sincronia
       const respAtualizada = await recebimentoService.obterItensConferencia(sessao.id);
+      if (respAtualizada.ocultarStatus !== undefined) setOcultarStatus(respAtualizada.ocultarStatus);
       setItens(respAtualizada.itens);
       setBipagens(respAtualizada.bipagens);
       await carregarOcorrencias(sessao.id);
@@ -1211,6 +1340,54 @@ export function ConferenciaEntradaPage() {
     [bipagens, nivelAtual]
   );
 
+  const obterLotesDetalhesItem = useCallback(
+    (item: ItemNotaEntrada) => {
+      const bipsDesteItem = bipagensValidas.filter(
+        (b) =>
+          b.codprod === item.codprod &&
+          (b.nunota === item.nunota ? b.sequencia === item.sequencia : true)
+      );
+
+      const mapaLotesItem: Record<
+        string,
+        {
+          lote: string;
+          validade?: string;
+          fabricacao?: string;
+          quantidade: number;
+          ultimoHorario?: string;
+          bipagemRecente?: BipagemEntrada;
+          bipagemIds: string[];
+        }
+      > = {};
+
+      for (const b of bipsDesteItem) {
+        const lNome = b.lote && b.lote.trim() ? b.lote.trim() : 'Sem lote';
+        const subChave = `${lNome.toUpperCase()}|${b.validade || ''}|${b.fabricacao || ''}`;
+        if (!mapaLotesItem[subChave]) {
+          mapaLotesItem[subChave] = {
+            lote: lNome,
+            validade: b.validade?.trim() || undefined,
+            fabricacao: b.fabricacao?.trim() || undefined,
+            quantidade: 0,
+            ultimoHorario: b.timestamp,
+            bipagemRecente: b,
+            bipagemIds: [],
+          };
+        }
+        mapaLotesItem[subChave].quantidade += b.qtdConferida || 0;
+        mapaLotesItem[subChave].bipagemIds.push(b.id);
+        mapaLotesItem[subChave].ultimoHorario = b.timestamp;
+      }
+
+      return {
+        lotesDetalhes: Object.values(mapaLotesItem),
+        ultimoHorario: bipsDesteItem[0]?.timestamp,
+      };
+    },
+    [bipagensValidas]
+  );
+
   const itensPendentesVisiveis = useMemo(() => {
     return itensExibidos.filter((item) => {
       // No Nível 3, se uma nota já estiver aprovada/conferida, seus itens não aparecem para conferência
@@ -1219,6 +1396,9 @@ export function ConferenciaEntradaPage() {
         if (statusNota === 'Conferido' || statusNota === 'Enviado ao Sankhya') {
           return false;
         }
+      }
+      if (ocultarStatus) {
+        return true;
       }
       const conferido =
         nivelAtual === 1 ? item.qtdConferidaN1 : nivelAtual === 2 ? item.qtdConferidaN2 : item.qtdConferidaN3;
@@ -1231,7 +1411,66 @@ export function ConferenciaEntradaPage() {
           : false;
       return !completo;
     });
-  }, [itensExibidos, nivelAtual, sessao]);
+  }, [itensExibidos, nivelAtual, sessao, ocultarStatus]);
+
+  const itensOrdenados = useMemo(() => {
+    if (ordenacao === 'padrao') {
+      return itensPendentesVisiveis;
+    }
+    const lista = [...itensPendentesVisiveis];
+    return lista.sort((a, b) => {
+      switch (ordenacao) {
+        case 'produto_nome_asc': {
+          const valA = (a.descrprod || '').trim().toLowerCase();
+          const valB = (b.descrprod || '').trim().toLowerCase();
+          const comp = valA.localeCompare(valB, 'pt-BR');
+          return comp !== 0 ? comp : a.codprod - b.codprod;
+        }
+        case 'produto_nome_desc': {
+          const valA = (a.descrprod || '').trim().toLowerCase();
+          const valB = (b.descrprod || '').trim().toLowerCase();
+          const comp = valB.localeCompare(valA, 'pt-BR');
+          return comp !== 0 ? comp : b.codprod - a.codprod;
+        }
+        case 'produto_cod_asc':
+          return a.codprod - b.codprod;
+        case 'produto_cod_desc':
+          return b.codprod - a.codprod;
+        case 'volume_asc': {
+          const valA = (a.codvol || 'UN').trim().toLowerCase();
+          const valB = (b.codvol || 'UN').trim().toLowerCase();
+          return valA.localeCompare(valB, 'pt-BR');
+        }
+        case 'volume_desc': {
+          const valA = (a.codvol || 'UN').trim().toLowerCase();
+          const valB = (b.codvol || 'UN').trim().toLowerCase();
+          return valB.localeCompare(valA, 'pt-BR');
+        }
+        case 'esperado_asc': {
+          const espA = a.qtdneg !== null ? a.qtdneg : 0;
+          const espB = b.qtdneg !== null ? b.qtdneg : 0;
+          return espA - espB;
+        }
+        case 'esperado_desc': {
+          const espA = a.qtdneg !== null ? a.qtdneg : 0;
+          const espB = b.qtdneg !== null ? b.qtdneg : 0;
+          return espB - espA;
+        }
+        case 'conferido_asc': {
+          const confA = nivelAtual === 1 ? a.qtdConferidaN1 : nivelAtual === 2 ? a.qtdConferidaN2 : a.qtdConferidaN3;
+          const confB = nivelAtual === 1 ? b.qtdConferidaN1 : nivelAtual === 2 ? b.qtdConferidaN2 : b.qtdConferidaN3;
+          return confA - confB;
+        }
+        case 'conferido_desc': {
+          const confA = nivelAtual === 1 ? a.qtdConferidaN1 : nivelAtual === 2 ? a.qtdConferidaN2 : a.qtdConferidaN3;
+          const confB = nivelAtual === 1 ? b.qtdConferidaN1 : nivelAtual === 2 ? b.qtdConferidaN2 : b.qtdConferidaN3;
+          return confB - confA;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [itensPendentesVisiveis, ordenacao, nivelAtual]);
 
   const itensConferidosVisiveis = useMemo<ItemEntradaConferidoVisivel[]>(() => {
     return itensExibidos
@@ -1585,14 +1824,23 @@ export function ConferenciaEntradaPage() {
                     <span className="resumo-card-val">{estatisticas.totalItensDistintos}</span>
                     <span className="resumo-card-lbl">Total</span>
                   </div>
-                  <div className="resumo-card-mini conferido">
-                    <span className="resumo-card-val" style={{ color: '#15803d' }}>{estatisticas.itensConferidosOk}</span>
-                    <span className="resumo-card-lbl" style={{ color: '#16a34a' }}>Conf</span>
-                  </div>
-                  <div className="resumo-card-mini pendente">
-                    <span className="resumo-card-val" style={{ color: '#b45309' }}>{estatisticas.pendentes}</span>
-                    <span className="resumo-card-lbl" style={{ color: '#d97706' }}>Pend</span>
-                  </div>
+                  {ocultarStatus ? (
+                    <div className="resumo-card-mini conferido">
+                      <span className="resumo-card-val" style={{ color: '#0284c7' }}>{estatisticas.totalConferidoNivel}</span>
+                      <span className="resumo-card-lbl" style={{ color: '#0369a1' }}>Bipados</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="resumo-card-mini conferido">
+                        <span className="resumo-card-val" style={{ color: '#15803d' }}>{estatisticas.itensConferidosOk}</span>
+                        <span className="resumo-card-lbl" style={{ color: '#16a34a' }}>Conf</span>
+                      </div>
+                      <div className="resumo-card-mini pendente">
+                        <span className="resumo-card-val" style={{ color: '#b45309' }}>{estatisticas.pendentes}</span>
+                        <span className="resumo-card-lbl" style={{ color: '#d97706' }}>Pend</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </header>
@@ -2005,7 +2253,17 @@ export function ConferenciaEntradaPage() {
 
       {/* Listagem com Abas */}
       <Painel>
-        <div className="tabs-container">
+        {ocultarStatus ? (
+          <div className="tabs-container">
+            <button
+              type="button"
+              className="tab-button tab-active"
+            >
+              Produtos da Conferência <span className="tab-count">{itensExibidos.length}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="tabs-container">
           <button
             type="button"
             className={`tab-button ${abaAtiva === 'pendentes' ? 'tab-active' : ''}`}
@@ -2021,6 +2279,7 @@ export function ConferenciaEntradaPage() {
             Itens Conferidos <span className="tab-count">{itensConferidosVisiveis.length}</span>
           </button>
         </div>
+        )}
 
         {/* Conteúdo da Aba 1: Itens Pendentes */}
         {abaAtiva === 'pendentes' && (
@@ -2045,15 +2304,51 @@ export function ConferenciaEntradaPage() {
                   <table className="tabela-itens">
                     <thead>
                       <tr>
-                        <th>Produto</th>
-                        <th>Volume</th>
-                        <th>Esperado</th>
-                        <th>Conferido N{nivelAtual}</th>
+                        <th
+                          onClick={handleAlternarOrdenacaoProduto}
+                          className={`th-ordenavel ${ordenacao.startsWith('produto_') ? 'th-ordenado' : ''}`}
+                          title="Clique para alternar: Nome (A-Z) > Nome (Z-A) > Cód (1-9) > Cód (9-1) > Padrão"
+                        >
+                          <div className="th-ordenavel-content">
+                            <span>Produto</span>
+                            {renderIndicadorProduto()}
+                          </div>
+                        </th>
+                        <th
+                          onClick={handleAlternarOrdenacaoVolume}
+                          className={`th-ordenavel ${ordenacao.startsWith('volume_') ? 'th-ordenado' : ''}`}
+                          title="Clique para alternar: A-Z > Z-A > Padrão"
+                        >
+                          <div className="th-ordenavel-content center">
+                            <span>Volume</span>
+                            {renderIndicadorGeral('volume')}
+                          </div>
+                        </th>
+                        <th
+                          onClick={handleAlternarOrdenacaoEsperado}
+                          className={`th-ordenavel ${ordenacao.startsWith('esperado_') ? 'th-ordenado' : ''}`}
+                          title="Clique para alternar: Menor > Maior > Padrão"
+                        >
+                          <div className="th-ordenavel-content center">
+                            <span>Esperado</span>
+                            {renderIndicadorGeral('esperado')}
+                          </div>
+                        </th>
+                        <th
+                          onClick={handleAlternarOrdenacaoConferido}
+                          className={`th-ordenavel ${ordenacao.startsWith('conferido_') ? 'th-ordenado' : ''}`}
+                          title="Clique para alternar: Menor > Maior > Padrão"
+                        >
+                          <div className="th-ordenavel-content center">
+                            <span>Conferido N{nivelAtual}</span>
+                            {renderIndicadorGeral('conferido')}
+                          </div>
+                        </th>
                         <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {itensPendentesVisiveis.map((item) => {
+                      {itensOrdenados.map((item) => {
                         const conferido =
                           nivelAtual === 1
                             ? item.qtdConferidaN1
@@ -2062,65 +2357,298 @@ export function ConferenciaEntradaPage() {
                             : item.qtdConferidaN3;
                         const esperado = item.qtdneg !== null ? item.qtdneg : null;
                         const parcial = conferido > 0;
+                        const chave = `${item.nunota}-${item.sequencia}`;
+                        const isExpandido = !!lotesExpandidos[chave];
+                        const { lotesDetalhes, ultimoHorario } = obterLotesDetalhesItem(item);
+                        const temLotes = lotesDetalhes && lotesDetalhes.length > 0;
 
                         return (
-                          <tr
-                            key={`${item.nunota}-${item.sequencia}`}
-                            className={parcial ? 'row-parcial' : ''}
-                          >
-                            <td>
-                              <div className="produto-cell">
-                                <img
-                                  src={`/api/crud/produto/${item.codprod}/imagem`}
-                                  alt={item.descrprod}
-                                  className="produto-img"
-                                  onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codprod}/imagem`)}
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                />
+                          <Fragment key={`frag-pend-${item.nunota}-${item.sequencia}`}>
+                            <tr
+                              key={`${item.nunota}-${item.sequencia}`}
+                              className={parcial && !ocultarStatus ? 'row-parcial' : ''}
+                            >
+                              <td>
+                                <div className="produto-cell">
+                                  <img
+                                    src={`/api/crud/produto/${item.codprod}/imagem`}
+                                    alt={item.descrprod}
+                                    className="produto-img"
+                                    onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codprod}/imagem`)}
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                  <div>
+                                    <span className="produto-desc">{item.descrprod}</span>
+                                    <span className="produto-barra">
+                                      {multiplasNotas && (
+                                        <span
+                                          style={{
+                                            display: 'inline-block',
+                                            background: '#e0f2fe',
+                                            color: '#0369a1',
+                                            fontWeight: 700,
+                                            fontSize: '0.70rem',
+                                            padding: '1px 5px',
+                                            borderRadius: '4px',
+                                            marginRight: '6px',
+                                          }}
+                                        >
+                                          NF {item.numnota || item.nunota}
+                                        </span>
+                                      )}
+                                      Cód: {item.codprod} | Ref: {item.referencia || '—'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="num-cell">{renderCelulaVolume(item.codprod, item.descrprod, item.codvol, item.unidadesAlternativas)}</td>
+                              <td className="num-cell">{esperado !== null ? esperado : '— (Cega)'}</td>
+                              <td className="num-cell">
                                 <div>
-                                  <span className="produto-desc">{item.descrprod}</span>
-                                  <span className="produto-barra">
-                                    {multiplasNotas && (
-                                      <span
+                                  <span style={{ fontSize: '1.05rem', fontWeight: conferido > 0 ? 800 : 400, color: conferido > 0 ? 'var(--emerald-600)' : 'inherit' }}>
+                                    {conferido}
+                                  </span>
+                                  {temLotes && (
+                                    <div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setLotesExpandidos((prev) => ({ ...prev, [chave]: !prev[chave] }))
+                                        }
+                                        className={`chip-dropdown-lote ${isExpandido ? 'ativo' : ''}`}
+                                        title="Clique para ver ou ocultar os lotes, validades e fabricações"
+                                      >
+                                        <span>
+                                          🏷️ {lotesDetalhes.length}{' '}
+                                          {lotesDetalhes.length > 1 ? 'Lotes' : 'Lote'}
+                                        </span>
+                                        <span>{isExpandido ? '▲' : '▼'}</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                  {!ocultarStatus && parcial ? (
+                                    <span className="status-parcial">Parcial</span>
+                                  ) : (
+                                    <span className="status-pendente">—</span>
+                                  )}
+
+                                  {conferido > 0 && (
+                                    <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                      <button
+                                        type="button"
+                                        className="btn-estornar-item"
                                         style={{
-                                          display: 'inline-block',
-                                          background: '#e0f2fe',
-                                          color: '#0369a1',
-                                          fontWeight: 700,
-                                          fontSize: '0.70rem',
-                                          padding: '1px 5px',
-                                          borderRadius: '4px',
-                                          marginRight: '6px',
+                                          padding: '3px 8px',
+                                          fontSize: '0.72rem',
+                                          background: '#fffbeb',
+                                          borderColor: '#fde68a',
+                                          color: '#b45309',
+                                          ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
+                                        }}
+                                        title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Apontar avaria, vencido ou divergência para este item'}
+                                        disabled={isSomenteLeitura}
+                                        onClick={() => !isSomenteLeitura && handleAbrirOcorrenciaItem(item)}
+                                      >
+                                        <span>⚠️ Ocorrência</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="btn-estornar-item"
+                                        style={{
+                                          padding: '3px 8px',
+                                          fontSize: '0.72rem',
+                                          ...(isSomenteLeitura ? { opacity: 0.4, cursor: 'not-allowed', filter: 'grayscale(1)' } : {}),
+                                        }}
+                                        title={isSomenteLeitura ? 'Conferência finalizada (somente leitura)' : 'Estornar a última bipagem registrada deste item'}
+                                        disabled={isSomenteLeitura}
+                                        onClick={() => {
+                                          if (isSomenteLeitura) return;
+                                          const ultimo = bipagensValidas
+                                            .filter(
+                                              (b) =>
+                                                b.codprod === item.codprod &&
+                                                (b.nunota === item.nunota ? b.sequencia === item.sequencia : true)
+                                            )
+                                            .pop();
+                                          if (ultimo) setBipagemParaEstornar(ultimo);
                                         }}
                                       >
-                                        NF {item.numnota || item.nunota}
-                                      </span>
-                                    )}
-                                    Cód: {item.codprod} | Ref: {item.referencia || '—'}
-                                  </span>
+                                        <span>↺ Bip</span>
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            </td>
-                            <td className="num-cell">{item.codvol || 'UN'}</td>
-                            <td className="num-cell">{esperado !== null ? esperado : '— (Cega)'}</td>
-                            <td className="num-cell">{conferido}</td>
-                            <td>
-                              {parcial ? (
-                                <span className="status-parcial">Parcial</span>
-                              ) : (
-                                <span className="status-pendente">—</span>
-                              )}
-                            </td>
-                          </tr>
+                              </td>
+                            </tr>
+
+                            {/* Sub-linha Gaveta (Dropdown Accordion) com Colunas Separadas: Lote | Quantidade | Validade | Fabricação | Ações */}
+                            {isExpandido && temLotes && (
+                              <tr className="subrow-lotes-drawer">
+                                <td colSpan={5}>
+                                  <div className="drawer-lotes-wrapper">
+                                    <div className="drawer-lotes-header">
+                                      <span>
+                                        Detalhamento dos Lotes ({lotesDetalhes.length}{' '}
+                                        {lotesDetalhes.length > 1 ? 'Lotes' : 'Lote'} • Total:{' '}
+                                        {conferido} {item.codvol || 'UN'})
+                                      </span>
+                                      <span style={{ fontSize: '0.70rem', color: 'var(--slate-500)', textTransform: 'none' }}>
+                                        Última bipagem: {formatarDataHora(ultimoHorario)}
+                                      </span>
+                                    </div>
+
+                                    <table className="mini-tabela-lotes">
+                                      <thead>
+                                        <tr>
+                                          <th style={{ width: '25%' }}>Lote</th>
+                                          <th style={{ width: '20%' }}>Quantidade</th>
+                                          <th style={{ width: '25%' }}>Data de Validade</th>
+                                          <th style={{ width: '20%' }}>Data de Fabricação</th>
+                                          <th style={{ width: '10%', textAlign: 'right' }}>Ação</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {lotesDetalhes.map((ld, lIdx) => {
+                                          const ocorrenciasDoLote = ocorrenciasSessao.filter((oc) => {
+                                            if (oc.codprod !== item.codprod) return false;
+                                            if (!oc.lote || !ld.lote) return false;
+                                            if (oc.lote.trim().toUpperCase() !== ld.lote.trim().toUpperCase()) return false;
+                                            if (oc.validade && ld.validade) {
+                                              return formatarDataApenas(oc.validade) === formatarDataApenas(ld.validade);
+                                            }
+                                            return true;
+                                          });
+                                          return (
+                                            <tr key={lIdx}>
+                                              <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                  <span
+                                                    style={{
+                                                      fontFamily: 'JetBrains Mono, monospace',
+                                                      fontWeight: 700,
+                                                      color: 'var(--slate-900)',
+                                                      background: '#f1f5f9',
+                                                      padding: '2px 6px',
+                                                      borderRadius: '4px',
+                                                      border: '1px solid var(--slate-200)',
+                                                    }}
+                                                  >
+                                                    🏷️ {ld.lote}
+                                                  </span>
+                                                  {renderTagsOcorrencia(ocorrenciasDoLote)}
+                                                </div>
+                                              </td>
+                                              <td>
+                                                <strong style={{ color: 'var(--emerald-600)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                                  {ld.quantidade} {item.codvol || 'UN'}
+                                                </strong>
+                                              </td>
+                                              <td>
+                                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.76rem' }}>
+                                                  {ld.validade ? `📅 ${formatarDataApenas(ld.validade)}` : '—'}
+                                                </span>
+                                              </td>
+                                              <td>
+                                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.76rem' }}>
+                                                  {ld.fabricacao ? `🏭 ${formatarDataApenas(ld.fabricacao)}` : '—'}
+                                                </span>
+                                              </td>
+                                              <td style={{ textAlign: 'right' }}>
+                                                <button
+                                                  type="button"
+                                                  className="btn-estorno-lote-clean"
+                                                  title={`Estornar as contagens do Lote ${ld.lote}`}
+                                                  disabled={isSomenteLeitura}
+                                                  onClick={() =>
+                                                    !isSomenteLeitura &&
+                                                    setLoteParaEstornar({
+                                                      descrprod: item.descrprod,
+                                                      lote: ld.lote,
+                                                      bipagemIds: ld.bipagemIds,
+                                                      quantidade: ld.quantidade,
+                                                    })
+                                                  }
+                                                >
+                                                  ✕ Estornar
+                                                </button>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
 
+                {/* Barra de Ordenação Rápida Mobile */}
+                <div className="mobile-sort-bar">
+                  <span className="mobile-sort-label">Ordenar:</span>
+                  <div className="mobile-sort-chips-scroll">
+                    <button
+                      type="button"
+                      onClick={handleAlternarOrdenacaoProduto}
+                      className={`mobile-sort-chip ${ordenacao.startsWith('produto_') ? 'ativo' : ''}`}
+                    >
+                      {ordenacao === 'produto_nome_asc'
+                        ? '🏷️ Nome ▲'
+                        : ordenacao === 'produto_nome_desc'
+                        ? '🏷️ Nome ▼'
+                        : ordenacao === 'produto_cod_asc'
+                        ? '🔢 Cód ▲'
+                        : ordenacao === 'produto_cod_desc'
+                        ? '🔢 Cód ▼'
+                        : 'Produto ⇅'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAlternarOrdenacaoVolume}
+                      className={`mobile-sort-chip ${ordenacao.startsWith('volume_') ? 'ativo' : ''}`}
+                    >
+                      Vol {ordenacao === 'volume_asc' ? '▲' : ordenacao === 'volume_desc' ? '▼' : '⇅'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAlternarOrdenacaoEsperado}
+                      className={`mobile-sort-chip ${ordenacao.startsWith('esperado_') ? 'ativo' : ''}`}
+                    >
+                      Esp {ordenacao === 'esperado_asc' ? '▲' : ordenacao === 'esperado_desc' ? '▼' : '⇅'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAlternarOrdenacaoConferido}
+                      className={`mobile-sort-chip ${ordenacao.startsWith('conferido_') ? 'ativo' : ''}`}
+                    >
+                      Conf {ordenacao === 'conferido_asc' ? '▲' : ordenacao === 'conferido_desc' ? '▼' : '⇅'}
+                    </button>
+                    {ordenacao !== 'padrao' && (
+                      <button
+                        type="button"
+                        onClick={() => setOrdenacao('padrao')}
+                        className="mobile-sort-chip-reset"
+                        title="Restaurar ordem original da nota"
+                      >
+                        ✕ Limpar
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Visualização Mobile / Tablet: Cards */}
                 <div className="itens-cards-mobile">
-                  {itensPendentesVisiveis.map((item) => {
+                  {itensOrdenados.map((item) => {
                     const conferido =
                       nivelAtual === 1
                         ? item.qtdConferidaN1
@@ -2133,7 +2661,7 @@ export function ConferenciaEntradaPage() {
                     return (
                       <div
                         key={`card-${item.nunota}-${item.sequencia}`}
-                        className={`item-card-mobile ${parcial ? 'item-card-parcial' : ''}`}
+                        className={`item-card-mobile ${parcial && !ocultarStatus ? 'item-card-parcial' : ''}`}
                         onClick={() => {
                           if (isSomenteLeitura) return;
                           const cod = item.codbarra || (item as any).referencia || String(item.codprod);
@@ -2188,7 +2716,7 @@ export function ConferenciaEntradaPage() {
                         <div className="item-card-metrics">
                           <div className="item-card-metric-col">
                             <span className="item-metric-label">Embalagem</span>
-                            <span className="item-metric-val">{item.codvol || 'UN'}</span>
+                            <span className="item-metric-val">{renderCelulaVolume(item.codprod, item.descrprod, item.codvol, item.unidadesAlternativas)}</span>
                           </div>
                           <div className="item-card-metric-col">
                             <span className="item-metric-label">Esperado</span>
@@ -2199,6 +2727,80 @@ export function ConferenciaEntradaPage() {
                             <span className="item-metric-val val-conferido">{conferido}</span>
                           </div>
                         </div>
+
+                        {(() => {
+                          const { lotesDetalhes } = obterLotesDetalhesItem(item);
+                          const chaveMob = `mob-${item.nunota}-${item.sequencia}`;
+                          const isMobExp = !!lotesExpandidos[chaveMob];
+                          if (!lotesDetalhes || lotesDetalhes.length === 0) return null;
+
+                          return (
+                            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--slate-200)' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLotesExpandidos((prev) => ({ ...prev, [chaveMob]: !prev[chaveMob] }));
+                                }}
+                                className={`chip-dropdown-lote ${isMobExp ? 'ativo' : ''}`}
+                                style={{ width: '100%', justifyContent: 'space-between', padding: '5px 10px' }}
+                              >
+                                <span>🏷️ {lotesDetalhes.length} {lotesDetalhes.length > 1 ? 'Lotes Registrados' : 'Lote Registrado'}</span>
+                                <span style={{ fontSize: '0.65rem' }}>{isMobExp ? '▲ recolher' : '▼ expandir'}</span>
+                              </button>
+
+                              {isMobExp && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                                  {lotesDetalhes.map((ld, ldIdx) => (
+                                    <div
+                                      key={ldIdx}
+                                      style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '6px',
+                                        padding: '6px 8px',
+                                        fontSize: '0.78rem',
+                                      }}
+                                    >
+                                      <div>
+                                        <div style={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>🏷️ {ld.lote}</div>
+                                        <div style={{ fontSize: '0.70rem', color: 'var(--slate-500)' }}>
+                                          {ld.validade ? `Val: ${formatarDataApenas(ld.validade)}` : ''}
+                                          {ld.fabricacao ? ` • Fab: ${formatarDataApenas(ld.fabricacao)}` : ''}
+                                        </div>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <strong style={{ color: 'var(--emerald-600)' }}>{ld.quantidade} {item.codvol || 'UN'}</strong>
+                                        <button
+                                          type="button"
+                                          className="btn-estorno-lote-clean"
+                                          style={{ padding: '2px 6px', fontSize: '0.70rem' }}
+                                          disabled={isSomenteLeitura}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!isSomenteLeitura) {
+                                              setLoteParaEstornar({
+                                                descrprod: item.descrprod,
+                                                lote: ld.lote,
+                                                bipagemIds: ld.bipagemIds,
+                                                quantidade: ld.quantidade,
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -2288,7 +2890,7 @@ export function ConferenciaEntradaPage() {
                                 </div>
                               </td>
 
-                              <td className="num-cell">{confItem.item.codvol || 'UN'}</td>
+                              <td className="num-cell">{renderCelulaVolume(confItem.item.codprod, confItem.item.descrprod, confItem.item.codvol, confItem.item.unidadesAlternativas)}</td>
 
                               <td className="num-cell">{esperado !== null ? esperado : '— (Cega)'}</td>
 
@@ -2618,7 +3220,7 @@ export function ConferenciaEntradaPage() {
 
                         <div className="item-card-metric-col">
                           <span className="item-metric-label">Unidade</span>
-                          <span className="item-metric-val">{confItem.item.codvol || 'UN'}</span>
+                          <span className="item-metric-val">{renderCelulaVolume(confItem.item.codprod, confItem.item.descrprod, confItem.item.codvol, confItem.item.unidadesAlternativas)}</span>
                         </div>
 
                         <div className="item-card-metric-col">
@@ -3252,6 +3854,56 @@ export function ConferenciaEntradaPage() {
           verCamposSensiveis={verCamposSensiveis}
           onClose={() => setShowFolhaBipagemModal(false)}
         />
+      )}
+      {/* Popover Flutuante de Unidades Alternativas */}
+      {popoverVolume && (
+        <div className="popover-volume-backdrop" onClick={() => setPopoverVolume(null)}>
+          <div
+            className="popover-volume-card"
+            style={{
+              top: Math.min(window.innerHeight - 200, Math.max(10, popoverVolume.targetRect.bottom + 6)),
+              left: Math.min(window.innerWidth - 260, Math.max(10, popoverVolume.targetRect.left - 20)),
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="popover-volume-header">
+              <div className="popover-volume-title">
+                <strong>Unidades Alternativas</strong>
+                <span className="popover-volume-sub">Cód. {popoverVolume.codprod}</span>
+              </div>
+              <button
+                type="button"
+                className="popover-volume-close"
+                onClick={() => setPopoverVolume(null)}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+            <div className="popover-volume-body">
+              <table className="popover-volume-tabela">
+                <thead>
+                  <tr>
+                    <th>Unidade</th>
+                    <th style={{ textAlign: 'right' }}>Multiplicador</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {popoverVolume.unidades.map((u, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <span className="popover-vol-tag">{u.codvol}</span>
+                      </td>
+                      <td className="popover-vol-col-mult">
+                        <strong>x {u.quantidade}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

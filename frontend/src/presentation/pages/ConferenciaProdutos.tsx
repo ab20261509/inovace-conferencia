@@ -8,6 +8,7 @@ import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infras
 import { Botao, Campo, Container, Grid, Label, Painel, ModalCameraScanner, ModalFolhaBipagem } from '../components';
 import { Loading } from '../components/Loading/Loading';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import { limparMensagemErro } from '../utils/erro';
 import './ConferenciaProdutos.css';
 
 function formatarDataHora(val?: string | null): string {
@@ -227,7 +228,8 @@ export function ConferenciaProdutosPage() {
       if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
       setFeedbackVisual({ codProd: resultado.codProd, descrProd: resultado.descrProd });
       feedbackTimeoutRef.current = setTimeout(() => setFeedbackVisual(null), 1200);
-    } catch (err) {
+    } catch (err: any) {
+      setError(limparMensagemErro(err instanceof Error ? err.message : String(err)));
       // O hook já preenche a mensagem de erro na tela; aqui vem o alerta
       // sonoro e a leitura em voz alta da mensagem do Sankhya.
       // Fica no catch (e não num useEffect sobre `error`) porque, se o
@@ -434,7 +436,7 @@ export function ConferenciaProdutosPage() {
       </div>
 
       {/* Feedback */}
-      {error && <div className="error-message" onClick={() => setError(null)}>{error}</div>}
+      {error && <div className="error-message" onClick={() => setError(null)}>{limparMensagemErro(error)}</div>}
 
       {produtoAtual && (
         <Container variant="default" padding="sm" className="feedback-success">

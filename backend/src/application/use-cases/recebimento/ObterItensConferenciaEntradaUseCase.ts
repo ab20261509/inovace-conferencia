@@ -4,6 +4,7 @@ import { IConfiguracaoTelasRepository } from '../../../domain/ports/IConfiguraca
 import {
   ItemNotaEntrada,
   CodigoAlternativoEntrada,
+  UnidadeAlternativaEntrada,
   SessaoConferenciaEntrada,
 } from '../../../domain/entities/ConferenciaEntrada.js';
 
@@ -18,6 +19,7 @@ export interface ObterItensConferenciaEntradaOutput {
   sessao?: SessaoConferenciaEntrada | null;
   itens: ItemNotaEntrada[];
   bipagens: any[];
+  ocultarStatus?: boolean;
 }
 
 export class ObterItensConferenciaEntradaUseCase {
@@ -120,7 +122,21 @@ WHERE BAR.CODPROD IN (
   )
     `.trim();
 
-    const [respItens, respBarras] = await Promise.all([
+    // 3. Buscar Unidades Alternativas da TGFVOA (apenas ativas com CODVOL e QUANTIDADE)
+    const sqlVoa = `
+SELECT DISTINCT
+    VOA.CODPROD,
+    NVL(VOA.CODVOL, 'UN') AS CODVOL,
+    NVL(VOA.QUANTIDADE, 1) AS QUANTIDADE
+FROM TGFVOA VOA
+WHERE (VOA.ATIVO IS NULL OR VOA.ATIVO = 'S')
+  AND VOA.CODPROD IN (
+      SELECT DISTINCT CODPROD FROM TGFITE WHERE NUNOTA IN (${nunotasStr})
+  )
+ORDER BY 1, 2
+    `.trim();
+
+    const [respItens, respBarras, respVoa] = await Promise.all([
       this.gateway.serviceCall<any>(
         'DbExplorerSP.executeQuery',
         { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlItens } },
@@ -129,6 +145,11 @@ WHERE BAR.CODPROD IN (
       this.gateway.serviceCall<any>(
         'DbExplorerSP.executeQuery',
         { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlBarras } },
+        correlationId
+      ),
+      this.gateway.serviceCall<any>(
+        'DbExplorerSP.executeQuery',
+        { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlVoa } },
         correlationId
       ),
     ]);
@@ -158,6 +179,27 @@ WHERE BAR.CODPROD IN (
 
       if (!mapaBarras[codprod]) mapaBarras[codprod] = [];
       mapaBarras[codprod].push(alt);
+    }
+
+    // Mapear Unidades Alternativas por CODPROD (apenas CODVOL e QUANTIDADE)
+    const voaRows: any[] = respVoa?.responseBody?.rows || [];
+    const voaFields: any[] = respVoa?.responseBody?.fieldsMetadata || [];
+    const voaIndex: Record<string, number> = {};
+    voaFields.forEach((f: any, idx: number) => {
+      voaIndex[f.name.toUpperCase()] = idx;
+    });
+
+    const mapaUnidadesAlternativas: Record<number, UnidadeAlternativaEntrada[]> = {};
+    for (const r of voaRows) {
+      const codprod = Number(r[voaIndex['CODPROD']]);
+      const codvol = String(r[voaIndex['CODVOL']] || '').trim();
+      const quantidade = Number(r[voaIndex['QUANTIDADE']] || 1);
+      if (!codvol) continue;
+
+      if (!mapaUnidadesAlternativas[codprod]) mapaUnidadesAlternativas[codprod] = [];
+      if (!mapaUnidadesAlternativas[codprod].some(u => u.codvol === codvol && u.quantidade === quantidade)) {
+        mapaUnidadesAlternativas[codprod].push({ codvol, quantidade });
+      }
     }
 
     // Buscar Bipagens do Repositório
@@ -250,6 +292,11 @@ WHERE BAR.CODPROD IN (
       'referencia',
       input.usuario
     );
+    const ocultarStatus = await this.configTelasRepo.deveOcultarCampo(
+      'conferencia_entrada',
+      'status',
+      input.usuario
+    );
 
     // Mapear Itens
     const itensRows: any[] = respItens?.responseBody?.rows || [];
@@ -308,11 +355,12 @@ WHERE BAR.CODPROD IN (
         codbarra: codigosAlternativos[0]?.codbarra || '',
         codvol: String(r[itensIndex['CODVOL']] || 'UN'),
         qtdneg: ocultarQtdNota ? null : rawQtd,
-        conferidoCompleto,
+        conferidoCompleto: ocultarStatus ? false : conferidoCompleto,
         qtdConferidaN1: bip.n1,
         qtdConferidaN2: bip.n2,
         qtdConferidaN3: bip.n3,
         codigosAlternativos,
+        unidadesAlternativas: mapaUnidadesAlternativas[codprod] || [],
         divergente,
         lote: bip.lote,
         validade: bip.validade,
@@ -406,6 +454,7 @@ WHERE BAR.CODPROD IN (
       sessao,
       itens: itensRetornados,
       bipagens: bipagensEnriquecidas,
+      ocultarStatus,
     };
   }
 }

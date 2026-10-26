@@ -14,6 +14,7 @@ export interface ModulosUsuario {
   consulta_produtos: boolean;
   ver_campos_sensiveis: boolean;
   gerenciar_acessos: boolean;
+  bipar_por_codprod?: boolean;
 }
 
 export interface UsuarioAcessoInfo {

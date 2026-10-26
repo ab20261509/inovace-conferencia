@@ -102,6 +102,12 @@ export const CATALOGO_TELAS_SISTEMA: CatalogoTela[] = [
         descricao: 'Nome e CNPJ da empresa emitente da nota',
         sensivelPadrao: false,
       },
+      {
+        chave: 'status',
+        rotulo: 'Status da Conferência',
+        descricao: 'Status do item (Pendente, Parcial ou Conferido)',
+        sensivelPadrao: true,
+      },
     ],
   },
   {

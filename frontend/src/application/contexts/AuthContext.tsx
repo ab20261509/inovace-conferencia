@@ -103,6 +103,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Operadores padrão: inativo (false) por padrão
         return permissoes[modulo] === true;
       }
+      if (modulo === 'bipar_por_codprod') {
+        // Administradores/supervisores: true por padrão
+        if (ehAdminPadrao || permissoes.gerenciar_acessos) {
+          return permissoes[modulo] !== false;
+        }
+        // Operadores padrão: inativo (false) por padrão
+        return permissoes[modulo] === true;
+      }
       return !!permissoes[modulo];
     }
 

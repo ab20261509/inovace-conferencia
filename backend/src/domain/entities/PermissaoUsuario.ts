@@ -18,6 +18,7 @@ export interface ModulosUsuario {
   consulta_produtos: boolean;
   ver_campos_sensiveis: boolean;
   gerenciar_acessos: boolean;
+  bipar_por_codprod?: boolean;
 }
 
 export interface UsuarioAcesso {
@@ -49,6 +50,7 @@ export const PERMISSOES_ADMINISTRADOR: ModulosUsuario = {
   consulta_produtos: true,
   ver_campos_sensiveis: true,
   gerenciar_acessos: true,
+  bipar_por_codprod: true,
 };
 
 /**
@@ -70,4 +72,5 @@ export const PERMISSOES_PADRAO_OPERADOR: ModulosUsuario = {
   consulta_produtos: true,
   ver_campos_sensiveis: false,
   gerenciar_acessos: false,
+  bipar_por_codprod: false,
 };

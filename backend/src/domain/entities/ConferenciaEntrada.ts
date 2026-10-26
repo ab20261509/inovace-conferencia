@@ -49,6 +49,11 @@ export interface CodigoAlternativoEntrada {
   quantidade: number;
 }
 
+export interface UnidadeAlternativaEntrada {
+  codvol: string;
+  quantidade: number;
+}
+
 export interface FracaoLoteItem {
   lote: string;
   validade?: string;
@@ -75,6 +80,7 @@ export interface ItemNotaEntrada {
   qtdConferidaN2: number;
   qtdConferidaN3: number;
   codigosAlternativos: CodigoAlternativoEntrada[];
+  unidadesAlternativas?: UnidadeAlternativaEntrada[];
   divergente?: boolean;
   lote?: string;
   validade?: string;

@@ -16,6 +16,7 @@ import { SincronizarDesmembramentoNotaUseCase } from '../../../application/use-c
 import { ExecutarDesmembramentoItemUseCase } from '../../../application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.js';
 import { AlterarLocalItemNotaUseCase } from '../../../application/use-cases/recebimento/AlterarLocalItemNotaUseCase.js';
 import { RegistrarOcorrenciaSobraUseCase } from '../../../application/use-cases/recebimento/RegistrarOcorrenciaSobraUseCase.js';
+import { limparErroSankhya } from '../utils/formatarErro.js';
 
 export class ConferenciaEntradaController {
   constructor(
@@ -56,7 +57,7 @@ export class ConferenciaEntradaController {
       );
       res.status(200).json(notas);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || 'Erro ao listar notas de entrada.' });
+      res.status(500).json({ error: limparErroSankhya(error.message || 'Erro ao listar notas de entrada.') });
     }
   }
 
@@ -81,7 +82,7 @@ export class ConferenciaEntradaController {
 
       res.status(200).json(resultado);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || 'Erro ao carregar itens da conferência.' });
+      res.status(500).json({ error: limparErroSankhya(error.message || 'Erro ao carregar itens da conferência.') });
     }
   }
 
@@ -99,7 +100,7 @@ export class ConferenciaEntradaController {
 
       res.status(200).json(sessao);
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Erro ao iniciar conferência.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao iniciar conferência.') });
     }
   }
 
@@ -127,7 +128,7 @@ export class ConferenciaEntradaController {
 
       res.status(200).json(resultado);
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Erro ao registrar bipagem.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao registrar bipagem.') });
     }
   }
 
@@ -138,7 +139,7 @@ export class ConferenciaEntradaController {
       await this.anularBipagemUseCase.execute(bipagemId);
       res.status(200).json({ success: true, message: 'Bipagem anulada com sucesso.' });
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Erro ao anular bipagem.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao anular bipagem.') });
     }
   }
 
@@ -158,7 +159,7 @@ export class ConferenciaEntradaController {
 
       res.status(200).json(resultado);
     } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Erro ao finalizar conferência.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao finalizar conferência.') });
     }
   }
 
@@ -173,7 +174,7 @@ export class ConferenciaEntradaController {
       res.status(200).json(divergencias);
     } catch (error: any) {
       console.error('❌ Erro em GET /api/recebimento/gestao/divergencias:', error);
-      res.status(500).json({ error: error.message || 'Erro ao listar divergências.' });
+      res.status(500).json({ error: limparErroSankhya(error.message || 'Erro ao listar divergências.') });
     }
   }
 
@@ -200,7 +201,7 @@ export class ConferenciaEntradaController {
       res.status(200).json({ success: true, sessao });
     } catch (error: any) {
       console.error('❌ Erro ao resolver divergência:', error);
-      res.status(400).json({ error: error.message || 'Erro ao resolver divergência.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao resolver divergência.') });
     }
   }
 
@@ -225,7 +226,7 @@ export class ConferenciaEntradaController {
       res.status(200).json({ success: true, sessao });
     } catch (error: any) {
       console.error('❌ Erro ao reiniciar conferência:', error);
-      res.status(400).json({ error: error.message || 'Erro ao reiniciar conferência.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao reiniciar conferência.') });
     }
   }
 
@@ -255,7 +256,7 @@ export class ConferenciaEntradaController {
       res.status(200).json({ success: true, ...resultado });
     } catch (error: any) {
       console.error('❌ Erro ao enviar conferência para o Sankhya:', error);
-      res.status(400).json({ error: error.message || 'Erro ao integrar com o Sankhya.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao integrar com o Sankhya.') });
     }
   }
 
@@ -270,7 +271,7 @@ export class ConferenciaEntradaController {
       res.status(200).json(conferencias);
     } catch (error: any) {
       console.error('❌ Erro ao listar todas as conferências:', error);
-      res.status(500).json({ error: error.message || 'Erro ao listar conferências.' });
+      res.status(500).json({ error: limparErroSankhya(error.message || 'Erro ao listar conferências.') });
     }
   }
 
@@ -296,7 +297,7 @@ export class ConferenciaEntradaController {
       res.status(200).json({ success: true, sessao });
     } catch (error: any) {
       console.error('❌ Erro ao solicitar recontagem:', error);
-      res.status(400).json({ error: error.message || 'Erro ao solicitar recontagem.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao solicitar recontagem.') });
     }
   }
 
@@ -321,7 +322,7 @@ export class ConferenciaEntradaController {
       res.status(200).json({ success: true, sessao });
     } catch (error: any) {
       console.error('❌ Erro ao recuperar contagem reiniciada:', error);
-      res.status(400).json({ error: error.message || 'Erro ao recuperar contagem reiniciada.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao recuperar contagem reiniciada.') });
     }
   }
 
@@ -353,7 +354,7 @@ export class ConferenciaEntradaController {
       res.status(200).json(resultado);
     } catch (error: any) {
       console.error('❌ Erro ao sincronizar desmembramento com o Sankhya:', error);
-      res.status(400).json({ error: error.message || 'Erro ao sincronizar desmembramento com o Sankhya.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao sincronizar desmembramento com o Sankhya.') });
     }
   }
 
@@ -385,7 +386,7 @@ export class ConferenciaEntradaController {
       res.status(200).json(resultado);
     } catch (error: any) {
       console.error('❌ Erro ao desmembrar item no Sankhya:', error);
-      res.status(400).json({ error: error.message || 'Erro ao desmembrar item no Sankhya.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao desmembrar item no Sankhya.') });
     }
   }
 
@@ -416,7 +417,7 @@ export class ConferenciaEntradaController {
       res.status(200).json(resultado);
     } catch (error: any) {
       console.error('❌ Erro ao alterar local do item no Sankhya:', error);
-      res.status(400).json({ error: error.message || 'Erro ao alterar local do item.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao alterar local do item.') });
     }
   }
 
@@ -474,7 +475,7 @@ export class ConferenciaEntradaController {
       res.status(200).json(resultado);
     } catch (error: any) {
       console.error('❌ Erro ao registrar ocorrência de sobra e abater contagem:', error);
-      res.status(400).json({ error: error.message || 'Erro ao registrar ocorrência de sobra.' });
+      res.status(400).json({ error: limparErroSankhya(error.message || 'Erro ao registrar ocorrência de sobra.') });
     }
   }
 }

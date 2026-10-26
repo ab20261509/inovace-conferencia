@@ -1,5 +1,243 @@
 # Registro de Progresso e Entregas - Conferência de Entrada & Gestão de Recebimento
 
+## Atualização: Correção ORA-01791 na Consulta de Unidades Alternativas (Entrada)
+
+- **Diagnóstico & Causa Raiz:**
+  - Ao carregar a tela de Conferência de Entrada, ocorria o erro: `ORA-01791: não é uma expressão de SELECT`.
+  - No Oracle Database, ao utilizar `SELECT DISTINCT`, qualquer coluna informada no `ORDER BY` que contenha funções/apelidos (como `NVL(VOA.CODVOL, 'UN') AS CODVOL`) precisa ser referenciada por seu alias ou índice posicional (`ORDER BY 1, 2`), caso contrário o Oracle rejeita a execução.
+  - Como a consulta falhou, a lista de itens não carregou (`0 TOTAL, 0 CONF, 0 PEND`).
+  - Além disso, a sessão aberta no teste estava em **`N1: CONTAGEM CEGA`** (onde por regra fiscal de recebimento cego os campos de Lote, Validade e Fabricação não são exibidos, aparecendo exclusivamente a partir do **`N2: LOTE E VALIDADE`**).
+- **Implementações Realizadas:**
+  1. **Ajuste na Query SQL ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - Corrigida a cláusula de ordenação de `sqlVoa` para `ORDER BY 1, 2`, compatível com `SELECT DISTINCT` no Oracle.
+     - Query testada e validada diretamente contra o banco Sankhya com retorno 100% íntegro.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Visualização de Unidades Alternativas e Multiplicadores no Volume (Entrada)
+
+- **Diagnóstico & Contexto:**
+  - Na tela de Conferência de Entrada (`ConferenciaEntradaPage.tsx`), na tabela de produtos, a coluna "VOLUME" exibia apenas a unidade padrão (ex: `SC`).
+  - Conforme alinhamento via `/grill-me`, ao clicar sobre o volume de um produto que possui unidades alternativas cadastradas na `TGFVOA`, deve ser exibido um balão/popover flutuante contendo apenas a **Unidade** e o **Multiplicador** ativos (`ATIVO IS NULL OR ATIVO = 'S'`).
+  - Itens sem unidades alternativas ativas permanecem sem interação e sem indicador para evitar poluição visual.
+- **Implementações Realizadas:**
+  1. **Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts) e [`ConferenciaEntrada.ts`](./backend/src/domain/entities/ConferenciaEntrada.ts)):**
+     - Criada a interface `UnidadeAlternativaEntrada { codvol: string; quantidade: number }`.
+     - Inclusa a query `sqlVoa` para buscar de forma paralela via `Promise.all` as unidades ativas da `TGFVOA` agrupadas por `CODPROD` e `CODVOL`.
+     - Mapeado no objeto de retorno de cada item como `unidadesAlternativas: UnidadeAlternativaEntrada[]`.
+  2. **Frontend ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx) e [`ConferenciaEntradaPage.css`](./frontend/src/presentation/pages/ConferenciaEntradaPage.css)):**
+     - Atualizada a interface `ItemNotaEntrada` com `unidadesAlternativas?: UnidadeAlternativaEntrada[]`.
+     - **Badge Clicável:** Para produtos com unidades alternativas, o volume é exibido como um botão estilizado com indicador `+N` (ex: `SC +1`), com hover e cursor pointer.
+     - **Popover Flutuante:** Ao clicar no badge, abre um popover posicionado dinamicamente com título, código do produto, botão fechar (×), fechamento no backdrop/click outside e tecla `Esc`.
+     - **Tabela de Dados Limpa:** Apresenta apenas as colunas solicitadas: `Unidade` (tag estilizada) e `Multiplicador` (`x N`).
+     - Aplicado na tabela de itens pendentes, na tabela de itens conferidos e nos cards mobile responsivos.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Correção do Estado Ativo/Inativo do Botão Conferir na Saída
+
+- **Diagnóstico & Contexto:**
+  - O botão `Conferir` da barra de bipagem da Conferência de Saída permanecia com a cor acinzentada (`#7e8590`) mesmo após o operador digitar valores no campo de código de barras.
+  - O comportamento correto e esperado:
+    - **Inativo / Disabled (campo vazio):** Fundo cinza ardósia suave (`background: #7e8590`, `opacity: 0.65`).
+    - **Ativo (com código digitado):** Fundo normal grafite/slate escuro (`background: #0f172a`), com hover (`#1e293b`).
+- **Implementações Realizadas:**
+  1. **Ajuste em [`ConferenciaProdutos.css`](./frontend/src/presentation/pages/ConferenciaProdutos.css):**
+     - `.scanner-saida-btn-conferir`: Cor base configurada para a cor normal ativa (`#0f172a`), com hover `#1e293b`.
+     - `.scanner-saida-btn-conferir:disabled`: Mantém a cor cinza ardósia suave (`#7e8590`) e `opacity: 0.65` quando o campo está vazio (`disabled={conferindo || !codBarra.trim()}`).
+  2. **Atualização das Diretrizes ([`GEMINI.md`](./GEMINI.md) e [`AGENTS.md`](./AGENTS.md)):**
+     - Especificação atualizada para detalhar os estados Ativo (`#0f172a`) e Inativo/Disabled (`#7e8590`).
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Higienização de Mensagens de Erro do Sankhya para o Usuário Final
+
+- **Diagnóstico & Contexto:**
+  - Em erros de conferência ou validação de bipagem (ex: código não encontrado), as mensagens do sistema exibiam o prefixo técnico do serviço Sankhya entre colchetes, como:
+    `[Sankhya ConferenciaSP.salvarItemConferido] Não foi encontrado produto com o código de barras: 11651`.
+  - Essa notação técnica poluía a interface do operador e gerava confusão visual.
+- **Implementações Realizadas:**
+  1. **Utilitário de Limpeza no Frontend ([`erro.ts`](./frontend/src/presentation/utils/erro.ts)):**
+     - Criada a função `limparMensagemErro(mensagem)` com regex `replace(/^\s*\[[^\]]*\]\s*/, '')`, que remove qualquer prefixo técnico entre colchetes do Sankhya.
+     - Aplicado em [`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx) (no catch e na renderização do banner `error-message`).
+     - Aplicado em [`useConferenciaAtiva.ts`](./frontend/src/application/hooks/useConferenciaAtiva.ts) para todos os disparos de erro de conferência, busca de produto, estorno e finalização.
+  2. **Higienização Centralizada na Resposta da API do Backend ([`formatarErro.ts`](./backend/src/presentation/http/utils/formatarErro.ts)):**
+     - Criado o helper `limparErroSankhya(error)` no backend.
+     - Integrado em [`ConferenciasController.ts`](./backend/src/presentation/http/controllers/ConferenciasController.ts) e [`ConferenciaEntradaController.ts`](./backend/src/presentation/http/controllers/ConferenciaEntradaController.ts).
+     - Todas as respostas de erro JSON retornadas para a interface já chegam sem o prefixo `[Sankhya NomeServico]`.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Correção de Bipagem por Referência na Conferência de Saída
+
+- **Diagnóstico & Causa Raiz:**
+  - Ao digitar o código `11596` na Conferência de Saída, a tela exibia o erro em banner vermelho: `Código "11596" não encontrado nos itens deste pedido.`.
+  - O produto `11596` possui exatamente o valor `"11596"` cadastrado no campo `REFERENCIA` na `TGFPRO`.
+  - A checagem que havia sido inserida no frontend (`ConferenciaProdutos.tsx`) avaliava localmente o array `itens`. Como o usuário logado estava com proteção de campos sensíveis ativa (`ocultarReferencia = true`), o backend omitia `item.referencia` como `null`.
+  - Como resultado, o frontend não tinha acesso ao valor real da referência, julgava erroneamente que o código digitado era apenas `codProd` e bloqueava a requisição antes mesmo de consultar o Sankhya.
+- **Implementações Realizadas:**
+  1. **Remoção da Trava Prematura no Frontend ([`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx)):**
+     - Eliminada a checagem local baseada em propriedades mascaradas/nulas do frontend. A validação de bipagem agora flui de forma segura para o backend.
+  2. **Validação no Backend com Consulta Direta ao Banco ([`SalvarItemConferidoUseCase.ts`](./backend/src/application/use-cases/conferencias/operacao/SalvarItemConferidoUseCase.ts)):**
+     - Injetado `IPermissoesRepository` no caso de uso e atualizado em [`container.ts`](./backend/src/container.ts).
+     - Quando o usuário logado (`usuario: req.username` passado via [`ConferenciasController.ts`](./backend/src/presentation/http/controllers/ConferenciasController.ts)) não possui a permissão `bipar_por_codprod`:
+       - O backend executa uma verificação SQL nos itens da nota (`TGFITE` + `TGFPRO` + `TGFBAR` / `TGFVOA`).
+       - Se o código coincidir com `PRO.REFERENCIA` ou com qualquer código de barras (`BAR.CODBARRA`), ele é **liberado normalmente** (atendendo o caso do produto 11596 cuja referência é "11596").
+       - Se o código for **exclusivamente `CODPROD`** (e não existir nem na referência e nem nos códigos de barras cadastrados), aí sim é bloqueado com mensagem clara: *"Permissão insuficiente: conferente não autorizado a conferir pelo código interno (CODPROD). Utilize o código de barras ou referência."*.
+     - Usuários com a permissão `bipar_por_codprod` ativa (ou administradores) têm passe livre para bipar por qualquer campo.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Limpeza Automática dos Campos de Lote, Validade e Fabricação após Conferência
+
+- **Diagnóstico & Contexto:**
+  - Ao registrar a conferência física de um produto na tela de Conferência de Entrada (`handleBipar`), os campos `Lote`, `Validade` e `Fabricação` permaneciam preenchidos nos inputs, enquanto apenas o código de barras e a quantidade eram redefinidos.
+  - Conforme alinhamento via `/grill-me`, os campos de Lote, Validade e Fabricação devem ser sempre limpos após cada conferência realizada com sucesso, evitando que o próximo produto bipado herde inadvertidamente os dados do lote anterior.
+- **Implementações Realizadas:**
+  1. **Reset Completo dos Inputs ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Em `handleBipar`, adicionadas as chamadas `setLote('')`, `setValidade('')` e `setFabricacao('')` junto com a limpeza de `setCodigo('')` e redefinição de quantidade `setQuantidade('1')`.
+     - Foco é retornado automaticamente para o campo de código de barras para a próxima bipagem.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Bloqueio de Bipagem por CODPROD com Permissão Granular de Usuário (`bipar_por_codprod`)
+
+- **Diagnóstico & Contexto:**
+  - Identificada a necessidade de restringir a bipagem pelo código interno do produto (`CODPROD` da `TGFPRO`/`TGFITE`) para evitar que conferentes comuns digitem códigos manuais em vez de escanear a etiqueta física da embalagem.
+  - Conforme alinhamento via `/grill-me`:
+    - Permissão individual por usuário na tela de **Gestão de Acessos** (`bipar_por_codprod`).
+    - Configurada como **Desativada (`false`) por padrão** para todos os usuários comuns (Opção 2).
+    - Administradores nativos recebem a permissão ativada por padrão (`true`).
+    - Quando desativada, a consulta na conferência **bloqueia estritamente a busca pelo `CODPROD`**, mantendo plenamente ativas as buscas por **Código de Barras (`TGFBAR`/`TGFVOA`)** e por **Referência (`TGFPRO.REFERENCIA`)**.
+    - Se o conferente tentar digitar o código do produto sem permissão, o sistema segue o fluxo padrão de código não encontrado nos itens da carga.
+- **Implementações Realizadas:**
+  1. **Entidades e Repositório de Permissões ([`PermissaoUsuario.ts`](./backend/src/domain/entities/PermissaoUsuario.ts) e [`Auth.ts`](./frontend/src/domain/models/Auth.ts)):**
+     - Adicionada a chave `bipar_por_codprod?: boolean` na interface `ModulosUsuario`.
+     - `PERMISSOES_PADRAO_OPERADOR`: Definida como `bipar_por_codprod: false`.
+     - `PERMISSOES_ADMINISTRADOR`: Definida como `bipar_por_codprod: true`.
+  2. **Caso de Uso de Bipagem na Entrada ([`RegistrarBipagemEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.ts)):**
+     - Injetado `IPermissoesRepository` no construtor e atualizado em [`container.ts`](./backend/src/container.ts).
+     - Antes de montar a query SQL, verifica `permissoes.bipar_por_codprod` para o conferente da sessão (com fallback ativo `true` para administradores/supervisores).
+     - Se `podeBiparPorCodprod === false`:
+       - Condição da query busca em `(UPPER(PRO.REFERENCIA) = UPPER('${codigoLimpo}') OR UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}'))`.
+       - Bloqueia exclusivamente a consulta em `PRO.CODPROD` na `TGFPRO`/`TGFITE`. Se digitado o código interno, o Sankhya retorna 0 linhas e dispara o erro padrão *"Código não encontrado nos itens desta carga"*.
+     - Se `podeBiparPorCodprod === true`:
+       - Executa a busca completa contemplando `BAR.CODBARRA`, `PRO.REFERENCIA` e `TO_CHAR(PRO.CODPROD) = '${codigoLimpo}'`.
+  3. **Conferência de Saída ([`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx) e [`AuthContext.tsx`](./frontend/src/application/contexts/AuthContext.tsx)):**
+     - No [`AuthContext.tsx`](./frontend/src/application/contexts/AuthContext.tsx), configurado que administradores nativos e usuários com permissão de gestão possuem `bipar_por_codprod` ativado por padrão (`true`), garantindo que o admin consiga bipar e conferir por `CODPROD` normalmente.
+     - Operadores comuns têm a restrição ativa (`false` por padrão), sendo bloqueados apenas quando digitam o `CODPROD` sem que ele seja um código de barras ou referência cadastrada.
+     - Exibição de mensagem clara de erro (`setError`) caso a validação local bloqueie a bipagem.
+  4. **Tela de Gestão de Acessos ([`GestaoAcessos.tsx`](./frontend/src/presentation/pages/GestaoAcessos.tsx)):**
+     - **Badge na Lista de Usuários:** Exibe a tag `🔢 CODPROD` para usuários autorizados a bipar por código interno.
+     - **Toggle no Drawer do Usuário:** Switch dedicado *"Bipar por Código do Produto (CODPROD)"* com descrição detalhada sobre a restrição de leitor físico.
+     - **Perfis Rápidos:** Integrado aos presets de Operador (`false`), Gestor (`false`) e Admin (`true`).
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Ordenação Interativa de Colunas na Conferência de Entrada (Desktop & Mobile)
+
+- **Diagnóstico & Contexto:**
+  - Na lista de produtos da conferência de entrada (exibida tanto na visualização padrão quanto na lista unificada de "Produtos da Conferência"), foi solicitada a inclusão de ordenação interativa nas colunas da tabela e nos cards mobile para facilitar a localização ágil de itens em cargas com muitos produtos.
+  - Alinhamento realizado via `/grill-me`:
+    - **Produto:** Alternância em ciclo: `Nome ▲ (A-Z)` ➔ `Nome ▼ (Z-A)` ➔ `Cód ▲ (1-9)` ➔ `Cód ▼ (9-1)` ➔ `Padrão`.
+    - **Volume:** Alternância: `▲ (A-Z)` ➔ `▼ (Z-A)` ➔ `Padrão`.
+    - **Esperado:** Alternância numérica: `▲ (Menor para Maior)` ➔ `▼ (Maior para Menor)` ➔ `Padrão`.
+    - **Conferido N{nível}:** Alternância numérica: `▲ (Menor para Maior)` ➔ `▼ (Maior para Menor)` ➔ `Padrão`.
+    - **Status:** Fixo (sem ordenação).
+    - **Mobile / Tablet:** Cards mobile sincronizados com a ordenação ativa e barra compacta de chips de ordenação rápida no topo da lista.
+- **Implementações Realizadas:**
+  1. **Tipos e Estado de Ordenação ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Criado o tipo `TipoOrdenacaoEntrada` e estado `ordenacao` inicializado com `'padrao'` (ordem original da nota).
+     - Implementados os handlers `handleAlternarOrdenacaoProduto`, `handleAlternarOrdenacaoVolume`, `handleAlternarOrdenacaoEsperado` e `handleAlternarOrdenacaoConferido`.
+     - Criado `itensOrdenados` com `useMemo` implementando os comparadores para cada critério com desempate determinístico e `localeCompare` em `pt-BR`.
+  2. **Cabeçalhos Interativos na Tabela Desktop ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Cabeçalhos `<th>` convertidos para interativos com `cursor: pointer`, classes de estado (`th-ordenavel`, `th-ordenado`), setas/badges informativos (`renderIndicadorProduto`, `renderIndicadorGeral`) e tooltips instrutivos.
+  3. **Barra de Ordenação Rápida Mobile ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Adicionada barra com chips de ordenação rápida (`.mobile-sort-bar`) visível em telas menores (<= 1024px), permitindo ao operador em coletor/smartphone alternar os critérios ou limpar a ordenação (`✕ Limpar`) com 1 toque.
+  4. **Estilização Dedicada ([`ConferenciaEntradaPage.css`](./frontend/src/presentation/pages/ConferenciaEntradaPage.css)):**
+     - Estilos com feedback de hover, destaque azul sutil no cabeçalho ativo (`#0284c7`), badge e chips responsivos, mantendo isolamento total sem alterar seletores genéricos em `global.css`.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Restauração da Sub-Linha Gaveta de Lotes e Validades na Tabela de Conferência
+
+- **Diagnóstico & Contexto:**
+  - Com a unificação da lista de conferência para suporte a dados sensíveis (`status`), a visualização detalhada de lotes (implementada originalmente na aba de itens conferidos através do accordion `subrow-lotes-drawer`) não estava acessível na lista unificada / itens da conferência.
+  - Conforme alinhamento via `/grill-me`, restauramos a sub-linha gaveta expansível de lotes para os itens com contagens físicas registradas.
+- **Implementações Realizadas:**
+  1. **Helper de Agrupamento de Lotes ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Criado `obterLotesDetalhesItem(item)` que agrupa dinamicamente as bipagens ativas por `Lote + Validade + Fabricação`, contabilizando frações, IDs de bipagens e o horário da última contagem.
+  2. **Chip Interativo de Lotes (`🏷️ N Lotes ▲/▼`):**
+     - Integrado na coluna de conferência (`Conferido N{nivel}`) sempre que o item possuir lotes registrados nas bipagens da sessão ativa.
+  3. **Sub-Linha Gaveta Integrada (`.subrow-lotes-drawer`):**
+     - Ao clicar no chip, abre a mini-tabela padronizada logo abaixo da linha principal do produto contendo colunas dedicadas:
+       - 🏷️ **Lote:** Tag estilizada em fonte monoespaçada com identificação de avarias/vencidos.
+       - 📦 **Quantidade:** Quantidade conferida daquele lote específico na unidade do produto.
+       - 📅 **Data de Validade:** Data formatada no padrão brasileiro (`DD/MM/AAAA`).
+       - 🏭 **Data de Fabricação:** Data formatada no padrão brasileiro (`DD/MM/AAAA`).
+       - ✕ **Ação de Estorno Cirúrgico:** Botão `✕ Estornar` que anula exclusivamente os bips daquele lote específico sem perder as demais contagens.
+  4. **Suporte Mobile:**
+     - Cards mobile atualizados com o botão expansível de lotes registrados e visualização individual das frações com botão de estorno rápido.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Inclusão do "Status da Conferência" nos Dados Sensíveis e Visualização Cega Unificada
+
+- **Diagnóstico & Contexto:**
+  - Na tela de **Gestão de Acessos** (`Campos Sensíveis por Tela` $\rightarrow$ `Conferência de Entrada (Recebimento)`), haviam 5 campos configuráveis (`qtdNota`, `vlrUnit`, `codBarra`, `referencia`, `fornecedor`).
+  - O status dos itens ("Parcial" ou "✓ Conferido") e a movimentação automática entre as abas "Itens Pendentes" e "Itens Conferidos" acabavam revelando indiretamente aos conferentes sem permissão especial a quantidade esperada da nota fiscal.
+  - Foi solicitada e alinhada a inclusão do 6º card sensível (`status` / `Status da Conferência`), garantindo controle de confidencialidade institucional total durante a bipagem cega.
+- **Implementações Realizadas:**
+  1. **Catálogo de Campos Sensíveis ([`ConfiguracaoTela.ts`](./backend/src/domain/entities/ConfiguracaoTela.ts)):**
+     - Adicionado o 6º campo para a tela `conferencia_entrada`:
+       - `chave: 'status'`
+       - `rotulo: 'Status da Conferência'`
+       - `descricao: 'Status do item (Pendente, Parcial ou Conferido)'`
+       - `sensivelPadrao: true`
+     - Preenche o espaço vago na grade da tela de Gestão de Acessos, permitindo ao gestor ativar ou desativar a sensibilidade do status com persistência no banco SQLite/libSQL.
+  2. **Caso de Uso Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - Consulta `deveOcultarCampo('conferencia_entrada', 'status', input.usuario)`.
+     - Retorna a flag `ocultarStatus: boolean` e protege o booleano `conferidoCompleto` nos itens retornados caso o usuário não tenha permissão de ver dados sensíveis.
+  3. **Interface e Model Frontend ([`ConferenciaEntrada.ts`](./frontend/src/domain/models/ConferenciaEntrada.ts)):**
+     - Adicionada a propriedade opcional `ocultarStatus?: boolean` na interface `ObterItensConferenciaResponse`.
+  4. **Comportamento Cego e Neutro no Coletor ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - **Coluna Status na Tabela:** Quando `ocultarStatus` estiver ativo, exibe sempre um traço neutro `—` (sem destacar se o item está parcial ou conferido).
+     - **Cards do Topo (Métricas):** Quando `ocultarStatus` for ativo, substitui os contadores `CONF` e `PEND` pelo contador `BIPADOS` (unidades físicas contadas no nível) ao lado do `TOTAL` de itens, mantendo o botão de "Finalizar" ativo.
+     - **Abas Unificadas:** Exibe uma aba única "Produtos da Conferência" com todos os itens, sem mover produtos prematuramente para abas separadas.
+     - **Ações e Estorno Preservados:** Permite ao conferente estornar bipagens ou apontar ocorrências diretamente no item com contagem física registrada.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
 ## Atualização: Evidenciação de Recontagem nos Status (Aguardando Recontagem N... e Recontagem N... em Andamento)
 
 - **Diagnóstico & Contexto:**
