@@ -1,0 +1,321 @@
+.modal-ditado-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: modalDitadoFadeIn 0.18s ease-out;
+}
+
+@keyframes modalDitadoFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-ditado-card {
+  background: #ffffff;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: modalDitadoSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid #e2e8f0;
+}
+
+@keyframes modalDitadoSlideUp {
+  from {
+    transform: translateY(16px) scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Header */
+.modal-ditado-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 12px;
+}
+
+.modal-ditado-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-ditado-header-title h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.modal-ditado-icone-topo {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.modal-ditado-btn-close {
+  background: transparent;
+  border: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.modal-ditado-btn-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Corpo */
+.modal-ditado-body {
+  padding: 4px 0 8px 0;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Estado Ouvindo */
+.modal-ditado-escutando-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 16px 8px;
+}
+
+.modal-ditado-pulse-circle {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: modalMicPulse 1.4s infinite ease-in-out;
+}
+
+@keyframes modalMicPulse {
+  0% {
+    transform: scale(0.96);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+  }
+  70% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.96);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.modal-ditado-mic-gigante {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.modal-ditado-texto-escutando {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #dc2626;
+  margin: 0;
+}
+
+.modal-ditado-dica {
+  font-size: 0.8rem;
+  color: #64748b;
+  max-width: 360px;
+  line-height: 1.4;
+}
+
+/* Estado Reconhecido */
+.modal-ditado-resultado-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-ditado-alerta-erro {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+}
+
+.modal-ditado-resultado-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.modal-ditado-display-lote {
+  font-size: 1.85rem;
+  font-family: 'JetBrains Mono', monospace, ui-monospace;
+  font-weight: 700;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+  letter-spacing: 2px;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  word-break: break-all;
+  user-select: all;
+}
+
+.lote-vazio-placeholder {
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #94a3b8;
+  font-style: italic;
+  letter-spacing: normal;
+  font-family: inherit;
+}
+
+.modal-ditado-input-ajuste-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.modal-ditado-sublabel {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.modal-ditado-input-ajuste {
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: 'JetBrains Mono', monospace, ui-monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e293b;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.modal-ditado-input-ajuste:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+/* Footer / Botões */
+.modal-ditado-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 14px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modal-ditado-footer-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-ditado-btn {
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 9px 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.modal-ditado-btn-refazer {
+  background: #f0f9ff;
+  color: #0284c7;
+  border-color: #bae6fd;
+}
+
+.modal-ditado-btn-refazer:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+.modal-ditado-btn-cancelar {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.modal-ditado-btn-cancelar:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.modal-ditado-btn-confirmar {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #059669;
+}
+
+.modal-ditado-btn-confirmar:hover:not(:disabled) {
+  background: #059669;
+}
+
+.modal-ditado-btn-confirmar:disabled {
+  background: #94a3b8;
+  border-color: #64748b;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal-ditado-kbd {
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 0.72rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 700;
+}

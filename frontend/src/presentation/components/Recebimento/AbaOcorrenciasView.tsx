@@ -72,7 +72,14 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
       if (filtroChip === 'pendentes' && oc.status !== 'PENDENTE') return false;
       if (filtroChip === 'avarias' && oc.tipo !== 'AVARIA') return false;
       if (filtroChip === 'vencidos' && oc.tipo !== 'VENCIDO' && oc.tipo !== 'VALIDADE_PROXIMA') return false;
-      if (filtroChip === 'fora_nota' && oc.tipo !== 'PRODUTO_TROCADO' && oc.tipo !== 'NAO_IDENTIFICADO') return false;
+      if (
+        filtroChip === 'fora_nota' &&
+        oc.tipo !== 'PRODUTO_TROCADO' &&
+        oc.tipo !== 'NAO_IDENTIFICADO' &&
+        oc.tipo !== 'SOBRA'
+      ) {
+        return false;
+      }
 
       if (buscaTexto.trim()) {
         const termo = buscaTexto.toLowerCase();
@@ -115,7 +122,7 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
     for (const oc of ocorrencias) {
       if (oc.tipo === 'AVARIA') avarias++;
       if (oc.tipo === 'VENCIDO' || oc.tipo === 'VALIDADE_PROXIMA') vencidos++;
-      if (oc.tipo === 'PRODUTO_TROCADO' || oc.tipo === 'NAO_IDENTIFICADO') foraNota++;
+      if (oc.tipo === 'PRODUTO_TROCADO' || oc.tipo === 'NAO_IDENTIFICADO' || oc.tipo === 'SOBRA') foraNota++;
       if (oc.status === 'PENDENTE') pendentes++;
     }
 
@@ -284,6 +291,8 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
         return { bg: '#ecfdf5', color: '#065f46', label: 'Integrado Sankhya' };
       case 'DEVOLVIDO':
         return { bg: '#f1f5f9', color: '#64748b', label: 'Devolvido' };
+      case 'CANCELADO':
+        return { bg: '#f1f5f9', color: '#64748b', label: 'Cancelado' };
       default:
         return { bg: '#f1f5f9', color: '#475569', label: status };
     }
@@ -399,6 +408,7 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
               type="button"
               className={`gestao-filtro-chip ${filtroChip === 'fora_nota' ? 'ativo' : ''}`}
               onClick={() => handleSelecionarChip('fora_nota')}
+              title="Sobras físicas, produtos trocados e itens não identificados fora da nota"
             >
               🔄 Fora da Nota <span className="chip-count">{kpis.foraNota}</span>
             </button>
@@ -784,6 +794,21 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
                     )}
 
                     {/* Badge de Status */}
+                    {Boolean(oc.motivo && oc.motivo.includes('excluída no ERP')) && (
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          color: '#991b1b',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        ⚠️ Nota Excluída no ERP
+                      </span>
+                    )}
                     <span
                       style={{
                         padding: '2px 8px',
@@ -819,6 +844,7 @@ export const AbaOcorrenciasView: React.FC<AbaOcorrenciasViewProps> = ({
                       <option value="RESOLVIDO">Resolvido</option>
                       <option value="INTEGRADO_ERP">Integrado</option>
                       <option value="DEVOLVIDO">Devolvido</option>
+                      <option value="CANCELADO">Cancelado</option>
                     </select>
 
                     {/* Botão Editar (print-hide) */}

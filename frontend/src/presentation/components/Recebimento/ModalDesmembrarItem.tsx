@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ItemDivergenciaResumo, ConferenciaDivergenciaGrupo } from '../../../domain/models/ConferenciaEntrada.js';
 import { aplicarMascaraData, completarAnoData, validarData } from '../../utils/dateMaskHelper';
 import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
@@ -66,6 +66,12 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
 }) => {
   const [fracoes, setFracoes] = useState<FracaoLoteEditavel[]>([]);
 
+  // Estados de etapas de processamento e feedback de erro
+  const [etapaProgresso, setEtapaProgresso] = useState<0 | 1 | 2 | 3>(0);
+  const [erroProcessamento, setErroProcessamento] = useState<string | null>(null);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const etapaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Estados para seleção/pesquisa de locais de estoque da TGFLOC
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueItem[]>(LOCAIS_PADRAO_FALLBACK);
   const [carregandoLocais, setCarregandoLocais] = useState<boolean>(false);
@@ -99,12 +105,32 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
     };
   }, [isOpen]);
 
+  // Limpeza de timers e reset de etapas
+  useEffect(() => {
+    if (!isOpen) {
+      setEtapaProgresso(0);
+      setErroProcessamento(null);
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      if (etapaTimerRef.current) clearTimeout(etapaTimerRef.current);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      if (etapaTimerRef.current) clearTimeout(etapaTimerRef.current);
+    };
+  }, []);
+
   // Inicializa as frações quando o modal abre com base no item
   useEffect(() => {
     if (!isOpen || !item) {
       setFracoes([]);
       return;
     }
+
+    setEtapaProgresso(0);
+    setErroProcessamento(null);
 
     const numnotaStr = String(grupo?.numnota || item.nunota || '');
     const lotesConf: any[] = (item as any).lotesConferidos || [];
@@ -185,7 +211,8 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
   const faltasComLocalDefinido = fracoes
     .filter((f) => f.isFalta)
     .every((f) => f.codlocal !== undefined && !isNaN(Number(f.codlocal)));
-  const podeConfirmar = isSomaCorreta && lotesPreenchidos && datasValidas && faltasComLocalDefinido && fracoes.length > 0 && !loading;
+  const isProcessando = loading || (etapaProgresso > 0 && etapaProgresso < 3);
+  const podeConfirmar = isSomaCorreta && lotesPreenchidos && datasValidas && faltasComLocalDefinido && fracoes.length > 0 && !isProcessando && etapaProgresso === 0;
 
   // Comparativos de divergência
   const loteErp = item.controleOriginal || '';
@@ -292,21 +319,47 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!podeConfirmar) return;
+    if (!podeConfirmar || isProcessando || etapaProgresso > 0) return;
 
-    const payloadLotes = fracoes.map((f) => ({
-      lote: f.lote.trim(),
-      qtd: Number(f.quantidade),
-      dtval: f.validade.trim() ? completarAnoData(f.validade.trim()) : undefined,
-      dtfab: f.fabricacao.trim() ? completarAnoData(f.fabricacao.trim()) : undefined,
-      codlocal: f.codlocal !== undefined && !isNaN(Number(f.codlocal)) ? Number(f.codlocal) : undefined,
-    }));
+    setErroProcessamento(null);
+    setEtapaProgresso(1);
 
-    await onConfirmar({
-      nunota: item.nunota,
-      sequencia: item.sequencia,
-      lotes: payloadLotes,
-    });
+    if (etapaTimerRef.current) clearTimeout(etapaTimerRef.current);
+    etapaTimerRef.current = setTimeout(() => {
+      setEtapaProgresso((prev) => (prev === 1 ? 2 : prev));
+    }, 1200);
+
+    try {
+      const payloadLotes = fracoes.map((f) => ({
+        lote: f.lote.trim(),
+        qtd: Number(f.quantidade),
+        dtval: f.validade.trim() ? completarAnoData(f.validade.trim()) : undefined,
+        dtfab: f.fabricacao.trim() ? completarAnoData(f.fabricacao.trim()) : undefined,
+        codlocal: f.codlocal !== undefined && !isNaN(Number(f.codlocal)) ? Number(f.codlocal) : undefined,
+      }));
+
+      await onConfirmar({
+        nunota: item.nunota,
+        sequencia: item.sequencia,
+        lotes: payloadLotes,
+      });
+
+      if (etapaTimerRef.current) clearTimeout(etapaTimerRef.current);
+      setEtapaProgresso(3);
+
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (err: any) {
+      if (etapaTimerRef.current) clearTimeout(etapaTimerRef.current);
+      setEtapaProgresso(0);
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        'Erro ao processar desmembramento no Sankhya.';
+      setErroProcessamento(msg);
+    }
   };
 
   // Percentual para a barra de progresso visual
@@ -317,7 +370,9 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
   return (
     <div
       className="gestao-modal-backdrop"
-      onClick={onClose}
+      onClick={() => {
+        if (!isProcessando) onClose();
+      }}
       style={{
         position: 'fixed',
         top: 0,
@@ -408,16 +463,20 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              if (!isProcessando) onClose();
+            }}
+            disabled={isProcessando}
             style={{
               background: 'transparent',
               border: 'none',
               fontSize: '1.2rem',
-              cursor: 'pointer',
-              color: 'var(--slate-400)',
+              cursor: isProcessando ? 'not-allowed' : 'pointer',
+              color: isProcessando ? '#cbd5e1' : 'var(--slate-400)',
               padding: '4px 8px',
               borderRadius: '6px',
             }}
+            title={isProcessando ? 'Processamento em andamento...' : 'Fechar'}
           >
             ✕
           </button>
@@ -425,6 +484,153 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
 
         {/* Conteúdo com scroll otimizado */}
         <div style={{ padding: '14px 18px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          
+          {/* STEPPER VISUAL DE PROCESSO (ETAPAS 1 -> 2 -> 3) */}
+          {etapaProgresso > 0 && (
+            <div
+              style={{
+                background: etapaProgresso === 3 ? '#f0fdf4' : '#f8fafc',
+                border: `1.5px solid ${etapaProgresso === 3 ? '#86efac' : '#93c5fd'}`,
+                borderRadius: '10px',
+                padding: '12px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.15rem' }}>
+                    {etapaProgresso === 3 ? '🎉' : '⚙️'}
+                  </span>
+                  <strong style={{ fontSize: '0.86rem', color: etapaProgresso === 3 ? '#166534' : '#1e40af' }}>
+                    {etapaProgresso === 1 && '1. Desmembrando item no Sankhya ERP...'}
+                    {etapaProgresso === 2 && '2. Atualizando locais de estoque e ocorrências...'}
+                    {etapaProgresso === 3 && '3. Desmembramento concluído com sucesso!'}
+                  </strong>
+                </div>
+                <span
+                  style={{
+                    fontSize: '0.76rem',
+                    fontWeight: 800,
+                    color: etapaProgresso === 3 ? '#15803d' : '#2563eb',
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}
+                >
+                  {etapaProgresso === 1 ? '35%' : etapaProgresso === 2 ? '75%' : '100%'}
+                </span>
+              </div>
+
+              {/* Barra de Progresso Animada */}
+              <div
+                style={{
+                  width: '100%',
+                  height: '8px',
+                  background: etapaProgresso === 3 ? '#dcfce7' : '#e2e8f0',
+                  borderRadius: '6px',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: etapaProgresso === 1 ? '35%' : etapaProgresso === 2 ? '75%' : '100%',
+                    height: '100%',
+                    background: etapaProgresso === 3 ? '#10b981' : '#2563eb',
+                    borderRadius: '6px',
+                    transition: 'width 0.4s ease-in-out',
+                  }}
+                />
+              </div>
+
+              {/* Badges de 3 Etapas */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '8px',
+                  fontSize: '0.72rem',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: etapaProgresso >= 1 ? (etapaProgresso > 1 ? '#15803d' : '#1d4ed8') : '#94a3b8',
+                    fontWeight: etapaProgresso === 1 ? 800 : 600,
+                  }}
+                >
+                  <span>{etapaProgresso > 1 ? '✓' : etapaProgresso === 1 ? '●' : '○'}</span>
+                  <span>1. Desmembrar no ERP</span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: etapaProgresso >= 2 ? (etapaProgresso > 2 ? '#15803d' : '#1d4ed8') : '#94a3b8',
+                    fontWeight: etapaProgresso === 2 ? 800 : 600,
+                  }}
+                >
+                  <span>{etapaProgresso > 2 ? '✓' : etapaProgresso === 2 ? '●' : '○'}</span>
+                  <span>2. Atualizar Locais</span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: etapaProgresso === 3 ? '#15803d' : '#94a3b8',
+                    fontWeight: etapaProgresso === 3 ? 800 : 600,
+                  }}
+                >
+                  <span>{etapaProgresso === 3 ? '✓' : '○'}</span>
+                  <span>3. Concluído</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* BANNER DE ERRO EXPLICÍTO DENTRO DO MODAL */}
+          {erroProcessamento && (
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '1.5px solid #ef4444',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+              }}
+            >
+              <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>❌</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, color: '#991b1b', fontSize: '0.80rem' }}>
+                  Falha ao processar desmembramento no Sankhya:
+                </div>
+                <div style={{ color: '#b91c1c', fontSize: '0.74rem', marginTop: '2px', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                  {erroProcessamento}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErroProcessamento(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#991b1b',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  padding: '0 4px',
+                }}
+                title="Fechar aviso"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           
           {/* Card Resumo do Produto com Barra de Progresso Integrada */}
           <div
@@ -510,6 +716,32 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                 <strong>Regra:</strong> Itens conferidos mantêm os lotes físicos. Faltas entram com o nº da NF (<strong style={{ color: 'var(--slate-800)' }}>{numnota}</strong>) como lote para isolamento no ERP.
               </span>
             </div>
+
+            {/* Alerta Bloqueante caso haja Sobra Física */}
+            {diferencaBalanco < 0 && (
+              <div
+                style={{
+                  marginTop: '6px',
+                  backgroundColor: '#fef2f2',
+                  border: '1.5px solid #f87171',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  fontSize: '0.76rem',
+                  color: '#991b1b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                <div style={{ lineHeight: '1.4' }}>
+                  <strong>Bloqueio de Sobra Física:</strong> Foram conferidas <strong>{somaAtual} {item.codvol || 'UN'}</strong> para uma nota de <strong>{qtdEsperadaTotal} {item.codvol || 'UN'}</strong> (+{Math.abs(diferencaBalanco)} de sobra).
+                  <div style={{ marginTop: '2px', fontSize: '0.72rem', color: '#b91c1c' }}>
+                    O Sankhya não permite desmembrar itens com excesso físico. Feche este modal e utilize o botão <strong>"Gerar Ocorrência de Sobra"</strong> para abater o excedente antes de realizar o desmembramento.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* PAINEL COMPARATIVO DE DIVERGÊNCIAS (ERP vs COLETOR) - SMART DIFF */}
@@ -638,15 +870,16 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                 <button
                   type="button"
                   onClick={handleAdicionarFracao}
+                  disabled={isProcessando}
                   style={{
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    color: '#1d4ed8',
+                    background: isProcessando ? '#f1f5f9' : '#eff6ff',
+                    border: `1px solid ${isProcessando ? '#cbd5e1' : '#bfdbfe'}`,
+                    color: isProcessando ? '#94a3b8' : '#1d4ed8',
                     padding: '2px 8px',
                     borderRadius: '5px',
                     fontSize: '0.72rem',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: isProcessando ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
@@ -662,9 +895,10 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                   <button
                     type="button"
                     onClick={handleAplicarTodasDoColetor}
+                    disabled={isProcessando}
                     className="chip-acao-rapida bip"
                     title="Preenche a Validade e Fabricação de todas as frações com os dados do Coletor"
-                    style={{ padding: '2px 8px', fontSize: '0.70rem', fontWeight: 700 }}
+                    style={{ padding: '2px 8px', fontSize: '0.70rem', fontWeight: 700, opacity: isProcessando ? 0.5 : 1, cursor: isProcessando ? 'not-allowed' : 'pointer' }}
                   >
                     ⚡ Copiar Datas Coletor
                   </button>
@@ -673,9 +907,10 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                   <button
                     type="button"
                     onClick={handleAplicarTodasDoErp}
+                    disabled={isProcessando}
                     className="chip-acao-rapida erp"
                     title="Preenche a Validade e Fabricação de todas as frações com os dados do ERP"
-                    style={{ padding: '2px 8px', fontSize: '0.70rem', fontWeight: 700 }}
+                    style={{ padding: '2px 8px', fontSize: '0.70rem', fontWeight: 700, opacity: isProcessando ? 0.5 : 1, cursor: isProcessando ? 'not-allowed' : 'pointer' }}
                   >
                     ⚡ Copiar Datas ERP
                   </button>
@@ -693,7 +928,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                     <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '15%' }}>Quantidade</th>
                     <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '17%' }}>Validade</th>
                     <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '17%' }}>Fabricação</th>
-                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '23%' }} title="Local de Estoque no ERP (CODLOCAL) - Digite o código ou clique em 🔍 para pesquisar">Local ERP</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '23%' }}>Local ERP</th>
                     <th style={{ padding: '6px 6px', textAlign: 'center', width: '28px' }}></th>
                   </tr>
                 </thead>
@@ -719,6 +954,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                             value={fracao.lote}
                             onChange={(e) => handleUpdateFracao(fracao.id, 'lote', e.target.value)}
                             placeholder="Lote..."
+                            disabled={isProcessando}
                             style={{
                               width: '100%',
                               padding: '4px 8px',
@@ -728,6 +964,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                               fontSize: '0.78rem',
                               fontWeight: 700,
                               color: 'var(--slate-900)',
+                              background: isProcessando ? '#f8fafc' : '#ffffff',
                             }}
                           />
                           {loteErp && loteErp !== fracao.lote && (
@@ -735,8 +972,9 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                               type="button"
                               className="chip-acao-rapida erp"
                               onClick={() => handleUpdateFracao(fracao.id, 'lote', loteErp)}
+                              disabled={isProcessando}
                               title={`Substituir pelo lote do ERP (${loteErp})`}
-                              style={{ padding: '2px 5px', fontSize: '0.65rem', fontWeight: 800, flexShrink: 0 }}
+                              style={{ padding: '2px 5px', fontSize: '0.65rem', fontWeight: 800, flexShrink: 0, opacity: isProcessando ? 0.5 : 1, cursor: isProcessando ? 'not-allowed' : 'pointer' }}
                             >
                               ERP
                             </button>
@@ -771,6 +1009,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                             min="0.0001"
                             value={fracao.quantidade || ''}
                             onChange={(e) => handleUpdateFracao(fracao.id, 'quantidade', parseFloat(e.target.value) || 0)}
+                            disabled={isProcessando}
                             style={{
                               width: '100%',
                               padding: '4px 22px 4px 8px',
@@ -781,6 +1020,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                               fontFamily: 'JetBrains Mono, monospace',
                               fontSize: '0.78rem',
                               color: 'var(--slate-900)',
+                              background: isProcessando ? '#f8fafc' : '#ffffff',
                             }}
                           />
                           <span
@@ -815,6 +1055,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                             handleUpdateFracao(fracao.id, 'validade', dataComp);
                           }}
                           placeholder="DD/MM/AAAA"
+                          disabled={isProcessando}
                           title={
                             fracao.validade.trim() &&
                             !validarData(completarAnoData(fracao.validade), false).valida
@@ -833,9 +1074,10 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                             fontFamily: 'JetBrains Mono, monospace',
                             fontSize: '0.75rem',
                             color: 'var(--slate-800)',
-                            background:
-                              fracao.validade.trim() &&
-                              !validarData(completarAnoData(fracao.validade), false).valida
+                            background: isProcessando
+                              ? '#f8fafc'
+                              : fracao.validade.trim() &&
+                                !validarData(completarAnoData(fracao.validade), false).valida
                                 ? '#fef2f2'
                                 : '#ffffff',
                           }}
@@ -859,6 +1101,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                             handleUpdateFracao(fracao.id, 'fabricacao', dataComp);
                           }}
                           placeholder="DD/MM/AAAA"
+                          disabled={isProcessando}
                           title={
                             fracao.fabricacao.trim() &&
                             !validarData(completarAnoData(fracao.fabricacao), false).valida
@@ -877,9 +1120,10 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                             fontFamily: 'JetBrains Mono, monospace',
                             fontSize: '0.75rem',
                             color: 'var(--slate-800)',
-                            background:
-                              fracao.fabricacao.trim() &&
-                              !validarData(completarAnoData(fracao.fabricacao), false).valida
+                            background: isProcessando
+                              ? '#f8fafc'
+                              : fracao.fabricacao.trim() &&
+                                !validarData(completarAnoData(fracao.fabricacao), false).valida
                                 ? '#fef2f2'
                                 : '#ffffff',
                           }}
@@ -901,11 +1145,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                                 )
                               }
                               placeholder="Padrão"
-                              title={
-                                obterDescricaoLocal(fracao.codlocal)
-                                  ? `Local ${fracao.codlocal}: ${obterDescricaoLocal(fracao.codlocal)}`
-                                  : 'Local de estoque de destino no Sankhya (ex: 99 para Avaria, 98 Vencido, 95 Validade Próxima)'
-                              }
+                              disabled={isProcessando}
                               style={{
                                 width: '100%',
                                 padding: '4px 6px',
@@ -916,33 +1156,35 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                                 textAlign: 'center',
                                 fontWeight: 700,
                                 color: fracao.codlocal !== undefined ? '#b45309' : 'var(--slate-800)',
-                                background: fracao.codlocal !== undefined ? '#fffbeb' : '#ffffff',
+                                background: isProcessando ? '#f8fafc' : fracao.codlocal !== undefined ? '#fffbeb' : '#ffffff',
                               }}
                             />
                             <button
                               type="button"
                               onClick={() => abrirBuscaLocal(fracao.id)}
+                              disabled={isProcessando}
                               title="Pesquisar local de estoque no Sankhya (TGFLOC)"
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 padding: '4px 7px',
-                                background: fracao.codlocal !== undefined ? '#fef3c7' : '#f1f5f9',
+                                background: isProcessando ? '#f1f5f9' : fracao.codlocal !== undefined ? '#fef3c7' : '#f1f5f9',
                                 border: fracao.codlocal !== undefined ? '1px solid #fcd34d' : '1px solid #cbd5e1',
                                 borderRadius: '4px',
-                                cursor: 'pointer',
+                                cursor: isProcessando ? 'not-allowed' : 'pointer',
                                 fontSize: '0.75rem',
-                                color: fracao.codlocal !== undefined ? '#b45309' : '#475569',
+                                color: isProcessando ? '#94a3b8' : fracao.codlocal !== undefined ? '#b45309' : '#475569',
                                 flexShrink: 0,
                                 height: '26px',
                                 transition: 'all 0.15s ease',
+                                opacity: isProcessando ? 0.6 : 1,
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = '#e2e8f0';
+                                if (!isProcessando) e.currentTarget.style.background = '#e2e8f0';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = fracao.codlocal !== undefined ? '#fef3c7' : '#f1f5f9';
+                                if (!isProcessando) e.currentTarget.style.background = fracao.codlocal !== undefined ? '#fef3c7' : '#f1f5f9';
                               }}
                             >
                               🔍
@@ -973,20 +1215,25 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                           <button
                             type="button"
                             onClick={() => handleRemoverFracao(fracao.id)}
+                            disabled={isProcessando}
                             title="Remover fração"
                             style={{
                               background: 'transparent',
                               border: 'none',
-                              color: '#cbd5e1',
-                              cursor: 'pointer',
+                              color: isProcessando ? '#e2e8f0' : '#cbd5e1',
+                              cursor: isProcessando ? 'not-allowed' : 'pointer',
                               fontSize: '0.85rem',
                               padding: '2px',
                               borderRadius: '4px',
                               lineHeight: 1,
                               transition: 'color 0.15s ease',
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}
+                            onMouseEnter={(e) => {
+                              if (!isProcessando) e.currentTarget.style.color = '#ef4444';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isProcessando) e.currentTarget.style.color = '#cbd5e1';
+                            }}
                           >
                             🗑️
                           </button>
@@ -1029,51 +1276,118 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#475569',
-                fontSize: '0.80rem',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!podeConfirmar}
-              style={{
-                padding: '6px 18px',
-                borderRadius: '6px',
-                border: 'none',
-                background: podeConfirmar ? '#2563eb' : '#94a3b8',
-                color: '#ffffff',
-                fontSize: '0.80rem',
-                fontWeight: 700,
-                cursor: podeConfirmar ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: podeConfirmar ? '0 1px 2px rgba(37, 99, 235, 0.2)' : 'none',
-              }}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner-border-sm" />
-                  Desmembrando no ERP...
-                </>
-              ) : (
-                'Confirmar e Desmembrar no Sankhya'
-              )}
-            </button>
+            {etapaProgresso === 3 ? (
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '7px 20px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#10b981',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)',
+                }}
+              >
+                ✅ Concluir Agora (fechando...)
+              </button>
+            ) : isProcessando ? (
+              <>
+                <button
+                  type="button"
+                  disabled
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0',
+                    background: '#f8fafc',
+                    color: '#94a3b8',
+                    fontSize: '0.80rem',
+                    fontWeight: 600,
+                    cursor: 'not-allowed',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  style={{
+                    padding: '6px 18px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    fontSize: '0.80rem',
+                    fontWeight: 700,
+                    cursor: 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    opacity: 0.95,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '14px',
+                      height: '14px',
+                      border: '2px solid rgba(255,255,255,0.35)',
+                      borderTopColor: '#ffffff',
+                      borderRadius: '50%',
+                      display: 'inline-block',
+                      animation: 'spin 0.6s linear infinite',
+                    }}
+                  />
+                  {etapaProgresso === 1 ? '1. Desmembrando no Sankhya ERP...' : '2. Atualizando locais e ocorrências...'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontSize: '0.80rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!podeConfirmar}
+                  style={{
+                    padding: '6px 18px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: podeConfirmar ? '#2563eb' : '#94a3b8',
+                    color: '#ffffff',
+                    fontSize: '0.80rem',
+                    fontWeight: 700,
+                    cursor: podeConfirmar ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: podeConfirmar ? '0 1px 2px rgba(37, 99, 235, 0.2)' : 'none',
+                  }}
+                >
+                  Confirmar e Desmembrar no Sankhya
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

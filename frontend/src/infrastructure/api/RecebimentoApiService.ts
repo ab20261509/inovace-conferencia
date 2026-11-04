@@ -100,11 +100,12 @@ export class RecebimentoApiService {
   async reiniciarConferencia(
     conferenciaId: string,
     motivo?: string,
-    nunota?: number
+    nunota?: number,
+    excluirOcorrencias?: boolean
   ): Promise<SessaoConferenciaEntrada> {
     const response = await httpClient.post<SessaoConferenciaEntrada>(
       `/api/recebimento/conferencia/${conferenciaId}/reiniciar`,
-      { motivo, nunota }
+      { motivo, nunota, excluirOcorrencias }
     );
     return response.data;
   }

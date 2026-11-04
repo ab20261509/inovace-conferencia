@@ -741,6 +741,19 @@
   color: #166534;
 }
 
+.gestao-mini-metrica-box.n3-info {
+  background: #e0e7ff;
+  border-color: #c7d2fe;
+}
+
+.gestao-mini-metrica-box.n3-info .gestao-mini-metrica-rotulo {
+  color: #4338ca;
+}
+
+.gestao-mini-metrica-box.n3-info .gestao-mini-metrica-valor {
+  color: #4338ca;
+}
+
 .gestao-rec-card-badges {
   display: flex;
   align-items: center;
@@ -778,10 +791,54 @@
   border: 1px solid #bbf7d0;
 }
 
-.badge-status-rec.aguardando {
+.badge-status-rec.aguardando,
+.badge-status-rec.n3-desempate {
   background: #e0e7ff;
   color: #4338ca;
   border: 1px solid #c7d2fe;
+}
+
+.badge-n3-solicitado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.badge-nivel-adotado-erp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1.5px solid #10b981;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.15);
+}
+
+.tag-decisao-adotada {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
 }
 
 .badge-status-rec.enviado {

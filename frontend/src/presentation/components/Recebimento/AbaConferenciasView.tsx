@@ -7,12 +7,16 @@ import { Container } from '../Container/Container';
 import { SkeletonItens } from './SkeletonItens';
 import {
   getStatusBadgeClass,
+  verificarItemEmN3,
+  ehStatusEmAndamento,
   formatarConferentes,
   formatarConferentesTexto,
   formatarDataSimples,
   BadgePrevisaoEntrega,
   calcularStatusPrevisaoEntrega,
   BadgeConferente,
+  obterOcorrenciasDoItem,
+  renderBadgesOcorrenciasItem,
 } from './recebimentoHelpers';
 
 export type FiltroStatusConferencia =
@@ -43,7 +47,8 @@ export interface AbaConferenciasViewProps {
   toggleDetalhesConferencia: (conferenciaId: string, nunotas: number[], cardKey?: string) => void;
   onSolicitarRecontagem: (
     conf: ConferenciaEntradaResumo,
-    itensSelecionados?: Array<{ nunota: number; sequencia: number; codprod: number }>
+    itensSelecionados?: Array<{ nunota: number; sequencia: number; codprod: number }>,
+    todosItensSelecionados?: boolean
   ) => void;
   onReiniciar: (conf: ConferenciaEntradaResumo) => void;
   onRecuperarContagem: (conf: ConferenciaEntradaResumo) => void;
@@ -51,10 +56,13 @@ export interface AbaConferenciasViewProps {
   nivel1Ativo?: boolean;
   nivel2Ativo?: boolean;
   podeGerenciarBackup?: boolean;
+  ocorrencias?: any[];
+  onBloqueioEmAndamento?: (info: { conferente?: string; numnota?: string | number; status?: string }) => void;
 }
 
 export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
   conferenciasFiltradas,
+  ocorrencias,
   filtroStatus,
   setFiltroStatus,
   contagensFiltros,
@@ -71,6 +79,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
   nivel1Ativo,
   nivel2Ativo,
   podeGerenciarBackup = true,
+  onBloqueioEmAndamento,
 }) => {
   const [filtroItensCards, setFiltroItensCards] = useState<
     Record<string, 'todos' | 'divergentes' | 'semlote'>
@@ -261,6 +270,34 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                           </span>
                         )}
                         <BadgePrevisaoEntrega data={conf.adPreventrega} />
+                        {(() => {
+                          const ocsNota = (ocorrencias || []).filter(
+                            (o: any) =>
+                              o.status !== 'CANCELADO' &&
+                              conf.nunotas &&
+                              conf.nunotas.some((n) => Number(n) === Number(o.nunota))
+                          );
+                          if (ocsNota.length === 0) return null;
+                          return (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: '#fef3c7',
+                                color: '#92400e',
+                                border: '1px solid #fde68a',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                              }}
+                              title={`${ocsNota.length} ocorrência(s) ativa(s) registrada(s) para esta conferência`}
+                            >
+                              ⚠️ {ocsNota.length} Ocorrência(s)
+                            </span>
+                          );
+                        })()}
                         {conf.status === 'Enviado ao Sankhya' && conf.enviadoSankhyaEm && (
                           <span className="badge-integrado-sankhya" title="Data/hora e responsável pela integração no Sankhya">
                             <span>✓</span>
@@ -393,6 +430,15 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                       <div className="gestao-progresso-metricas-resumo">
                         <span>
                           SKUs: <strong>{conf.totalItens} produtos</strong>
+                          {Boolean(
+                            conf.itensRecontagem &&
+                            conf.itensRecontagem.length > 0 &&
+                            ['Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(conf.status)
+                          ) && (
+                            <span style={{ marginLeft: '6px', color: '#4338ca', fontWeight: 600 }}>
+                              ({conf.itensRecontagem!.length} em N3)
+                            </span>
+                          )}
                         </span>
                         <span>•</span>
                         <span>
@@ -491,7 +537,8 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                       if (temN3Itens) totalColunas++;
 
                       const selecionadosConf = itensSelecionadosRecontagem[conf.id] || new Set();
-                      const todosItemKeys = itensParaExibir.map((i) => `${i.nunota}-${i.codprod}-${i.sequencia}`);
+                      const itensElegiveisParaSelecao = itensParaExibir.filter((i) => !verificarItemEmN3(conf, i));
+                      const todosItemKeys = itensElegiveisParaSelecao.map((i) => `${i.nunota}-${i.codprod}-${i.sequencia}`);
                       const todosItensSelecionados =
                         todosItemKeys.length > 0 && todosItemKeys.every((k) => selecionadosConf.has(k));
 
@@ -589,6 +636,14 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                   ) : (
                                     itensParaExibir.map((item) => {
                                       const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
+                                      const nivelDecidido =
+                                        item.decisaoFiscal?.nivelEscolhido ||
+                                        item.nivelEscolhido ||
+                                        conf.decisoesFiscais?.[itemKey]?.nivelEscolhido ||
+                                        conf.decisoesFiscais?.[String(item.codprod)]?.nivelEscolhido;
+                                      const isEnviadoSankhya = conf.status === 'Enviado ao Sankhya';
+                                      const temDecisaoIntegrada = Boolean(nivelDecidido);
+
                                       const temMultiplosLotes = Boolean(
                                         item.lotesConferidos && item.lotesConferidos.length > 1
                                       );
@@ -615,7 +670,12 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                                   className="gestao-checkbox-select"
                                                   checked={selecionadosConf.has(itemKey)}
                                                   onChange={() => toggleSelecionarItemConf(conf.id, itemKey)}
-                                                  title="Selecionar produto para recontagem na N2"
+                                                  disabled={verificarItemEmN3(conf, item)}
+                                                  title={
+                                                    verificarItemEmN3(conf, item)
+                                                      ? 'Este produto já está em fila de recontagem/desempate.'
+                                                      : 'Selecionar produto para recontagem na N2'
+                                                  }
                                                 />
                                               </td>
                                             )}
@@ -648,15 +708,73 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                                   : ''}
                                                 {item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
                                               </div>
+                                              {renderBadgesOcorrenciasItem(obterOcorrenciasDoItem(ocorrencias, item.nunota, item.codprod, item.sequencia))}
+                                              {temDecisaoIntegrada && (
+                                                <div style={{ marginTop: '4px' }}>
+                                                  <span
+                                                    className="tag-decisao-adotada"
+                                                    title={`Decisão Gerencial: Nível ${nivelDecidido} adotado e integrado ao Sankhya ERP`}
+                                                  >
+                                                    🎯 Decisão: N{nivelDecidido} Adotado {isEnviadoSankhya ? '• Integrado ao ERP' : ''}
+                                                  </span>
+                                                </div>
+                                              )}
+                                              {(() => {
+                                                const estaEmN3 = verificarItemEmN3(conf, item);
+                                                return estaEmN3 ? (
+                                                  <div style={{ marginTop: '4px' }}>
+                                                    <span className="badge-n3-solicitado">
+                                                      🔍 Aguardando N3
+                                                    </span>
+                                                  </div>
+                                                ) : null;
+                                              })()}
                                             </td>
                                             <td>{item.codvol || 'UN'}</td>
                                             <td>
                                               <strong>{item.qtdneg ?? '—'}</strong>
                                             </td>
-                                            {exibirN1Itens && <td>{item.qtdConferidaN1 || 0}</td>}
-                                            {exibirN2Itens && <td>{item.qtdConferidaN2 || 0}</td>}
+                                            {exibirN1Itens && (
+                                              <td>
+                                                {nivelDecidido === 1 ? (
+                                                  <span
+                                                    className="badge-nivel-adotado-erp"
+                                                    title="Nível 1 adotado e integrado ao Sankhya ERP"
+                                                  >
+                                                    ✓ {item.qtdConferidaN1 || 0}
+                                                  </span>
+                                                ) : (
+                                                  item.qtdConferidaN1 || 0
+                                                )}
+                                              </td>
+                                            )}
+                                            {exibirN2Itens && (
+                                              <td>
+                                                {nivelDecidido === 2 ? (
+                                                  <span
+                                                    className="badge-nivel-adotado-erp"
+                                                    title="Nível 2 adotado e integrado ao Sankhya ERP"
+                                                  >
+                                                    ✓ {item.qtdConferidaN2 || 0}
+                                                  </span>
+                                                ) : (
+                                                  item.qtdConferidaN2 || 0
+                                                )}
+                                              </td>
+                                            )}
                                             {temN3Itens && (
-                                              <td>{item.qtdConferidaN3 || 0}</td>
+                                              <td>
+                                                {nivelDecidido === 3 ? (
+                                                  <span
+                                                    className="badge-nivel-adotado-erp"
+                                                    title="Nível 3 adotado e integrado ao Sankhya ERP"
+                                                  >
+                                                    ✓ {item.qtdConferidaN3 || 0}
+                                                  </span>
+                                                ) : (
+                                                  item.qtdConferidaN3 || 0
+                                                )}
+                                              </td>
                                             )}
                                             <td>
                                               <span className={`pill-contagem-status ${classeDif}`}>
@@ -680,7 +798,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                           </button>
                                         ) : item.lotesConferidos && item.lotesConferidos.length === 1 ? (
                                           <span className="gestao-lote-pill">
-                                            🏷️ {item.lotesConferidos[0].lote} ({item.lotesConferidos[0].quantidade} un)
+                                            🏷️ {item.lotesConferidos[0].lote}
                                           </span>
                                         ) : item.lote ? (
                                           <span className="gestao-lote-pill">
@@ -763,7 +881,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                         <td colSpan={totalColunas}>
                                           <div className="drawer-lotes-wrapper">
                                             <div className="drawer-lotes-header">
-                                              <span>📦 Frações de Lote Desmembradas ({item.lotesConferidos!.length} lotes registrados):</span>
+                                              <span>📦 Frações de Lote Desmembradas {temDecisaoIntegrada ? `(Nível ${nivelDecidido} Integrado ao ERP)` : ''} ({item.lotesConferidos!.length} lotes registrados):</span>
                                               <span style={{ color: 'var(--slate-500)', fontWeight: 500, textTransform: 'none' }}>
                                                 Total conferido: <strong>{item.lotesConferidos!.reduce((acc, l) => acc + (l.quantidade || 0), 0)} {item.codvol || 'UN'}</strong>
                                               </span>
@@ -830,6 +948,13 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                         ) : (
                           itensParaExibir.map((item) => {
                             const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
+                            const nivelDecidido =
+                              item.decisaoFiscal?.nivelEscolhido ||
+                              item.nivelEscolhido ||
+                              conf.decisoesFiscais?.[itemKey]?.nivelEscolhido ||
+                              conf.decisoesFiscais?.[String(item.codprod)]?.nivelEscolhido;
+                            const isEnviadoSankhya = conf.status === 'Enviado ao Sankhya';
+                            const temDecisaoIntegrada = Boolean(nivelDecidido);
                             const temMultiplosLotes = Boolean(
                               item.lotesConferidos && item.lotesConferidos.length > 1
                             );
@@ -859,7 +984,12 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       style={{ marginTop: '2px', marginRight: '6px' }}
                                       checked={selecionadosConf.has(itemKey)}
                                       onChange={() => toggleSelecionarItemConf(conf.id, itemKey)}
-                                      title="Selecionar produto para recontagem na N2"
+                                      disabled={verificarItemEmN3(conf, item)}
+                                      title={
+                                        verificarItemEmN3(conf, item)
+                                          ? 'Este produto já está em fila de recontagem/desempate.'
+                                          : 'Selecionar produto para recontagem na N2'
+                                      }
                                     />
                                   )}
                                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -876,6 +1006,26 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       • Vol: {item.codvol || 'UN'}
                                       {item.codbarra ? ` • EAN: ${item.codbarra}` : ''}
                                     </div>
+                                    {temDecisaoIntegrada && (
+                                      <div style={{ marginTop: '4px' }}>
+                                        <span
+                                          className="tag-decisao-adotada"
+                                          title={`Decisão Gerencial: Nível ${nivelDecidido} adotado e integrado ao Sankhya ERP`}
+                                        >
+                                          🎯 Decisão: N{nivelDecidido} Adotado {isEnviadoSankhya ? '• Integrado ao ERP' : ''}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {(() => {
+                                      const estaEmN3 = verificarItemEmN3(conf, item);
+                                      return estaEmN3 ? (
+                                        <div style={{ marginTop: '4px' }}>
+                                          <span className="badge-n3-solicitado">
+                                            🔍 Aguardando N3
+                                          </span>
+                                        </div>
+                                      ) : null;
+                                    })()}
                                   </div>
                                   <span className={`pill-contagem-status ${classeDif}`}>
                                     {diferenca === 0
@@ -892,17 +1042,29 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                   </div>
                                   {exibirN1Itens && (
                                     <div>
-                                      N1: <strong>{item.qtdConferidaN1 || 0}</strong>
+                                      N1: {nivelDecidido === 1 ? (
+                                        <span className="badge-nivel-adotado-erp">✓ {item.qtdConferidaN1 || 0}</span>
+                                      ) : (
+                                        <strong>{item.qtdConferidaN1 || 0}</strong>
+                                      )}
                                     </div>
                                   )}
                                   {exibirN2Itens && (
                                     <div>
-                                      N2: <strong>{item.qtdConferidaN2 || 0}</strong>
+                                      N2: {nivelDecidido === 2 ? (
+                                        <span className="badge-nivel-adotado-erp">✓ {item.qtdConferidaN2 || 0}</span>
+                                      ) : (
+                                        <strong>{item.qtdConferidaN2 || 0}</strong>
+                                      )}
                                     </div>
                                   )}
                                   {temN3Itens && (
                                     <div>
-                                      N3: <strong>{item.qtdConferidaN3 || 0}</strong>
+                                      N3: {nivelDecidido === 3 ? (
+                                        <span className="badge-nivel-adotado-erp">✓ {item.qtdConferidaN3 || 0}</span>
+                                      ) : (
+                                        <strong>{item.qtdConferidaN3 || 0}</strong>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -988,7 +1150,7 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       <div>
                                         {item.lotesConferidos && item.lotesConferidos.length === 1 ? (
                                           <>
-                                            Lote: <strong>{item.lotesConferidos[0].lote}</strong> ({item.lotesConferidos[0].quantidade} un)
+                                            Lote: <strong>{item.lotesConferidos[0].lote}</strong>
                                             {item.lotesConferidos[0].validade
                                               ? ` • Val: ${formatarDataSimples(item.lotesConferidos[0].validade)}`
                                               : ''}
@@ -1034,7 +1196,19 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                     </>
                   );
                 })()
-              ) : null}
+              ) : (
+                <div style={{ textAlign: 'center', padding: '16px', color: 'var(--slate-500)', background: 'var(--slate-50)', borderRadius: '8px', border: '1px dashed var(--slate-300)' }}>
+                  <p style={{ margin: 0, fontWeight: 500 }}>Não foi possível carregar os itens desta nota fiscal ou a consulta ao Sankhya expirou.</p>
+                  <button
+                    type="button"
+                    className="gestao-btn-clean-secundario"
+                    style={{ marginTop: '8px' }}
+                    onClick={() => toggleDetalhesConferencia(conf.conferenciaIdOrig || conf.id, conf.nunotas, conf.id)}
+                  >
+                    🔄 Recarregar Itens
+                  </button>
+                </div>
+              )}
                 </div>
               )}
 
@@ -1056,6 +1230,24 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                       disabled={jaEnviado}
                       onClick={() => {
                         if (jaEnviado) return;
+                        if (ehStatusEmAndamento(conf.status)) {
+                          const conferenteAtivo =
+                            conf.conferenteN3 || conf.conferenteN2 || conf.conferenteN1;
+                          if (onBloqueioEmAndamento) {
+                            onBloqueioEmAndamento({
+                              conferente: conferenteAtivo,
+                              numnota: conf.numnota || conf.numerosNotas,
+                              status: conf.status,
+                            });
+                          } else {
+                            alert(
+                              `Ação bloqueada: a conferência da nota já está em andamento${
+                                conferenteAtivo ? ` pelo conferente ${conferenteAtivo}` : ''
+                              }. Só é permitido solicitar recontagem quando a conferência estiver finalizada ou aguardando.`
+                            );
+                          }
+                          return;
+                        }
                         const selecionados = itensSelecionadosRecontagem[conf.id] || new Set();
                         if (selecionados.size === 0) {
                           if (!isExpandido) {
@@ -1064,11 +1256,19 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                           alert('Selecione ao menos um item da tabela para recontar na N2.');
                           return;
                         }
-                        const itensMapeados = Array.from(selecionados).map((k) => {
-                          const [nu, prod, seq] = k.split('-').map(Number);
-                          return { nunota: nu, codprod: prod, sequencia: seq };
-                        });
-                        onSolicitarRecontagem(conf, itensMapeados);
+                        const itensMapeados = Array.from(selecionados)
+                          .map((k) => {
+                            const [nu, prod, seq] = k.split('-').map(Number);
+                            return { nunota: nu, codprod: prod, sequencia: seq };
+                          })
+                          .filter((i) => !verificarItemEmN3(conf, i));
+                        if (itensMapeados.length === 0) {
+                          alert('Todos os itens selecionados já estão em reconferência N3.');
+                          return;
+                        }
+                        const totalItensConf = detalhes?.itens?.length || conf.totalItens || 0;
+                        const todosItensSelecionados = totalItensConf > 0 && selecionados.size >= totalItensConf;
+                        onSolicitarRecontagem(conf, itensMapeados, todosItensSelecionados);
                       }}
                       title={
                         jaEnviado

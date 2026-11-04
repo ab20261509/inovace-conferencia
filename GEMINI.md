@@ -77,3 +77,67 @@ A barra de bipagem da Conferência de Saída deve manter rigorosamente o padrão
    - **Inativo / Disabled (campo vazio):** Fundo cinza ardósia suave (`background: #7e8590`), `opacity: 0.65`, `cursor: not-allowed`.
    - Texto em branco negrito (`font-weight: 700`, `color: #ffffff`).
    - Cantos arredondados (`border-radius: 12px`), altura `48px`.
+
+---
+
+## 🔒 4. Regra Mandatória: Sigilo de Conferência de Entrada (Modo Cego, Abas e Colunas)
+
+> [!CAUTION]
+> **PROIBIDO ALTERAR SEM AUTORIZAÇÃO EXPRESSA DO OPERADOR HUMANO.**
+> A especificação completa e detalhada deste fluxo reside em 👉 [`docs/regras/modo-cego-entrada.md`](./docs/regras/modo-cego-entrada.md).
+
+### 🚫 Restrições Rígidas para o Conferente no Modo Cego (`!verCamposSensiveis || isCega || ocultarStatus`):
+1. **PROIBIDO EXIBIR ABAS DE "PENDENTES" E "CONFERIDOS":**
+   - O conferente operacional **NUNCA** pode ver abas separadas de pendentes e conferidos.
+   - A separação de abas revelaria quando a quantidade fiscal esperada foi atingida, violando o princípio fiscal da contagem cega.
+   - **Obrigatório:** Exibir **apenas uma aba única**: `Produtos da Conferência` contendo todos os produtos da nota.
+2. **PROIBIDO EXIBIR A COLUNA "ESPERADO":**
+   - Na tabela desktop, a coluna `Esperado` deve ser estritamente omitida no Modo Cego (não renderizar `<th>` nem `<td>`). Proibido renderizar colunas vazias ou preenchidas com traços `— (Cega)`.
+3. **APENAS UMA COLUNA DE CONTAGEM FÍSICA:**
+   - Em termos de quantidade, o conferente deve ver **apenas uma coluna**: `Conferido N{nivel}` (ou contagem física real).
+4. **PROIBIDO EXIBIR BADGES DE STATUS ("PARCIAL" / "CONFERIDO"):**
+   - A coluna de status não deve exibir dicas de completude para conferentes comuns. Botões operacionais (`↺ Bip` e `⚠️ Ocorrência`) devem residir em uma coluna discreta `Ações`.
+5. **CONTADORES DO TOPO:**
+   - Conferentes no Modo Cego veem apenas `Total` (itens distintos) e `Bipados` (volume conferido). Os contadores `Conf` e `Pend` são exclusivos para supervisores.
+
+---
+
+## ⚖️ 5. Regra Mandatória: Desempate de Divergências de Recebimento (N2 vs N3 vs ERP)
+
+> [!CAUTION]
+> **PROIBIDO ALTERAR SEM AUTORIZAÇÃO EXPRESSA DO OPERADOR HUMANO.**
+> A especificação completa e detalhada deste fluxo reside em 👉 [`docs/regras/desempate-divergencias-n2-n3.md`](./docs/regras/desempate-divergencias-n2-n3.md).
+
+### 🚫 Restrições Rígidas para Resolução de Divergências com Reconferência N3:
+1. **PROIBIDO MISTURAR OU SOMAR BIPAGENS DE NÍVEIS DIFERENTES:**
+   - Bipagens apuradas no N2 (Lote/Validade/Qtd) e bipagens apuradas no N3 pertencem a etapas de conferência concorrentes.
+   - **É estritamente proibido** juntar dados de N2 e N3 em uma lista unificada de frações de lote para a mesma nota fiscal.
+2. **BLOQUEIO DE FALSO DESMEMBRAMENTO:**
+   - O status `⚠️ Aguardando Desmembramento` e o botão `✂️ Desmembrar` **só podem ser acionados** se dentro da contagem do **mesmo nível adotado** o conferente registrou fisicamente mais de 1 lote. Discordâncias entre N2 e N3 representam desempate, e não desmembramento.
+3. **COLUNAS COMPARATIVAS DEDICADAS:**
+   - Quando houver N3 na nota (`totalN3 > 0`), a tabela de divergências deve exibir colunas dedicadas `ERP` | `N2` | `N3` para Quantidade, Lote, Validade e Fabricação.
+4. **VINCULAÇÃO INTEGRAL DO PACOTE:**
+   - O clique do gestor em qualquer célula do N3 adota integralmente o pacote do N3 (Quantidade + Lote + Validade + Fabricação). O mesmo se aplica ao clicar em N2 ou ERP.
+
+---
+
+## 📦 6. Regra Mandatória: Precedência de Sobras Físicas e Ciclo de Vida de Ocorrências
+
+> [!CAUTION]
+> **PROIBIDO ALTERAR SEM AUTORIZAÇÃO EXPRESSA DO OPERADOR HUMANO.**
+> A especificação completa e detalhada deste fluxo reside em 👉 [`docs/regras/sobras-multiplos-lotes-ocorrencias.md`](./docs/regras/sobras-multiplos-lotes-ocorrencias.md).
+
+### 🚫 Restrições Rígidas para Sobras, Múltiplos Lotes e Ocorrências:
+1. **PRECEDÊNCIA ABSOLUTA DA SOBRA FÍSICA SOBRE O DESMEMBRAMENTO:**
+   - O Sankhya rejeita qualquer desmembramento cuja soma seja maior que o faturado da nota.
+   - Quando `diferenca > 0`, o botão **`📦 Gerar Ocorrência de Sobra`** deve **sempre estar visível e ser resolvido primeiro**, mesmo se o item tiver múltiplos lotes. O botão `✂️ Desmembrar` é bloqueado com aviso educativo enquanto persistir sobra física.
+2. **SELEÇÃO INTELIGENTE DO LOTE EXCEDENTE:**
+   - O modal de ocorrência de sobra detecta frações cuja contagem coincide com a quantidade da sobra (ex: 1 UN) e pré-seleciona automaticamente os dados daquele lote.
+3. **EXCLUSÃO DEFINITIVA NO REINÍCIO DA CONFERÊNCIA:**
+   - O modal de reinício lista expressamente todas as ocorrências físicas ativas vinculadas (X, Y, Z com produto, quantidade, lote e local) e oferece checkbox (marcado por padrão) para exclusão definitiva (`DELETE`) do banco de dados.
+4. **EXPURGO DE OCORRÊNCIAS COM NOTAS EXCLUÍDAS NO ERP:**
+   - Ocorrências cujas notas fiscais forem excluídas no Sankhya são canceladas automaticamente no backend e sinalizadas como `⚠️ Nota Excluída no ERP`.
+5. **ALINHAMENTO HORIZONTAL NA COLUNA PRODUTO:**
+   - Badges de status (`Pendente de Decisão` / `Aguardando Desmembramento`) e botões de ação (`Decidir Divergência` / `Revisar Desempate`) devem ser renderizados **lado a lado (horizontalmente)** em container flex, sem empilhamento vertical.
+
+

@@ -227,7 +227,6 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
       const confId =
         modalDesmembrarItem.grupo.conferenciaId || modalDesmembrarItem.grupo.id;
       await onExecutarDesmembramento(confId, dados);
-      setModalDesmembrarItem(null);
       if (modalDesmembrarItem.grupo.nunotas) {
         await carregarDetalhesConferencia(
           confId,

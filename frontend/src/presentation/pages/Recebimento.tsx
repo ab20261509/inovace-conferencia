@@ -9,14 +9,15 @@ import { BadgePrevisaoEntrega, calcularStatusPrevisaoEntrega } from '../componen
 
 const recebimentoService = new RecebimentoApiService();
 
-function classeStatusEntrada(status: StatusConferenciaEntrada, nivel?: number): string {
+function classeStatusEntrada(status: StatusConferenciaEntrada, _nivel?: number): string {
   if (status === 'Conferido' || status === 'Enviado ao Sankhya') return 'badge-success';
   if (
-    nivel === 3 ||
     status === 'N3 em Andamento' ||
     status === 'Aguardando N3' ||
     status === 'Aguardando Recontagem N3' ||
-    status === 'Recontagem N3 em Andamento'
+    status === 'Recontagem N3 em Andamento' ||
+    status === 'Divergente' ||
+    status === 'Em Reconferência'
   ) return 'badge-danger';
   if (
     [
@@ -29,7 +30,6 @@ function classeStatusEntrada(status: StatusConferenciaEntrada, nivel?: number): 
       'Recontagem N2 em Andamento',
     ].includes(status)
   ) return 'badge-warning';
-  if (['Divergente', 'Em Reconferência'].includes(status)) return 'badge-danger';
   return 'badge-pending';
 }
 
@@ -160,9 +160,9 @@ export function RecebimentoPage() {
       // Divergentes (Divergente / Em Reconferência): requer permissão de divergente
       const isDivergente = n.statusConferencia === 'Divergente' || n.statusConferencia === 'Em Reconferência';
       if (isDivergente && !verDivergente) {
-        // Se a nota divergente estiver no Nível 3 (recontagem N3) e o usuário tiver permissão N3, libera visualização
-        const ehN3Recontagem = (n.nivelAtual === 3 || ['Aguardando N3', 'N3 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(n.statusConferencia)) && n3;
-        if (!ehN3Recontagem) {
+        // Se a nota estiver em processo ativo de recontagem N3 disparado pelo gestor e o usuário tiver permissão N3, libera visualização
+        const ehN3RecontagemAtiva = ['Aguardando N3', 'N3 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(n.statusConferencia) && n3;
+        if (!ehN3RecontagemAtiva) {
           return false;
         }
       }
@@ -508,9 +508,7 @@ export function RecebimentoPage() {
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className={`status-badge ${classeStatusEntrada(n.statusConferencia, n.nivelAtual)}`}>
-                              {(n.statusConferencia === 'Divergente' || n.statusConferencia === 'Em Reconferência') && n.nivelAtual === 3
-                                ? 'Divergente - Reconferência N3'
-                                : n.statusConferencia}
+                              {n.statusConferencia}
                             </span>
                           </div>
                         </div>

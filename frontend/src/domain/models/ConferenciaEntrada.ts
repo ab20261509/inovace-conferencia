@@ -94,6 +94,8 @@ export interface ItemNotaEntrada {
   diferenca?: number;
   nomeparc?: string;
   codparc?: number;
+  decisaoFiscal?: DecisaoFiscalItem;
+  nivelEscolhido?: number;
 }
 
 export interface BackupContagemEntrada {
@@ -152,6 +154,8 @@ export interface SessaoConferenciaEntrada {
   codparc?: number;
   itensRecontagem?: Array<{ nunota: number; sequencia: number; codprod: number }>;
   itensRecontagemJson?: string;
+  decisoesFiscais?: Record<string, DecisaoFiscalItem>;
+  decisoesFiscaisJson?: string;
 }
 
 export interface ConferenciaEntradaResumo {
@@ -175,6 +179,7 @@ export interface ConferenciaEntradaResumo {
   temBackupContagem: boolean;
   backupContagem?: BackupContagemEntrada;
   observacaoAprovacao?: string;
+  itensRecontagem?: Array<{ nunota: number; sequencia: number; codprod: number }>;
   statusPorNota?: Record<number, StatusConferenciaEntrada>;
   notasDetalhadas?: Array<{ nunota: number; numnota: number }>;
   chavenfe?: string;
@@ -187,6 +192,7 @@ export interface ConferenciaEntradaResumo {
   backupsDisponiveis?: BackupDisponivelResumo[];
   conferenciaIdOrig?: string;
   sessaoConjunta?: boolean;
+  decisoesFiscais?: Record<string, DecisaoFiscalItem>;
 }
 
 export interface BipagemEntrada {
@@ -270,6 +276,15 @@ export interface ItemDivergenciaResumo {
   divergenciaLote?: boolean;
   divergenciaValidade?: boolean;
   divergenciaFabricacao?: boolean;
+  temMultiplosLotes?: boolean;
+  loteN2?: string;
+  validadeN2?: string;
+  fabricacaoN2?: string;
+  lotesConferidosN2?: any[];
+  loteN3?: string;
+  validadeN3?: string;
+  fabricacaoN3?: string;
+  lotesConferidosN3?: any[];
   conferenteN1?: string;
   conferenteN2?: string;
   conferenteN3?: string;
@@ -301,15 +316,18 @@ export interface ConferenciaDivergenciaGrupo {
   nivel2Ativo?: boolean;
   itensDivergentes: ItemDivergenciaResumo[];
   todosItens: ItemDivergenciaResumo[];
+  itensRecontagem?: Array<{ nunota: number; sequencia: number; codprod: number }>;
 }
 
 export interface DecisaoFiscalItem {
   nunota: number;
   codprod: number;
   sequencia: number;
-  lote?: 'ERP' | 'BIP';
-  validade?: 'ERP' | 'BIP';
-  fabricacao?: 'ERP' | 'BIP';
+  nivelEscolhido?: 1 | 2 | 3;
+  lote?: 'ERP' | 'BIP' | 'N1' | 'N2' | 'N3';
+  validade?: 'ERP' | 'BIP' | 'N1' | 'N2' | 'N3';
+  fabricacao?: 'ERP' | 'BIP' | 'N1' | 'N2' | 'N3';
+  quantidade?: 'ERP' | 'N1' | 'N2' | 'N3';
 }
 
 export interface ResolverDivergenciaInput {
@@ -317,6 +335,7 @@ export interface ResolverDivergenciaInput {
   observacao?: string;
   nunota?: number;
   decisoesFiscais?: Record<string, DecisaoFiscalItem>;
+  itens?: Array<{ nunota: number; sequencia: number; codprod: number }>;
 }
 
 export interface ReiniciarConferenciaInput {

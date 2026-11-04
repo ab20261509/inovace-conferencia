@@ -31,6 +31,7 @@ import {
 } from '../components/Recebimento/ModalConfirmarEnvioImediato';
 import { AbaOcorrenciasView } from '../components/Recebimento/AbaOcorrenciasView';
 import { OcorrenciaRecebimento } from '../../domain/models/OcorrenciaRecebimento';
+import { ehStatusEmAndamento } from '../components/Recebimento/recebimentoHelpers';
 import './GestaoRecebimento.css';
 
 const recebimentoService = new RecebimentoApiService();
@@ -246,6 +247,27 @@ export function GestaoRecebimentoPage() {
 
   // Estados de feedback e modais
   const [feedback, setFeedback] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
+  const [modalAvisoBloqueio, setModalAvisoBloqueio] = useState<{
+    titulo: string;
+    mensagem: string;
+    conferente?: string;
+    numnota?: string | number;
+  } | null>(null);
+
+  const handleBloqueioEmAndamento = useCallback((info: {
+    conferente?: string;
+    numnota?: string | number;
+    status?: string;
+  }) => {
+    const nomeConferente = info.conferente?.trim() || 'COLETOR';
+    const numnotaStr = info.numnota ? ` da Nota Fiscal #${info.numnota}` : '';
+    setModalAvisoBloqueio({
+      titulo: 'Conferência em Andamento',
+      mensagem: `Ação bloqueada: o conferente ${nomeConferente} já iniciou a contagem desta conferência${numnotaStr}. Só é permitido solicitar recontagem ou reconferência quando a conferência estiver finalizada ou aguardando.`,
+      conferente: nomeConferente,
+      numnota: info.numnota,
+    });
+  }, []);
   const [modalAcao, setModalAcao] = useState<{
     tipo: 'APROVAR_DIVERGENCIA' | 'RECONFERIR_N3' | 'REINICIAR' | 'SOLICITAR_RECONTAGEM' | 'RECUPERAR_CONTAGEM';
     conferenciaId: string;
@@ -260,15 +282,18 @@ export function GestaoRecebimentoPage() {
   const [nunotaReiniciarModal, setNunotaReiniciarModal] = useState<number | undefined>(undefined);
   const [observacaoModal, setObservacaoModal] = useState('');
   const [segundosRestantesReinicio, setSegundosRestantesReinicio] = useState<number>(3);
+  const [excluirOcorrenciasModal, setExcluirOcorrenciasModal] = useState<boolean>(true);
 
   // Efeito de contagem regressiva de 3s para habilitar o botão de confirmar reinício
   useEffect(() => {
     if (!modalAcao || modalAcao.tipo !== 'REINICIAR') {
       setSegundosRestantesReinicio(3);
+      setExcluirOcorrenciasModal(true);
       return;
     }
 
     setSegundosRestantesReinicio(3);
+    setExcluirOcorrenciasModal(true);
     const intervalo = setInterval(() => {
       setSegundosRestantesReinicio((prev) => {
         if (prev <= 1) {
@@ -287,12 +312,19 @@ export function GestaoRecebimentoPage() {
     if (!modalAcao || modalAcao.tipo !== 'REINICIAR') return [];
     const confId = modalAcao.dadosExtras?.conferenciaIdOrig || modalAcao.conferenciaId;
     const nunotaAlvo = nunotaReiniciarModal !== undefined ? nunotaReiniciarModal : modalAcao.dadosExtras?.nunota;
+    const confBase = confId ? confId.split('_')[0] : '';
+    const nunotasLista: number[] = modalAcao.dadosExtras?.notasDetalhadas?.map((nd: any) => nd.nunota) || (nunotaAlvo ? [nunotaAlvo] : []);
 
     return ocorrencias.filter((o) => {
       if (o.status === 'CANCELADO' || o.status === 'RESOLVIDO') return false;
-      const matchConf = o.conferenciaId === confId;
-      const matchNota = nunotaAlvo && o.nunota ? o.nunota === nunotaAlvo : true;
-      return matchConf && matchNota;
+      const confOcorrBase = o.conferenciaId ? o.conferenciaId.split('_')[0] : '';
+      const matchConf = confBase && confOcorrBase ? confBase === confOcorrBase : false;
+      const matchNota = nunotaAlvo && o.nunota ? o.nunota === nunotaAlvo : nunotasLista.length > 0 && o.nunota ? nunotasLista.includes(o.nunota) : false;
+
+      if (nunotaAlvo) {
+        return o.nunota === nunotaAlvo || (matchConf && !o.nunota);
+      }
+      return matchConf || matchNota;
     });
   }, [modalAcao, ocorrencias, nunotaReiniciarModal]);
 
@@ -549,7 +581,7 @@ export function GestaoRecebimentoPage() {
       if (res.divergencias) {
         setDivergencias(res.divergencias);
       }
-      await carregarDados();
+      await carregarDadosSilencioso();
       setFeedback({
         tipo: 'sucesso',
         texto: res.mensagem || 'Ocorrência de sobra registrada com sucesso e contagem ajustada!',
@@ -674,13 +706,34 @@ export function GestaoRecebimentoPage() {
     setLoading(false);
   }, [podeAcessar]);
 
+  // Atualização silenciosa em segundo plano (preserva montagem das abas e seleções em andamento)
+  const carregarDadosSilencioso = useCallback(async () => {
+    if (!podeAcessar) return;
+    try {
+      const [divs, ocs, confs] = await Promise.all([
+        recebimentoService.listarDivergencias().catch(() => null),
+        recebimentoService.listarOcorrencias().catch(() => null),
+        recebimentoService.listarTodasConferencias().catch(() => null),
+      ]);
+      if (divs) setDivergencias(divs);
+      if (ocs) setOcorrencias(ocs);
+      if (confs) setTodasConferencias(confs);
+    } catch (err) {
+      console.warn('Aviso ao recarregar dados silencioso:', err);
+    }
+  }, [podeAcessar]);
+
   useEffect(() => {
     carregarDados();
   }, [carregarDados]);
 
   const carregarDetalhesConferencia = async (conferenciaId: string, nunotas: number[], cardKey?: string) => {
     const key = cardKey || conferenciaId;
-    const confIdReal = conferenciaId.includes('_') ? conferenciaId.split('_')[0] : conferenciaId;
+    const confIdReal = conferenciaId.startsWith('aberto_')
+      ? 'novo'
+      : conferenciaId.includes('_')
+      ? conferenciaId.split('_')[0]
+      : conferenciaId;
     setLoadingDetalhes(key);
     try {
       const resp = await recebimentoService.obterItensConferencia(confIdReal, nunotas, 'gestao');
@@ -737,18 +790,26 @@ export function GestaoRecebimentoPage() {
           });
         }
       } else if (modalAcao.tipo === 'RECONFERIR_N3') {
+        const itensParaEnviar = modalAcao.dadosExtras?.itens?.map((i: any) => ({
+          nunota: i.nunota,
+          sequencia: i.sequencia,
+          codprod: i.codprod,
+        }));
         await recebimentoService.resolverDivergencia(confIdReal, {
           acao: 'RECONFERIR_N3',
           observacao: observacaoModal,
           nunota: nunotaExtra,
+          itens: itensParaEnviar,
         });
         setFeedback({
           tipo: 'sucesso',
-          texto: `Reconferência Nível 3 (N3) solicitada com sucesso para a NF ${modalAcao.dadosExtras?.numnota || ''}!`,
+          texto: itensParaEnviar && itensParaEnviar.length > 0
+            ? `Reconferência Nível 3 (N3) solicitada com sucesso para ${itensParaEnviar.length} produto(s) da NF ${modalAcao.dadosExtras?.numnota || ''}!`
+            : `Reconferência Nível 3 (N3) solicitada com sucesso para a NF ${modalAcao.dadosExtras?.numnota || ''}!`,
         });
       } else if (modalAcao.tipo === 'REINICIAR') {
         const nunotaParaReiniciar = nunotaReiniciarModal !== undefined ? nunotaReiniciarModal : modalAcao.dadosExtras?.nunota;
-        await recebimentoService.reiniciarConferencia(confIdReal, observacaoModal, nunotaParaReiniciar);
+        await recebimentoService.reiniciarConferencia(confIdReal, observacaoModal, nunotaParaReiniciar, excluirOcorrenciasModal);
         setFeedback({
           tipo: 'sucesso',
           texto: nunotaParaReiniciar
@@ -781,10 +842,18 @@ export function GestaoRecebimentoPage() {
       setDetalhesConferencias({});
       await carregarDados();
     } catch (err: any) {
-      setFeedback({
-        tipo: 'erro',
-        texto: err.response?.data?.error || err.message || 'Erro ao processar ação solicitada.',
-      });
+      const msgErro = err.response?.data?.error || err.message || 'Erro ao processar ação solicitada.';
+      if (msgErro.includes('Ação bloqueada') || msgErro.includes('em andamento')) {
+        setModalAvisoBloqueio({
+          titulo: 'Conferência em Andamento',
+          mensagem: msgErro,
+        });
+      } else {
+        setFeedback({
+          tipo: 'erro',
+          texto: msgErro,
+        });
+      }
     } finally {
       setProcessandoAcao(false);
     }
@@ -1200,25 +1269,43 @@ export function GestaoRecebimentoPage() {
                     detalhesConferencias={detalhesConferencias}
                     loadingDetalhes={loadingDetalhes}
                     toggleDetalhesConferencia={toggleDetalhesConferencia}
-                    onSolicitarRecontagem={(conf, itensSelecionados) => {
+                    onBloqueioEmAndamento={handleBloqueioEmAndamento}
+                    onSolicitarRecontagem={(conf, itensSelecionados, todosItensSelecionados) => {
+                      if (ehStatusEmAndamento(conf.status)) {
+                        handleBloqueioEmAndamento({
+                          conferente: conf.conferenteN3 || conf.conferenteN2 || conf.conferenteN1,
+                          numnota: conf.numnota || conf.numerosNotas,
+                          status: conf.status,
+                        });
+                        return;
+                      }
                       const itens = itensSelecionados || [];
                       const confIdReal = conf.conferenciaIdOrig || conf.id;
+                      const todosSelecionados = Boolean(
+                        itens.length === 0 ||
+                        todosItensSelecionados ||
+                        (conf.totalItens > 0 && itens.length >= conf.totalItens)
+                      );
                       setNivelRecontagemModal(2);
                       setItensRecontagemModal(itens);
                       setModalAcao({
                         tipo: 'SOLICITAR_RECONTAGEM',
                         conferenciaId: confIdReal,
                         titulo: itens.length > 0
-                          ? `Solicitar Recontagem na N2 (${itens.length} produto(s) selecionado(s))`
+                          ? `Solicitar Recontagem (${itens.length} produto(s) selecionado(s))`
                           : 'Solicitar Recontagem da Conferência',
                         descricao: itens.length > 0
-                          ? `A recontagem será realizada no Nível 2 apenas para os ${itens.length} item(ns) selecionado(s) da nota ${conf.numerosNotas}. Os demais itens já conferidos serão mantidos intactos e consolidados ao final.`
+                          ? (todosSelecionados
+                              ? `Todos os ${itens.length} produtos da nota ${conf.numerosNotas} foram selecionados. Você pode optar pelo Nível 2 ou Nível 3 (Desempate).`
+                              : `A recontagem será realizada no Nível 2 apenas para os ${itens.length} item(ns) selecionado(s) da nota ${conf.numerosNotas}. Os demais itens já conferidos serão mantidos intactos e consolidados ao final.`)
                           : `Defina o nível para recontagem da nota ${conf.numerosNotas}. A conferência ficará disponível para os operadores realizarem a nova contagem cega.`,
                         placeholder: 'Instrução ou motivo da recontagem para a equipe...',
                         dadosExtras: {
                           conferenciaIdOrig: confIdReal,
                           nunota: conf.nunotas[0],
                           numnota: conf.numerosNotas,
+                          todosItensSelecionados: todosSelecionados,
+                          totalItens: conf.totalItens,
                         },
                       });
                     }}
@@ -1259,6 +1346,7 @@ export function GestaoRecebimentoPage() {
                     nivel1Ativo={paramN1Ativo}
                     nivel2Ativo={paramN2Ativo}
                     podeGerenciarBackup={podeGerenciarBackup}
+                    ocorrencias={ocorrencias}
                   />
                 )}
 
@@ -1267,6 +1355,7 @@ export function GestaoRecebimentoPage() {
                   <AbaDivergenciasView
                     divergencias={divergencias}
                     todasConferencias={todasConferencias}
+                    ocorrencias={ocorrencias}
                     itensDivergenciaExpandidos={itensDivergenciaExpandidos}
                     filtroItensDivergencia={filtroItensDivergencia}
                     toggleItensDivergencia={toggleItensDivergencia}
@@ -1288,17 +1377,31 @@ export function GestaoRecebimentoPage() {
                         },
                       });
                     }}
-                    onReconferirN3={(grupo) => {
+                    onBloqueioEmAndamento={handleBloqueioEmAndamento}
+                    onReconferirN3={(grupo, itensSelecionados) => {
+                      if (ehStatusEmAndamento(grupo.status)) {
+                        handleBloqueioEmAndamento({
+                          conferente:
+                            (grupo.conferentesN3 && grupo.conferentesN3[0]) ||
+                            (grupo.conferentesN2 && grupo.conferentesN2[0]) ||
+                            (grupo.conferentesN1 && grupo.conferentesN1[0]) ||
+                            grupo.conferente,
+                          numnota: grupo.numnota || grupo.numerosNotas,
+                          status: grupo.status,
+                        });
+                        return;
+                      }
                       setModalAcao({
                         tipo: 'RECONFERIR_N3',
                         conferenciaId: grupo.conferenciaId || grupo.id,
-                        titulo: `Solicitar Reconferência Nível 3 (N3) - NF ${grupo.numnota || grupo.numerosNotas}`,
-                        descricao: `Disponibiliza exclusivamente a nota ${grupo.numnota || grupo.numerosNotas} para uma terceira contagem cega de desempate por outro conferente. Notas já conferidas não serão impactadas.`,
-                        placeholder: 'Instrução para a reconferência (opcional)...',
+                        titulo: `Confirmar Envio para Reconferência N3 (${itensSelecionados.length} produto(s))`,
+                        descricao: `Você está enviando ${itensSelecionados.length} produto(s) selecionado(s) da nota ${grupo.numnota || grupo.numerosNotas} para desempate cego no Nível 3.`,
+                        placeholder: 'Instrução para a reconferência N3 (opcional)...',
                         dadosExtras: {
                           conferenciaIdOrig: grupo.conferenciaId || grupo.id,
                           nunota: grupo.nunota,
                           numnota: grupo.numnota || grupo.numerosNotas,
+                          itens: itensSelecionados,
                         },
                       });
                     }}
@@ -1439,86 +1542,120 @@ export function GestaoRecebimentoPage() {
                   <p className="gestao-modal-desc">{modalAcao.descricao}</p>
 
                   {/* Detalhes para Recontagem */}
-                  {modalAcao.tipo === 'SOLICITAR_RECONTAGEM' && (
-                    <>
-                      {itensRecontagemModal.length > 0 && (
-                        <div
-                          style={{
-                            padding: '10px 14px',
-                            backgroundColor: '#ecfdf5',
-                            border: '1px solid #a7f3d0',
-                            borderRadius: '8px',
-                            marginBottom: '14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            fontSize: '0.85rem',
-                            color: '#065f46',
-                          }}
-                        >
-                          <span style={{ fontSize: '1.25rem' }}>🎯</span>
-                          <div>
-                            <strong>Recontagem Seletiva N2 ({itensRecontagemModal.length} produto(s) selecionado(s))</strong>
-                            <div style={{ fontSize: '0.78rem', color: '#047857' }}>
-                              Apenas os itens marcados ficarão visíveis para nova contagem no coletor. As bipagens dos demais itens permanecem preservadas.
+                  {modalAcao.tipo === 'SOLICITAR_RECONTAGEM' && (() => {
+                    const todosItensSelecionados = Boolean(
+                      itensRecontagemModal.length === 0 || modalAcao.dadosExtras?.todosItensSelecionados
+                    );
+
+                    return (
+                      <>
+                        {itensRecontagemModal.length > 0 && (
+                          <div
+                            style={{
+                              padding: '10px 14px',
+                              backgroundColor: '#ecfdf5',
+                              border: '1px solid #a7f3d0',
+                              borderRadius: '8px',
+                              marginBottom: '14px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              fontSize: '0.85rem',
+                              color: '#065f46',
+                            }}
+                          >
+                            <span style={{ fontSize: '1.25rem' }}>🎯</span>
+                            <div>
+                              <strong>
+                                {todosItensSelecionados
+                                  ? `Recontagem Total (${itensRecontagemModal.length} produto(s) selecionado(s))`
+                                  : `Recontagem Seletiva N2 (${itensRecontagemModal.length} produto(s) selecionado(s))`}
+                              </strong>
+                              <div style={{ fontSize: '0.78rem', color: '#047857' }}>
+                                {todosItensSelecionados
+                                  ? 'Todos os itens da nota foram selecionados. Você pode optar pelo Nível 2 ou Nível 3 (Desempate).'
+                                  : 'Apenas os itens marcados ficarão visíveis para nova contagem no coletor. As bipagens dos demais itens permanecem preservadas.'}
+                              </div>
                             </div>
                           </div>
+                        )}
+
+                        <div className="gestao-modal-niveis-recontagem">
+                          <label
+                            className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 1 ? 'selecionado' : ''} ${!todosItensSelecionados ? 'desabilitado' : ''}`}
+                            style={!todosItensSelecionados ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          >
+                            <input
+                              type="radio"
+                              name="nivelRecontagem"
+                              value={1}
+                              checked={nivelRecontagemModal === 1}
+                              onChange={() => setNivelRecontagemModal(1)}
+                              disabled={!todosItensSelecionados}
+                            />
+                            <div className="gestao-modal-nivel-info">
+                              <strong>Nível 1 - Recontagem Cega Simples</strong>
+                              <span>Recontagem rápida pelo código de barras/produto sem exigir lote e validade.</span>
+                            </div>
+                          </label>
+
+                          <label className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 2 ? 'selecionado' : ''}`}>
+                            <input
+                              type="radio"
+                              name="nivelRecontagem"
+                              value={2}
+                              checked={nivelRecontagemModal === 2}
+                              onChange={() => setNivelRecontagemModal(2)}
+                            />
+                            <div className="gestao-modal-nivel-info">
+                              <strong>Nível 2 - Recontagem com Lote e Validade (Recomendado)</strong>
+                              <span>Recontagem cega completa registrando código, lote e data de validade por produto.</span>
+                            </div>
+                          </label>
+
+                          <label
+                            className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 3 ? 'selecionado' : ''} ${!todosItensSelecionados ? 'desabilitado' : ''}`}
+                            style={!todosItensSelecionados ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          >
+                            <input
+                              type="radio"
+                              name="nivelRecontagem"
+                              value={3}
+                              checked={nivelRecontagemModal === 3}
+                              onChange={() => setNivelRecontagemModal(3)}
+                              disabled={!todosItensSelecionados}
+                            />
+                            <div className="gestao-modal-nivel-info">
+                              <strong>Nível 3 - Reconferência de Desempate (N3)</strong>
+                              <span>Para casos onde N1 e N2 divergiram e necessita de um 3º conferente para desempate.</span>
+                            </div>
+                          </label>
                         </div>
-                      )}
 
-                      <div className="gestao-modal-niveis-recontagem">
-                        <label
-                          className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 1 ? 'selecionado' : ''} ${itensRecontagemModal.length > 0 ? 'desabilitado' : ''}`}
-                          style={itensRecontagemModal.length > 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                        >
-                          <input
-                            type="radio"
-                            name="nivelRecontagem"
-                            value={1}
-                            checked={nivelRecontagemModal === 1}
-                            onChange={() => setNivelRecontagemModal(1)}
-                            disabled={itensRecontagemModal.length > 0}
-                          />
-                          <div className="gestao-modal-nivel-info">
-                            <strong>Nível 1 - Recontagem Cega Simples</strong>
-                            <span>Recontagem rápida pelo código de barras/produto sem exigir lote e validade.</span>
+                        {!todosItensSelecionados && (
+                          <div
+                            style={{
+                              marginTop: '12px',
+                              padding: '10px 14px',
+                              backgroundColor: '#fffbeb',
+                              border: '1px solid #fde68a',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              fontSize: '0.82rem',
+                              color: '#92400e',
+                            }}
+                          >
+                            <span style={{ fontSize: '1.25rem' }}>ℹ️</span>
+                            <div>
+                              <strong>Nível 3 (Desempate) indisponível:</strong> O N3 só pode ser acionado quando todos os itens da conferência forem selecionados (ou na recontagem total). Para recontar apenas itens específicos, confirme no <strong>Nível 2</strong>.
+                            </div>
                           </div>
-                        </label>
-
-                        <label className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 2 ? 'selecionado' : ''}`}>
-                          <input
-                            type="radio"
-                            name="nivelRecontagem"
-                            value={2}
-                            checked={nivelRecontagemModal === 2}
-                            onChange={() => setNivelRecontagemModal(2)}
-                          />
-                          <div className="gestao-modal-nivel-info">
-                            <strong>Nível 2 - Recontagem com Lote e Validade (Recomendado)</strong>
-                            <span>Recontagem cega completa registrando código, lote e data de validade por produto.</span>
-                          </div>
-                        </label>
-
-                        <label
-                          className={`gestao-modal-nivel-opcao ${nivelRecontagemModal === 3 ? 'selecionado' : ''} ${itensRecontagemModal.length > 0 ? 'desabilitado' : ''}`}
-                          style={itensRecontagemModal.length > 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                        >
-                          <input
-                            type="radio"
-                            name="nivelRecontagem"
-                            value={3}
-                            checked={nivelRecontagemModal === 3}
-                            onChange={() => setNivelRecontagemModal(3)}
-                            disabled={itensRecontagemModal.length > 0}
-                          />
-                          <div className="gestao-modal-nivel-info">
-                            <strong>Nível 3 - Reconferência de Desempate (N3)</strong>
-                            <span>Para casos onde N1 e N2 divergiram e necessita de um 3º conferente para desempate.</span>
-                          </div>
-                        </label>
-                      </div>
-                    </>
-                  )}
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {/* Opções de Escopo para Reiniciar Conferência Conjunta */}
                   {modalAcao.tipo === 'REINICIAR' && modalAcao.dadosExtras?.nunotas && modalAcao.dadosExtras.nunotas.length > 1 && (
@@ -1600,6 +1737,109 @@ export function GestaoRecebimentoPage() {
                     </div>
                   )}
 
+                  {/* Lista de Produtos para Reconferência N3 */}
+                  {modalAcao.tipo === 'RECONFERIR_N3' && modalAcao.dadosExtras?.itens && (
+                    <div style={{ margin: '14px 0' }}>
+                      <div
+                        style={{
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          color: 'var(--slate-700)',
+                          marginBottom: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span>📋</span> Produtos selecionados para envio ao N3 ({modalAcao.dadosExtras.itens.length}):
+                      </div>
+                      <div
+                        style={{
+                          maxHeight: '220px',
+                          overflowY: 'auto',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          background: '#f8fafc',
+                        }}
+                      >
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                          <thead>
+                            <tr
+                              style={{
+                                background: '#f1f5f9',
+                                borderBottom: '1px solid #cbd5e1',
+                                color: 'var(--slate-600)',
+                                textAlign: 'left',
+                              }}
+                            >
+                              <th style={{ padding: '8px 10px' }}>Produto</th>
+                              <th style={{ padding: '8px 6px', textAlign: 'center' }}>Esperado</th>
+                              <th style={{ padding: '8px 6px', textAlign: 'center' }}>N2</th>
+                              <th style={{ padding: '8px 6px', textAlign: 'center' }}>Diferença</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modalAcao.dadosExtras.itens.map((it: any) => {
+                              const dif = (it.qtdN2 || 0) - (it.qtdEsperada || 0);
+                              return (
+                                <tr
+                                  key={`n3-modal-${it.nunota}-${it.codprod}-${it.sequencia}`}
+                                  style={{ borderBottom: '1px solid #e2e8f0' }}
+                                >
+                                  <td style={{ padding: '8px 10px' }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--slate-800)' }}>
+                                      {it.descrprod}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--slate-500)' }}>
+                                      Cód: {it.codprod} {it.referencia ? `• Ref: ${it.referencia}` : ''}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 700 }}>
+                                    {it.qtdEsperada}
+                                  </td>
+                                  <td style={{ padding: '8px 6px', textAlign: 'center' }}>{it.qtdN2}</td>
+                                  <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                    <span
+                                      style={{
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        fontWeight: 700,
+                                        fontSize: '0.75rem',
+                                        background: dif < 0 ? '#fee2e2' : dif > 0 ? '#fef3c7' : '#dcfce7',
+                                        color: dif < 0 ? '#991b1b' : dif > 0 ? '#92400e' : '#166534',
+                                      }}
+                                    >
+                                      {dif > 0 ? `+${dif}` : dif}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div
+                        style={{
+                          marginTop: '10px',
+                          padding: '8px 12px',
+                          backgroundColor: '#eff6ff',
+                          border: '1px solid #bfdbfe',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          color: '#1e40af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <span>ℹ️</span>
+                        <div>
+                          Apenas estes itens ficarão disponíveis para nova contagem cega de desempate no Nível 3. Os demais itens da nota permanecerão com suas contagens preservadas.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Detalhes do Backup a Restaurar */}
                   {modalAcao.tipo === 'RECUPERAR_CONTAGEM' && modalAcao.dadosExtras && (
                     <div className="gestao-card-backup-aviso" style={{ marginTop: '4px' }}>
@@ -1644,22 +1884,100 @@ export function GestaoRecebimentoPage() {
                       <div style={{ fontSize: '0.80rem', marginTop: '8px', lineHeight: '1.5', color: '#b91c1c' }}>
                         {ocorrenciasReiniciar.length > 0 ? (
                           <div>
-                            • <strong>{ocorrenciasReiniciar.length} ocorrência(s) ativa(s)</strong> vinculada(s) (avarias, vencidos, etc.) serão marcadas como <strong>CANCELADAS</strong>.
+                            <div style={{ fontWeight: 700, marginBottom: '6px' }}>
+                              • <strong>{ocorrenciasReiniciar.length} ocorrência(s) vinculada(s)</strong> encontrada(s):
+                            </div>
+
+                            <div
+                              style={{
+                                maxHeight: '160px',
+                                overflowY: 'auto',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #fca5a5',
+                                borderRadius: '8px',
+                                padding: '8px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                                marginBottom: '10px',
+                              }}
+                            >
+                              {ocorrenciasReiniciar.map((oc, idx) => (
+                                <div
+                                  key={oc.id || idx}
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    padding: '6px 8px',
+                                    borderRadius: '6px',
+                                    backgroundColor: '#fff5f5',
+                                    border: '1px solid #fed7d7',
+                                    fontSize: '0.78rem',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                    <span style={{ fontWeight: 700, color: '#1e293b' }}>
+                                      {oc.tipo === 'SOBRA' ? '🟢 SOBRA' : oc.tipo === 'AVARIA' ? '🔴 AVARIA' : oc.tipo === 'VENCIDO' ? '🟠 VENCIDO' : `⚠️ ${oc.tipo}`}
+                                      {oc.codprod ? ` — Cód ${oc.codprod}` : ''}: {oc.descrprod || 'Produto'}
+                                    </span>
+                                    <span style={{ fontWeight: 800, color: '#b91c1c' }}>
+                                      Qtd: {oc.quantidade}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', color: '#64748b', fontSize: '0.72rem', marginTop: '3px' }}>
+                                    {oc.lote && <span>Lote: <strong>{oc.lote}</strong></span>}
+                                    {oc.validade && <span>Val: <strong>{oc.validade}</strong></span>}
+                                    {oc.codlocalDestino && <span>Local: <strong>{oc.codlocalDestino}</strong></span>}
+                                    {oc.motivo && <span style={{ fontStyle: 'italic' }}>Obs: {oc.motivo}</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            <label
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '8px',
+                                cursor: 'pointer',
+                                padding: '8px 12px',
+                                backgroundColor: '#ffffff',
+                                borderRadius: '8px',
+                                border: '1.5px solid #ef4444',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={excluirOcorrenciasModal}
+                                onChange={(e) => setExcluirOcorrenciasModal(e.target.checked)}
+                                style={{ width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer', accentColor: '#dc2626' }}
+                              />
+                              <div style={{ fontSize: '0.80rem', lineHeight: '1.4' }}>
+                                <strong style={{ color: '#991b1b' }}>
+                                  Apagar definitivamente estas ocorrências do sistema (remover do banco de dados)
+                                </strong>
+                                <div style={{ color: '#64748b', fontSize: '0.74rem', marginTop: '2px' }}>
+                                  {excluirOcorrenciasModal
+                                    ? 'As ocorrências listadas acima serão totalmente deletadas do banco de dados.'
+                                    : 'Se desmarcado, as ocorrências serão apenas marcadas como CANCELADAS no histórico.'}
+                                </div>
+                              </div>
+                            </label>
                           </div>
                         ) : (
                           <div>• Nenhuma ocorrência física ativa vinculada a esta conferência.</div>
                         )}
 
                         {divergenciasReiniciar.length > 0 ? (
-                          <div>
+                          <div style={{ marginTop: '8px' }}>
                             • <strong>Divergências fiscais pendentes</strong> desta conferência serão desfeitas e zeradas.
                           </div>
                         ) : (
-                          <div>• As divergências pendentes serão desfeitas.</div>
+                          <div style={{ marginTop: '4px' }}>• As divergências pendentes serão desfeitas.</div>
                         )}
 
                         <div style={{ marginTop: '4px', fontWeight: 700, color: '#991b1b' }}>
-                          • Todas as contagens físicas registradas serão canceladas e a conferência voltará para o início.
+                          • Todas as contagens físicas registradas serão canceladas e a conferência voltará para o início (Nível 2).
                         </div>
                       </div>
                     </div>
@@ -1704,6 +2022,69 @@ export function GestaoRecebimentoPage() {
                           ? `Confirmar Reinício (${segundosRestantesReinicio}s)`
                           : 'Confirmar Reinício'
                         : 'Confirmar Ação'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal de Aviso: Ação Bloqueada por Conferência em Andamento */}
+            {modalAvisoBloqueio && (
+              <div
+                className="gestao-modal-overlay"
+                onClick={() => setModalAvisoBloqueio(null)}
+              >
+                <div
+                  className="gestao-modal-conteudo"
+                  style={{ maxWidth: '480px' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="gestao-modal-header" style={{ borderBottom: '1px solid #fee2e2' }}>
+                    <h3 style={{ color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>⚠️</span> {modalAvisoBloqueio.titulo}
+                    </h3>
+                    <button
+                      type="button"
+                      className="gestao-modal-fechar"
+                      onClick={() => setModalAvisoBloqueio(null)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div style={{ padding: '20px 0 10px 0', fontSize: '0.92rem', color: 'var(--slate-700)', lineHeight: 1.5 }}>
+                    <div style={{ marginBottom: '14px' }}>
+                      {modalAvisoBloqueio.mensagem}
+                    </div>
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '8px',
+                        fontSize: '0.84rem',
+                        color: '#991b1b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                      }}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>🚫</span>
+                      <div>
+                        Para manter a consistência da contagem cega, novos envios ou recontagens só são permitidos após a conclusão do conferente no coletor.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="gestao-modal-acoes" style={{ justifyContent: 'flex-end', marginTop: '16px' }}>
+                    <button
+                      type="button"
+                      className="gestao-modal-btn-confirmar"
+                      style={{ background: '#0f172a', color: '#ffffff', minWidth: '120px' }}
+                      onClick={() => {
+                        setModalAvisoBloqueio(null);
+                        carregarDados();
+                      }}
+                    >
+                      Entendido
                     </button>
                   </div>
                 </div>

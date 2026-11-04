@@ -5,12 +5,13 @@ import {
   DragEvent,
   KeyboardEvent,
   MouseEvent,
+  ReactNode,
 } from 'react';
 import { Label } from '../Label/Label';
 import './Campo.css';
 
 interface CampoProps extends InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
+  label?: ReactNode;
   variant?: 'default' | 'scanner' | 'compact';
   error?: string;
   bloquearColar?: boolean;
@@ -35,7 +36,7 @@ export const Campo = forwardRef<HTMLInputElement, CampoProps>(
     },
     ref
   ) => {
-    const inputId = id || `campo-${label?.replace(/\s/g, '-').toLowerCase()}`;
+    const inputId = id || (typeof label === 'string' ? `campo-${label.replace(/\s/g, '-').toLowerCase()}` : undefined);
     const deveBloquearColar = bloquearColar ?? (variant === 'scanner');
 
     const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {

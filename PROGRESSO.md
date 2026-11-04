@@ -1,5 +1,904 @@
 # Registro de Progresso e Entregas - Conferência de Entrada & Gestão de Recebimento
 
+## Atualização: Prevenção de Múltiplos Desmembramentos, Trava de Concorrência e Stepper Visual
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário relatou que em um item desmembrado para N3 (NF #60766), o botão de desmembrar não forneceu feedback de conclusão e voltou a ficar disponível. Pensando que o processo não havia sido concluído, o usuário clicou mais duas vezes (totalizando 3 desmembramentos no Sankhya ERP).
+  - O usuário solicitou uma solução definitiva para blindar o sistema contra reexecuções, travamentos silenciosos e falta de feedback no desmembramento.
+
+- **Implementações Realizadas:**
+  1. **Trava de Concorrência e Idempotência no Backend ([`ExecutarDesmembramentoItemUseCase.ts`](./backend/src/application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.ts)):**
+     - Adicionada trava de concorrência em memória `processandoPorItem = new Set<string>()` chaveada por `${nunota}-${sequencia}`. Requisições concorrentes ou repetidas para o mesmo item enquanto o processamento estiver ativo são rejeitadas imediatamente (`400 - Desmembramento já em andamento`).
+     - Isolamento resiliente pós-ERP: chamada de listagem global de divergências protegida com `try/catch` para que qualquer lentidão ou timeout pós-desmembramento não anule nem reverta o retorno de sucesso do `CACSP.desmembrarItem`.
+  2. **Stepper Visual de 3 Etapas e Barra de Progresso Animada ([`ModalDesmembrarItem.tsx`](./frontend/src/presentation/components/Recebimento/ModalDesmembrarItem.tsx)):**
+     - Etapa 1: `1. Desmembrando item no Sankhya ERP...` (35%)
+     - Etapa 2: `2. Atualizando locais de estoque e ocorrências...` (75%)
+     - Etapa 3: `3. Desmembramento concluído com sucesso!` (100% verde com ícone de celebração)
+  3. **Fechamento Automático e Bloqueio Contra Reenvios:**
+     - Ao concluir a Etapa 3, o modal aguarda 1,5s e fecha automaticamente, oferecendo também o botão imediato `✅ Concluir Agora`.
+     - Enquanto o desmembramento estiver em processamento, todos os campos (lote, quantidade, datas, locais) e ações (adicionar linha, copiar datas, remover linha, fechar modal, cancelar e backdrop) são rigorosamente desabilitados.
+  4. **Feedback de Erro Inline no Modal:**
+     - Se o Sankhya recusar o desmembramento, a mensagem de erro é exibida de forma destacada em vermelho dentro do próprio modal (não oculta atrás do backdrop), permitindo ao gestor ajustar e tentar novamente.
+  5. **Desacoplamento de Fechamento Prematuro ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) e [`AbaEnvioSankhyaView.tsx`](./frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx)):**
+     - O fechamento do modal é delegado ao próprio `ModalDesmembrarItem` através de `onClose()`, garantindo que o usuário visualize a etapa de conclusão com sucesso antes do fechamento.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Recriação de Certificado SSL sob Demanda por Mudança de IP na Página de Instalação
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O IP do servidor na rede local mudou (ex: de `192.168.0.92` para `192.168.0.94`).
+  - O usuário perguntou se era necessário recriar o certificado e se essa recriação poderia ser feita diretamente pela página do certificado (`/instalar.html`).
+  - **Diagnóstico:**
+    - O certificado raiz da Autoridade Certificadora (`rootCA.crt`) instalado nos tablets **NÃO muda e não precisa ser reinstalado**.
+    - Apenas o certificado do servidor (`cert.pem`) precisa conter o novo IP nos Subject Alternative Names (SANs) para que o Chrome não aponte `NET::ERR_CERT_COMMON_NAME_INVALID`.
+    - Já regeneramos o certificado incluindo `192.168.0.94` e mantendo `192.168.0.92`, `localhost`, `127.0.0.1` e `::1`.
+
+- **Implementações Realizadas:**
+  1. **Endpoints de Informação e Recriação no Vite ([`frontend/vite.config.ts`](./frontend/vite.config.ts)):**
+     - Criado endpoint `GET /info-cert`: retorna todos os IPs de rede ativos da máquina e compara com os SANs registrados no certificado, informando se o IP atual já é válido.
+     - Criado endpoint `POST /recriar-cert`: executa `mkcert` dinamicamente unindo os IPs de rede atuais + anteriores (`192.168.0.94`, `192.168.0.92`, `localhost`, etc.), atualiza os arquivos em `frontend/certs/` e aciona `server.restart()` para carregar as novas credenciais TLS em memória sem derrubar a aplicação.
+  2. **Painel de Diagnóstico e Botão de Ação em Tempo Real ([`frontend/public/instalar.html`](./frontend/public/instalar.html)):**
+     - Adicionado painel que detecta o IP acessado e exibe o status de validação (`✅ Registrado e Válido` ou `⚠️ IP Não Registrado`).
+     - Adicionado botão interativo `🔄 Recriar Certificado para este IP` com feedback visual imediato de sucesso ou erro.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+
+## Atualização: Botão de Acesso ao Certificado HTTPS no Menu Lateral (Drawer)
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário solicitou a inclusão de um botão direto no sistema para acessar a página de download e instruções do certificado HTTPS (`/instalar.html`).
+  - **Decisões Alinhadas via `/grill-me`:**
+    1. *Localização:* No Menu Lateral de Navegação ([`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx)).
+    2. *Público-alvo:* Disponível para todos os usuários operacionais (abaixo da seção Administração).
+    3. *Comportamento:* Abertura em nova aba (`target="_blank" rel="noopener noreferrer"`).
+    4. *Identificação:* Item com ícone `🛡️` e texto `Certificado HTTPS` acompanhado de ícone sutil de link externo.
+
+- **Implementações Realizadas:**
+  - Em [`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx):
+    - Adicionada a seção `Ajuda & Segurança` contendo o item `🛡️ Certificado HTTPS` apontando para `/instalar.html`.
+    - Ao clicar, abre imediatamente a página responsiva de instalação e download do `rootCA.crt` em uma nova aba do navegador.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+
+## Atualização: Correção de "0 de 3 Bipados", Falsas Faltas e Quebra FIFO entre Itens Duplicados na Mesma Nota
+
+- **Demandas do Usuário & Diagnóstico (`/grill-me`):**
+  1. *Falsa Indicação de "Itens com Bipagem: 0 de 3" e Itens Pendentes:* Na NF `22130` com 3 itens (sendo 2 sequências de 60 UN do produto `10541 - KIT OTOLOG` e 1 sequência de 90 UN de outro item), o modal de finalizar nível apontava erroneamente `Itens com Bipagem: 0 de 3`, mesmo com 120 unidades de KIT OTOLOG já bipadas.
+  2. *Causa Raiz Identificada:*
+     - No **Modo Cego**, os campos `qtdneg` são omitidos (`null`), resultando em `dados.esperado === 0`. No frontend ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)), a condição `else if (dados.conferido >= dados.esperado && dados.esperado > 0)` nunca entrava, caindo num `else` que marcava todos os itens com bipagem como falta/pendente e zerando `itensConferidosOk`.
+     - No backend ([`FinalizarNivelEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/FinalizarNivelEntradaUseCase.ts) e [`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)), quando o mesmo produto existe em múltiplas sequências da `TGFITE`, comparar sequências isoladas gerava falsa sobra em uma linha e falsa falta com "Zero bipagens" na outra linha.
+  3. *Requisito Mandatório do Usuário:* *"O erro está em informar que o item não foi bipado, mas ele deveria ser bipado, pois foi 120 unidades 60 de cada um dos itens. Internamente precisa alimentar que ele foi bipado. O ideal aí é somar o total na conferência e fazer a quebra da quantidade para o gerente, mas para o conferente o que importa é apenas conferir e enviar para a gestão atuar. Lembrando que a quebra precisa existir para enviar os dados para ERP corretamente."*
+
+- **Implementações Realizadas:**
+  1. **Correção de Contagem e Estatísticas no Modo Cego ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Em `estatisticas` e `notasMap`, no Modo Cego (`isModoCego || dados.esperado === 0`), qualquer produto com contagem física registrada (`dados.conferido > 0`) é computado imediatamente como item atendido/bipado (`itensExatos++`, `notasMap[nunota].itensOk++`).
+     - Alerta de "Zero bipagens" e checkbox de ciência de falta só são ativados para itens cujo produto realmente possui **zero bipagens** na nota.
+     - O modal agora exibe com fidelidade: `Itens com Bipagem: 2 de 3` (e não mais `0 de 3`), e o contador do topo reflete `Tot: 3 • Conf: 2 • Pend: 1`.
+  2. **Quebra e Distribuição FIFO em Consultas e Reconciliação ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - Ao obter itens da conferência, se um produto possuir múltiplas sequências na `TGFITE` para a mesma nota, o backend redistribui as contagens apuradas (N1, N2, N3) em cascata (FIFO): a Sequência 1 é atendida até sua `QTDNEG` (60), e a Sequência 3 recebe o saldo remanescente (60).
+     - Ambos os registros têm suas quantidades conferidas e metadados de lote/validade atribuídos, garantindo integridade interna e para envio correto ao Sankhya ERP.
+  3. **Reconciliação e Desempate por Produto no Fechamento de Nível ([`FinalizarNivelEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/FinalizarNivelEntradaUseCase.ts)):**
+     - No encerramento de nível (N1, N2 ou N3), o caso de uso agrupa o esperado e o conferido por produto (`codprod`) dentro de cada nota antes de validar divergências.
+     - As quantidades são quebradas via FIFO entre as sequências da TGFITE, eliminando falsas divergências e falsos alertas de "Zero bipagens" quando o total do produto atende a soma das frações faturadas.
+     - As bipagens e metadados de lote de todas as sequências do produto são considerados na checagem de integridade fiscal.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` na pasta `frontend` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` na pasta `backend` compilado com sucesso (**exit code 0**).
+
+---
+
+
+- **Demandas do Usuário & Diagnóstico (`/grill-me`):**
+  1. *Bloqueio na Bipagem Repetida do Mesmo Lote:* Ao bipar novamente o produto com lote `123`, o sistema barrou com divergência de datas porque a data de fabricação foi digitada como `21/09/2026` ao invés de `21/07/2026` (mês 09 vs mês 07). O conferente não deveria precisar redigitar validade e fabricação para um lote que já foi registrado nesta conferência.
+  2. *Produtos Repetidos na Mesma Nota (TGFITE):* Na nota fiscal `22130`, o produto `10541 (KIT OTOLOG)` possuía 2 linhas/sequências faturadas (ex: 120 UN e 120 UN). Na conferência do conferente, apareciam 2 cards separados, gerando confusão e falsos alertas de *"1 produto não recebeu bipagem e será apontado como FALTA física"*. Para o conferente, o ideal é somar o total conferido daquele produto na nota em um card único, enquanto o backend faz a quebra em cascata (FIFO) entre as sequências para o envio correto ao Sankhya ERP, e a tela do gestor mantém as linhas fiscais originais individualizadas para auditoria.
+
+- **Implementações Realizadas:**
+  1. **Remoção de Bloqueio de Divergência de Lote no Conferente e Envio à Gestão ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Removida a mensagem bloqueante vermelha de divergência de lote da tela do conferente, permitindo que a bipagem seja registrada normalmente sem travar a esteira operacional.
+     - As discordâncias de lote e datas são encaminhadas diretamente para a tela de **Gestão do Recebimento** como divergência, permitindo ao gestor auditar, destinar para um local de estoque específico (`CODLOCALORIG`) e tratar posteriormente em ocorrência.
+  2. **Auto-Preenchimento Robusto ao Falar/Confirmar Lote por Voz ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - O auto-preenchimento ao confirmar o lote por voz foi corrigido e aprimorado: agora busca em múltiplas fontes (bipagens ativas, frações de `lotesConferidos` em qualquer linha do produto e lotes originais da `TGFITE`), garantindo que assim que o lote for confirmado no ditado, as datas de Validade e Fabricação sejam carregadas imediatamente no leitor.
+  3. **Destaque Azul no Card do Produto, Priorização no Topo e Botão de Ordenador ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx) e [`ConferenciaEntradaPage.css`](./frontend/src/presentation/pages/ConferenciaEntradaPage.css)):**
+     - Ao detectar um lote repetido para o produto, o card mobile (`.item-card-lote-repetido`) e a linha desktop (`.row-lote-repetido`) recebem imediatamente uma **borda azul destacada** (`border: 2px solid #3b82f6` e `box-shadow`) com o selo `🏷️ Lote Repetido`, facilitando a busca visual imediata.
+     - O produto com lote repetido é **automaticamente movido para o topo da lista** (`itensOrdenados`), garantindo que o conferente localize o item de imediato.
+     - Adicionado botão permanente `🏷️ Lote Repetido` na barra de ordenação rápida: permanece visível e desabilitado em modo normal, e se torna ativo com destaque azul quando um lote repetido for detectado.
+     - **Remoção automática dos artifícios:** assim que a bipagem é registrada com sucesso (ou ao fechar o aviso / destravar datas), a borda azul é removida, a lista retorna à ordem original e o botão do ordenador volta ao estado desabilitado.
+  2. **Auto-Preenchimento, Destaque Visual em Azul e Trava de Lote Conhecido ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx) e [`ConferenciaEntradaPage.css`](./frontend/src/presentation/pages/ConferenciaEntradaPage.css)):**
+     - Criada a rotina `checarLoteExistente`: ao digitar ou ditar por voz um lote já registrado para o produto na conferência, as datas de `Validade` e `Fabricação` são carregadas automaticamente a partir da primeira bipagem.
+     - Removida a frase *"🔒 Fixado do lote"* dos labels de Validade e Fabricação, mantendo o botão do microfone (🎤) sempre visível e ativo para permitir regravação via voz se necessário.
+     - Aplicado estilo azul destacado nos campos e dados de Validade e Fabricação (`.input-data-autopreenchida`): fundo azul suave (`#eff6ff`), borda azul vibrante (`#3b82f6`) e texto em azul escuro negrito (`#1d4ed8`), protegendo contra digitações acidentais.
+     - Adicionado popup/banner informativo: `ℹ️ Lote "X" já registrado para este produto. Validade (D) e Fabricação (D) carregadas automaticamente`, com botão `🔓 Destravar Datas` caso o operador queira forçar edição manual.
+     - No fluxo de ditado por voz contínuo, se o lote informado já for conhecido, o modal de voz encerra a captura de datas e foca diretamente no botão `Conferir Produto`.
+  2. **Distribuição em Cascata (FIFO) no Backend ([`RegistrarBipagemEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.ts)):**
+     - Quando um produto possui múltiplas sequências na `TGFITE` da mesma nota, as bipagens são distribuídas em cascata (FIFO): a 1ª sequência é preenchida até o seu limite faturado (`rowQtdNeg`), e qualquer excedente transborda automaticamente para a próxima sequência. Se todas as sequências forem atendidas, o excesso é acumulado como sobra na última linha.
+  3. **Consolidação em Card Único para o Conferente ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Criado o hook `itensConsolidados` que agrupa as sequências do mesmo produto na mesma nota (`nunota|codprod`).
+     - O conferente passa a ver **apenas 1 card por produto** na lista de conferência (Desktop e Mobile), com a contagem total física e a lista unificada de frações de lote.
+  4. **Correção de Falsa Falta e Falso Zero Bipagens ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - O cálculo de `estatisticas` e `notasMap` agora avalia o atendimento consolidado do produto na nota: se a contagem do produto atingiu a quantidade necessária das sequências, todas as linhas são computadas como OK. O alerta de *"X produto(s) não receberam nenhuma bipagem"* só é disparado se a contagem total de um produto for estritamente zero.
+  5. **Integridade da Visão do Gestor:**
+     - A tela de Gestão do Recebimento (`GestaoRecebimento.tsx` / `AbaDivergenciasView.tsx`) continua exibindo as linhas fiscais originais individualmente por sequência, alimentadas com as quantidades e lotes distribuídos pelo FIFO.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Desativação do Auto-Preenchimento por Clique no Card no Modo Cego (Tablet e Mobile)
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - O usuário identificou que no layout tablet/mobile da Conferência de Entrada, ao tocar/clicar em qualquer card de produto da lista, o sistema inseria automaticamente o código de barras (`17898393751773`) no campo de entrada do leitor.
+  - **Causa Raiz:** No componente [`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx), a `div.item-card-mobile` possuía um evento `onClick` irrestrito que atribuía `item.codbarra || referencia || codprod` ao estado `codigo` e focava o input.
+  - **Decisão Alinhada via `/grill-me`:** Desabilitar o clique quando estiver em **Modo Cego** (`isModoCego`), preservando o comportamento apenas para usuários com permissão/supervisão e evitando bipagens simuladas ou toques acidentais durante o scroll de contagem cega.
+
+- **Implementações Realizadas:**
+  - Em [`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx):
+    * Criada a flag condicional `const podeSelecionar = !isSomenteLeitura && !isModoCego;`.
+    * No evento `onClick` do card mobile: bloqueia a execução caso `!podeSelecionar`.
+    * No estilo e acessibilidade do card: cursor alterado para `pointer` apenas quando `podeSelecionar` (mantendo `default` no Modo Cego), e atributo `title` omitido no Modo Cego.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Inclusão de 'Sobra Física' no Filtro 'Fora da Nota' na Aba de Ocorrências
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário questionou quais tipos de ocorrência compõem o status/filtro `🔄 Fora da Nota`, notando que a ocorrência de `➕ Sobra Física` estava registrada como ativa na lista geral (`Todas 1`, `Pendentes 1`), mas o contador de `Fora da Nota` exibia `0`.
+  - Alinhado com o usuário: agrupar **Sobra Física** dentro do filtro `🔄 Fora da Nota` (consolidando Sobras, Produtos Trocados e Itens Não Identificados).
+
+- **Implementações Realizadas:**
+  - Em [`AbaOcorrenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaOcorrenciasView.tsx):
+    * No filtro `ocorrenciasFiltradas`: `filtroChip === 'fora_nota'` agora aceita `PRODUTO_TROCADO`, `NAO_IDENTIFICADO` e `SOBRA`.
+    * No cálculo de KPIs: o contador `kpis.foraNota` agora contabiliza ocorrências do tipo `SOBRA`.
+    * Adicionado tooltip descritivo no botão chip `Fora da Nota`: *"Sobras físicas, produtos trocados e itens não identificados fora da nota"*.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Priorização de Ocorrência de Sobra em Itens com Múltiplos Lotes e Bloqueio de Desmembramento com Excesso
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - O usuário apontou um caso onde o item `KIT OTOLOG...` teve 121 UN conferidas para uma nota de 120 UN (+1 de Sobra) distribuídas em 3 lotes físicos (1 UN, 60 UN, 60 UN), mas a coluna `Diferença` exibia apenas `⚠️ 3 Lotes` e o botão `✂️ Desmembrar`, ocultando o botão de gerar ocorrência de sobra.
+  - Regra de negócio confirmada: a ocorrência de sobra precisa ser resolvida **primeiro**; se o gestor tentar desmembrar antes de abater a sobra, o sistema deve alertar e impedir, pois o modal de desmembramento não executa rotina de sobra física e o Sankhya não aceita desmembrar quantidade maior que a nota faturada.
+
+- **Implementações Realizadas:**
+  1. **Coluna Diferença com Sobra Prioritária ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - Tanto no Desktop quanto no Mobile, quando `diferenca > 0`, o sistema agora exibe **sempre** o pill `+X (Sobra)` e o botão `📦 Gerar Ocorrência de Sobra`, mesmo que o item possua múltiplos lotes físicos.
+     - Caso o item possua múltiplos lotes E sobra física simultânea, o botão `✂️ Desmembrar` passa a emitir um alerta educativo bloqueante informando que a sobra (+X) deve ser registrada e deduzida primeiro para igualar a contagem à nota fiscal antes do desmembramento.
+  2. **Bloqueio Informativo no Modal de Desmembramento ([`ModalDesmembrarItem.tsx`](./frontend/src/presentation/components/Recebimento/ModalDesmembrarItem.tsx)):**
+     - Adicionado card de aviso em vermelho (`diferencaBalanco < 0`) alertando expressamente que o Sankhya rejeita desmembramento com excesso físico e orientando o gestor a fechar o modal e gerar a ocorrência de sobra.
+  3. **Seleção Inteligente de Lote Excedente no Modal de Sobra ([`ModalOcorrenciaSobra.tsx`](./frontend/src/presentation/components/Recebimento/ModalOcorrenciaSobra.tsx)):**
+     - Ao abrir o modal de sobra para um item com múltiplos lotes apurados, o modal verifica automaticamente se alguma fração tem quantidade exatamente igual à sobra (ex: fração de 1 UN do lote `741852963`) e já a pré-seleciona com seu lote, validade e fabricação.
+     - Adicionado painel com botões rápidos dos lotes apurados para preenchimento com 1 clique.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Alinhamento Horizontal dos Badges de Status e Ação de Divergência na Coluna Produto
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário identificou que o badge de aviso (`⚠️ Pendente de Decisão` / `⚠️ Aguardando Desmembramento`) e o botão de ação (`⚖️ Decidir Divergência` / `⚖️ Revisar Desempate`) estavam empilhados verticalmente um sobre o outro, ocupando espaço desnecessário.
+  - Alinhado: manter ambos os elementos preservados (por suporte a múltiplos lotes e clareza de pendência fiscal), porém organizá-los **lado a lado (horizontalmente)**.
+
+- **Implementações Realizadas:**
+  - Em [`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx):
+    * Tanto na visualização Desktop (tabela) quanto na visualização Mobile (cards):
+    * Envolvidos os badges de status (`⚠️ Pendente de Decisão`, `⚠️ Aguardando Desmembramento`, `🔍 Aguardando N3`, `✓ Decisão: N2`) e os botões de ação (`⚖️ Decidir Divergência`, `⚖️ Revisar Desempate`) em um container flex horizontal (`display: flex; flexWrap: wrap; alignItems: center; gap: 6px; marginTop: 4px;`).
+    * Removidas as margens verticais individuais (`marginTop: 6px`) que forçavam quebra de linha.
+    * Layout agora exibe harmoniosamente o badge de alerta e o botão de ação na mesma linha, reduzindo a altura das linhas da tabela e melhorando a densidade visual.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Exclusão e Tratamento de Ocorrências Vinculadas no Reinício da Conferência
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - Ao reiniciar uma conferência de entrada, as ocorrências vinculadas à conferência/nota não eram apagadas do banco de dados, permanecendo visíveis e ativas.
+  - Alinhado com o usuário: exibir no modal de reinício a lista expressa e detalhada das ocorrências que serão afetadas (Tipo, Produto, Quantidade, Lote, Local), acompanhada de um checkbox (marcado por padrão) para excluir definitivamente do banco de dados SQLite.
+
+- **Implementações Realizadas:**
+  1. **Backend - Limpeza e Exclusão no Use Case ([`ReiniciarConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ReiniciarConferenciaEntradaUseCase.ts)):**
+     - Adicionado o parâmetro `excluirOcorrencias?: boolean` em `ReiniciarConferenciaInput`.
+     - Implementado o método `processarOcorrenciasVinculadas`: busca ocorrências vinculadas por `conferenciaId` (inclusive com split/prefixo) e por lista de `nunotas`.
+     - Se `excluirOcorrencias === true` (padrão): chama `this.ocorrenciaRepo.remover(oc.id)`, deletando os registros da tabela `ocorrencias_conferencia_entrada`.
+     - Se `excluirOcorrencias === false`: atualiza o status para `CANCELADO` com histórico do reinício.
+     - Processamento disparado com precisão tanto no Cenário A (desmembramento de nota específica da conjunta) quanto no Cenário B (reinício da sessão inteira).
+  2. **Backend - Controller ([`ConferenciaEntradaController.ts`](./backend/src/presentation/http/controllers/ConferenciaEntradaController.ts)):**
+     - Rota POST `/api/recebimento/conferencia/:id/reiniciar` extrai `excluirOcorrencias` do corpo da requisição e repassa ao caso de uso.
+  3. **Frontend - Integração API ([`RecebimentoApiService.ts`](./frontend/src/infrastructure/api/RecebimentoApiService.ts)):**
+     - Atualizado o método `reiniciarConferencia` para enviar `excluirOcorrencias` no payload.
+  4. **Frontend - Modal de Reinício Rico e Informativo ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+     - Ajustado o filtro `ocorrenciasReiniciar` para identificar as ocorrências vinculadas por conferência base e por notas da sessão.
+     - No modal de confirmação de reinício, adicionada uma caixa visual detalhada listando todas as ocorrências ativas com Badge de Tipo (Sobra, Avaria, Vencido), Código e Nome do Produto, Quantidade, Lote, Validade e Local ERP.
+     - Adicionado o controle em checkbox: *"Apagar definitivamente estas ocorrências do sistema (remover do banco de dados)"*, selecionado por padrão.
+     - Feedback e repasse do parâmetro para a API na confirmação da ação.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Rastreabilidade de Ocorrências nas Abas de Gestão, Preservação de Decisões e Cancelamento de Notas Excluídas
+
+- **Demanda do Usuário & Diagnóstico:**
+  1. Ao registrar uma ocorrência de sobra na tela de divergências, a tela sofria um recarregamento destrutivo (`setLoading(true)` unmount) que limpava as decisões gerenciais locais já tomadas pelo usuário para outros produtos da nota.
+  2. Não havia nenhuma indicação visual no card da nota fiscal nem na linha dos produtos informando que a nota gerou ocorrência e qual ocorrência foi lançada (ex: sobra, avaria, local de destino).
+  3. Quando uma nota fiscal era excluída no Sankhya e relançada com novo NUNOTA, a conferência antiga deixava de existir, mas a ocorrência antiga permanecia no banco local como `PENDENTE`, gerando registros órfãos.
+
+- **Implementações Realizadas:**
+  1. **Detecção e Cancelamento Automático de Ocorrências com Nota Excluída no Sankhya ([`ListarOcorrenciasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarOcorrenciasEntradaUseCase.ts)):**
+     - O caso de uso agora cruza em lote todos os NUNOTAs das ocorrências com a `TGFCAB` no Sankhya ERP.
+     - Quando um NUNOTA não é encontrado no ERP (nota foi excluída no Sankhya), a ocorrência pendente é automaticamente marcada como `CANCELADO` com o motivo `[Nota fiscal excluída no ERP (Sankhya)]`.
+     - Na aba de ocorrências ([`AbaOcorrenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaOcorrenciasView.tsx)), ocorrências de notas excluídas recebem o badge de destaque: `⚠️ Nota Excluída no ERP`, e deixam de poluir a contagem de pendências operacionais ativas.
+  2. **Preservação de Decisões Locais com Atualização Silenciosa ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+     - Criada a função `carregarDadosSilencioso`, que atualiza os estados de conferências, divergências e ocorrências em segundo plano sem chamar `setLoading(true)`.
+     - Ao registrar ocorrência de sobra, a tela não é mais desmontada, preservando integralmente o estado `decisoesFiscaisPorGrupo` e as decisões já feitas pelo usuário.
+  3. **Visualização de Ocorrências nas Abas Divergências e Conferências ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx), [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx) e [`recebimentoHelpers.tsx`](./frontend/src/presentation/components/Recebimento/recebimentoHelpers.tsx)):**
+     - Passado o estado `ocorrencias` para ambas as abas.
+     - No cabeçalho de cada card de nota: exibido o badge `⚠️ {total} Ocorrência(s)`.
+     - Na linha de cada produto: exibido o badge elegante com o tipo da ocorrência, quantidade e local de estoque de destino (ex: `➕ Sobra Física: 1 UN (Local 210)`).
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Remoção de Tooltip Redundante no Campo Local ERP (Modal Desmembrar Item)
+
+- **Demanda do Usuário:**
+  - Remover a mensagem de dica/tooltip que aparecia ao passar o mouse sobre o campo e coluna `Local ERP` no modal de desmembramento.
+- **Implementações Realizadas:**
+  - Em [`ModalDesmembrarItem.tsx`](./frontend/src/presentation/components/Recebimento/ModalDesmembrarItem.tsx):
+    * Removido o atributo `title` do `<input>` de Local ERP (que exibia a mensagem `"Local de estoque de destino no Sankhya (ex: 99 para Avaria...)"`).
+    * Removido o atributo `title` do cabeçalho de coluna `<th>Local ERP</th>`.
+    * A identificação do local selecionado continua sendo exibida de forma limpa abaixo do campo quando um código é informado.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Padronização e Blindagem do Modo Cego na Conferência de Entrada (Sigilo Fiscal)
+
+- **Diagnóstico da Divergência de Visualização entre Notas (NF 60766 vs NF 22130):**
+  - **Causa Raiz Identificada:**
+    * Na tela de conferência de entrada ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)), a alternância entre aba única (*"Produtos da Conferência"*) e duas abas (*"Itens Pendentes"* e *"Itens Conferidos"*), bem como os contadores do topo (*"Bipados"* vs *"Conf/Pend"*), estava condicionada **apenas à variável local `ocultarStatus`**.
+    * A variável `ocultarStatus` iniciava como `false` por padrão. Nas rotas de inicialização de nova conferência e avanço de nível, o código não atualizava `ocultarStatus` a partir do retorno da API. Como consequência, para certas notas (como a NF 60766), a tela renderizava incorretamente a visão de supervisor com abas separadas e contadores `Conf/Pend`.
+    * Além disso, a regra mandatória da especificação oficial ([`docs/regras/modo-cego-entrada.md`](./docs/regras/modo-cego-entrada.md)) define que o modo cego é absoluto e unificado:
+      `const isModoCego = !verCamposSensiveis || isCega || ocultarStatus;`
+    * Para conferentes operacionais (`!verCamposSensiveis === true`), a interface **NUNCA** pode exibir abas de pendentes/conferidos, nem a coluna `Esperado` ou dicas de `Status`.
+
+- **Implementações Realizadas:**
+  1. **Unificação da Flag `isModoCego` ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Declarada a regra mandatória: `const isModoCego = !verCamposSensiveis || isCega || ocultarStatus;`.
+     - Garantida a atualização de `setOcultarStatus` em todas as rotas de carregamento (`inicializar`).
+  2. **Garantia de Aba Única e Sigilo das Métricas:**
+     - Topo de métricas: para conferentes no modo cego (`isModoCego === true`), renderiza estritamente os contadores **`Total`** e **`Bipados`** (ocultando `Conf` e `Pend`).
+     - Abas de produtos: renderiza **exclusivamente uma aba única**: **`Produtos da Conferência`**, impedindo a separação entre pendentes e conferidos.
+     - Bloqueada a renderização da Aba 2 (*Itens Conferidos*) em modo cego.
+  3. **Ocultação Mandatória da Coluna Esperado e Status (Desktop e Mobile):**
+     - Desktop: Ocultados os cabeçalhos `<th>` e células `<td>` da coluna **`Esperado`** (eliminando traços como `— (Cega)`).
+     - Desktop: A coluna de status no modo cego é renomeada para **`Ações`**, exibindo estritamente os botões operacionais (`⚠️ Ocorrência` e `↺ Bip`) quando houver contagem registrada, sem nenhum badge de completude (`Parcial` / `Pendente` / `Conferido`).
+     - Mobile: Ocultado o card metric `Esperado`, o chip de ordenação `Esp` e a tag de status.
+     - Linhas da tabela: removida a classe `row-parcial` no modo cego.
+  4. **Blindagem do Modal de Finalização:**
+     - No encerramento da contagem pelo conferente cego, o modal não exibe pistas de sobra nem percentuais de acerto fiscal (`100% OK` / `Com Sobra`), exibindo apenas `Unidades Bipadas: {totalConferido}` e alerta neutro caso existam produtos com zero bipagens.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção de Carregamento de Itens para Notas com Status "Em Aberto" na Gestão de Recebimento
+
+- **Diagnóstico da NF #221593 (Royal Canin - Em Aberto):**
+  - **Causa Raiz Identificada:**
+    * Ao clicar em "Ver Itens" em um card de nota no status `Em Aberto` (nota que veio do ERP e ainda não possui contagens/sessão iniciada no banco local), o frontend enviava a requisição para obter os itens da nota.
+    * No use case backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)), quando o item não possui contagens físicas prévias, o fallback `bip = mapBipsDetalhadas[key]` não continha o objeto `dadosPorNivel` nem os mapas de lotes por nível (`lotesMapN1`, `lotesMapN2`, `lotesMapN3`).
+    * Ao tentar acessar `bip.dadosPorNivel[nivelAdotado]`, ocorria uma exceção de runtime: `TypeError: Cannot read properties of undefined (reading '1')`, gerando erro 500 no endpoint.
+    * No frontend, a resposta falhava silenciosamente e, como `detalhes` permanecia vazio, a tabela de itens simplesmente não renderizava nada, deixando o card em branco abaixo da barra de progresso.
+    * Além disso, o ID da conferência temporária (`aberto_${nunota}`) era tratado incorretamente na chamada de API.
+
+- **Implementações Realizadas:**
+  1. **Blindagem e Fallback Completo no Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - O fallback de `bip` agora inicializa com todos os atributos obrigatórios: `{ n1: 0, n2: 0, n3: 0, dadosPorNivel: {}, lotesMapN1: {}, lotesMapN2: {}, lotesMapN3: {} }`.
+     - Aplicado encadeamento opcional defensivo (`bip.dadosPorNivel?.[nivel]`) para garantir que notas em aberto sem bipagens carreguem os itens da TGFITE normalmente.
+     - Ajustado o controller ([`ConferenciaEntradaController.ts`](./backend/src/presentation/http/controllers/ConferenciaEntradaController.ts)) para tratar IDs `aberto` ou `aberto_*` como consulta direta por `nunotas`.
+  2. **Tratamento de Rota e Fallback Visual no Frontend ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx) e [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+     - `carregarDetalhesConferencia` mapeia IDs prefixados com `aberto_` para `'novo'`, garantindo busca limpa por `nunotas`.
+     - `AbaConferenciasView.tsx` adiciona card de feedback e botão de recarregar caso haja qualquer instabilidade na consulta.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Limpeza e Simplificação Visual dos Dados Fiscais na Conferência Concluída
+
+- **Demanda do Usuário & Alinhamento:**
+  - Remoção dos textos redundantes que causavam poluição e quebras de linha indesejadas na tabela de itens concluídos:
+    1. Removido o rótulo redundante `(ERP)` que acompanhava os números das colunas de contagem física (N1, N2, N3).
+    2. Removidos os textos de quantidade e sufixos de integração da pill de Lote (ex: `(120 un)`, `(N3 Integrado)` e `(N2 Integrado)`).
+  - A pill da coluna Lote passa a exibir estritamente o código do lote: **`🏷️ {lote}`**.
+  - A indicação de decisão gerencial e envio ao Sankhya permanece centralizada e legível na tag dedicada do produto: `🎯 Decisão: N{nivel} Adotado • Integrado ao ERP`.
+
+- **Implementações Realizadas:**
+  1. **Ajuste na Tabela Desktop e Mobile ([`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+     - Colunas N1, N2, N3 renderizam o valor com badge verde limpo: `✓ {qtd}` (sem `(ERP)`).
+     - Coluna Lote renderiza a pill limpa padrão: `🏷️ {lote}` (sem quantidades nem menção a níveis).
+     - Mantida a gaveta de múltiplos lotes expansível estritamente para itens desmembrados (ex: Micodine com 2 lotes em N2).
+  2. **Refinamento do CSS ([`GestaoRecebimento.css`](./frontend/src/presentation/pages/GestaoRecebimento.css)):**
+     - Classe `.badge-nivel-adotado-erp` compactada e centralizada.
+  3. **Atualização da Especificação Oficial:**
+     - [`docs/regras/desempate-divergencias-n2-n3.md`](./docs/regras/desempate-divergencias-n2-n3.md) atualizado na Seção 5 refletindo a formatação limpa aprovada.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Destaque Visual do Nível Integrado ao ERP e Eliminação de Mistura de Lotes N2/N3 na Tabela de Conferências
+
+- **Contexto & Diagnóstico da Nota #22130:**
+  - **Validação do Registro das Escolhas:**
+    * Foi confirmado diretamente no banco de dados SQLite (`confercheck.db`, tabela `conferencias_entrada`, coluna `decisoes_fiscais_json`) que as escolhas do gestor estão perfeitamente registradas:
+      * **Item 10541 (Kit Otolog):** Nível escolhido = `N3`, Lote = `N3` (Lote `456789`, 120 UN), Validade = `N3`, Fab = `N3`.
+      * **Item 10544 (Micodine):** Nível escolhido = `N2`, Lote = `N2` (Lotes `987` e `123`, 45 UN cada), Validade = `N2`, Fab = `N2`.
+    * No envio ao Sankhya ERP ([`EnviarConferenciaSankhyaUseCase.ts`](./backend/src/application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.ts)), o backend filtrou e transmitiu exclusivamente as bipagens do nível escolhido.
+  - **Falha Visual Identificada na Tabela de Conferências ([`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+    * No use case [`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts), as bipagens eram agrupadas em um único `lotesMap` global sem separar por nível.
+    * Isso fazia com que o Kit Otolog juntasse o lote de N2 (`123`, 120 UN) com o lote de N3 (`456789`, 120 UN), abrindo uma gaveta de falso desmembramento de `2 lotes` com soma incorreta de `Total conferido: 240 UN`, além de não evidenciar visualmente qual nível foi enviado ao ERP.
+
+- **Implementações Realizadas:**
+  1. **Separação Estrita de Lotes por Nível no Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - O processamento de bipagens agora mantém `lotesMapN1`, `lotesMapN2` e `lotesMapN3` rigorosamente isolados (conforme Regra Mandatória 5).
+     - Para cada item retornado, o backend consulta a decisão fiscal (`sessao.decisoesFiscais`) e popula `lotesConferidos` **estritamente com os lotes do nível que foi adotado**.
+     - Como o N3 do Kit Otolog possui apenas 1 lote (`456789`), ele não é considerado com múltiplos lotes, eliminando a gaveta indevida e a falsa duplicação de quantidades.
+  2. **Destaque Visual das Escolhas e Dados Integrados ao ERP ([`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx) e [`GestaoRecebimento.css`](./frontend/src/presentation/pages/GestaoRecebimento.css)):**
+     - **Coluna de Quantidade (N1, N2 ou N3):** O nível adotado recebe o badge verde destacado `.badge-nivel-adotado-erp` com o texto `✓ {qtd} (ERP)`.
+     - **Coluna Lote:** Exibe pill verde destacada com menção `(N{nivel} Integrado)`.
+     - **Identificação do Produto:** Tag `.tag-decisao-adotada` adicionada abaixo da descrição: `🎯 Decisão: N{nivel} Adotado • Integrado ao ERP`.
+     - **Gaveta de Frações de Lote:** Quando há múltiplos lotes legítimos dentro do mesmo nível adotado (ex: Micodine em N2), o cabeçalho explicita: `Frações de Lote Desmembradas (Nível {X} Integrado ao ERP)`.
+  3. **Atualização da Especificação Mandatória:**
+     - [`docs/regras/desempate-divergencias-n2-n3.md`](./docs/regras/desempate-divergencias-n2-n3.md) atualizado com as diretrizes da Seção 5 para exibição de conferências concluídas e integradas.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção do Filtro de Sigilo de Divergentes e Eliminação de Falsa Reconferência N3 para o Conferente
+
+- **Causa Raiz Identificada:**
+  - A permissão `conferencia_entrada_divergente` (visão para divergentes na gestão de acessos) estava devidamente inativa para conferentes operacionais.
+  - Contudo, tanto no backend ([`ListarNotasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarNotasEntradaUseCase.ts)) quanto no frontend ([`Recebimento.tsx`](./frontend/src/presentation/pages/Recebimento.tsx)), a verificação `ehN3Recontagem` continha a expressão `n.nivelAtual === 3`.
+  - Como a nota 22130 já havia concluído a bipagem do Nível 3 e retornado para o status `Divergente` sob tutela do gestor, seu `nivelAtual` permaneceu registrado como `3`.
+  - Essa condição isolada fazia com que o sistema burlasse a restrição de acesso a divergentes, exibisse a nota na tela do conferente operacional e ainda rotulasse indevidamente seu badge como `"Divergente - Reconferência N3"`, reabrindo o card para conferência.
+
+- **Implementações Realizadas:**
+  1. **Restrição Estrita de Reconferência Ativa no Backend ([`ListarNotasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarNotasEntradaUseCase.ts)):**
+     - O bypass para quem tem permissão N3 agora exige estritamente status ativo de fila/andamento de reconferência (`['Aguardando N3', 'N3 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(n.statusConferencia)`).
+     - Notas com status `Divergente` são categoricamente ocultadas de qualquer usuário que não possua a permissão `conferencia_entrada_divergente`.
+  2. **Alinhamento do Filtro e Remoção de Rótulo Falso no Frontend ([`Recebimento.tsx`](./frontend/src/presentation/pages/Recebimento.tsx)):**
+     - Alinhada a condição `ehN3RecontagemAtiva` para que usuários sem permissão de divergente não vejam notas finalizadas em `Divergente`.
+     - Removido o rótulo indevido `Divergente - Reconferência N3`. Para usuários autorizados (supervisores/gestores), a nota exibe seu status real de `Divergente`.
+     - Atualizada a função auxiliar `classeStatusEntrada` removendo `nivel === 3` incondicional.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Diferenciação Visual Estrita (Pendente vs Decidido) e Modal de Decisão para Itens em N2 (`ModalDecidirDivergenciaN2`)
+
+- **Contexto & Cenário Identificado:**
+  - Em itens divergentes no Nível 2 (ex: Kit Otolog com Lote/Validade divergentes da NF), o dado conferido na tabela exibia um checkmark verde `✓` mesmo estando com o badge `⚠️ Pendente de Decisão`.
+  - Além disso, para itens que ainda não foram para N3, a interface não oferecia um botão de ação rápida para decidir se acatava o N2 ou se enviava para N3.
+
+- **Implementações Realizadas:**
+  1. **Remoção do Checkmark `✓` Indevido nos Dados Pendentes ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - Enquanto o item estiver pendente de decisão gerencial (`isItemPendente`), os dados de Lote, Validade e Fabricação são exibidos no formato `Conf: {valor} (N2)` em **tom âmbar/alerta (`#b45309`) sem checkmark**.
+     - O checkmark **`✓`** e a cor verde (`#047857`) são renderizados exclusivamente após a decisão ser formalmente tomada (`isItemDecidido`).
+  2. **Criação do Modal de Decisão Gerencial N2 ([`ModalDecidirDivergenciaN2.tsx`](./frontend/src/presentation/components/Recebimento/ModalDecidirDivergenciaN2.tsx)):**
+     - Botão **`⚖️ Decidir Divergência`** adicionado na linha de qualquer item pendente em N2 (na tabela desktop e no card mobile).
+     - Ao clicar, exibe os dados faturados na NF (ERP) lado a lado com os dados apurados no coletor (N2) e oferece as duas opções estratégicas:
+       * **`✓ Adotar Conferência N2`**: Acata os dados físicos do coletor, marca o item como decidido e conclui a pendência fiscal.
+       * **`🔍 Enviar para Reconferência N3`**: Envia imediatamente o item selecionado para a contagem cega de desempate no coletor N3.
+  3. **Atualização da Especificação Mandatória:**
+     - [`docs/regras/desempate-divergencias-n2-n3.md`](./docs/regras/desempate-divergencias-n2-n3.md) atualizado com as regras de distinção visual e decisão em N2.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção de Marcação Indevida de "Aguardando N3" e Restauração da Soberania do Gestor
+
+- **Causa Raiz Identificada:**
+  - Após a conclusão da contagem física de N3 no coletor, a conferência voltava para `Divergente` e limpava a lista `itensRecontagem`.
+  - No entanto, a função `verificarItemEmN3` em [`recebimentoHelpers.tsx`](./frontend/src/presentation/components/Recebimento/recebimentoHelpers.tsx) checava `sessaoOuGrupo.nivelAtual === 3` e aplicava um fallback automático (`temDivergenciaQtd = true`) caso ainda houvesse divergência de quantidade.
+  - Isso fazia com que o produto continuasse marcado perpetuamente como `🔍 Aguardando N3`, desabilitava seu checkbox e exibia o box `Em N3: 1 item` no topo da nota mesmo após o N3 ter sido 100% finalizado.
+
+- **Implementações Realizadas:**
+  1. **Critério Estrito em [`recebimentoHelpers.tsx`](./frontend/src/presentation/components/Recebimento/recebimentoHelpers.tsx):**
+     - O item só é considerado em N3 se **ambas as condições** forem atendidas:
+       * A conferência deve estar ativamente em fila/andamento de reconferência (`['Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(status)`). Se a conferência estiver em `Divergente`, `verificarItemEmN3` retorna `false`.
+       * O produto deve constar expressamente na lista `itensRecontagem` enviada pelo gestor.
+     - Eliminado o fallback que deduzia reconferência automática por divergência física de quantidade.
+  2. **Ajuste no Resumo da Nota ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) e [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+     - O box métrico `Em N3` e a tag `({X} em N3)` só são exibidos enquanto a conferência estiver ativamente em andamento de reconferência N3, desaparecendo assim que o conferente finaliza a contagem no coletor.
+  3. **Resultado Operacional:**
+     - Ao concluir a conferência de N3 com divergência de quantidade, o produto exibe seu status real de decisão, seu checkbox fica liberado e o gestor retoma o controle pleno: pode adotar os dados, desmembrar, gerar ocorrência de sobra ou reenviar para uma nova contagem se desejar.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Simplificação das Colunas Fiscais na Tabela (Nota vs Conf), Modal de Revisão Físico (N1, N2, N3) e Grade de Desmembramento
+
+- **Implementações Realizadas:**
+  1. **Eliminação das Colunas N2/N3 Triplicadas em Lote, Validade e Fabricação ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - O cabeçalho da tabela desktop foi simplificado para 3 colunas padrão limpas: `LOTE`, `VALIDADE` e `FABRICAÇÃO`, reduzindo drasticamente o excesso de largura horizontal.
+     - As colunas de Quantidade (`Qtd Nota`, `Qtd N1`, `Qtd N2`, `Qtd N3`) continuam visíveis dinamicamente conforme haja contagens registradas.
+     - Cada coluna fiscal exibe a comparação direta **Nota vs Conferido**:
+       * *Lote:* `Nota: {loteOriginal}` / `Conf: ✓ {loteAdotado} ({Nível})` (ou `✓ Múltiplos Lotes ({qtd}) ({Nível})`).
+       * *Validade:* `Nota: {valOriginal}` / `Conf: ✓ {valAdotada} ({Nível})` (ou `✓ Múltiplas`).
+       * *Fabricação:* `Nota: {fabOriginal}` / `Conf: ✓ {fabAdotada} ({Nível})` (ou `✓ Múltiplas`).
+  2. **Revisão do Modal Comparativo ([`ModalRevisarDesempate.tsx`](./frontend/src/presentation/components/Recebimento/ModalRevisarDesempate.tsx)):**
+     - **Faixa de Referência da Nota Fiscal (ERP):** Barra superior destacada informando os dados faturados na NF (`Quantidade`, `Lote`, `Validade` e `Fabricação`).
+     - **3 Cards Comparativos Focados nas Contagens Físicas:**
+       * **Card 1 - Conferência N1:** Ativo se houver contagem em N1; caso não haja, exibido em cinza com badge `Sem contagem N1` e desabilitado.
+       * **Card 2 - Conferência N2:** Quantidade física, lote(s), validade, fabricação e conferente do N2.
+       * **Card 3 - Reconferência N3:** Quantidade física, detalhamento de frações de lotes com datas e conferente do N3 (marcado como definitivo por padrão).
+  3. **Grade de Desmembramento e Botão `✂️ Desmembrar` na Linha da Tabela:**
+     - Quando o nível adotado tiver múltiplos lotes físicos (`lotesConferidos.length > 1`), a tabela aciona o badge `⚠️ Aguardando Desmembramento ({X} Lotes)`, habilita o botão `✂️ Desmembrar` e abre a grade com as frações e conferente.
+     - Se o gestor adotar um nível com lote único, o desmembramento é dispensado automaticamente.
+  4. **Suporte no Backend ([`EnviarConferenciaSankhyaUseCase.ts`](./backend/src/application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.ts)):**
+     - Suporte a `nivelEscolhido: 1 | 2 | 3` e `'N1'` no envio ao ERP.
+  5. **Atualização da Especificação Mandatória:**
+     - [`docs/regras/desempate-divergencias-n2-n3.md`](./docs/regras/desempate-divergencias-n2-n3.md) atualizado com as novas diretrizes.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: N3 Definitivo por Padrão, Rótulo de Múltiplos Lotes na Tabela e Modal de Revisão do Desempate (`ModalRevisarDesempate`)
+
+- **Contexto & Cenário Real:**
+  - Em reconferências N3 onde o conferente apurou fisicamente múltiplos lotes para o mesmo produto (ex: Micodine Shampoo com 45 UN do Lote `789` e 45 UN do Lote `45678`), o sistema identificava corretamente a necessidade de desmembramento do N3.
+  - No entanto, a célula desktop `LOTE N3` exibia apenas um dos lotes (ex: `✓ 45678`), gerando dúvidas sobre onde estava o outro lote e se o N3 deveria ser automático ou revisável via popup.
+
+- **Implementações Realizadas:**
+  1. **N3 Adotado por Padrão como Verdade Definitiva:**
+     - Itens que passaram por reconferência N3 têm o pacote do N3 selecionado por padrão como desempate definitivo.
+  2. **Exibição Inteligente de Múltiplos Lotes nas Células Comparativas Desktop:**
+     - Quando o N3 (ou N2) possui mais de uma fração de lote apurada fisicamente:
+       * Célula `LOTE`: exibe `✓ Múltiplos Lotes (X)` (onde X é o total de frações), em vez de truncar e exibir apenas um nome.
+       * Células `VALIDADE` e `FABRICAÇÃO`: exibem `✓ Múltiplas`.
+  3. **Criação do Modal de Revisão do Desempate ([`ModalRevisarDesempate.tsx`](./frontend/src/presentation/components/Recebimento/ModalRevisarDesempate.tsx)):**
+     - Botão discreto e elegante **`⚖️ Revisar Desempate`** adicionado na linha de produtos que passaram por N3 (na tabela desktop e no card mobile).
+     - Ao clicar, abre um popup comparativo estruturado com 3 cards lado a lado:
+       * **Nota Fiscal (ERP):** Quantidade esperada, lote e datas originais da nota.
+       * **Nível 2 (Conferência Inicial):** Quantidade física, nome do conferente e frações bipadas na 1ª contagem.
+       * **Nível 3 (Reconferência / Desempate):** Quantidade física, conferente e todas as frações de lote/datas apuradas.
+     - Permite ao gestor alternar entre N3, N2 ou ERP de forma assistida e clara, recalculando o desmembramento e gravando a decisão ao clicar em *"Confirmar Decisão"*.
+  4. **Documentação e Atualização de Regras:**
+     - Atualizada a especificação imutável em [`docs/regras/desempate-divergencias-n2-n3.md`](./docs/regras/desempate-divergencias-n2-n3.md) com as seções 3.1, 3.2 e 3.3.
+     - Preservado o isolamento da Conferência de Saída e validação de build estrita.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Desempate de Conferência (N2 vs N3 vs ERP), Isolamento de Lotes e Eliminação do Falso Desmembramento
+
+- **Diagnóstico & Causa Raiz:**
+  1. **Fusão Indevida de Bipagens de Níveis Concorrentes:**
+     - Ao finalizar a conferência N3 com dados diferentes do N2 (ex: Lote 123 no N3 vs Lote 1234 no N2 para o produto Micodine Shampoo), o backend agrupava todas as bipagens de N2 e N3 no mesmo mapa (`lotesMap`).
+     - O sistema interpretava que o conferente havia bipado 2 lotes diferentes na mesma carga (90 + 90 = 180 UN), gerando um **falso aviso de "Aguardando Desmembramento (2 Lotes)"** e bloqueando a resolução da divergência.
+  2. **Ausência de Mecanismo de Arbitragem/Desempate na Gestão:**
+     - A interface oferecia apenas as opções `ERP` vs `BIP (Coletor)`, sem permitir que o gestor indicasse qual contagem física adotar: N2 ou N3.
+
+- **Implementações Realizadas:**
+  1. **Isolamento Estrito por Nível no Backend ([`ListarDivergenciasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarDivergenciasEntradaUseCase.ts)):**
+     - Bipagens de N2 e N3 são armazenadas em mapas estritamente separados (`lotesMapN2` e `lotesMapN3`).
+     - A propriedade `temMultiplosLotes` agora avalia exclusivamente se dentro do **mesmo nível ativo** o conferente bipou múltiplos lotes físicos.
+     - Novos campos expostos na API: `loteN2`, `validadeN2`, `fabricacaoN2`, `lotesConferidosN2`, `loteN3`, `validadeN3`, `fabricacaoN3`, `lotesConferidosN3`.
+  2. **Colunas Comparativas Dedicadas e Vinculação Integral ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - Quando houver N3 na nota (`grupo.totalN3 > 0`):
+       - A tabela desktop exibe colunas comparativas dedicadas: `ERP` | `N2` | `N3` para Quantidade, Lote, Validade e Fabricação.
+       - Cabeçalhos possuem botões rápidos em massa `⚡` para aplicar ERP, N2 ou N3 nos itens selecionados ou em todos.
+       - O clique do gestor em qualquer célula do N3 adota integralmente o pacote daquele nível (Quantidade N3 + Lote N3 + Validade N3 + Fabricação N3), exibindo a badge `✓ {valor}`.
+       - O falso aviso de desmembramento desaparece imediatamente ao adotar o nível com lote único.
+       - Para itens não enviados para N3 (ex: Kit Otolog), a coluna N3 exibe traço `—` desabilitado e o N2 permanece ativo por padrão.
+  3. **Envio Preciso ao Sankhya ERP ([`EnviarConferenciaSankhyaUseCase.ts`](./backend/src/application/use-cases/recebimento/EnviarConferenciaSankhyaUseCase.ts)):**
+     - O backend respeita a decisão individual salva para cada produto (`nivelEscolhido === 3` -> bipagens do N3; `nivelEscolhido === 2` -> bipagens do N2; `lote === 'ERP'` -> mantém dados do ERP).
+  4. **Documentação Oficial e Regra Mandatória:**
+     - Especificação técnica completa criada em [`docs/regras/desempate-divergencias-n2-n3.md`](./docs/regras/desempate-divergencias-n2-n3.md).
+     - Inclusão da Seção Mandatória Oficial 5 no [`GEMINI.md`](./GEMINI.md).
+     - Atualização do checklist de regras críticas no [`AGENTS.md`](./AGENTS.md).
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Documentação Oficial e Regra Mandatória de Sigilo Fiscal (Modo Cego, Abas e Colunas)
+
+- **Diagnóstico & Contexto:**
+  1. **Exibição Indevida de Abas e Colunas para Usuários sem Permissão de Campos Sensíveis:**
+     - Conferentes operacionais sem acesso a campos sensíveis (`!verCamposSensiveis` ou em contagem cega `isCega`) estavam visualizando as duas abas separadas (`Itens Pendentes` e `Itens Conferidos`) e os contadores `Conf` e `Pend`, além das colunas `Esperado` (`— (Cega)`) e `Status` (`—`).
+     - A causa raiz no código foi o acoplamento exclusivo do chaveamento de abas à flag de banco `ocultarStatus`, sem considerar a condição combinada `isModoCego = !verCamposSensiveis || isCega || ocultarStatus`.
+     - Isso feria o princípio fiscal da contagem cega: a migração de um item de pendente para conferido dava pistas da quantidade esperada da nota fiscal.
+
+- **Entregas & Documentações Realizadas:**
+  1. **Especificação Oficial Completa ([`docs/regras/modo-cego-entrada.md`](./docs/regras/modo-cego-entrada.md)):**
+     - Princípio fundamental do sigilo fiscal e idoneidade da contagem cega.
+     - Matriz de Papéis de Permissão (`podeVerCamposSensiveis`): Supervisor vs Conferente Operacional.
+     - Regra condicional unificada do Modo Cego (`isModoCego = !verCamposSensiveis || isCega || ocultarStatus`).
+     - Matriz visual comparativa: Modo Cego (Aba única `Produtos da Conferência`, 1 coluna de quantidade física `Conferido N{nivel}`, sem coluna Esperado e sem badges de Status) vs Modo Privilegiado.
+     - Fluxo completo dos 3 Níveis (N1 Contagem Cega, N2 Lote/Validade e N3 Reconferência/Desempate) com diagrama de arquitetura em Mermaid.
+     - Checklist de integridade arquitetural para aprovação de qualquer PR ou alteração futura.
+  2. **Inclusão de Seção Mandatória Oficial no [`GEMINI.md`](./GEMINI.md):**
+     - Seção `4. Regra Mandatória: Sigilo de Conferência de Entrada (Modo Cego, Abas e Colunas)` estabelecendo a imutabilidade da regra sem autorização explícita do operador humano.
+  3. **Resumo Crítico em [`AGENTS.md`](./AGENTS.md):**
+     - Item 4 adicionado ao checklist de regras críticas consultadas por todos os agentes.
+
+---
+
+## Atualização: Blindagem do Sigilo da Conferência Cega na Validação de Integridade de Lote/Validade
+
+- **Diagnóstico & Causa Raiz:**
+  1. **Quebra de Sigilo e Bloqueio Incorreto em Conferência Cega (N3):**
+     - Na tela de conferência do coletor ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)), a validação de integridade de datas de lote (`bipagens.find`) não filtrava pelo nível ativo (`b.nivel === nivelAtual`).
+     - Ao bipar um produto no Nível 3 (ex: Lote 123 do produto 8755), o sistema encontrou a bipagem realizada pelo conferente anterior no Nível 2 (que continha Fabricação 21/07/2026).
+     - Quando o operador no N3 digitou a data do produto (21/07/2029), o sistema bloqueou a bipagem e exibiu a mensagem de erro expondo explicitamente o que o conferente do N2 havia digitado: `"⚠️ Divergência de Lote: O lote 123 já foi registrado para este produto com Validade 21/07/2029 e Fabricação 21/07/2026. No Sankhya, um mesmo lote não pode possuir datas diferentes..."`.
+     - Isso violava o princípio do **sigilo absoluto da conferência cega**, além de impedir que o 3º conferente registrasse o que realmente constava na embalagem física quando o conferente anterior havia errado na digitação.
+
+- **Implementações Realizadas:**
+  1. **Isolamento Estrito por Nível no Frontend ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - A validação de integridade de lote agora pesquisa exclusivamente dentro do nível atual (`b.nivel === nivelAtual`).
+     - O conferente de N2 ou N3 pode registrar livremente as datas vistas na caixa física sem ser barrado pelo que foi digitado em etapas anteriores.
+     - A integridade continua garantida dentro do mesmo nível: se o mesmo conferente tentar registrar o lote "123" duas vezes com datas diferentes na mesma conferência N3, o aviso atuará corretamente.
+  2. **Isolamento de Payload no Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - Quando a requisição parte do coletor (`input.origem === 'coletor'`), as bipagens retornadas no payload são estritamente filtradas para o nível ativo da sessão (`b.nivel === sessao.nivelAtual`), impedindo que dados e datas bipados por outros conferentes em níveis anteriores trafeguem para o dispositivo móvel.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Bloqueio de Recontagem/Reconferência "Em Andamento", Desabilitação de Itens já em Fila e Merge de Itens
+
+- **Diagnóstico & Causa Raiz:**
+  1. **Envio Permissivo Durante Recontagem em Andamento:**
+     - Quando um conferente já estava ativamente bipando no coletor (status `N3 em Andamento`, `N2 em Andamento`, `Iniciado`, `Em Reconferência`), a gestão ainda permitia clicar nos botões `Reconferir (N3)` ou `Solicitar Recontagem` e submeter novas ações, anulando contagens e alterando status no banco de dados enquanto o coletor estava aberto.
+  2. **Reenvio e Seleção Indevida de Itens que já estão em Recontagem:**
+     - Itens que já haviam sido enviados para reconferência N3 continuavam com o checkbox habilitado para seleção, permitindo que o gestor marcasse e tentasse reenviar o mesmo produto que já estava na fila do coletor.
+  3. **Sobrescrita da Fila de Recontagem ao Enviar Novos Itens:**
+     - Ao enviar novos itens para uma conferência que já estava aguardando (ex: adicionar um 2º item enquanto a nota aguarda desempate), a lista de itens da recontagem era sobrescrita em vez de mesclada.
+
+- **Implementações Realizadas:**
+  1. **Bloqueio de Recontagem para Sessões "Em Andamento" ([`ResolverDivergenciaUseCase.ts`](./backend/src/application/use-cases/recebimento/ResolverDivergenciaUseCase.ts) & [`SolicitarRecontagemEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.ts)):**
+     - Tanto no backend quanto no frontend, apenas conferências com status **finalizado** (`Divergente`, `Conferido`) ou **aguardando** (`Aguardando Recontagem`, `Aguardando N2`, `Aguardando N3`, `Em Aberto`) podem receber solicitações de recontagem/desempate.
+     - Se a conferência estiver "Em Andamento" (`N3 em Andamento`, `N2 em Andamento`, `Iniciado`, etc.), o backend rejeita com erro HTTP 400 informando o conferente ativo.
+  2. **Feedback Visual com Modal de Bloqueio Amigável ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+     - O botão permanece clicável, mas ao clicar para recontar/reconferir uma nota que está em andamento, abre um modal de aviso informativo em destaque:
+       `"⚠️ Ação bloqueada: o conferente [Nome] já iniciou a contagem desta conferência da Nota Fiscal #[numnota]. Só é permitido solicitar recontagem ou reconferência quando a conferência estiver finalizada ou aguardando."`
+  3. **Desabilitação do Checkbox de Itens já em Recontagem ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) & [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+     - Nas tabelas desktop e cards mobile, o checkbox dos produtos que já estão em fila (`verificarItemEmN3`) fica desabilitado (`disabled={estaEmN3}`) com tooltip explicativo: `"Este produto já está em fila de recontagem/desempate."`
+     - O checkbox "Selecionar Todos" do cabeçalho seleciona estritamente os produtos elegíveis (que ainda não foram enviados para recontagem).
+  4. **Fusão (Merge) Inteligente de Novos Itens ([`ResolverDivergenciaUseCase.ts`](./backend/src/application/use-cases/recebimento/ResolverDivergenciaUseCase.ts) & [`SolicitarRecontagemEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/SolicitarRecontagemEntradaUseCase.ts)):**
+     - Ao enviar produtos adicionais enquanto a conferência está no status `Aguardando`, o backend funde os novos itens com os já existentes na lista `itensRecontagem`, anulando as bipagens do nível correspondente exclusivamente para os novos produtos adicionados.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Padronização Visual das Cores de Status e Correção da Contagem e Marcação de Itens em N3
+
+- **Diagnóstico & Causa Raiz:**
+  1. **Divergência de Cores no Status "AGUARDANDO N3" entre Abas:**
+     - Na aba Conferências, o helper `getStatusBadgeClass` gerava a classe `reconferencia` (âmbar/amarelo) ou a classe `n3-desempate` não estava estilizada no CSS. Na aba Divergências, havia um ternário inline que atribuía a classe `aguardando` (azul/índigo). Com isso, uma tela exibia o status em amarelo e a outra em azul.
+  2. **Contagem e Marcação Incorreta de Itens em N3 na Gestão:**
+     - Quando apenas 1 item era enviado para N3, a expressão `estaEmN3` nas abas Conferências e Divergências possuía um fallback permissivo `(!itensRecontagem || itensRecontagem.length === 0)` que marcava **todos os itens da conferência** com o badge `🔍 Aguardando N3`, inclusive produtos cuja quantidade já estava 100% batida e apenas divergiam por lote/validade fiscal (como o Kit Otolog).
+     - No cabeçalho e métricas dos cards, a gestão exibia a totalidade dos itens divergentes da nota sem explicitar quantos itens realmente estavam em reconferência de desempate N3.
+
+- **Implementações Realizadas:**
+  1. **Padronização Visual da Paleta de Cores ([`GestaoRecebimento.css`](./frontend/src/presentation/pages/GestaoRecebimento.css) & [`recebimentoHelpers.tsx`](./frontend/src/presentation/components/Recebimento/recebimentoHelpers.tsx)):**
+     - O status `AGUARDANDO N3`, `N3 em Andamento` e etapas de reconferência N3 foram padronizados de forma unificada na classe `.badge-status-rec.n3-desempate` / `.badge-status-rec.aguardando` em tom **Azul / Índigo** (`background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe;`), distinguindo claramente de divergências pendentes (vermelho) e recontagens N2 (amarelo âmbar).
+     - Em `AbaDivergenciasView.tsx`, o ternário manual foi substituído por `getStatusBadgeClass(grupo.status)`, garantindo paridade total entre a aba Conferências e Divergências.
+  2. **Função Centralizada `verificarItemEmN3` ([`recebimentoHelpers.tsx`](./frontend/src/presentation/components/Recebimento/recebimentoHelpers.tsx)):**
+     - Criada a função pura `verificarItemEmN3` que valida com precisão se o item específico faz parte de `itensRecontagem` (utilizando coerção numérica de `codprod`, `sequencia` e `nunota`).
+     - Caso `itensRecontagem` não esteja definido, apenas produtos com divergência física real de quantidade (`diferenca !== 0`) recebem o status N3. Produtos com quantidade batida (como Kit Otolog com 120/120) preservam seu status fiscal real (`⚠️ Pendente de Decisão`).
+  3. **Atualização das Tabelas e Métricas dos Cards ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) & [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+     - Na aba Divergências, adicionada a mini-métrica `Em N3: X item(ns)` no card indicando com precisão a quantidade enviada ao 3º conferente.
+     - Na aba Conferências, o resumo de SKUs exibe o detalhamento: `SKUs: 2 produtos (1 em N3)`.
+     - Tanto nas tabelas desktop quanto nos cards mobile de ambas as abas, apenas o item enviado (`Micodine Shampoo`) exibe o badge `🔍 Aguardando N3`.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Popup com Confirmação de Produtos para N3, Tag "Aguardando N3" e Sincronização de Status entre Abas
+
+- **Diagnóstico & Causa Raiz:**
+  1. **Inconsistência de Status entre Aba Conferências e Aba Divergências:**
+     - Ao solicitar reconferência N3 através da aba Divergências (`ResolverDivergenciaUseCase.ts`), o sistema atualizava `sessao.statusPorNota[nunota] = 'Aguardando N3'`, mas mantinha `sessao.status = 'Divergente'` hardcoded. Na aba de Divergências o status era lido de `statusPorNota` exibindo `AGUARDANDO N3`, enquanto na aba Conferências para notas únicas era lido `sessao.status` exibindo `DIVERGENTE`.
+  2. **Ausência de Confirmação Detalhada de Produtos para N3:**
+     - Ao clicar no botão `🔍 Reconferir (N3)`, o popup abria sem exibir a lista dos produtos selecionados que seriam enviados ao coletor, e não exigia seleção explícita por checkbox.
+  3. **Falta de Sinalização Visual dos Produtos em N3:**
+     - Nas tabelas das abas Conferências e Divergências, os produtos enviados para N3 não possuíam sinalização indicando que estavam aguardando o 3º conferente, mantendo a tag genérica `⚠️ Pendente de Decisão`.
+
+- **Implementações Realizadas:**
+  1. **Sincronização Total do Status da Conferência ([`ResolverDivergenciaUseCase.ts`](./backend/src/application/use-cases/recebimento/ResolverDivergenciaUseCase.ts) & [`ListarTodasConferenciasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarTodasConferenciasEntradaUseCase.ts)):**
+     - Em `ResolverDivergenciaUseCase`, ao acionar `RECONFERIR_N3`, `sessao.status` é devidamente atualizado para `'Aguardando N3'` (junto com `statusPorNota`).
+     - Em `ListarTodasConferenciasEntradaUseCase`, o status do card é sincronizado com `statusPorNota` da nota fiscal, garantindo que ambas as abas (Conferências e Divergências) exibam o mesmo status **`AGUARDANDO N3`**.
+  2. **Seleção Estrita e Popup com Tabela de Produtos no Envio ao N3 ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) & [`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+     - O botão `🔍 Reconferir (N3)` agora valida a seleção via checkbox: exige que o gestor marque os produtos que deseja enviar.
+     - O popup exibe uma tabela completa contendo: Produto (código, descrição, referência), Quantidade Esperada, Quantidade Bipada N2 e Diferença (Falta/Sobra colorida), além de um aviso explicativo de que apenas estes itens ficarão disponíveis no coletor.
+     - Suporte a envio parcial para N3 integrado à rota e use case backend (`anularBipagensPorItens` e `itensRecontagem`).
+  3. **Badge "🔍 Aguardando N3" nos Itens ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) & [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+     - Na aba Divergências (Desktop e Mobile), os produtos enviados para N3 agora exibem em destaque o badge azul `🔍 Aguardando N3` no lugar de `⚠️ Pendente de Decisão`.
+     - Na aba Conferências (Desktop e Mobile), o mesmo badge `🔍 Aguardando N3` é renderizado abaixo dos dados do produto para sinalizar visualmente que o item está em fila de desempate.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Ajuste do Nível 3 no Modal de Recontagem e Blindagem do Filtro de Recontagem Seletiva no Coletor
+
+- **Diagnóstico & Causa Raiz:**
+  1. **Bloqueio Incondicional do Nível 3 no Modal de Recontagem:**
+     - O rádio do Nível 3 (N3) estava desabilitado por `disabled={itensRecontagemModal.length > 0}` incondicionalmente no modal de recontagem ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)). Como a tela de conferências exigia a marcação prévia de itens da tabela para habilitar o botão de recontagem, o usuário ficava impossibilitado de escolher N3 mesmo que selecionasse todos os itens da conferência.
+  2. **Exibição Incorreta de Itens no Coletor durante Recontagem Seletiva:**
+     - Em [`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts), a condição `temRecontagemParcialNoColetor` comparava apenas os status `'Aguardando N2'` e `'N2 em Andamento'`. Ao solicitar recontagem seletiva pelo gestor, a sessão recebia os status `'Aguardando Recontagem N2'` ou `'Recontagem N2 em Andamento'`, fazendo com que o coletor não filtrasse os itens e exibisse toda a nota ao operador.
+  3. **Ausência de Bloqueio de Bipagem de Itens Não Selecionados:**
+     - Em [`RegistrarBipagemEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.ts), caso a conferência estivesse em recontagem seletiva (`sessao.itensRecontagem`), o backend não bloqueava se o operador bipasse um produto fora da seleção.
+
+- **Implementações Realizadas:**
+  1. **Liberação Inteligente do Nível 3 (N3) no Modal ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx) & [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx)):**
+     - O botão de solicitação e o modal agora calculam `todosItensSelecionados`.
+     - Se todos os itens da conferência estiverem selecionados (ou na recontagem geral da carga), o **Nível 3 (Desempate) é liberado**.
+     - Se apenas uma parte dos itens for selecionada, o Nível 3 fica bloqueado e um **banner explicativo visual** é exibido no modal orientando o gestor de que o N3 só é permitido para desempate geral/todos os itens, devendo utilizar o Nível 2 para recontagens pontuais.
+  2. **Filtro Estrito de Recontagem Seletiva no Coletor ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - O filtro de itens agora reconhece adequadamente os status de recontagem (`ehStatusRecontagemOuAndamento` contemplando `'Aguardando Recontagem N1/N2/N3'` e `'Recontagem N1/N2/N3 em Andamento'`).
+     - Apenas os itens selecionados em `sessao.itensRecontagem` são retornados ao coletor.
+     - As bipagens ativas exibidas na lista de conferidos também são filtradas para os itens selecionados.
+  3. **Bloqueio de Bipagem no Backend ([`RegistrarBipagemEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.ts)):**
+     - Caso o operador tente bipar um produto que não faz parte de `itensRecontagem`, o backend rejeita a bipagem com mensagem: `"O produto [...] não faz parte dos itens selecionados para esta recontagem seletiva."`
+  4. **Identificação Visual no Coletor ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Quando em recontagem parcial, o cabeçalho do coletor exibe o badge em destaque: `🔁 RECONTAGEM SELETIVA N[X] (N ITENS)`.
+
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Correção de Identificação de Código de Barras Alternativos e Remoção de Bloqueio por Campo Sensível (Entrada)
+
+- **Diagnóstico & Causa Raiz:**
+  - Ao bipar códigos de barras de itens da Nota Fiscal (ex: NF 22130), o sistema retornava o erro: `Código "..." não encontrado nos itens desta conferência`.
+  - Foram identificadas duas causas raízes críticas:
+    1. **Esvaziamento de Códigos pelo Backend (`ObterItensConferenciaEntradaUseCase.ts`):** O parâmetro de tela `ocultarCodBarra` (configurado como sensível no banco) estava zerando o array `codigosAlternativos = []` e `codbarra = ''` dos itens enviados ao coletor. Isso impedia que o leitor físico identificasse qualquer código bipado.
+    2. **Busca Incompleta no Frontend (`ConferenciaEntradaPage.tsx`):** A busca local comparava apenas `it.codbarra === codLimpo`, ignorando o array `it.codigosAlternativos` (unidades alternativas, caixas, DUN-14, EANs adicionais), `it.refforn` e códigos com zeros à esquerda.
+- **Implementações Realizadas:**
+  1. **Preservação de Códigos de Barras para Bipagem no Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - O array `codigosAlternativos` e o `codbarra` não são mais esvaziados no backend, garantindo que o leitor no coletor sempre possua a base de códigos da carga para validação.
+  2. **Validação Abrangente e Resiliente no Frontend ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - Implementada a função helper `itemCorrespondeAoCodigo`, aplicada uniformemente em todos os pontos de validação da tela de entrada.
+     - A comparação agora valida:
+       - Código de barras principal (`codbarra`) e todos os códigos em `codigosAlternativos` (TGFVOA + TGFBAR).
+       - Códigos com e sem zeros à esquerda (ex: GTIN-14 / DUN-14 com zero inicial).
+       - `CODPROD`, `REFERENCIA` e `REFFORN` (referência do fornecedor).
+  3. **Reforço de Matching no Backend ([`RegistrarBipagemEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/RegistrarBipagemEntradaUseCase.ts)):**
+     - A consulta SQL de registro de bipagem foi aprimorada com `LTRIM(BAR.CODBARRA, '0')` e inclusão de `PRO.REFFORN`.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Ocultação Estrita de Status nos Cards Mobile quando ocultarStatus for Ativo (Entrada)
+
+- **Diagnóstico & Causa Raiz:**
+  - Em conferências de entrada onde o usuário não possui permissão para visualizar o status dos itens (`ocultarStatus = true`), a tabela no Desktop ocultava corretamente o status exibindo o traço `—`. No entanto, na visualização mobile em cards (`item-card-mobile`), a tag amarela `Parcial` continuava sendo renderizada no cabeçalho do card devido à ausência da verificação `!ocultarStatus` no elemento `item-card-badge`.
+- **Implementações Realizadas:**
+  1. **Blindagem do Badge de Status Mobile ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - O container `.item-card-badge` agora é condicionado a `{!ocultarStatus && (...)}`.
+     - Quando `ocultarStatus` estiver ativo, o card mobile oculta totalmente a tag de status (`Parcial` ou `Pendente`), garantindo consistência total com a tabela desktop e respeitando a política de conferência cega/permissão de status.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Rota de Download Forçado do Certificado SSL & Página de Instalação no Coletor
+
+- **Diagnóstico & Contexto:**
+  - Ao tentar acessar o arquivo do certificado raiz (`rootCA.crt`) pelo navegador no tablet ou desktop, o Chrome exibia o texto do certificado como texto puro (`-----BEGIN CERTIFICATE-----`) em vez de iniciar o download para a memória do dispositivo, impossibilitando a seleção do arquivo nas configurações de segurança do Android.
+- **Implementações Realizadas:**
+  1. **Serviço de Download com Headers de Anexo (`Content-Disposition: attachment`):**
+     - Criado middleware no [`frontend/vite.config.ts`](./frontend/vite.config.ts) respondendo na rota `/download-ca` com cabeçalhos `Content-Type: application/x-x509-ca-cert` e `Content-Disposition: attachment; filename="rootCA.crt"`, forçando o Chrome a baixar o arquivo na hora.
+     - Criada rota espelho no backend Express [`backend/src/presentation/http/routes/index.ts`](./backend/src/presentation/http/routes/index.ts) em `/api/download-ca` para servir o arquivo raiz diretamente aos dispositivos.
+  2. **Página Visual de Instalação ([`frontend/public/instalar.html`](./frontend/public/instalar.html)):**
+     - Página responsiva acessível em `https://192.168.0.92:5173/instalar.html` contendo botão de download direto e passo a passo ilustrado de como registrar a autoridade de certificação no Android.
+  3. **Diagnóstico de Conexão por IP vs Localhost:**
+     - Mapeada e documentada a razão pela qual o Chrome trata acessos por IP local (`192.168.0.92`) como não confiáveis e como a flag `chrome://flags/#unsafely-treat-insecure-origin-as-secure` pode ser utilizada como alternativa direta sem certificados.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Certificados SSL Confiáveis com mkcert (Eliminação do Aviso de Site Vulnerável)
+
+- **Diagnóstico & Contexto:**
+  - Após a ativação do HTTPS com o plugin `basicSsl`, os navegadores (Chrome no Android e Desktop) exibiam a tarja vermelha de *"Sua conexão não é particular"* / *"Site vulnerável"* (`NET::ERR_CERT_AUTHORITY_INVALID`) porque o certificado anterior era auto-assinado e não confiável.
+- **Implementações Realizadas:**
+  1. **Geração de Certificado Confiável via `mkcert`:**
+     - Gerado certificado SSL oficial localmente para `localhost`, `127.0.0.1`, `192.168.0.92` e `::1` em [`frontend/certs/`](./frontend/certs/).
+     - Configurado [`vite.config.ts`](./frontend/vite.config.ts) para carregar nativamente os certificados `cert.pem` e `key.pem` do `mkcert` em vez de chaves auto-assinadas descartáveis.
+  2. **Disponibilização da Autoridade Certificadora (Root CA) para Android:**
+     - O arquivo da Autoridade Certificadora foi disponibilizado em `frontend/public/rootCA.crt` para instalação rápida no coletor/tablet Android.
+  3. **Segurança no Versionamento:**
+     - Adicionada regra em [`.gitignore`](./.gitignore) para impedir que certificados e chaves privadas locais sejam versionados.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Ditado por Voz para Validade e Fabricação com Fluxo Contínuo e Individual (Entrada)
+
+- **Diagnóstico & Contexto:**
+  - Estender o recurso de ditado por voz e transcrição fonética inteligente para os campos fiscais de **Validade** e **Fabricação** na tela de Conferência de Entrada.
+  - Conforme alinhamento via `/grill-me`, o sistema agora suporta tanto a **sequência automática contínua** (Lote -> Validade -> Fabricação -> Foco em Conferir Produto) quanto o **acionamento individual sob demanda** clicando no microfone específico de qualquer campo.
+- **Implementações Realizadas:**
+  1. **Motor Fonético Especializado para Datas ([`reconhecimentoLote.ts`](./frontend/src/infrastructure/speech/reconhecimentoLote.ts)):**
+     - Função `normalizarDataFalada` que transcreve datas faladas em português brasileiro:
+       - Nomes de meses ("outubro", "dezembro", etc.) convertidos em numéricos.
+       - Números falados ("quinze", "vinte e quatro", "dois mil e vinte e seis").
+       - Exigência estrita de data completa (Dia, Mês e Ano), com alerta visual caso o dia não seja falado.
+       - Validação de calendário real (limites de dias por mês, anos bissextos e faixas válidas).
+  2. **Alertas Sonoros Customizados ([`alertas.ts`](./frontend/src/infrastructure/audio/alertas.ts)):**
+     - Adicionada a função `tocarAlertaPedirCampo(campoNome, onProntoParaOuvir)` com bipes e vozes sintetizadas específicas:
+       - *"Informe o lote"*
+       - *"Informe a validade"*
+       - *"Informe a fabricação"*
+  3. **Modal Versátil Multi-Campo ([`ModalDitadoLote.tsx`](./frontend/src/presentation/components/Recebimento/ModalDitadoLote.tsx) e [`ModalDitadoLote.css`](./frontend/src/presentation/components/Recebimento/ModalDitadoLote.css)):**
+     - Título dinâmico, instruções direcionadas e máscara `DD/MM/AAAA` no campo de ajuste manual para datas.
+     - Validação na confirmação com feedback de erro em caso de datas incompletas ou inválidas.
+  4. **Interface e Botões Compactos ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx) e [`Botao.tsx`](./frontend/src/presentation/components/Botao/Botao.tsx)):**
+     - Botões de microfone compactos redondos (`24px x 24px`, 🎤) nos labels de **`Validade *`** e **`Fabricação *`**, idênticos ao padrão aprovado de `Lote *`.
+     - **Fluxo Sequencial:** Ao bipar produto com lote vazio no N2/N3, inicia a sequência contínua (Lote ➔ Validade ➔ Fabricação). Ao confirmar o último campo, o modal fecha, salva os 3 campos e foca o botão **Conferir Produto** para revisão antes do registro.
+     - **Acionamento Individual:** Clicar no 🎤 de qualquer campo abre o modal daquele campo específico e avança o foco para o próximo.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Popup de Confirmação do Ditado de Lote & Redesenho do Botão de Microfone (Entrada)
+
+- **Diagnóstico & Contexto:**
+  - O operador necessitava de uma confirmação visual clara do lote ditado por voz, com oportunidade de revisar/ajustar manualmente ou refazer a fala antes de preencher o formulário.
+  - O botão anterior de microfone estava posicionado sobre o campo de digitação de lote, dificultando a leitura e digitação do operador.
+- **Implementações Realizadas:**
+  1. **Modal de Confirmação de Ditado ([`ModalDitadoLote.tsx`](./frontend/src/presentation/components/Recebimento/ModalDitadoLote.tsx) e [`ModalDitadoLote.css`](./frontend/src/presentation/components/Recebimento/ModalDitadoLote.css)):**
+     - Exibe feedback visual rico em tempo real com indicador pulsante de escuta (`🎙️ Ouvindo... Fale o lote agora`).
+     - Transcrição do lote exibida em display monoespaçado de grande destaque.
+     - Campo de ajuste fino manual em maiúsculas caso precise corrigir algum caractere.
+     - Botão **"Falar Novamente"** (`Refazer`) para reiniciar a escuta de voz imediatamente.
+     - Botão **"Confirmar"** com atalho no teclado (`Enter`) e **"Cancelar"** (`Esc`).
+     - Ao confirmar, o lote é preenchido, o modal é fechado e o cursor avança automaticamente para o campo de **Validade**.
+  2. **Redesenho do Botão de Microfone no Label ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx), [`ConferenciaEntradaPage.css`](./frontend/src/presentation/pages/ConferenciaEntradaPage.css) e [`Campo.tsx`](./frontend/src/presentation/components/Campo/Campo.tsx)):**
+     - O botão de microfone foi reposicionado no cabeçalho do campo, em formato circular compacto (`24px x 24px`), exatamente ao lado do asterisco de `Lote *`.
+     - O campo de texto do lote agora tem largura e espaçamento normal, sem sobreposição de botões ou textos.
+     - Animação pulsante vermelha (`.gravando`) ativa quando o microfone está escutando.
+  3. **Avanço Automático de Foco:**
+     - Adicionada referência `inputValidadeRef` para que, ao confirmar o lote ditado no popup, o foco seja transferido imediatamente para a data de **Validade**.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Suporte a HTTPS no Vite para Liberação de Microfone no Android
+
+- **Diagnóstico & Contexto:**
+  - O Google Chrome no Android bloqueia nativamente as APIs de mídia (`SpeechRecognition` e microfone) quando o acesso é feito por endereço IP em protocolo inseguro (`http://192.168.0.92:5173`).
+  - Para permitir o funcionamento imediato do reconhecimento de voz em tablets e coletores na rede local, foi configurado HTTPS no servidor de desenvolvimento do Vite.
+- **Implementações Realizadas:**
+  1. **Plugin SSL do Vite ([`vite.config.ts`](./frontend/vite.config.ts) e [`package.json`](./frontend/package.json)):**
+     - Instalado o pacote oficial `@vitejs/plugin-basic-ssl`.
+     - Configurado `plugins: [react(), basicSsl()]`.
+     - O frontend passa a ser servido em `https://192.168.0.92:5173/` com certificado SSL gerado automaticamente, mantendo o proxy reverso para a API em `http://localhost:3001`.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
+## Atualização: Ditado de Lote por Voz com Transcrição Fonética Especializada (Entrada)
+
+- **Diagnóstico & Contexto:**
+  - No teclado nativo do Android / Google Speech, ao falar "um", o sistema escreve "UM" por extenso em vez do dígito `1`, além de criar espaços indesejados e não reconhecer sinais especiais de lote.
+  - Conforme alinhamento via `/grill-me`, implementada solução nativa no Web App com processador fonético especializado para Lotes industriais:
+    - Conversão automática de palavras numéricas em dígitos ("zero" -> 0, "um" -> 1, "dois" -> 2, "vinte e quatro" -> 24).
+    - Conversão de pontuações e sinais falados ("ponto" -> `.`, "traço"/"hífen" -> `-`, "barra" -> `/`, "underline" -> `_`).
+    - Letras em maiúsculas contínuas sem espaços (ex: "um dois três quatro cinco seis f k e f" -> `123456FKEF`).
+    - Ao bipar o código de barras no N2 com lote em branco, o sistema emite som ("Informe o lote"), foca no campo Lote e ativa a escuta por voz automaticamente.
+    - Mantém o foco no campo Lote após a transcrição para revisão visual do conferente.
+- **Implementações Realizadas:**
+  1. **Motor de Reconhecimento e Normalização ([`reconhecimentoLote.ts`](./frontend/src/infrastructure/speech/reconhecimentoLote.ts)):**
+     - Função `normalizarLoteFalado` com tratamento de dezenas compostas ("vinte e quatro"), unidades, sinais falados ("ponto", "traço", etc.) e limpeza de ruídos.
+     - Controlador `criarReconhecedorLote()` via Web Speech API (`webkitSpeechRecognition` / `SpeechRecognition`) com `lang: 'pt-BR'`.
+  2. **Alertas Sonoros ([`alertas.ts`](./frontend/src/infrastructure/audio/alertas.ts)):**
+     - Adicionada a função `tocarAlertaPedirLote()` com sinal sonoro duplo e fala sintetizada *"Informe o lote"*.
+  3. **Interface e Fluxo ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx) e [`ConferenciaEntradaPage.css`](./frontend/src/presentation/pages/ConferenciaEntradaPage.css)):**
+     - Botão de microfone (🎤/🎙️) integrado no canto direito do input de Lote com animação pulsante (`.gravando`).
+     - **Acionamento Manual e por Bipagem:** Tanto ao clicar manualmente no microfone quanto ao bipar o código com leitor físico (`Enter`), destrava o áudio do navegador, fala *"Informe o lote"* e, ao término da fala da assistente, aciona o microfone para escutar o conferente sem captar o eco do próprio dispositivo.
+     - Callback de erro para exibir alertas visuais claros caso o navegador bloqueie o microfone por falta de permissão ou conexão HTTP/IP.
+     - Foco mantido no Lote após o reconhecimento para validação do operador.
+- **Validação de Builds:**
+  - Frontend: `npm run build` compilado com sucesso (exit code 0).
+  - Backend: `npm run build` compilado com sucesso (exit code 0).
+
+---
+
 ## Atualização: Correção ORA-01791 na Consulta de Unidades Alternativas (Entrada)
 
 - **Diagnóstico & Causa Raiz:**

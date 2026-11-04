@@ -192,9 +192,9 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
       // 2. Filtro de Divergente
       const isDivergente = n.statusConferencia === 'Divergente' || n.statusConferencia === 'Em Reconferência';
       if (isDivergente && !verDivergente) {
-        // Se a nota divergente estiver no Nível 3 (recontagem N3) e o usuário tiver permissão N3, libera visualização
-        const ehN3Recontagem = (n.nivelAtual === 3 || ['Aguardando N3', 'N3 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(n.statusConferencia)) && verN3;
-        if (!ehN3Recontagem) {
+        // Se a nota estiver em processo ativo de recontagem N3 disparado pelo gestor e o usuário tiver permissão N3, libera visualização
+        const ehN3RecontagemAtiva = ['Aguardando N3', 'N3 em Andamento', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(n.statusConferencia) && verN3;
+        if (!ehN3RecontagemAtiva) {
           return false;
         }
       }

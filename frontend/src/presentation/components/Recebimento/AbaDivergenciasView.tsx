@@ -8,10 +8,16 @@ import {
 import { Container } from '../Container/Container';
 import {
   getStatusBadgeClass,
+  verificarItemEmN3,
+  ehStatusEmAndamento,
   formatarConferentes,
   formatarDataSimples,
+  obterOcorrenciasDoItem,
+  renderBadgesOcorrenciasItem,
 } from './recebimentoHelpers';
 import { ModalDesmembrarItem } from './ModalDesmembrarItem';
+import { ModalRevisarDesempate } from './ModalRevisarDesempate';
+import { ModalDecidirDivergenciaN2 } from './ModalDecidirDivergenciaN2';
 import { ModalPesquisaLocalEstoque } from './ModalPesquisaLocalEstoque';
 import { ModalOcorrenciaSobra } from './ModalOcorrenciaSobra';
 import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
@@ -19,6 +25,7 @@ import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoAp
 export interface AbaDivergenciasViewProps {
   divergencias: ConferenciaDivergenciaGrupo[];
   todasConferencias?: ConferenciaEntradaResumo[];
+  ocorrencias?: any[];
   itensDivergenciaExpandidos: Record<string, boolean>;
   filtroItensDivergencia: Record<string, 'divergentes' | 'todos'>;
   toggleItensDivergencia: (grupoId: string) => void;
@@ -29,7 +36,7 @@ export interface AbaDivergenciasViewProps {
     grupo: ConferenciaDivergenciaGrupo,
     decisoesFiscais?: Record<string, DecisaoFiscalItem>
   ) => void;
-  onReconferirN3: (grupo: ConferenciaDivergenciaGrupo) => void;
+  onReconferirN3: (grupo: ConferenciaDivergenciaGrupo, itensSelecionados: ItemDivergenciaResumo[]) => void;
   onReiniciar: (grupo: ConferenciaDivergenciaGrupo) => void;
   onRecuperarContagem?: (conf: ConferenciaEntradaResumo) => void;
   onSincronizarDesmembramento?: (
@@ -63,11 +70,13 @@ export interface AbaDivergenciasViewProps {
     codlocalDestino?: number;
     fotos?: string[];
   }) => Promise<void>;
+  onBloqueioEmAndamento?: (info: { conferente?: string; numnota?: string | number; status?: string }) => void;
 }
 
 export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   divergencias,
   todasConferencias,
+  ocorrencias,
   itensDivergenciaExpandidos,
   filtroItensDivergencia,
   toggleItensDivergencia,
@@ -81,6 +90,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   processandoDesmembramento,
   onLocalAlterado,
   onRegistrarOcorrenciaSobra,
+  onBloqueioEmAndamento,
 }) => {
   const recebimentoService = React.useMemo(() => new RecebimentoApiService(), []);
   const [locaisAlterados, setLocaisAlterados] = useState<Record<string, number>>({});
@@ -147,6 +157,15 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
     item: ItemDivergenciaResumo;
     grupo: ConferenciaDivergenciaGrupo;
   } | null>(null);
+  const [modalRevisarDesempateItem, setModalRevisarDesempateItem] = useState<{
+    item: ItemDivergenciaResumo;
+    grupo: ConferenciaDivergenciaGrupo;
+    decisaoAtual?: 'N1' | 'N2' | 'N3' | 'ERP';
+  } | null>(null);
+  const [modalDecidirN2Item, setModalDecidirN2Item] = useState<{
+    item: ItemDivergenciaResumo;
+    grupo: ConferenciaDivergenciaGrupo;
+  } | null>(null);
   const [executandoOcorrenciaSobra, setExecutandoOcorrenciaSobra] = useState(false);
   const [lotesExpandidosDiv, setLotesExpandidosDiv] = useState<Record<string, boolean>>({});
   const [decisoesFiscaisPorGrupo, setDecisoesFiscaisPorGrupo] = useState<
@@ -189,12 +208,137 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
     });
   };
 
+  const handleSelecionarNivelItem = (
+    grupoId: string,
+    itemKey: string,
+    itemInfo: { nunota: number; codprod: number; sequencia: number },
+    nivel: 'N1' | 'N2' | 'N3' | 'ERP'
+  ) => {
+    setDecisoesFiscaisPorGrupo((prev) => {
+      const grupoDecisoes = prev[grupoId] || {};
+      const decisaoAtual: DecisaoFiscalItem = grupoDecisoes[itemKey] || {
+        nunota: itemInfo.nunota,
+        codprod: itemInfo.codprod,
+        sequencia: itemInfo.sequencia,
+      };
+
+      const novaDecisao: DecisaoFiscalItem =
+        nivel === 'N3'
+          ? {
+              ...decisaoAtual,
+              nivelEscolhido: 3,
+              lote: 'N3',
+              validade: 'N3',
+              fabricacao: 'N3',
+              quantidade: 'N3',
+            }
+          : nivel === 'N2'
+          ? {
+              ...decisaoAtual,
+              nivelEscolhido: 2,
+              lote: 'N2',
+              validade: 'N2',
+              fabricacao: 'N2',
+              quantidade: 'N2',
+            }
+          : nivel === 'N1'
+          ? {
+              ...decisaoAtual,
+              nivelEscolhido: 1,
+              lote: 'N1',
+              validade: 'N1',
+              fabricacao: 'N1',
+              quantidade: 'N1',
+            }
+          : {
+              ...decisaoAtual,
+              lote: 'ERP',
+              validade: 'ERP',
+              fabricacao: 'ERP',
+              quantidade: 'ERP',
+            };
+
+      return {
+        ...prev,
+        [grupoId]: {
+          ...grupoDecisoes,
+          [itemKey]: novaDecisao,
+        },
+      };
+    });
+  };
+
+  const handleAplicarNivelEmMassa = (
+    grupoId: string,
+    nivel: 'N2' | 'N3' | 'ERP',
+    itensAlvo: any[]
+  ) => {
+    const selecionados = itensSelecionadosPorGrupo[grupoId];
+    const temSelecao = Boolean(selecionados && selecionados.size > 0);
+
+    setDecisoesFiscaisPorGrupo((prev) => {
+      const grupoDecisoes: Record<string, DecisaoFiscalItem> = { ...(prev[grupoId] || {}) };
+
+      for (const item of itensAlvo) {
+        const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
+        if (temSelecao && !selecionados!.has(itemKey)) {
+          continue;
+        }
+
+        // Se estiver aplicando N3 em massa, só aplica se o item de fato teve N3
+        if (nivel === 'N3' && !(item.qtdN3 > 0 || (item.loteN3 && item.loteN3.trim() !== ''))) {
+          continue;
+        }
+
+        const decisaoAtual: DecisaoFiscalItem = grupoDecisoes[itemKey] || {
+          nunota: item.nunota,
+          codprod: item.codprod,
+          sequencia: item.sequencia,
+        };
+
+        const novaDecisao: DecisaoFiscalItem =
+          nivel === 'N3'
+            ? {
+                ...decisaoAtual,
+                nivelEscolhido: 3,
+                lote: 'N3',
+                validade: 'N3',
+                fabricacao: 'N3',
+                quantidade: 'N3',
+              }
+            : nivel === 'N2'
+            ? {
+                ...decisaoAtual,
+                nivelEscolhido: 2,
+                lote: 'N2',
+                validade: 'N2',
+                fabricacao: 'N2',
+                quantidade: 'N2',
+              }
+            : {
+                ...decisaoAtual,
+                lote: 'ERP',
+                validade: 'ERP',
+                fabricacao: 'ERP',
+                quantidade: 'ERP',
+              };
+
+        grupoDecisoes[itemKey] = novaDecisao;
+      }
+
+      return {
+        ...prev,
+        [grupoId]: grupoDecisoes,
+      };
+    });
+  };
+
   const handleSetDecisao = (
     grupoId: string,
     itemKey: string,
     itemInfo: { nunota: number; codprod: number; sequencia: number },
     campo: 'lote' | 'validade' | 'fabricacao',
-    opcao: 'ERP' | 'BIP'
+    opcao: 'ERP' | 'BIP' | 'N2' | 'N3'
   ) => {
     setDecisoesFiscaisPorGrupo((prev) => {
       const grupoDecisoes = prev[grupoId] || {};
@@ -220,7 +364,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
   const handleAplicarDecisaoEmMassa = (
     grupoId: string,
     campo: 'lote' | 'validade' | 'fabricacao',
-    opcao: 'ERP' | 'BIP',
+    opcao: 'ERP' | 'BIP' | 'N2' | 'N3',
     itensAlvo: any[]
   ) => {
     const selecionados = itensSelecionadosPorGrupo[grupoId];
@@ -309,7 +453,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
           const podeResolverDivergencia = totalFiscaisPendentes === 0;
 
           const selecionadosDoGrupo = itensSelecionadosPorGrupo[grupo.id] || new Set();
-          const todosItemKeys = itensParaExibir.map((i) => `${i.nunota}-${i.codprod}-${i.sequencia}`);
+          const itensElegiveisParaSelecao = itensParaExibir.filter((i) => !verificarItemEmN3(grupo, i));
+          const todosItemKeys = itensElegiveisParaSelecao.map((i) => `${i.nunota}-${i.codprod}-${i.sequencia}`);
           const qtdSelecionados = selecionadosDoGrupo.size;
           const todosSelecionados =
             todosItemKeys.length > 0 && todosItemKeys.every((k) => selecionadosDoGrupo.has(k));
@@ -372,6 +517,32 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                         (#{grupo.nunota})
                       </span>
                     )}
+                    {(() => {
+                      const ocsNota = (ocorrencias || []).filter(
+                        (o: any) => o.status !== 'CANCELADO' && (grupo.nunota ? Number(o.nunota) === Number(grupo.nunota) : false)
+                      );
+                      if (ocsNota.length === 0) return null;
+                      return (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#fef3c7',
+                            color: '#92400e',
+                            border: '1px solid #fde68a',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            marginLeft: '8px',
+                          }}
+                          title={`${ocsNota.length} ocorrência(s) ativa(s) registrada(s) para esta nota fiscal`}
+                        >
+                          ⚠️ {ocsNota.length} Ocorrência(s)
+                        </span>
+                      );
+                    })()}
                   </div>
                   <span className="gestao-rec-card-fornecedor">
                     Fornecedor: {grupo.fornecedor}
@@ -432,6 +603,18 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                         <span className="gestao-mini-metrica-valor">{grupo.totalN3}</span>
                       </div>
                     )}
+                    {Boolean(
+                      grupo.itensRecontagem &&
+                      grupo.itensRecontagem.length > 0 &&
+                      ['Aguardando N3', 'N3 em Andamento', 'Em Reconferência', 'Aguardando Recontagem N3', 'Recontagem N3 em Andamento'].includes(grupo.status)
+                    ) && (
+                      <div className="gestao-mini-metrica-box n3-info">
+                        <span className="gestao-mini-metrica-rotulo">Em N3</span>
+                        <span className="gestao-mini-metrica-valor">
+                          {`${grupo.itensRecontagem!.length} ${grupo.itensRecontagem!.length === 1 ? 'item' : 'itens'}`}
+                        </span>
+                      </div>
+                    )}
                     <div className={`gestao-mini-metrica-box ${totalFiscaisPendentes > 0 ? 'divergente' : 'ok'}`}>
                       <span className="gestao-mini-metrica-rotulo">
                         {totalItensFiscais > 0 ? (totalFiscaisPendentes > 0 ? 'Pendentes' : 'Decididos') : 'Divergentes'}
@@ -447,15 +630,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                   {/* Badges de Nível e Status */}
                   <div className="gestao-rec-card-badges">
                     <span className="badge-nivel-rec">Nível Atual: {grupo.nivelAtual}</span>
-                    <span
-                      className={`badge-status-rec ${
-                        grupo.status === 'Divergente'
-                          ? 'divergente'
-                          : grupo.status.includes('Reconferência')
-                          ? 'reconferencia'
-                          : 'aguardando'
-                      }`}
-                    >
+                    <span className={`badge-status-rec ${getStatusBadgeClass(grupo.status)}`}>
                       {grupo.status}
                     </span>
                   </div>
@@ -668,7 +843,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                     <table className="gestao-rec-tabela">
                       <thead>
                         <tr>
-                          <th rowSpan={2} style={{ width: '38px', textAlign: 'center', padding: '6px 4px' }}>
+                          <th style={{ width: '38px', textAlign: 'center', padding: '6px 4px' }}>
                             <input
                               type="checkbox"
                               className="gestao-checkbox-select"
@@ -677,124 +852,98 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                               onChange={() => toggleSelecionarTodos(grupo.id, todosItemKeys)}
                             />
                           </th>
-                          <th rowSpan={2}>Produto</th>
-                          <th rowSpan={2}>Vol.</th>
-                          <th rowSpan={2}>Nota</th>
-                          {exibirN1 && <th rowSpan={2}>N1</th>}
-                          {exibirN2 && <th rowSpan={2}>N2</th>}
-                          {grupo.totalN3 > 0 && <th rowSpan={2}>N3</th>}
-                          <th rowSpan={2}>Diferença</th>
-                          <th rowSpan={2}>Local</th>
-                          <th colSpan={2} className="th-grupo-comparativo lote">
-                            LOTE
-                          </th>
-                          <th colSpan={2} className="th-grupo-comparativo validade">
-                            VALIDADE
-                          </th>
-                          <th colSpan={2} className="th-grupo-comparativo fabricacao">
-                            FABRICAÇÃO
-                          </th>
-                          <th rowSpan={2}>Conferente</th>
-                        </tr>
-                        <tr>
-                          <th className="th-subcoluna sub-erp">
-                            <div className="th-subcoluna-inner">
-                              <span>ERP</span>
-                              <button
-                                type="button"
-                                className="btn-header-massa-sub"
-                                title="Aplicar ERP em massa para Lote (nos itens selecionados ou todos)"
-                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'ERP', itensParaExibir)}
-                              >
-                                ⚡
-                              </button>
-                            </div>
-                          </th>
-                          <th className="th-subcoluna sub-coletor">
-                            <div className="th-subcoluna-inner">
-                              <span>COLETOR</span>
-                              <button
-                                type="button"
-                                className="btn-header-massa-sub"
-                                title="Aplicar COLETOR em massa para Lote (nos itens selecionados ou todos)"
-                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'lote', 'BIP', itensParaExibir)}
-                              >
-                                ⚡
-                              </button>
-                            </div>
-                          </th>
-                          <th className="th-subcoluna sub-erp">
-                            <div className="th-subcoluna-inner">
-                              <span>ERP</span>
-                              <button
-                                type="button"
-                                className="btn-header-massa-sub"
-                                title="Aplicar ERP em massa para Validade (nos itens selecionados ou todos)"
-                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'ERP', itensParaExibir)}
-                              >
-                                ⚡
-                              </button>
-                            </div>
-                          </th>
-                          <th className="th-subcoluna sub-coletor">
-                            <div className="th-subcoluna-inner">
-                              <span>COLETOR</span>
-                              <button
-                                type="button"
-                                className="btn-header-massa-sub"
-                                title="Aplicar COLETOR em massa para Validade (nos itens selecionados ou todos)"
-                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'validade', 'BIP', itensParaExibir)}
-                              >
-                                ⚡
-                              </button>
-                            </div>
-                          </th>
-                          <th className="th-subcoluna sub-erp">
-                            <div className="th-subcoluna-inner">
-                              <span>ERP</span>
-                              <button
-                                type="button"
-                                className="btn-header-massa-sub"
-                                title="Aplicar ERP em massa para Fabricação (nos itens selecionados ou todos)"
-                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'ERP', itensParaExibir)}
-                              >
-                                ⚡
-                              </button>
-                            </div>
-                          </th>
-                          <th className="th-subcoluna sub-coletor">
-                            <div className="th-subcoluna-inner">
-                              <span>COLETOR</span>
-                              <button
-                                type="button"
-                                className="btn-header-massa-sub"
-                                title="Aplicar COLETOR em massa para Fabricação (nos itens selecionados ou todos)"
-                                onClick={() => handleAplicarDecisaoEmMassa(grupo.id, 'fabricacao', 'BIP', itensParaExibir)}
-                              >
-                                ⚡
-                              </button>
-                            </div>
-                          </th>
+                          <th>Produto</th>
+                          <th>Vol.</th>
+                          <th>Qtd Nota</th>
+                          {exibirN1 && <th>Qtd N1</th>}
+                          {exibirN2 && <th>Qtd N2</th>}
+                          {grupo.totalN3 > 0 && <th>Qtd N3</th>}
+                          <th>Diferença</th>
+                          <th>Local</th>
+                          <th className="th-grupo-comparativo lote">LOTE</th>
+                          <th className="th-grupo-comparativo validade">VALIDADE</th>
+                          <th className="th-grupo-comparativo fabricacao">FABRICAÇÃO</th>
+                          <th>Conferente</th>
                         </tr>
                       </thead>
                       <tbody>
                         {itensParaExibir.map((item) => {
                           const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
-                          const lotesConferidos: any[] = (item as any).lotesConferidos || [];
-                          const temMultiplosLotes = lotesConferidos.length > 1;
+                          const decisaoItem = decisoesDoGrupo[itemKey];
+                          const temN3Grupo = grupo.totalN3 > 0;
+                          const temN3Item = Boolean(item.qtdN3 > 0 || ((item as any).loteN3 && (item as any).loteN3.trim() !== ''));
+
+                          // Nível ativo do item (se gestor escolheu N1, N2, N3 ou ERP; padrão N3 se houver desempate, senão N2)
+                          const nivelAtivoItem: 'N1' | 'N2' | 'N3' | 'ERP' =
+                            decisaoItem?.lote === 'ERP' || decisaoItem?.quantidade === 'ERP'
+                              ? 'ERP'
+                              : decisaoItem?.lote === 'N1' || decisaoItem?.nivelEscolhido === 1
+                              ? 'N1'
+                              : decisaoItem?.lote === 'N2' || decisaoItem?.nivelEscolhido === 2
+                              ? 'N2'
+                              : decisaoItem?.lote === 'N3' || decisaoItem?.nivelEscolhido === 3
+                              ? 'N3'
+                              : temN3Item
+                              ? 'N3'
+                              : 'N2';
+
+                          // Lotes conferidos isolados por nível (NUNCA misturar N1, N2 com N3)
+                          const lotesConferidosN1: any[] = (item as any).lotesConferidosN1 || [];
+                          const lotesConferidosN2: any[] = (item as any).lotesConferidosN2 || (item as any).lotesConferidos || [];
+                          const lotesConferidosN3: any[] = (item as any).lotesConferidosN3 || [];
+                          const lotesConferidos: any[] =
+                            nivelAtivoItem === 'N1'
+                              ? lotesConferidosN1
+                              : nivelAtivoItem === 'N3'
+                              ? lotesConferidosN3
+                              : lotesConferidosN2;
+
+                          const temMultiplosLotes = nivelAtivoItem !== 'ERP' && lotesConferidos.length > 1;
                           const isLotesAberto = Boolean(lotesExpandidosDiv[itemKey]);
-                          const temN3 = grupo.totalN3 > 0;
-                          let totalColunasDiv = 13;
+
+                          const loteAtivo =
+                            nivelAtivoItem === 'N1'
+                              ? (item as any).loteN1 || item.lote
+                              : nivelAtivoItem === 'N3'
+                              ? (item as any).loteN3 || item.lote
+                              : (item as any).loteN2 || item.lote;
+
+                          const validadeAtiva =
+                            nivelAtivoItem === 'N1'
+                              ? (item as any).validadeN1 || item.validade
+                              : nivelAtivoItem === 'N3'
+                              ? (item as any).validadeN3 || item.validade
+                              : (item as any).validadeN2 || item.validade;
+
+                          const fabricacaoAtiva =
+                            nivelAtivoItem === 'N1'
+                              ? (item as any).fabricacaoN1 || item.fabricacao
+                              : nivelAtivoItem === 'N3'
+                              ? (item as any).fabricacaoN3 || item.fabricacao
+                              : (item as any).fabricacaoN2 || item.fabricacao;
+
+                          const contagemAtiva =
+                            nivelAtivoItem === 'ERP'
+                              ? item.qtdEsperada
+                              : nivelAtivoItem === 'N1'
+                              ? item.qtdN1
+                              : nivelAtivoItem === 'N3'
+                              ? item.qtdN3
+                              : item.qtdN2 > 0
+                              ? item.qtdN2
+                              : item.qtdN1;
+
+                          let totalColunasDiv = 9;
                           if (exibirN1) totalColunasDiv++;
                           if (exibirN2) totalColunasDiv++;
-                          if (temN3) totalColunasDiv++;
+                          if (temN3Grupo) totalColunasDiv++;
 
-                          const diferenca = item.diferenca;
+                          const diferenca = contagemAtiva - item.qtdEsperada;
                           const classeDif =
                             diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
                           const numnotaStr = String(grupo.numnota || item.nunota || '').trim();
                           const nunotaStr = String(item.nunota || '').trim();
-                          const loteOriginal = String(item.controleOriginal || item.lote || '').trim();
+                          const loteOriginal = String(item.controleOriginal || loteAtivo || '').trim();
                           const isFaltaIsolada = Boolean(
                             diferenca < 0 &&
                             loteOriginal &&
@@ -804,7 +953,6 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const temDivergenciaFiscal = Boolean(
                             item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao
                           );
-                          const decisaoItem = decisoesDoGrupo[itemKey];
                           const pendenteLote = Boolean(item.divergenciaLote && !decisaoItem?.lote);
                           const pendenteValidade = Boolean(item.divergenciaValidade && !decisaoItem?.validade);
                           const pendenteFabricacao = Boolean(item.divergenciaFabricacao && !decisaoItem?.fabricacao);
@@ -817,6 +965,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                             ? 'linha-decisao-concluida'
                             : '';
 
+                          const estaEmN3 = verificarItemEmN3(grupo, item);
+
                           return (
                             <React.Fragment key={`div-frag-${itemKey}`}>
                               <tr key={`div-${itemKey}`} className={classeLinhaDecisao}>
@@ -826,7 +976,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                     className="gestao-checkbox-select"
                                     checked={selecionadosDoGrupo.has(itemKey)}
                                     onChange={() => toggleSelecionarItem(grupo.id, itemKey)}
-                                    title="Selecionar produto para ação em massa"
+                                    disabled={estaEmN3}
+                                    title={estaEmN3 ? 'Este produto já está em fila de reconferência N3.' : 'Selecionar produto para ação em massa'}
                                   />
                                 </td>
                                 <td>
@@ -853,30 +1004,182 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                     Cód: {item.codprod}
                                     {item.referencia ? ` • Ref: ${item.referencia}` : ''}
                                   </div>
-                                  {temMultiplosLotes ? (
-                                    <span className="badge-pendente-aviso" style={{ marginTop: '4px' }}>
-                                      ⚠️ Aguardando Desmembramento ({lotesConferidos.length} Lotes)
-                                    </span>
-                                  ) : isItemPendente ? (
-                                    <span className="badge-pendente-aviso" style={{ marginTop: '4px' }}>
-                                      ⚠️ Pendente de Decisão
-                                    </span>
-                                  ) : isItemDecidido ? (
-                                    <span className="badge-decidido-ok" style={{ marginTop: '4px' }}>
-                                      ✓ Decisão Definida
-                                    </span>
-                                  ) : null}
+                                  {renderBadgesOcorrenciasItem(
+                                    obterOcorrenciasDoItem(ocorrencias, item.nunota, item.codprod, item.sequencia)
+                                  )}
+
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                    {estaEmN3 ? (
+                                      <span
+                                        className="badge-n3-solicitado"
+                                        style={{
+                                          background: '#eff6ff',
+                                          color: '#1d4ed8',
+                                          border: '1px solid #bfdbfe',
+                                          borderRadius: '4px',
+                                          padding: '2px 8px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                        }}
+                                      >
+                                        🔍 Aguardando N3
+                                      </span>
+                                    ) : temMultiplosLotes ? (
+                                      <span className="badge-pendente-aviso">
+                                        ⚠️ Aguardando Desmembramento ({lotesConferidos.length} Lotes)
+                                      </span>
+                                    ) : isItemPendente ? (
+                                      <span className="badge-pendente-aviso">
+                                        ⚠️ Pendente de Decisão
+                                      </span>
+                                    ) : isItemDecidido ? (
+                                      <span className="badge-decidido-ok">
+                                        ✓ Decisão: {nivelAtivoItem}
+                                      </span>
+                                    ) : null}
+
+                                    {temN3Item && (
+                                      <button
+                                        type="button"
+                                        className="btn-estornar-item"
+                                        style={{
+                                          background: '#eff6ff',
+                                          borderColor: '#93c5fd',
+                                          color: '#1d4ed8',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          cursor: 'pointer',
+                                        }}
+                                        onClick={() =>
+                                          setModalRevisarDesempateItem({
+                                            item,
+                                            grupo,
+                                            decisaoAtual: nivelAtivoItem,
+                                          })
+                                        }
+                                        title="Abrir popup comparativo para revisar e alternar entre N2, N3 ou ERP"
+                                      >
+                                        ⚖️ Revisar Desempate
+                                      </button>
+                                    )}
+
+                                    {!temN3Item && isItemPendente && (
+                                      <button
+                                        type="button"
+                                        className="btn-estornar-item"
+                                        style={{
+                                          background: '#fffbeb',
+                                          borderColor: '#fde68a',
+                                          color: '#92400e',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          cursor: 'pointer',
+                                        }}
+                                        onClick={() =>
+                                          setModalDecidirN2Item({
+                                            item,
+                                            grupo,
+                                          })
+                                        }
+                                        title="Abrir modal para confirmar se vai adotar N2 ou enviar para Reconferência N3"
+                                      >
+                                        ⚖️ Decidir Divergência
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                                 <td>{item.codvol || 'UN'}</td>
                                 <td>
                                   <strong>{item.qtdEsperada}</strong>
                                 </td>
                                 {exibirN1 && <td>{item.qtdN1}</td>}
-                                {exibirN2 && <td>{item.qtdN2}</td>}
-                                {temN3 && <td>{item.qtdN3}</td>}
+                                {exibirN2 && (
+                                  <td
+                                    className={`celula-comparativa ${temN3Grupo ? 'clicavel' : ''} ${nivelAtivoItem === 'N2' ? 'selecionada' : ''}`}
+                                    onClick={() => temN3Grupo && handleSelecionarNivelItem(grupo.id, itemKey, item, 'N2')}
+                                    title={temN3Grupo ? 'Clique para adotar a conferência N2' : undefined}
+                                  >
+                                    {temN3Grupo && nivelAtivoItem === 'N2' ? (
+                                      <span className="celula-comparativa selecionada-badge">✓ {item.qtdN2}</span>
+                                    ) : (
+                                      item.qtdN2
+                                    )}
+                                  </td>
+                                )}
+                                {temN3Grupo && (
+                                  <td
+                                    className={`celula-comparativa ${temN3Item ? 'clicavel' : 'neutra'} ${nivelAtivoItem === 'N3' ? 'selecionada' : ''}`}
+                                    onClick={() => temN3Item && handleSelecionarNivelItem(grupo.id, itemKey, item, 'N3')}
+                                    title={temN3Item ? 'Clique para adotar a conferência N3 (Desempate)' : 'Não enviado para N3'}
+                                  >
+                                    {temN3Item ? (
+                                      nivelAtivoItem === 'N3' ? (
+                                        <span className="celula-comparativa selecionada-badge">✓ {item.qtdN3}</span>
+                                      ) : (
+                                        item.qtdN3
+                                      )
+                                    ) : (
+                                      <span style={{ color: 'var(--slate-400)' }}>—</span>
+                                    )}
+                                  </td>
+                                )}
                                 <td>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
-                                    {temMultiplosLotes ? (
+                                    {diferenca > 0 ? (
+                                      <>
+                                        <span className="pill-contagem-status sobra">
+                                          +{diferenca} (Sobra)
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="btn-sobra-ocorrencia"
+                                          disabled={executandoOcorrenciaSobra}
+                                          onClick={() => setModalOcorrenciaSobra({ item: { ...item, diferenca }, grupo })}
+                                          title="Registrar ocorrência formal de SOBRA e deduzir o excedente da contagem para sanar a divergência"
+                                        >
+                                          📦 Gerar Ocorrência de Sobra
+                                        </button>
+                                        {temMultiplosLotes && (
+                                          <>
+                                            <span
+                                              className="pill-contagem-status aviso"
+                                              title="Foram conferidos múltiplos lotes físicos para uma linha única da nota fiscal. É necessário desmembrar no Sankhya após deduzir a sobra."
+                                              style={{ marginTop: '4px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                                            >
+                                              ⚠️ {lotesConferidos.length} Lotes
+                                            </span>
+                                            {(onExecutarDesmembramento || onSincronizarDesmembramento) && (
+                                              <button
+                                                type="button"
+                                                className="btn-desmembrar-item"
+                                                style={{ opacity: 0.7 }}
+                                                onClick={() => {
+                                                  alert(
+                                                    `⚠️ Atenção: Este item possui sobra física de +${diferenca} ${item.codvol || 'UN'}.\n\nVocê precisa primeiro clicar em 'Gerar Ocorrência de Sobra' para registrar a ocorrência e abater o excedente antes de realizar o desmembramento no Sankhya.`
+                                                  );
+                                                }}
+                                                title="Resolva a sobra física antes de desmembrar"
+                                              >
+                                                ✂️ Desmembrar
+                                              </button>
+                                            )}
+                                          </>
+                                        )}
+                                      </>
+                                    ) : temMultiplosLotes ? (
                                       <>
                                         <span
                                           className="pill-contagem-status falta"
@@ -917,21 +1220,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                         <span className={`pill-contagem-status ${classeDif}`}>
                                           {diferenca < 0
                                             ? `⚠️ ${diferenca} (Falta)`
-                                            : diferenca > 0
-                                            ? `+${diferenca} (Sobra)`
                                             : '✓ OK'}
                                         </span>
-                                        {diferenca > 0 && (
-                                          <button
-                                            type="button"
-                                            className="btn-sobra-ocorrencia"
-                                            disabled={executandoOcorrenciaSobra}
-                                            onClick={() => setModalOcorrenciaSobra({ item, grupo })}
-                                            title="Registrar ocorrência formal de SOBRA e deduzir o excedente da contagem para sanar a divergência"
-                                          >
-                                            📦 Gerar Ocorrência de Sobra
-                                          </button>
-                                        )}
                                         {diferenca < 0 && (
                                           isFaltaIsolada ? (
                                             <span
@@ -1056,102 +1346,92 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                   })()}
                                 </td>
 
-                                {/* LOTE - ERP */}
-                                <td
-                                  className={`celula-comparativa borda-esq ${item.divergenciaLote ? 'clicavel' : 'neutra'} ${decisaoItem?.lote === 'ERP' ? 'selecionada' : ''}`}
-                                  onClick={() => item.divergenciaLote && handleSetDecisao(grupo.id, itemKey, item, 'lote', 'ERP')}
-                                  title={item.divergenciaLote ? `Clique para adotar o lote original do ERP (${item.controleOriginal || 'Sem Lote'})` : undefined}
-                                >
-                                  {decisaoItem?.lote === 'ERP' ? (
-                                    <span className="celula-comparativa selecionada-badge">
-                                      ✓ {item.controleOriginal || 'Sem Lote'}
-                                    </span>
-                                  ) : (
-                                    item.controleOriginal || '—'
-                                  )}
+                                {/* LOTE - COMPARAÇÃO NOTA VS CONFERIDO */}
+                                <td>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                                    Nota: <strong style={{ color: '#334155', fontFamily: 'JetBrains Mono, monospace' }}>{item.controleOriginal || 'Sem Lote'}</strong>
+                                  </div>
+                                  <div style={{ marginTop: '3px', fontSize: '0.78rem' }}>
+                                    {temMultiplosLotes ? (
+                                      <span
+                                        className="chip-dropdown-lote ativo"
+                                        style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', cursor: 'default' }}
+                                        title={`${lotesConferidos.length} lotes conferidos no ${nivelAtivoItem}`}
+                                      >
+                                        Conf: {isItemDecidido ? '✓ ' : ''}Múltiplos Lotes ({lotesConferidos.length}) ({nivelAtivoItem})
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          color: isItemDecidido ? '#047857' : '#b45309',
+                                          fontWeight: 600,
+                                          fontFamily: 'JetBrains Mono, monospace',
+                                        }}
+                                      >
+                                        Conf: {isItemDecidido ? '✓ ' : ''}{loteAtivo || 'Sem Lote'} ({nivelAtivoItem})
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
 
-                                {/* LOTE - COLETOR */}
-                                <td
-                                  className={`celula-comparativa borda-dir ${item.divergenciaLote ? 'clicavel' : 'neutra'} ${decisaoItem?.lote === 'BIP' ? 'selecionada' : ''}`}
-                                  onClick={() => !temMultiplosLotes && item.divergenciaLote && handleSetDecisao(grupo.id, itemKey, item, 'lote', 'BIP')}
-                                  title={item.divergenciaLote ? `Clique para adotar o lote conferido no Coletor (${item.lote || 'Sem Lote'})` : undefined}
-                                >
-                                  {temMultiplosLotes ? (
-                                    <span
-                                      className="chip-dropdown-lote ativo"
-                                      style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', cursor: 'default' }}
-                                      title="Múltiplos lotes conferidos no coletor (detalhados abaixo)"
-                                    >
-                                      🏷️ {lotesConferidos.length} Lotes Conferidos
-                                    </span>
-                                  ) : decisaoItem?.lote === 'BIP' ? (
-                                    <span className="celula-comparativa selecionada-badge">
-                                      ✓ {item.lote || 'Sem Lote'}
-                                    </span>
-                                  ) : (
-                                    item.lote || '—'
-                                  )}
+                                {/* VALIDADE - COMPARAÇÃO NOTA VS CONFERIDO */}
+                                <td>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                                    Nota: <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#334155' }}>{formatarDataSimples(item.validadeOriginal) || '—'}</span>
+                                  </div>
+                                  <div style={{ marginTop: '3px', fontSize: '0.78rem' }}>
+                                    {temMultiplosLotes ? (
+                                      <span
+                                        style={{
+                                          color: isItemDecidido ? '#047857' : '#b45309',
+                                          fontWeight: 600,
+                                          fontFamily: 'JetBrains Mono, monospace',
+                                        }}
+                                      >
+                                        Conf: {isItemDecidido ? '✓ ' : ''}Múltiplas ({nivelAtivoItem})
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          color: isItemDecidido ? '#047857' : '#b45309',
+                                          fontWeight: 600,
+                                          fontFamily: 'JetBrains Mono, monospace',
+                                        }}
+                                      >
+                                        Conf: {isItemDecidido ? '✓ ' : ''}{formatarDataSimples(validadeAtiva) || '—'} ({nivelAtivoItem})
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
 
-                                {/* VALIDADE - ERP */}
-                                <td
-                                  className={`celula-comparativa borda-esq ${item.divergenciaValidade ? 'clicavel' : 'neutra'} ${decisaoItem?.validade === 'ERP' ? 'selecionada' : ''}`}
-                                  onClick={() => item.divergenciaValidade && handleSetDecisao(grupo.id, itemKey, item, 'validade', 'ERP')}
-                                  title={item.divergenciaValidade ? `Clique para adotar a validade original do ERP (${formatarDataSimples(item.validadeOriginal) || '—'})` : undefined}
-                                >
-                                  {decisaoItem?.validade === 'ERP' ? (
-                                    <span className="celula-comparativa selecionada-badge">
-                                      ✓ {formatarDataSimples(item.validadeOriginal) || '—'}
-                                    </span>
-                                  ) : (
-                                    formatarDataSimples(item.validadeOriginal) || '—'
-                                  )}
-                                </td>
-
-                                {/* VALIDADE - COLETOR */}
-                                <td
-                                  className={`celula-comparativa borda-dir ${item.divergenciaValidade ? 'clicavel' : 'neutra'} ${decisaoItem?.validade === 'BIP' ? 'selecionada' : ''}`}
-                                  onClick={() => item.divergenciaValidade && handleSetDecisao(grupo.id, itemKey, item, 'validade', 'BIP')}
-                                  title={item.divergenciaValidade ? `Clique para adotar a validade conferida no Coletor (${formatarDataSimples(item.validade) || '—'})` : undefined}
-                                >
-                                  {decisaoItem?.validade === 'BIP' ? (
-                                    <span className="celula-comparativa selecionada-badge">
-                                      ✓ {formatarDataSimples(item.validade) || '—'}
-                                    </span>
-                                  ) : (
-                                    formatarDataSimples(item.validade) || '—'
-                                  )}
-                                </td>
-
-                                {/* FABRICAÇÃO - ERP */}
-                                <td
-                                  className={`celula-comparativa borda-esq ${item.divergenciaFabricacao ? 'clicavel' : 'neutra'} ${decisaoItem?.fabricacao === 'ERP' ? 'selecionada' : ''}`}
-                                  onClick={() => item.divergenciaFabricacao && handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'ERP')}
-                                  title={item.divergenciaFabricacao ? `Clique para adotar a fabricação original do ERP (${formatarDataSimples(item.fabricacaoOriginal) || '—'})` : undefined}
-                                >
-                                  {decisaoItem?.fabricacao === 'ERP' ? (
-                                    <span className="celula-comparativa selecionada-badge">
-                                      ✓ {formatarDataSimples(item.fabricacaoOriginal) || '—'}
-                                    </span>
-                                  ) : (
-                                    formatarDataSimples(item.fabricacaoOriginal) || '—'
-                                  )}
-                                </td>
-
-                                {/* FABRICAÇÃO - COLETOR */}
-                                <td
-                                  className={`celula-comparativa borda-dir ${item.divergenciaFabricacao ? 'clicavel' : 'neutra'} ${decisaoItem?.fabricacao === 'BIP' ? 'selecionada' : ''}`}
-                                  onClick={() => item.divergenciaFabricacao && handleSetDecisao(grupo.id, itemKey, item, 'fabricacao', 'BIP')}
-                                  title={item.divergenciaFabricacao ? `Clique para adotar a fabricação conferida no Coletor (${formatarDataSimples(item.fabricacao) || '—'})` : undefined}
-                                >
-                                  {decisaoItem?.fabricacao === 'BIP' ? (
-                                    <span className="celula-comparativa selecionada-badge">
-                                      ✓ {formatarDataSimples(item.fabricacao) || '—'}
-                                    </span>
-                                  ) : (
-                                    formatarDataSimples(item.fabricacao) || '—'
-                                  )}
+                                {/* FABRICAÇÃO - COMPARAÇÃO NOTA VS CONFERIDO */}
+                                <td>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                                    Nota: <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#334155' }}>{formatarDataSimples(item.fabricacaoOriginal) || '—'}</span>
+                                  </div>
+                                  <div style={{ marginTop: '3px', fontSize: '0.78rem' }}>
+                                    {temMultiplosLotes ? (
+                                      <span
+                                        style={{
+                                          color: isItemDecidido ? '#047857' : '#b45309',
+                                          fontWeight: 600,
+                                          fontFamily: 'JetBrains Mono, monospace',
+                                        }}
+                                      >
+                                        Conf: {isItemDecidido ? '✓ ' : ''}Múltiplas ({nivelAtivoItem})
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          color: isItemDecidido ? '#047857' : '#b45309',
+                                          fontWeight: 600,
+                                          fontFamily: 'JetBrains Mono, monospace',
+                                        }}
+                                      >
+                                        Conf: {isItemDecidido ? '✓ ' : ''}{formatarDataSimples(fabricacaoAtiva) || '—'} ({nivelAtivoItem})
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td
                                   style={{
@@ -1224,16 +1504,60 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                   <div className="gestao-rec-itens-mobile" style={{ marginTop: '8px' }}>
                     {itensParaExibir.map((item) => {
                       const itemKey = `${item.nunota}-${item.codprod}-${item.sequencia}`;
-                      const lotesConferidos: any[] = (item as any).lotesConferidos || [];
-                      const temMultiplosLotes = lotesConferidos.length > 1;
+                      const decisaoItem = decisoesDoGrupo[itemKey];
+                      const temN3Grupo = grupo.totalN3 > 0;
+                      const temN3Item = Boolean(item.qtdN3 > 0 || ((item as any).loteN3 && (item as any).loteN3.trim() !== ''));
+
+                      // Nível ativo do item
+                      const nivelAtivoItem: 'N2' | 'N3' | 'ERP' =
+                        decisaoItem?.lote === 'ERP' || decisaoItem?.quantidade === 'ERP'
+                          ? 'ERP'
+                          : decisaoItem?.lote === 'N2' || decisaoItem?.nivelEscolhido === 2
+                          ? 'N2'
+                          : decisaoItem?.lote === 'N3' || decisaoItem?.nivelEscolhido === 3
+                          ? 'N3'
+                          : temN3Item
+                          ? 'N3'
+                          : 'N2';
+
+                      const lotesConferidos: any[] =
+                        nivelAtivoItem === 'N3'
+                          ? (item as any).lotesConferidosN3 || []
+                          : (item as any).lotesConferidosN2 || (item as any).lotesConferidos || [];
+
+                      const temMultiplosLotes = nivelAtivoItem !== 'ERP' && lotesConferidos.length > 1;
                       const isLotesAberto = lotesExpandidosDiv[itemKey] !== undefined ? Boolean(lotesExpandidosDiv[itemKey]) : true;
 
-                      const diferenca = item.diferenca;
+                      const loteAtivo =
+                        nivelAtivoItem === 'N3'
+                          ? (item as any).loteN3 || item.lote
+                          : (item as any).loteN2 || item.lote;
+
+                      const validadeAtiva =
+                        nivelAtivoItem === 'N3'
+                          ? (item as any).validadeN3 || item.validade
+                          : (item as any).validadeN2 || item.validade;
+
+                      const fabricacaoAtiva =
+                        nivelAtivoItem === 'N3'
+                          ? (item as any).fabricacaoN3 || item.fabricacao
+                          : (item as any).fabricacaoN2 || item.fabricacao;
+
+                      const contagemAtiva =
+                        nivelAtivoItem === 'ERP'
+                          ? item.qtdEsperada
+                          : nivelAtivoItem === 'N3'
+                          ? item.qtdN3
+                          : item.qtdN2 > 0
+                          ? item.qtdN2
+                          : item.qtdN1;
+
+                      const diferenca = contagemAtiva - item.qtdEsperada;
                       const classeDif =
                         diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
                       const numnotaStr = String(grupo.numnota || item.nunota || '').trim();
                       const nunotaStr = String(item.nunota || '').trim();
-                      const loteOriginal = String(item.controleOriginal || item.lote || '').trim();
+                      const loteOriginal = String(item.controleOriginal || loteAtivo || '').trim();
                       const isFaltaIsolada = Boolean(
                         diferenca < 0 &&
                         loteOriginal &&
@@ -1243,7 +1567,6 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       const temDivergenciaFiscal = Boolean(
                         item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao
                       );
-                      const decisaoItem = decisoesDoGrupo[itemKey];
                       const pendenteLote = Boolean(item.divergenciaLote && !decisaoItem?.lote);
                       const pendenteValidade = Boolean(item.divergenciaValidade && !decisaoItem?.validade);
                       const pendenteFabricacao = Boolean(item.divergenciaFabricacao && !decisaoItem?.fabricacao);
@@ -1255,6 +1578,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                         : isItemDecidido
                         ? 'card-mobile-decisao-concluida'
                         : '';
+
+                      const estaEmN3 = verificarItemEmN3(grupo, item);
 
                       return (
                         <div
@@ -1268,7 +1593,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 className="gestao-checkbox-select"
                                 checked={selecionadosDoGrupo.has(itemKey)}
                                 onChange={() => toggleSelecionarItem(grupo.id, itemKey)}
-                                title="Selecionar produto para ação em massa"
+                                disabled={estaEmN3}
+                                title={estaEmN3 ? 'Este produto já está em fila de reconferência N3.' : 'Selecionar produto para ação em massa'}
                               />
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1280,27 +1606,149 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 {item.referencia ? ` • Ref: ${item.referencia}` : ''} • Vol:{' '}
                                 {item.codvol || 'UN'}
                               </div>
-                              {temMultiplosLotes && (
-                                <span
-                                  className="badge-pendente-aviso"
-                                  style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
-                                >
-                                  ⚠️ Aguardando Desmembramento ({lotesConferidos.length} Lotes)
-                                </span>
+                              {renderBadgesOcorrenciasItem(
+                                obterOcorrenciasDoItem(ocorrencias, item.nunota, item.codprod, item.sequencia)
                               )}
-                              {isItemPendente && (
-                                <span className="badge-pendente-aviso">
-                                  ⚠️ Pendente de Decisão
-                                </span>
-                              )}
-                              {isItemDecidido && (
-                                <span className="badge-decidido-ok">
-                                  ✓ Decisão Definida
-                                </span>
-                              )}
+
+                              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                {estaEmN3 ? (
+                                  <span
+                                    className="badge-n3-solicitado"
+                                    style={{
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      border: '1px solid #bfdbfe',
+                                      borderRadius: '4px',
+                                      padding: '2px 8px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    🔍 Aguardando N3
+                                  </span>
+                                ) : temMultiplosLotes ? (
+                                  <span
+                                    className="badge-pendente-aviso"
+                                    style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                                  >
+                                    ⚠️ Aguardando Desmembramento ({lotesConferidos.length} Lotes)
+                                  </span>
+                                ) : isItemPendente ? (
+                                  <span className="badge-pendente-aviso">
+                                    ⚠️ Pendente de Decisão
+                                  </span>
+                                ) : isItemDecidido ? (
+                                  <span className="badge-decidido-ok">
+                                    ✓ Decisão Definida
+                                  </span>
+                                ) : null}
+
+                                {temN3Item && (
+                                  <button
+                                    type="button"
+                                    className="btn-estornar-item"
+                                    style={{
+                                      background: '#eff6ff',
+                                      borderColor: '#93c5fd',
+                                      color: '#1d4ed8',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      cursor: 'pointer',
+                                    }}
+                                    onClick={() =>
+                                      setModalRevisarDesempateItem({
+                                        item,
+                                        grupo,
+                                        decisaoAtual: nivelAtivoItem,
+                                      })
+                                    }
+                                    title="Abrir popup comparativo para revisar e alternar entre N2, N3 ou ERP"
+                                  >
+                                    ⚖️ Revisar Desempate
+                                  </button>
+                                )}
+
+                                {!temN3Item && isItemPendente && (
+                                  <button
+                                    type="button"
+                                    className="btn-estornar-item"
+                                    style={{
+                                      background: '#fffbeb',
+                                      borderColor: '#fde68a',
+                                      color: '#92400e',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      cursor: 'pointer',
+                                    }}
+                                    onClick={() =>
+                                      setModalDecidirN2Item({
+                                        item,
+                                        grupo,
+                                      })
+                                    }
+                                    title="Abrir modal para confirmar se vai adotar N2 ou enviar para Reconferência N3"
+                                  >
+                                    ⚖️ Decidir Divergência
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
-                              {temMultiplosLotes ? (
+                              {diferenca > 0 ? (
+                                <>
+                                  <span className="pill-contagem-status sobra">
+                                    +{diferenca} (Sobra)
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn-sobra-ocorrencia"
+                                    disabled={executandoOcorrenciaSobra}
+                                    onClick={() => setModalOcorrenciaSobra({ item: { ...item, diferenca }, grupo })}
+                                    title="Registrar ocorrência formal de SOBRA e deduzir o excedente da contagem para sanar a divergência"
+                                  >
+                                    📦 Gerar Ocorrência de Sobra
+                                  </button>
+                                  {temMultiplosLotes && (
+                                    <>
+                                      <span
+                                        className="pill-contagem-status aviso"
+                                        title="Item conferido com múltiplos lotes. Necessita desmembramento no ERP após deduzir a sobra."
+                                        style={{ marginTop: '2px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                                      >
+                                        ⚠️ {lotesConferidos.length} Lotes
+                                      </span>
+                                      {(onExecutarDesmembramento || onSincronizarDesmembramento) && (
+                                        <button
+                                          type="button"
+                                          className="btn-desmembrar-item"
+                                          style={{ opacity: 0.7 }}
+                                          onClick={() => {
+                                            alert(
+                                              `⚠️ Atenção: Este item possui sobra física de +${diferenca} ${item.codvol || 'UN'}.\n\nVocê precisa primeiro clicar em 'Gerar Ocorrência de Sobra' para registrar a ocorrência e abater o excedente antes de realizar o desmembramento no Sankhya.`
+                                            );
+                                          }}
+                                          title="Resolva a sobra física antes de desmembrar"
+                                        >
+                                          ✂️ Desmembrar
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </>
+                              ) : temMultiplosLotes ? (
                                 <>
                                   <span className="pill-contagem-status aviso" title="Item conferido com múltiplos lotes. Necessita desmembramento no ERP.">
                                     ⚠️ {lotesConferidos.length} Lotes
@@ -1338,21 +1786,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                   <span className={`pill-contagem-status ${classeDif}`}>
                                     {diferenca < 0
                                       ? `⚠️ ${diferenca} (Falta)`
-                                      : diferenca > 0
-                                      ? `+${diferenca} (Sobra)`
                                       : '✓ OK'}
                                   </span>
-                                  {diferenca > 0 && (
-                                    <button
-                                      type="button"
-                                      className="btn-sobra-ocorrencia"
-                                      disabled={executandoOcorrenciaSobra}
-                                      onClick={() => setModalOcorrenciaSobra({ item, grupo })}
-                                      title="Registrar ocorrência formal de SOBRA e deduzir o excedente da contagem para sanar a divergência"
-                                    >
-                                      📦 Gerar Ocorrência de Sobra
-                                    </button>
-                                  )}
                                   {diferenca < 0 && (
                                     isFaltaIsolada ? (
                                       <span
@@ -1537,7 +1972,48 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 }}
                               >
                                 <div>
-                                  {item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao ? (
+                                  {temN3Grupo ? (
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 8px', marginTop: '4px' }}>
+                                      <div style={{ color: 'var(--slate-800)', fontWeight: 700, fontSize: '0.72rem', marginBottom: '4px' }}>
+                                        ⚖️ Escolher Conferência / Desempate:
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${nivelAtivoItem === 'ERP' ? 'ativo-erp' : ''}`}
+                                          onClick={() => handleSelecionarNivelItem(grupo.id, itemKey, item, 'ERP')}
+                                          style={{ flex: 1, padding: '4px 6px', fontSize: '0.70rem' }}
+                                        >
+                                          {nivelAtivoItem === 'ERP' && '✓ '}ERP ({item.controleOriginal || 'S/ Lote'})
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={`btn-decisao-fiscal ${nivelAtivoItem === 'N2' ? 'ativo-bip' : ''}`}
+                                          onClick={() => handleSelecionarNivelItem(grupo.id, itemKey, item, 'N2')}
+                                          style={{ flex: 1, padding: '4px 6px', fontSize: '0.70rem' }}
+                                        >
+                                          {nivelAtivoItem === 'N2' && '✓ '}N2 ({(item as any).loteN2 || item.lote || 'S/ Lote'})
+                                        </button>
+                                        {temN3Item && (
+                                          <button
+                                            type="button"
+                                            className={`btn-decisao-fiscal ${nivelAtivoItem === 'N3' ? 'ativo-bip' : ''}`}
+                                            onClick={() => handleSelecionarNivelItem(grupo.id, itemKey, item, 'N3')}
+                                            style={{
+                                              flex: 1,
+                                              padding: '4px 6px',
+                                              fontSize: '0.70rem',
+                                              background: nivelAtivoItem === 'N3' ? '#4338ca' : '#e0e7ff',
+                                              color: nivelAtivoItem === 'N3' ? '#ffffff' : '#4338ca',
+                                              borderColor: '#c7d2fe',
+                                            }}
+                                          >
+                                            {nivelAtivoItem === 'N3' && '✓ '}N3 ({(item as any).loteN3 || 'S/ Lote'})
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao ? (
                                     <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '4px', padding: '4px 6px', marginTop: '2px' }}>
                                       <div style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.70rem' }}>
                                         ⚠️ Divergência Fiscal/Cadastro:
@@ -1656,9 +2132,53 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                 <button
                   type="button"
                   className="gestao-btn-acao gestao-btn-n3"
-                  onClick={() => onReconferirN3(grupo)}
+                  onClick={() => {
+                    const statusAtual = grupo.status || '';
+                    if (ehStatusEmAndamento(statusAtual)) {
+                      const conferenteAtivo =
+                        (grupo.conferentesN3 && grupo.conferentesN3[0]) ||
+                        (grupo.conferentesN2 && grupo.conferentesN2[0]) ||
+                        (grupo.conferentesN1 && grupo.conferentesN1[0]) ||
+                        grupo.conferente;
+                      if (onBloqueioEmAndamento) {
+                        onBloqueioEmAndamento({
+                          conferente: conferenteAtivo,
+                          numnota: grupo.numnota || grupo.numerosNotas,
+                          status: grupo.status,
+                        });
+                      } else {
+                        alert(
+                          `Ação bloqueada: a conferência da nota já está em andamento${
+                            conferenteAtivo ? ` pelo conferente ${conferenteAtivo}` : ''
+                          }. Só é permitido enviar para reconferência quando a conferência estiver finalizada ou aguardando.`
+                        );
+                      }
+                      return;
+                    }
+
+                    const selecionados = selecionadosDoGrupo;
+                    if (!selecionados || selecionados.size === 0) {
+                      if (!isExpandido) {
+                        toggleItensDivergencia(grupo.id);
+                      }
+                      alert('Selecione ao menos um produto na tabela com o checkbox para enviar para a Reconferência N3.');
+                      return;
+                    }
+                    const itensMapeados = grupo.todosItens.filter((i) =>
+                      selecionados.has(`${i.nunota}-${i.codprod}-${i.sequencia}`) && !verificarItemEmN3(grupo, i)
+                    );
+                    if (itensMapeados.length === 0) {
+                      alert('Todos os itens selecionados já estão em reconferência N3.');
+                      return;
+                    }
+                    onReconferirN3(grupo, itensMapeados);
+                  }}
+                  title="Enviar os produtos selecionados para reconferência cega de desempate (N3)"
                 >
-                  <span>🔍 Reconferir (N3)</span>
+                  <span>
+                    🔍 Reconferir (N3)
+                    {(selecionadosDoGrupo?.size || 0) > 0 ? ` (${selecionadosDoGrupo.size})` : ''}
+                  </span>
                 </button>
 
                 <button
@@ -1689,7 +2209,6 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                 modalDesmembrarItem.grupo.conferenciaId || modalDesmembrarItem.grupo.id,
                 dados
               );
-              setModalDesmembrarItem(null);
             } finally {
               setExecutandoDesmembramento(false);
             }
@@ -1716,6 +2235,49 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
             } finally {
               setExecutandoOcorrenciaSobra(false);
             }
+          }}
+        />
+      )}
+
+      {modalRevisarDesempateItem && (
+        <ModalRevisarDesempate
+          isOpen={Boolean(modalRevisarDesempateItem)}
+          onClose={() => setModalRevisarDesempateItem(null)}
+          item={modalRevisarDesempateItem.item}
+          grupo={modalRevisarDesempateItem.grupo}
+          decisaoAtual={modalRevisarDesempateItem.decisaoAtual}
+          onConfirmarDecisao={(nivel) => {
+            const itemKey = `${modalRevisarDesempateItem.item.nunota}-${modalRevisarDesempateItem.item.codprod}-${modalRevisarDesempateItem.item.sequencia}`;
+            handleSelecionarNivelItem(
+              modalRevisarDesempateItem.grupo.id,
+              itemKey,
+              modalRevisarDesempateItem.item,
+              nivel
+            );
+            setModalRevisarDesempateItem(null);
+          }}
+        />
+      )}
+
+      {modalDecidirN2Item && (
+        <ModalDecidirDivergenciaN2
+          isOpen={Boolean(modalDecidirN2Item)}
+          onClose={() => setModalDecidirN2Item(null)}
+          item={modalDecidirN2Item.item}
+          grupo={modalDecidirN2Item.grupo}
+          onAdotarN2={() => {
+            const itemKey = `${modalDecidirN2Item.item.nunota}-${modalDecidirN2Item.item.codprod}-${modalDecidirN2Item.item.sequencia}`;
+            handleSelecionarNivelItem(
+              modalDecidirN2Item.grupo.id,
+              itemKey,
+              modalDecidirN2Item.item,
+              'N2'
+            );
+            setModalDecidirN2Item(null);
+          }}
+          onEnviarN3={() => {
+            onReconferirN3(modalDecidirN2Item.grupo, [modalDecidirN2Item.item]);
+            setModalDecidirN2Item(null);
           }}
         />
       )}

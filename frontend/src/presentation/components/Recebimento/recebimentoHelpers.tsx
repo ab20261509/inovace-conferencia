@@ -3,14 +3,72 @@ import React from 'react';
 export function getStatusBadgeClass(status: string): string {
   if (status === 'Em Aberto') return 'em-aberto';
   if (status === 'Divergente') return 'divergente';
-  if (status.includes('Aguardando Recontagem') || status.includes('Aguardando N') || status.includes('Reconferência')) return 'reconferencia';
-  if (status.includes('Recontagem')) return 'andamento';
+  // Reconferência N3 e Aguardando N3 -> Índigo/Azul
+  if (status.includes('N3') || status === 'Aguardando N3' || status.includes('Reconferência')) return 'n3-desempate';
+  // Recontagem N2 e Aguardando Recontagem -> Âmbar/Amarelo
+  if (status.includes('Aguardando Recontagem') || status.includes('Aguardando N') || status.includes('N2')) return 'reconferencia';
+  if (status.includes('Recontagem')) return 'reconferencia';
   if (status === 'Conferido') return 'conferido';
   if (status === 'Aguardando Aprovação') return 'aguardando';
   if (status === 'Enviado ao Sankhya') return 'enviado';
   if (status.includes('em Andamento') || status === 'Iniciado') return 'andamento';
   if (status === 'Cancelado') return 'cancelado';
   return 'andamento';
+}
+
+export function ehStatusEmAndamento(status?: string): boolean {
+  if (!status) return false;
+  const s = status.toLowerCase();
+  return (
+    s.includes('andamento') ||
+    s === 'iniciado' ||
+    s.includes('em reconferência') ||
+    s.includes('em reconferencia')
+  );
+}
+
+export function verificarItemEmN3(
+  sessaoOuGrupo: {
+    nivelAtual?: number;
+    status?: string;
+    itensRecontagem?: Array<{ nunota: number; sequencia: number; codprod: number }>;
+  },
+  item: {
+    nunota?: number;
+    sequencia?: number;
+    codprod?: number;
+    diferenca?: number;
+    qtdN2?: number;
+    qtdEsperada?: number;
+  }
+): boolean {
+  const statusStr = (sessaoOuGrupo.status || '').trim();
+
+  // 1. A conferência DEVE estar ativamente com reconferência N3 solicitada pelo gestor ou em andamento
+  const statusAtivoN3 = [
+    'Aguardando N3',
+    'N3 em Andamento',
+    'Em Reconferência',
+    'Aguardando Recontagem N3',
+    'Recontagem N3 em Andamento',
+  ].includes(statusStr) || (statusStr.toLowerCase().includes('reconferência') && statusStr.includes('3'));
+
+  if (!statusAtivoN3) {
+    return false;
+  }
+
+  // 2. O item DEVE constar expressamente na lista de itensRecontagem enviada pelo gestor
+  const itensRec = sessaoOuGrupo.itensRecontagem;
+  if (!itensRec || itensRec.length === 0) {
+    return false;
+  }
+
+  return itensRec.some(
+    (r) =>
+      Number(r.codprod) === Number(item.codprod) &&
+      Number(r.sequencia) === Number(item.sequencia) &&
+      (!r.nunota || !item.nunota || Number(r.nunota) === Number(item.nunota))
+  );
 }
 
 export function formatarConferentes(item: {
@@ -217,4 +275,103 @@ export const BadgePrevisaoEntrega: React.FC<{ data?: string | null }> = ({ data 
     </span>
   );
 };
+
+export function obterOcorrenciasDoItem(
+  ocorrencias?: any[],
+  nunota?: number,
+  codprod?: number,
+  sequencia?: number
+): any[] {
+  if (!ocorrencias || !ocorrencias.length || !codprod) return [];
+  return ocorrencias.filter((oc) => {
+    if (oc.status === 'CANCELADO') return false;
+    if (Number(oc.codprod) !== Number(codprod)) return false;
+    if (nunota && oc.nunota && Number(oc.nunota) !== Number(nunota)) return false;
+    if (sequencia && oc.sequencia && Number(oc.sequencia) !== Number(sequencia)) return false;
+    return true;
+  });
+}
+
+export function renderBadgesOcorrenciasItem(ocorrenciasItem: any[]) {
+  if (!ocorrenciasItem || ocorrenciasItem.length === 0) return null;
+
+  return (
+    <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '3px', alignItems: 'center' }}>
+      {ocorrenciasItem.map((oc) => {
+        const isSobra = oc.tipo === 'SOBRA';
+        const isAvaria = oc.tipo === 'AVARIA';
+        const isVencido = oc.tipo === 'VENCIDO';
+        const isFalta = oc.tipo === 'FALTA';
+
+        const bg = isSobra
+          ? '#f0fdf4'
+          : isAvaria
+          ? '#fff1f2'
+          : isVencido
+          ? '#fef2f2'
+          : isFalta
+          ? '#fff7ed'
+          : '#f8fafc';
+
+        const border = isSobra
+          ? '#86efac'
+          : isAvaria
+          ? '#fda4af'
+          : isVencido
+          ? '#fca5a5'
+          : isFalta
+          ? '#fed7aa'
+          : '#e2e8f0';
+
+        const color = isSobra
+          ? '#15803d'
+          : isAvaria
+          ? '#be123c'
+          : isVencido
+          ? '#b91c1c'
+          : isFalta
+          ? '#c2410c'
+          : '#334155';
+
+        const emoji = isSobra ? '➕' : isAvaria ? '💥' : isVencido ? '⛔' : isFalta ? '➖' : '⚠️';
+        const label = isSobra
+          ? 'Sobra Física'
+          : isAvaria
+          ? 'Avaria'
+          : isVencido
+          ? 'Vencido'
+          : isFalta
+          ? 'Falta'
+          : oc.tipo;
+
+        const infoLocal = oc.codlocalDestino ? ` (Local ${oc.codlocalDestino})` : '';
+
+        return (
+          <span
+            key={`tag-oc-${oc.id}`}
+            title={`${label}: ${oc.quantidade} UN${infoLocal} • Motivo: ${oc.motivo || 'Sem apontamento'}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              padding: '2px 7px',
+              borderRadius: '6px',
+              background: bg,
+              border: `1px solid ${border}`,
+              color: color,
+              lineHeight: '1.2',
+            }}
+          >
+            <span>{emoji}</span>
+            <span>
+              {label}: {oc.quantidade} UN{infoLocal}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 

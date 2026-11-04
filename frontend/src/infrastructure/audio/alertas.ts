@@ -187,9 +187,15 @@ function vozPortugues(sintese: SpeechSynthesis): SpeechSynthesisVoice | null {
 }
 
 /** Lê um texto em voz alta */
-export function falar(texto: string): void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  if (!texto) return;
+export function falar(texto: string, onFim?: () => void): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    onFim?.();
+    return;
+  }
+  if (!texto) {
+    onFim?.();
+    return;
+  }
 
   const sintese = window.speechSynthesis;
 
@@ -206,9 +212,23 @@ export function falar(texto: string): void {
     const voz = vozPortugues(sintese);
     if (voz) fala.voice = voz;
 
+    if (onFim) {
+      let finalizado = false;
+      const finalizar = () => {
+        if (!finalizado) {
+          finalizado = true;
+          onFim();
+        }
+      };
+      fala.onend = finalizar;
+      fala.onerror = finalizar;
+      // Timeout de segurança caso a síntese trave no dispositivo
+      window.setTimeout(finalizar, 2000);
+    }
+
     sintese.speak(fala);
   } catch {
-    // Dispositivo sem motor de voz instalado — segue sem falar
+    onFim?.();
   }
 }
 
@@ -229,4 +249,47 @@ export function tocarAlertaErro(mensagem?: string, resolverProduto?: ResolverPro
 
   // Espera o bipe terminar (~0,48 s) para a voz não competir com ele
   window.setTimeout(() => falar(texto), 520);
+}
+
+/**
+ * Emite um som duplo suave e instrui vocalmente de acordo com o campo:
+ * "Informe o lote", "Informe a validade" ou "Informe a fabricação".
+ * Chama onProntoParaOuvir assim que a fala termina, para que o microfone
+ * não capture o próprio áudio do dispositivo.
+ */
+export function tocarAlertaPedirCampo(
+  campoNome: 'lote' | 'validade' | 'fabricacao',
+  onProntoParaOuvir?: () => void
+): void {
+  const ctx = criarContexto();
+  if (ctx) {
+    const agendar = () => {
+      const agora = ctx.currentTime;
+      bipe(ctx, 750, agora, 0.09, 0.14);
+      bipe(ctx, 980, agora + 0.10, 0.14, 0.14);
+    };
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(agendar).catch(() => undefined);
+    } else {
+      agendar();
+    }
+  }
+
+  const frase =
+    campoNome === 'validade'
+      ? 'Informe a validade'
+      : campoNome === 'fabricacao'
+      ? 'Informe a fabricação'
+      : 'Informe o lote';
+
+  // Fala sintetizada suave
+  window.setTimeout(() => falar(frase, onProntoParaOuvir), 240);
+}
+
+/**
+ * Emite um som duplo suave e instrui vocalmente: "Informe o lote".
+ * (Mantido por compatibilidade com implementações existentes)
+ */
+export function tocarAlertaPedirLote(onProntoParaOuvir?: () => void): void {
+  tocarAlertaPedirCampo('lote', onProntoParaOuvir);
 }

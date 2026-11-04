@@ -1,5 +1,7 @@
 import { Application, Request, Response } from 'express';
 import { RequestHandler } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { createAuthRoutes } from './authRoutes.js';
 import { createCrudRoutes } from './crudRoutes.js';
 import { createApiRoutes } from './apiRoutes.js';
@@ -53,6 +55,22 @@ export function registerRoutes(
 
   // Imagem de produto (pública — usada por tags <img>)
   app.get('/api/crud/produto/:codProd/imagem', (req, res) => controllers.crudController.produtoImagem(req, res));
+
+  // Download do Certificado CA para instalação em dispositivos
+  app.get('/api/download-ca', (_req: Request, res: Response) => {
+    const certPath = path.resolve(process.cwd(), '../frontend/public/rootCA.crt');
+    const localAppData = process.env.LOCALAPPDATA || '';
+    const fallbackPath = path.join(localAppData, 'mkcert/rootCA.pem');
+
+    const caFile = fs.existsSync(certPath) ? certPath : fallbackPath;
+
+    if (fs.existsSync(caFile)) {
+      res.setHeader('Content-Type', 'application/x-x509-ca-cert');
+      res.setHeader('Content-Disposition', 'attachment; filename="rootCA.crt"');
+      return res.sendFile(path.resolve(caFile));
+    }
+    return res.status(404).send('Certificado CA não encontrado');
+  });
 
   // Middlewares de permissão por módulo
   const permSaida = createPermissionMiddleware(permissoesRepo, 'conferencia_saida');

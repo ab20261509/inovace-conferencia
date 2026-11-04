@@ -128,52 +128,86 @@ export class EnviarConferenciaSankhyaUseCase {
         });
       }
     } else {
-      if (input.nivelEscolhido) {
-        const filtrados = bipagensValidas.filter((b) => b.nivel === input.nivelEscolhido && Boolean(b.lote));
-        if (filtrados.length > 0) {
-          bipsParaUso = filtrados;
-        }
-      } else {
-        const temLoteN3 = bipagensValidas.some((b) => b.nivel === 3 && Boolean(b.lote));
-        const temLoteN2 = bipagensValidas.some((b) => b.nivel === 2 && Boolean(b.lote));
-        if (temLoteN3) {
-          bipsParaUso = bipagensValidas.filter((b) => b.nivel === 3 && Boolean(b.lote));
-        } else if (temLoteN2) {
-          bipsParaUso = bipagensValidas.filter((b) => b.nivel === 2 && Boolean(b.lote));
-        }
-      }
-
-      for (const b of bipsParaUso) {
+      // Agrupamento por item considerando a decisão do gestor (N2, N3 ou ERP)
+      // Agrupa todas as bipagens válidas por nunota|codprod
+      const bipsPorProd: Record<string, typeof bipagensValidas> = {};
+      for (const b of bipagensValidas) {
         if (!b.lote) continue;
         const key = `${b.nunota}|${b.codprod}`;
-        const itemKey = `${b.nunota}-${b.codprod}-${b.sequencia}`;
-        const decisao = sessao.decisoesFiscais?.[itemKey] || sessao.decisoesFiscais?.[String(b.codprod)];
+        if (!bipsPorProd[key]) bipsPorProd[key] = [];
+        bipsPorProd[key].push(b);
+      }
 
-        // Se a decisão do gestor for manter o lote original do ERP, não envia o lote conferido
-        if (decisao?.lote === 'ERP') {
+      for (const [key, bipsDoProd] of Object.entries(bipsPorProd)) {
+        const [nunotaStr, codprodStr] = key.split('|');
+        // Verifica se há alguma decisão específica para este produto
+        let nivelParaProd: number | 'ERP' = 0;
+        let decisaoItemRef: any = undefined;
+
+        for (const b of bipsDoProd) {
+          const itemKey = `${b.nunota}-${b.codprod}-${b.sequencia}`;
+          const dec = sessao.decisoesFiscais?.[itemKey] || sessao.decisoesFiscais?.[String(b.codprod)];
+          if (dec) {
+            decisaoItemRef = dec;
+            if (dec.lote === 'ERP') {
+              nivelParaProd = 'ERP';
+              break;
+            } else if (dec.nivelEscolhido === 1 || dec.lote === 'N1') {
+              nivelParaProd = 1;
+              break;
+            } else if (dec.nivelEscolhido === 2 || dec.lote === 'N2') {
+              nivelParaProd = 2;
+              break;
+            } else if (dec.nivelEscolhido === 3 || dec.lote === 'N3') {
+              nivelParaProd = 3;
+              break;
+            }
+          }
+        }
+
+        if (nivelParaProd === 'ERP') {
+          // O gestor decidiu manter os dados fiscais originais do ERP
           continue;
         }
 
-        const validadeParaUso = decisao?.validade === 'ERP' ? undefined : b.validade?.trim();
-        const fabricacaoParaUso = decisao?.fabricacao === 'ERP' ? undefined : b.fabricacao?.trim();
-
-        if (!mapaLotesPorProd[key]) {
-          mapaLotesPorProd[key] = [];
+        // Se não houver decisão explícita para o produto, prioriza N3 se existir para ele, senão N2
+        if (nivelParaProd === 0) {
+          if (input.nivelEscolhido) {
+            nivelParaProd = input.nivelEscolhido;
+          } else {
+            const temN3 = bipsDoProd.some((b) => b.nivel === 3);
+            nivelParaProd = temN3 ? 3 : 2;
+          }
         }
-        const loteExistente = mapaLotesPorProd[key].find(
-          (l) => l.lote.toUpperCase() === b.lote!.trim().toUpperCase()
-        );
-        if (loteExistente) {
-          loteExistente.qtd += b.qtdConferida;
-          if (validadeParaUso && !loteExistente.validade) loteExistente.validade = validadeParaUso;
-          if (fabricacaoParaUso && !loteExistente.fabricacao) loteExistente.fabricacao = fabricacaoParaUso;
-        } else {
-          mapaLotesPorProd[key].push({
-            lote: b.lote.trim(),
-            validade: validadeParaUso,
-            fabricacao: fabricacaoParaUso,
-            qtd: b.qtdConferida,
-          });
+
+        const bipsFiltradasDoProd = bipsDoProd.filter((b) => b.nivel === nivelParaProd && Boolean(b.lote));
+
+        for (const b of bipsFiltradasDoProd) {
+          if (!b.lote) continue;
+          const itemKey = `${b.nunota}-${b.codprod}-${b.sequencia}`;
+          const decisao = sessao.decisoesFiscais?.[itemKey] || decisaoItemRef;
+
+          const validadeParaUso = decisao?.validade === 'ERP' ? undefined : b.validade?.trim();
+          const fabricacaoParaUso = decisao?.fabricacao === 'ERP' ? undefined : b.fabricacao?.trim();
+
+          if (!mapaLotesPorProd[key]) {
+            mapaLotesPorProd[key] = [];
+          }
+          const loteExistente = mapaLotesPorProd[key].find(
+            (l) => l.lote.toUpperCase() === b.lote!.trim().toUpperCase()
+          );
+          if (loteExistente) {
+            loteExistente.qtd += b.qtdConferida;
+            if (validadeParaUso && !loteExistente.validade) loteExistente.validade = validadeParaUso;
+            if (fabricacaoParaUso && !loteExistente.fabricacao) loteExistente.fabricacao = fabricacaoParaUso;
+          } else {
+            mapaLotesPorProd[key].push({
+              lote: b.lote.trim(),
+              validade: validadeParaUso,
+              fabricacao: fabricacaoParaUso,
+              qtd: b.qtdConferida,
+            });
+          }
         }
       }
     }

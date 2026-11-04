@@ -10,11 +10,13 @@ import {
 } from '../../domain/models/ConferenciaEntrada';
 import { Botao, Campo, Container, Label, Painel, ModalCameraScanner, ModalFolhaBipagem } from '../components';
 import { Loading } from '../components/Loading/Loading';
-import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso } from '../../infrastructure/audio/alertas';
+import { prepararAudio, tocarAlertaErro, tocarAlertaSucesso, tocarAlertaPedirCampo } from '../../infrastructure/audio/alertas';
+import { criarReconhecedorLote, isReconhecimentoVozDisponivel, ReconhecimentoLoteController } from '../../infrastructure/speech/reconhecimentoLote';
 import { extractFieldValue, normalizeDate } from '../../infrastructure/utils/ocrParser';
 import { aplicarMascaraData, completarAnoData, validarData, checarStatusValidade } from '../utils/dateMaskHelper';
 import { ModalRegistrarOcorrencia } from '../components/Recebimento/ModalRegistrarOcorrencia';
 import { ModalListaOcorrenciasSessao, getStatusOcorrenciaInfo } from '../components/Recebimento/ModalListaOcorrenciasSessao';
+import { ModalDitadoLote, TipoCampoDitado } from '../components/Recebimento/ModalDitadoLote';
 import { TipoOcorrenciaRecebimento, OcorrenciaRecebimento, obterTermosOcorrencia } from '../../domain/models/OcorrenciaRecebimento';
 import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
@@ -49,6 +51,27 @@ function formatarDataApenas(val?: string | null): string {
     // fallback
   }
   return val;
+}
+
+function itemCorrespondeAoCodigo(it: ItemNotaEntrada, cod: string): boolean {
+  const c = cod.trim().toUpperCase();
+  if (!c) return false;
+  const cSemZero = c.replace(/^0+/, '');
+
+  const match = (target?: string | null) => {
+    if (!target) return false;
+    const t = target.trim().toUpperCase();
+    if (t === c) return true;
+    if (cSemZero && t.replace(/^0+/, '') === cSemZero) return true;
+    return false;
+  };
+
+  if (match(it.codbarra)) return true;
+  if (it.codigosAlternativos && it.codigosAlternativos.some((alt) => match(alt.codbarra))) return true;
+  if (match(String(it.codprod))) return true;
+  if (match(it.referencia)) return true;
+  if (match(it.refforn)) return true;
+  return false;
 }
 
 interface ItemEntradaConferidoVisivel {
@@ -176,8 +199,68 @@ export function ConferenciaEntradaPage() {
     return itens.filter((it) => it.nunota === notaFiltro);
   }, [itens, notaFiltro]);
 
+  // Consolidação de itens por produto na mesma nota para a visualização operacional do conferente
+  // Evita cards duplicados quando um produto foi faturado em múltiplas sequências na mesma TGFITE
+  const itensConsolidados = useMemo(() => {
+    const mapa = new Map<string, ItemNotaEntrada>();
+
+    for (const it of itensExibidos) {
+      const chave = `${it.nunota}|${it.codprod}`;
+      if (!mapa.has(chave)) {
+        mapa.set(chave, {
+          ...it,
+          lotesConferidos: it.lotesConferidos ? it.lotesConferidos.map((l) => ({ ...l })) : [],
+        });
+      } else {
+        const existente = mapa.get(chave)!;
+        if (existente.qtdneg !== null && it.qtdneg !== null) {
+          existente.qtdneg += it.qtdneg;
+        } else if (it.qtdneg !== null) {
+          existente.qtdneg = it.qtdneg;
+        }
+
+        existente.qtdConferidaN1 = (existente.qtdConferidaN1 || 0) + (it.qtdConferidaN1 || 0);
+        existente.qtdConferidaN2 = (existente.qtdConferidaN2 || 0) + (it.qtdConferidaN2 || 0);
+        existente.qtdConferidaN3 = (existente.qtdConferidaN3 || 0) + (it.qtdConferidaN3 || 0);
+
+        if (it.lotesConferidos && it.lotesConferidos.length > 0) {
+          existente.lotesConferidos = existente.lotesConferidos || [];
+          for (const l of it.lotesConferidos) {
+            const idx = existente.lotesConferidos.findIndex(
+              (el) => el.lote.toUpperCase() === l.lote.toUpperCase()
+            );
+            if (idx >= 0) {
+              existente.lotesConferidos[idx].quantidade += l.quantidade;
+              if (l.bipagemIds) {
+                existente.lotesConferidos[idx].bipagemIds = [
+                  ...(existente.lotesConferidos[idx].bipagemIds || []),
+                  ...l.bipagemIds,
+                ];
+              }
+            } else {
+              existente.lotesConferidos.push({ ...l });
+            }
+          }
+        }
+
+        const nivelCorrente = sessao?.nivelAtual || 1;
+        const confNivel =
+          nivelCorrente === 1
+            ? existente.qtdConferidaN1
+            : nivelCorrente === 2
+            ? existente.qtdConferidaN2
+            : existente.qtdConferidaN3;
+        if (existente.qtdneg !== null) {
+          existente.conferidoCompleto = confNivel >= existente.qtdneg;
+        }
+      }
+    }
+
+    return Array.from(mapa.values());
+  }, [itensExibidos, sessao?.nivelAtual]);
+
   const itensFolhaNormalizados = useMemo(() => {
-    return itensExibidos.map((it) => {
+    return itensConsolidados.map((it) => {
       let lotes: Array<{
         lote: string;
         validade?: string | null;
@@ -362,6 +445,274 @@ export function ConferenciaEntradaPage() {
   const [feedbackVisual, setFeedbackVisual] = useState<{ codProd: number; descrProd: string } | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputCodigoRef = useRef<HTMLInputElement>(null);
+  const inputLoteRef = useRef<HTMLInputElement>(null);
+  const inputValidadeRef = useRef<HTMLInputElement>(null);
+  const inputFabricacaoRef = useRef<HTMLInputElement>(null);
+  const btnConferirRef = useRef<HTMLButtonElement>(null);
+
+  const reconhecedorVozRef = useRef<ReconhecimentoLoteController | null>(null);
+  const isSequenciaAtivaRef = useRef<boolean>(false);
+  const [campoVozAtivo, setCampoVozAtivo] = useState<TipoCampoDitado>('lote');
+  const [modalDitadoAberto, setModalDitadoAberto] = useState(false);
+  const [ouvindoVozCampo, setOuvindoVozCampo] = useState<TipoCampoDitado | null>(null);
+  const [valorDitadoTemp, setValorDitadoTemp] = useState('');
+  const [erroDitadoTemp, setErroDitadoTemp] = useState<string | null>(null);
+
+  // Auto-preenchimento e bloqueio de lote existente para manter integridade de datas no Sankhya
+  const [loteBloqueadoAuto, setLoteBloqueadoAuto] = useState(false);
+  const [codprodLoteRepetido, setCodprodLoteRepetido] = useState<number | null>(null);
+  const [popupLoteAuto, setPopupLoteAuto] = useState<{
+    produto: string;
+    lote: string;
+    validade: string;
+    fabricacao: string;
+  } | null>(null);
+
+  const checarLoteExistente = useCallback(
+    (loteDigitado: string, codAtual?: string): boolean => {
+      const lLimpo = loteDigitado.trim().toUpperCase();
+      if (!lLimpo) {
+        setLoteBloqueadoAuto(false);
+        setPopupLoteAuto(null);
+        setCodprodLoteRepetido(null);
+        return false;
+      }
+
+      const codParaBusca = (codAtual !== undefined ? codAtual : codigo).trim();
+
+      // 1. Localizar item correspondente pelo código informado ou buscando qual produto da conferência possui esse lote
+      let itemAlvo = codParaBusca
+        ? itens.find((it) => itemCorrespondeAoCodigo(it, codParaBusca))
+        : undefined;
+
+      if (!itemAlvo) {
+        // Se o código ainda não foi digitado ou não encontrou, busca nos itens qual tem este lote cadastrado
+        itemAlvo = itens.find((it) => {
+          const temNaBip = bipagens.some(
+            (b) => !b.anulado && b.codprod === it.codprod && b.lote?.trim().toUpperCase() === lLimpo
+          );
+          const temNoLoteConf = it.lotesConferidos?.some(
+            (fl) => fl.lote && fl.lote.trim().toUpperCase() === lLimpo
+          );
+          const temNoItem = it.lote && it.lote.trim().toUpperCase() === lLimpo;
+          return temNaBip || temNoLoteConf || temNoItem;
+        });
+
+        // Se encontrou o item pelo lote, auto-preenche o campo de código se estiver vazio
+        if (itemAlvo && !codParaBusca) {
+          const codSugerido =
+            itemAlvo.codbarra ||
+            (itemAlvo as any).referencia ||
+            String(itemAlvo.codprod);
+          setCodigo(codSugerido);
+        }
+      }
+
+      if (!itemAlvo) {
+        setLoteBloqueadoAuto(false);
+        setPopupLoteAuto(null);
+        setCodprodLoteRepetido(null);
+        return false;
+      }
+
+      // 2. Extrair Validade e Fabricação conhecidas buscando em todas as fontes disponíveis
+      let valFmt = '';
+      let fabFmt = '';
+
+      // Fonte A: Bipagens ativas
+      const bipExistente = bipagens.find(
+        (b) =>
+          !b.anulado &&
+          b.codprod === itemAlvo.codprod &&
+          b.lote &&
+          b.lote.trim().toUpperCase() === lLimpo
+      );
+      if (bipExistente) {
+        valFmt = bipExistente.validade ? formatarDataApenas(bipExistente.validade) : '';
+        fabFmt = bipExistente.fabricacao ? formatarDataApenas(bipExistente.fabricacao) : '';
+      }
+
+      // Fonte B: lotesConferidos de qualquer item da conferência com o mesmo codprod
+      if (!valFmt && !fabFmt) {
+        for (const it of itens) {
+          if (it.codprod === itemAlvo.codprod && it.lotesConferidos) {
+            const fracao = it.lotesConferidos.find(
+              (fl) => fl.lote && fl.lote.trim().toUpperCase() === lLimpo
+            );
+            if (fracao) {
+              valFmt = fracao.validade ? formatarDataApenas(fracao.validade) : '';
+              fabFmt = fracao.fabricacao ? formatarDataApenas(fracao.fabricacao) : '';
+              if (valFmt || fabFmt) break;
+            }
+          }
+        }
+      }
+
+      // Fonte C: Lote faturado da TGFITE
+      if (!valFmt && !fabFmt && itemAlvo.lote && itemAlvo.lote.trim().toUpperCase() === lLimpo) {
+        valFmt = itemAlvo.validade ? formatarDataApenas(itemAlvo.validade) : '';
+        fabFmt = itemAlvo.fabricacao ? formatarDataApenas(itemAlvo.fabricacao) : '';
+      }
+
+      if (valFmt || fabFmt) {
+        if (valFmt) setValidade(valFmt);
+        if (fabFmt) setFabricacao(fabFmt);
+
+        setLoteBloqueadoAuto(true);
+        setCodprodLoteRepetido(itemAlvo.codprod);
+        setErroValidade(null);
+        setErroFabricacao(null);
+        setPopupLoteAuto({
+          produto: itemAlvo.descrprod,
+          lote: lLimpo,
+          validade: valFmt || 'Não informada',
+          fabricacao: fabFmt || 'Não informada',
+        });
+        return true;
+      } else {
+        setLoteBloqueadoAuto(false);
+        setPopupLoteAuto(null);
+        setCodprodLoteRepetido(null);
+        return false;
+      }
+    },
+    [codigo, itens, bipagens]
+  );
+
+  const iniciarEscutaCampo = useCallback((campo: TipoCampoDitado, comVozPedir = true) => {
+    prepararAudio();
+
+    if (!isReconhecimentoVozDisponivel()) {
+      setErro('⚠️ Reconhecimento de voz não suportado neste navegador. Utilize o Google Chrome.');
+      tocarAlertaErro();
+      return;
+    }
+
+    if (!reconhecedorVozRef.current) {
+      reconhecedorVozRef.current = criarReconhecedorLote();
+    }
+
+    setCampoVozAtivo(campo);
+    setModalDitadoAberto(true);
+    setValorDitadoTemp('');
+    setErroDitadoTemp(null);
+
+    const modo = (campo === 'validade' || campo === 'fabricacao') ? 'data' : 'lote';
+
+    const iniciarEscuta = () => {
+      reconhecedorVozRef.current?.iniciar(
+        (resultado, erroValidacao) => {
+          if (erroValidacao) {
+            setErroDitadoTemp(erroValidacao);
+            setValorDitadoTemp('');
+            tocarAlertaErro();
+          } else {
+            setValorDitadoTemp(resultado);
+            setErroDitadoTemp(null);
+            tocarAlertaSucesso();
+          }
+        },
+        (ouvindo) => {
+          setOuvindoVozCampo(ouvindo ? campo : null);
+        },
+        (erroMsg) => {
+          setErro(erroMsg);
+          tocarAlertaErro();
+        },
+        modo
+      );
+    };
+
+    if (comVozPedir) {
+      tocarAlertaPedirCampo(campo, iniciarEscuta);
+    } else {
+      iniciarEscuta();
+    }
+  }, []);
+
+  const iniciarSequenciaVoz = useCallback(() => {
+    isSequenciaAtivaRef.current = true;
+    iniciarEscutaCampo('lote', true);
+  }, [iniciarEscutaCampo]);
+
+  const iniciarVozIndividual = useCallback((campo: TipoCampoDitado) => {
+    isSequenciaAtivaRef.current = false;
+    iniciarEscutaCampo(campo, true);
+  }, [iniciarEscutaCampo]);
+
+  const handleFecharModalDitado = useCallback(() => {
+    isSequenciaAtivaRef.current = false;
+    reconhecedorVozRef.current?.parar();
+    setOuvindoVozCampo(null);
+    setModalDitadoAberto(false);
+    setValorDitadoTemp('');
+    setErroDitadoTemp(null);
+  }, []);
+
+  const handleRefazerDitadoCampo = useCallback(() => {
+    setValorDitadoTemp('');
+    setErroDitadoTemp(null);
+    iniciarEscutaCampo(campoVozAtivo, false);
+  }, [campoVozAtivo, iniciarEscutaCampo]);
+
+  const handleConfirmarDitadoCampo = useCallback((valorConfirmado: string) => {
+    reconhecedorVozRef.current?.parar();
+    setOuvindoVozCampo(null);
+
+    if (campoVozAtivo === 'lote') {
+      setLote(valorConfirmado);
+      tocarAlertaSucesso();
+      const jaExiste = checarLoteExistente(valorConfirmado, codigo);
+
+      if (jaExiste) {
+        // Se o lote já foi registrado para o produto, as datas foram carregadas automaticamente
+        isSequenciaAtivaRef.current = false;
+        setModalDitadoAberto(false);
+        setTimeout(() => {
+          btnConferirRef.current?.focus();
+        }, 100);
+      } else if (isSequenciaAtivaRef.current) {
+        // Passa para o próximo passo da sequência contínua: Validade
+        setTimeout(() => {
+          iniciarEscutaCampo('validade', true);
+        }, 300);
+      } else {
+        setModalDitadoAberto(false);
+        setTimeout(() => {
+          inputValidadeRef.current?.focus();
+          inputValidadeRef.current?.select();
+        }, 100);
+      }
+    } else if (campoVozAtivo === 'validade') {
+      setValidade(valorConfirmado);
+      if (erroValidade) setErroValidade(null);
+      tocarAlertaSucesso();
+
+      if (isSequenciaAtivaRef.current) {
+        // Passa para o próximo passo da sequência contínua: Fabricação
+        setTimeout(() => {
+          iniciarEscutaCampo('fabricacao', true);
+        }, 300);
+      } else {
+        setModalDitadoAberto(false);
+        setTimeout(() => {
+          inputFabricacaoRef.current?.focus();
+          inputFabricacaoRef.current?.select();
+        }, 100);
+      }
+    } else if (campoVozAtivo === 'fabricacao') {
+      setFabricacao(valorConfirmado);
+      if (erroFabricacao) setErroFabricacao(null);
+      isSequenciaAtivaRef.current = false;
+      setModalDitadoAberto(false);
+      tocarAlertaSucesso();
+
+      // Fim da sequência: Foco no botão de conferir produto para revisão antes de salvar
+      setTimeout(() => {
+        btnConferirRef.current?.focus();
+      }, 150);
+    }
+  }, [campoVozAtivo, erroValidade, erroFabricacao, iniciarEscutaCampo, checarLoteExistente, codigo]);
 
   const podeAcessar = temPermissao('conferencia_entrada');
 
@@ -438,6 +789,7 @@ export function ConferenciaEntradaPage() {
           const nunotasParaIniciar = Array.from(new Set([...sessaoAtual.nunotas, ...(navState.nunotas || [])]));
           sessaoAtual = await recebimentoService.iniciarConferencia(nunotasParaIniciar, sessaoAtual.nivelAtual);
           const respAtualizada = await recebimentoService.obterItensConferencia(sessaoAtual.id);
+          if (respAtualizada.ocultarStatus !== undefined) setOcultarStatus(respAtualizada.ocultarStatus);
           setSessao(sessaoAtual);
           setItens(respAtualizada.itens);
           setBipagens(respAtualizada.bipagens);
@@ -453,6 +805,7 @@ export function ConferenciaEntradaPage() {
         sessaoAtual = await recebimentoService.iniciarConferencia(nunotas, nivelInicial);
         setSessao(sessaoAtual);
         const resp = await recebimentoService.obterItensConferencia(sessaoAtual.id);
+        if (resp.ocultarStatus !== undefined) setOcultarStatus(resp.ocultarStatus);
         setItens(resp.itens);
         setBipagens(resp.bipagens);
         await carregarOcorrencias(sessaoAtual.id);
@@ -507,6 +860,7 @@ export function ConferenciaEntradaPage() {
   const isSomenteLeitura = isEnviadoSankhya || isConferido || isDivergentePendente;
   const isRecontagem = Boolean(sessao?.status?.includes('Recontagem') || (sessao?.itensRecontagem && sessao.itensRecontagem.length > 0));
   const isCega = useMemo(() => itens.length > 0 && itens.some((i) => i.qtdneg === null), [itens]);
+  const isModoCego = !verCamposSensiveis || isCega || ocultarStatus;
 
   // Lista de notas distintas da sessão para o seletor de NF
   const listaNotasDisponiveis = useMemo(() => {
@@ -526,7 +880,7 @@ export function ConferenciaEntradaPage() {
           ? it.conferidoCompleto
           : it.qtdneg !== null
           ? conferido >= it.qtdneg
-          : false;
+          : conferido > 0;
       if (completo) {
         entry.conferidosOk++;
       }
@@ -550,27 +904,59 @@ export function ConferenciaEntradaPage() {
       else if (nivelAtual === 3) totalConferidoNivel += item.qtdConferidaN3;
     });
 
+    // Mapeamento consolidado por produto na nota para distribuição inteligente
+    const saldoProdGeral: Record<string, { esperado: number; conferido: number }> = {};
+    baseItens.forEach((it) => {
+      const k = `${it.nunota}|${it.codprod}`;
+      if (!saldoProdGeral[k]) saldoProdGeral[k] = { esperado: 0, conferido: 0 };
+      if (it.qtdneg !== null) saldoProdGeral[k].esperado += it.qtdneg;
+      const conf = nivelAtual === 1 ? it.qtdConferidaN1 : nivelAtual === 2 ? it.qtdConferidaN2 : it.qtdConferidaN3;
+      saldoProdGeral[k].conferido += conf;
+    });
+
+    // Saldo restante por produto na nota para distribuição FIFO de itens com esperado conhecido
+    const saldoRestanteGeral: Record<string, number> = {};
+    Object.keys(saldoProdGeral).forEach((k) => {
+      saldoRestanteGeral[k] = saldoProdGeral[k].conferido;
+    });
+
     let itensComSobra = 0;
     let itensExatos = 0;
     let itensSemBipagem = 0;
     let itensComFalta = 0;
 
     baseItens.forEach((i) => {
-      const conferido =
+      const k = `${i.nunota}|${i.codprod}`;
+      const dados = saldoProdGeral[k] || { esperado: 0, conferido: 0 };
+      const conferidoIndividual =
         nivelAtual === 1 ? i.qtdConferidaN1 : nivelAtual === 2 ? i.qtdConferidaN2 : i.qtdConferidaN3;
-      if (i.qtdneg !== null) {
-        if (conferido === i.qtdneg) itensExatos++;
-        else if (conferido > i.qtdneg) itensComSobra++;
-        else {
-          itensComFalta++;
-          if (conferido === 0) itensSemBipagem++;
+
+      if (dados.conferido === 0) {
+        itensComFalta++;
+        itensSemBipagem++;
+      } else if (isModoCego || dados.esperado === 0) {
+        // No Modo Cego, contagem física registrada (> 0) indica item com bipagem realizada
+        itensExatos++;
+      } else if (dados.conferido >= dados.esperado && dados.esperado > 0) {
+        if (dados.conferido === dados.esperado) {
+          itensExatos++;
+        } else {
+          itensComSobra++;
         }
       } else {
-        const completo = i.conferidoCompleto !== undefined ? i.conferidoCompleto : false;
-        if (completo) itensExatos++;
-        else {
+        // Distribuição FIFO para produtos com conferência parcial
+        const espItem = i.qtdneg || 0;
+        const saldoDisp = saldoRestanteGeral[k] || 0;
+        const alocado = Math.min(saldoDisp, espItem);
+        saldoRestanteGeral[k] = Math.max(0, saldoDisp - alocado);
+
+        if (alocado >= espItem && espItem > 0) {
+          itensExatos++;
+        } else {
           itensComFalta++;
-          if (conferido === 0) itensSemBipagem++;
+          if (alocado === 0 && conferidoIndividual === 0) {
+            itensSemBipagem++;
+          }
         }
       }
     });
@@ -590,6 +976,20 @@ export function ConferenciaEntradaPage() {
       itensComFalta: number;
       percentualConferido: number;
     }> = {};
+
+    const saldoProdNotas: Record<string, { esperado: number; conferido: number }> = {};
+    itens.forEach((it) => {
+      const k = `${it.nunota}|${it.codprod}`;
+      if (!saldoProdNotas[k]) saldoProdNotas[k] = { esperado: 0, conferido: 0 };
+      if (it.qtdneg !== null) saldoProdNotas[k].esperado += it.qtdneg;
+      const conf = nivelAtual === 1 ? it.qtdConferidaN1 : nivelAtual === 2 ? it.qtdConferidaN2 : it.qtdConferidaN3;
+      saldoProdNotas[k].conferido += conf;
+    });
+
+    const saldoRestanteNotas: Record<string, number> = {};
+    Object.keys(saldoProdNotas).forEach((k) => {
+      saldoRestanteNotas[k] = saldoProdNotas[k].conferido;
+    });
 
     itens.forEach((it) => {
       const nunota = it.nunota;
@@ -616,24 +1016,31 @@ export function ConferenciaEntradaPage() {
       notasMap[nunota].totalEsperado += esperado;
       notasMap[nunota].totalConferido += conferido;
 
-      if (it.qtdneg !== null) {
-        if (conferido === esperado) {
-          notasMap[nunota].itensOk++;
-        } else if (conferido > esperado) {
+      const k = `${it.nunota}|${it.codprod}`;
+      const dados = saldoProdNotas[k] || { esperado: 0, conferido: 0 };
+
+      if (dados.conferido === 0) {
+        notasMap[nunota].itensComFalta++;
+        notasMap[nunota].itensSemBipagem++;
+      } else if (isModoCego || dados.esperado === 0) {
+        // No Modo Cego, contagem física registrada (> 0) indica item com bipagem realizada
+        notasMap[nunota].itensOk++;
+      } else if (dados.conferido >= dados.esperado && dados.esperado > 0) {
+        notasMap[nunota].itensOk++;
+        if (dados.conferido > dados.esperado) {
           notasMap[nunota].itensComSobra++;
-        } else {
-          notasMap[nunota].itensComFalta++;
-          if (conferido === 0) {
-            notasMap[nunota].itensSemBipagem++;
-          }
         }
       } else {
-        const completo = it.conferidoCompleto !== undefined ? it.conferidoCompleto : false;
-        if (completo) {
+        const espItem = it.qtdneg || 0;
+        const saldoDisp = saldoRestanteNotas[k] || 0;
+        const alocado = Math.min(saldoDisp, espItem);
+        saldoRestanteNotas[k] = Math.max(0, saldoDisp - alocado);
+
+        if (alocado >= espItem && espItem > 0) {
           notasMap[nunota].itensOk++;
         } else {
           notasMap[nunota].itensComFalta++;
-          if (conferido === 0) {
+          if (alocado === 0 && conferido === 0) {
             notasMap[nunota].itensSemBipagem++;
           }
         }
@@ -657,7 +1064,7 @@ export function ConferenciaEntradaPage() {
       pendentes: Math.max(0, totalItensDistintos - itensConferidosOk),
       porNota,
     };
-  }, [itensExibidos, itens, nivelAtual]);
+  }, [itensExibidos, itens, nivelAtual, isModoCego]);
 
   const numerosNFsUnicas = useMemo(() => {
     const nfs = Array.from(new Set(itens.map((i) => i.numnota).filter(Boolean)));
@@ -716,12 +1123,7 @@ export function ConferenciaEntradaPage() {
     const checagem = checarStatusValidade(valComp, diasShelfLife);
     if (checagem.status === 'VENCIDO' || checagem.status === 'VALIDADE_PROXIMA') {
       const codLimpo = codigo.trim();
-      const itemEncontrado = itens.find(
-        (it) =>
-          it.codbarra === codLimpo ||
-          String(it.codprod) === codLimpo ||
-          (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
-      );
+      const itemEncontrado = itens.find((it) => itemCorrespondeAoCodigo(it, codLimpo));
 
       setItemParaOcorrencia({
         nunota: itemEncontrado?.nunota || sessao?.nunotas[0],
@@ -930,12 +1332,7 @@ export function ConferenciaEntradaPage() {
 
     // Se o Modo Avaria estiver ativo, direciona o bip diretamente para o registro de ocorrência
     if (modoAvariaAtivo) {
-      const itemEncontrado = itens.find(
-        (it) =>
-          it.codbarra === codLimpo ||
-          String(it.codprod) === codLimpo ||
-          (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
-      );
+      const itemEncontrado = itens.find((it) => itemCorrespondeAoCodigo(it, codLimpo));
 
       setItemParaOcorrencia({
         nunota: itemEncontrado?.nunota || sessao?.nunotas[0],
@@ -958,7 +1355,23 @@ export function ConferenciaEntradaPage() {
     let fabricacaoFinal = fabricacao.trim();
 
     if (nivelAtual >= 2) {
-      if (!lote.trim() || !validadeFinal || !fabricacaoFinal) {
+      // Se bipou código mas o lote está vazio, valida o produto, emite alerta vocal/sonoro e ativa a escuta por voz
+      if (!lote.trim()) {
+        const itemEncontrado = itens.find((it) => itemCorrespondeAoCodigo(it, codLimpo));
+
+        if (!itemEncontrado) {
+          setErro(`Código "${codLimpo}" não encontrado nos itens desta conferência.`);
+          tocarAlertaErro();
+          return;
+        }
+
+        // Produto válido! Inicia sequência contínua de voz (Lote -> Validade -> Fabricação)
+        inputLoteRef.current?.focus();
+        iniciarSequenciaVoz();
+        return;
+      }
+
+      if (!validadeFinal || !fabricacaoFinal) {
         setErro('⚠️ No Nível N2/N3, é obrigatório preencher Lote, Validade e Fabricação antes de registrar!');
         tocarAlertaErro();
         return;
@@ -983,44 +1396,6 @@ export function ConferenciaEntradaPage() {
         return;
       }
       setFabricacao(fabricacaoFinal);
-
-      // Validação de Integridade de Lote: No Sankhya, um mesmo produto não pode ter o mesmo Lote com datas diferentes
-      const loteLimpo = lote.trim().toUpperCase();
-      const itemAlvo = itens.find(
-        (it) =>
-          it.codbarra === codLimpo ||
-          String(it.codprod) === codLimpo ||
-          (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
-      );
-
-      if (itemAlvo) {
-        const bipExistente = bipagens.find(
-          (b) =>
-            !b.anulado &&
-            b.codprod === itemAlvo.codprod &&
-            b.lote &&
-            b.lote.trim().toUpperCase() === loteLimpo
-        );
-
-        if (bipExistente) {
-          const valExistenteFmt = bipExistente.validade ? formatarDataApenas(bipExistente.validade) : null;
-          const fabExistenteFmt = bipExistente.fabricacao ? formatarDataApenas(bipExistente.fabricacao) : null;
-
-          const valAtualFmt = formatarDataApenas(validadeFinal);
-          const fabAtualFmt = formatarDataApenas(fabricacaoFinal);
-
-          const validadeDiverge = valExistenteFmt && valAtualFmt && valExistenteFmt !== valAtualFmt;
-          const fabricacaoDiverge = fabExistenteFmt && fabAtualFmt && fabExistenteFmt !== fabAtualFmt;
-
-          if (validadeDiverge || fabricacaoDiverge) {
-            setErro(
-              `⚠️ Divergência de Lote: O lote "${lote.trim()}" já foi registrado para este produto com Validade ${valExistenteFmt || '—'} e Fabricação ${fabExistenteFmt || '—'}. No Sankhya, um mesmo lote não pode possuir datas diferentes. Verifique a digitação na embalagem ou estorne o lote anterior caso tenha sido digitado incorretamente.`
-            );
-            tocarAlertaErro();
-            return;
-          }
-        }
-      }
     }
 
     // Checagem de Validade (Vencido ou Validade Próxima / Shelf-life)
@@ -1037,12 +1412,7 @@ export function ConferenciaEntradaPage() {
     }
 
     // Validação de nota selecionada em conferências conjuntas
-    const itemEmOutraNota = itens.find(
-      (it) =>
-        it.codbarra === codLimpo ||
-        String(it.codprod) === codLimpo ||
-        (it.referencia && it.referencia.toUpperCase() === codLimpo.toUpperCase())
-    );
+    const itemEmOutraNota = itens.find((it) => itemCorrespondeAoCodigo(it, codLimpo));
 
     if (itemEmOutraNota && notaFiltro !== 'todas' && itemEmOutraNota.nunota !== notaFiltro) {
       const notaAlvo = listaNotasDisponiveis.find((n) => n.nunota === itemEmOutraNota.nunota);
@@ -1112,10 +1482,20 @@ export function ConferenciaEntradaPage() {
       setLote('');
       setValidade('');
       setFabricacao('');
+      setLoteBloqueadoAuto(false);
+      setPopupLoteAuto(null);
       setErroValidade(null);
       setErroFabricacao(null);
       setTecladoVirtualAtivo(false);
       if (inputCodigoRef.current) inputCodigoRef.current.focus();
+
+      // Atualiza lista completa do servidor para sincronizar perfeitamente a distribuição FIFO de múltiplas sequências
+      recebimentoService.obterItensConferencia(sessao.id).then((respAtualizada) => {
+        setItens(respAtualizada.itens);
+        if (respAtualizada.bipagens) {
+          setBipagens(respAtualizada.bipagens);
+        }
+      }).catch((e) => console.warn('Erro ao sincronizar itens após bipagem:', e));
     } catch (err: any) {
       tocarAlertaErro();
       const msgErro = err.response?.data?.error || err.message || 'Erro ao registrar bipagem.';
@@ -1343,9 +1723,7 @@ export function ConferenciaEntradaPage() {
   const obterLotesDetalhesItem = useCallback(
     (item: ItemNotaEntrada) => {
       const bipsDesteItem = bipagensValidas.filter(
-        (b) =>
-          b.codprod === item.codprod &&
-          (b.nunota === item.nunota ? b.sequencia === item.sequencia : true)
+        (b) => b.nunota === item.nunota && b.codprod === item.codprod
       );
 
       const mapaLotesItem: Record<
@@ -1389,7 +1767,7 @@ export function ConferenciaEntradaPage() {
   );
 
   const itensPendentesVisiveis = useMemo(() => {
-    return itensExibidos.filter((item) => {
+    return itensConsolidados.filter((item) => {
       // No Nível 3, se uma nota já estiver aprovada/conferida, seus itens não aparecem para conferência
       if (nivelAtual === 3 && sessao?.statusPorNota) {
         const statusNota = sessao.statusPorNota[item.nunota];
@@ -1397,7 +1775,7 @@ export function ConferenciaEntradaPage() {
           return false;
         }
       }
-      if (ocultarStatus) {
+      if (isModoCego) {
         return true;
       }
       const conferido =
@@ -1411,69 +1789,79 @@ export function ConferenciaEntradaPage() {
           : false;
       return !completo;
     });
-  }, [itensExibidos, nivelAtual, sessao, ocultarStatus]);
+  }, [itensConsolidados, nivelAtual, sessao, isModoCego]);
 
   const itensOrdenados = useMemo(() => {
-    if (ordenacao === 'padrao') {
-      return itensPendentesVisiveis;
-    }
     const lista = [...itensPendentesVisiveis];
-    return lista.sort((a, b) => {
-      switch (ordenacao) {
-        case 'produto_nome_asc': {
-          const valA = (a.descrprod || '').trim().toLowerCase();
-          const valB = (b.descrprod || '').trim().toLowerCase();
-          const comp = valA.localeCompare(valB, 'pt-BR');
-          return comp !== 0 ? comp : a.codprod - b.codprod;
+    if (ordenacao !== 'padrao') {
+      lista.sort((a, b) => {
+        switch (ordenacao) {
+          case 'produto_nome_asc': {
+            const valA = (a.descrprod || '').trim().toLowerCase();
+            const valB = (b.descrprod || '').trim().toLowerCase();
+            const comp = valA.localeCompare(valB, 'pt-BR');
+            return comp !== 0 ? comp : a.codprod - b.codprod;
+          }
+          case 'produto_nome_desc': {
+            const valA = (a.descrprod || '').trim().toLowerCase();
+            const valB = (b.descrprod || '').trim().toLowerCase();
+            const comp = valB.localeCompare(valA, 'pt-BR');
+            return comp !== 0 ? comp : b.codprod - a.codprod;
+          }
+          case 'produto_cod_asc':
+            return a.codprod - b.codprod;
+          case 'produto_cod_desc':
+            return b.codprod - a.codprod;
+          case 'volume_asc': {
+            const valA = (a.codvol || 'UN').trim().toLowerCase();
+            const valB = (b.codvol || 'UN').trim().toLowerCase();
+            return valA.localeCompare(valB, 'pt-BR');
+          }
+          case 'volume_desc': {
+            const valA = (a.codvol || 'UN').trim().toLowerCase();
+            const valB = (b.codvol || 'UN').trim().toLowerCase();
+            return valB.localeCompare(valA, 'pt-BR');
+          }
+          case 'esperado_asc': {
+            const espA = a.qtdneg !== null ? a.qtdneg : 0;
+            const espB = b.qtdneg !== null ? b.qtdneg : 0;
+            return espA - espB;
+          }
+          case 'esperado_desc': {
+            const espA = a.qtdneg !== null ? a.qtdneg : 0;
+            const espB = b.qtdneg !== null ? b.qtdneg : 0;
+            return espB - espA;
+          }
+          case 'conferido_asc': {
+            const confA = nivelAtual === 1 ? a.qtdConferidaN1 : nivelAtual === 2 ? a.qtdConferidaN2 : a.qtdConferidaN3;
+            const confB = nivelAtual === 1 ? b.qtdConferidaN1 : nivelAtual === 2 ? b.qtdConferidaN2 : b.qtdConferidaN3;
+            return confA - confB;
+          }
+          case 'conferido_desc': {
+            const confA = nivelAtual === 1 ? a.qtdConferidaN1 : nivelAtual === 2 ? a.qtdConferidaN2 : a.qtdConferidaN3;
+            const confB = nivelAtual === 1 ? b.qtdConferidaN1 : nivelAtual === 2 ? b.qtdConferidaN2 : b.qtdConferidaN3;
+            return confB - confA;
+          }
+          default:
+            return 0;
         }
-        case 'produto_nome_desc': {
-          const valA = (a.descrprod || '').trim().toLowerCase();
-          const valB = (b.descrprod || '').trim().toLowerCase();
-          const comp = valB.localeCompare(valA, 'pt-BR');
-          return comp !== 0 ? comp : b.codprod - a.codprod;
-        }
-        case 'produto_cod_asc':
-          return a.codprod - b.codprod;
-        case 'produto_cod_desc':
-          return b.codprod - a.codprod;
-        case 'volume_asc': {
-          const valA = (a.codvol || 'UN').trim().toLowerCase();
-          const valB = (b.codvol || 'UN').trim().toLowerCase();
-          return valA.localeCompare(valB, 'pt-BR');
-        }
-        case 'volume_desc': {
-          const valA = (a.codvol || 'UN').trim().toLowerCase();
-          const valB = (b.codvol || 'UN').trim().toLowerCase();
-          return valB.localeCompare(valA, 'pt-BR');
-        }
-        case 'esperado_asc': {
-          const espA = a.qtdneg !== null ? a.qtdneg : 0;
-          const espB = b.qtdneg !== null ? b.qtdneg : 0;
-          return espA - espB;
-        }
-        case 'esperado_desc': {
-          const espA = a.qtdneg !== null ? a.qtdneg : 0;
-          const espB = b.qtdneg !== null ? b.qtdneg : 0;
-          return espB - espA;
-        }
-        case 'conferido_asc': {
-          const confA = nivelAtual === 1 ? a.qtdConferidaN1 : nivelAtual === 2 ? a.qtdConferidaN2 : a.qtdConferidaN3;
-          const confB = nivelAtual === 1 ? b.qtdConferidaN1 : nivelAtual === 2 ? b.qtdConferidaN2 : b.qtdConferidaN3;
-          return confA - confB;
-        }
-        case 'conferido_desc': {
-          const confA = nivelAtual === 1 ? a.qtdConferidaN1 : nivelAtual === 2 ? a.qtdConferidaN2 : a.qtdConferidaN3;
-          const confB = nivelAtual === 1 ? b.qtdConferidaN1 : nivelAtual === 2 ? b.qtdConferidaN2 : b.qtdConferidaN3;
-          return confB - confA;
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [itensPendentesVisiveis, ordenacao, nivelAtual]);
+      });
+    }
+
+    // Se houver um lote repetido ativo no leitor, move o produto prioritariamente para o topo da lista
+    if (codprodLoteRepetido) {
+      lista.sort((a, b) => {
+        if (a.codprod === codprodLoteRepetido && b.codprod !== codprodLoteRepetido) return -1;
+        if (b.codprod === codprodLoteRepetido && a.codprod !== codprodLoteRepetido) return 1;
+        return 0;
+      });
+    }
+
+    return lista;
+  }, [itensPendentesVisiveis, ordenacao, nivelAtual, codprodLoteRepetido]);
 
   const itensConferidosVisiveis = useMemo<ItemEntradaConferidoVisivel[]>(() => {
-    return itensExibidos
+    return itensConsolidados
       .filter((item) => {
         // No Nível 3, não polui a visualização com itens de notas que já foram aprovadas
         if (nivelAtual === 3 && sessao?.statusPorNota) {
@@ -1499,9 +1887,7 @@ export function ConferenciaEntradaPage() {
 
         // Agrupar bipagens deste item por Lote + Validade + Fabricação
         const bipsDesteItem = bipagensValidas.filter(
-          (b) =>
-            b.codprod === item.codprod &&
-            (b.nunota === item.nunota ? b.sequencia === item.sequencia : true)
+          (b) => b.nunota === item.nunota && b.codprod === item.codprod
         );
 
         const mapaLotesItem: Record<
@@ -1790,7 +2176,9 @@ export function ConferenciaEntradaPage() {
                       }}
                       title="Esta conferência está em processo de recontagem"
                     >
-                      {`🔁 RECONTAGEM N${nivelAtual}: ${nivelAtual === 1 ? 'CONTAGEM CEGA' : nivelAtual === 2 ? 'LOTE E VALIDADE' : 'DESEMPATE'}`}
+                      {sessao?.itensRecontagem && sessao.itensRecontagem.length > 0
+                        ? `🔁 RECONTAGEM SELETIVA N${nivelAtual} (${sessao.itensRecontagem.length} ITEM${sessao.itensRecontagem.length > 1 ? 'S' : ''})`
+                        : `🔁 RECONTAGEM N${nivelAtual}: ${nivelAtual === 1 ? 'CONTAGEM CEGA' : nivelAtual === 2 ? 'LOTE E VALIDADE' : 'DESEMPATE'}`}
                     </span>
                   ) : (
                     <span
@@ -1824,7 +2212,7 @@ export function ConferenciaEntradaPage() {
                     <span className="resumo-card-val">{estatisticas.totalItensDistintos}</span>
                     <span className="resumo-card-lbl">Total</span>
                   </div>
-                  {ocultarStatus ? (
+                  {isModoCego ? (
                     <div className="resumo-card-mini conferido">
                       <span className="resumo-card-val" style={{ color: '#0284c7' }}>{estatisticas.totalConferidoNivel}</span>
                       <span className="resumo-card-lbl" style={{ color: '#0369a1' }}>Bipados</span>
@@ -2087,7 +2475,13 @@ export function ConferenciaEntradaPage() {
                       ref={inputCodigoRef}
                       variant="scanner"
                       value={codigo}
-                      onChange={(e) => setCodigo(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCodigo(val);
+                        if (lote.trim()) {
+                          checarLoteExistente(lote, val);
+                        }
+                      }}
                       placeholder={isSomenteLeitura ? 'Conferência finalizada (somente leitura)...' : 'Escanear ou digitar código de barras...'}
                       autoFocus={!isSomenteLeitura}
                       disabled={isSomenteLeitura}
@@ -2134,18 +2528,135 @@ export function ConferenciaEntradaPage() {
                     />
                   </div>
 
+                  {/* Popup Informativo de Lote Já Cadastrado */}
+                  {popupLoteAuto && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '10px',
+                        padding: '10px 14px',
+                        margin: '10px 0 6px 0',
+                        fontSize: '0.84rem',
+                        color: '#1e40af',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
+                        <span>
+                          Lote <strong>"{popupLoteAuto.lote}"</strong> já registrado para este produto. Validade (<strong>{popupLoteAuto.validade}</strong>) e Fabricação (<strong>{popupLoteAuto.fabricacao}</strong>) carregadas automaticamente.
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLoteBloqueadoAuto(false);
+                            setPopupLoteAuto(null);
+                          }}
+                          style={{
+                            background: '#dbeafe',
+                            border: '1px solid #93c5fd',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#1d4ed8',
+                            cursor: 'pointer',
+                          }}
+                          title="Permitir alteração manual das datas"
+                        >
+                          🔓 Destravar Datas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPopupLoteAuto(null)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            fontSize: '1rem',
+                            color: '#6b7280',
+                            cursor: 'pointer',
+                            padding: '0 4px',
+                          }}
+                          title="Fechar aviso"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Campos de Lote / Validade no N2 e N3 */}
                   {nivelAtual >= 2 && (
                     <div className="conferencia-lote-grid">
+                      <div>
+                        <Campo
+                          ref={inputLoteRef}
+                          label={
+                            <span className="label-com-microfone-linha">
+                              <span>Lote *</span>
+                              <button
+                                type="button"
+                                className={`btn-microfone-label ${ouvindoVozCampo === 'lote' ? 'gravando' : ''}`}
+                                title={ouvindoVozCampo === 'lote' ? "Ouvindo... Clique para parar" : "Ditar lote por voz (ex: 123456FKEF)"}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (modalDitadoAberto && campoVozAtivo === 'lote') {
+                                    handleFecharModalDitado();
+                                  } else {
+                                    iniciarVozIndividual('lote');
+                                  }
+                                }}
+                                disabled={isSomenteLeitura}
+                              >
+                                {ouvindoVozCampo === 'lote' ? '🎙️' : '🎤'}
+                              </button>
+                            </span>
+                          }
+                          value={lote}
+                          onChange={(e) => {
+                            const v = e.target.value.toUpperCase();
+                            setLote(v);
+                            checarLoteExistente(v);
+                          }}
+                          onBlur={() => {
+                            checarLoteExistente(lote);
+                          }}
+                          placeholder={ouvindoVozCampo === 'lote' ? "Ouvindo... Dite o lote" : "Ex: L2405"}
+                          disabled={isSomenteLeitura}
+                          className={ouvindoVozCampo === 'lote' ? "input-lote-ouvindo" : ""}
+                        />
+                      </div>
                       <Campo
-                        label="Lote *"
-                        value={lote}
-                        onChange={(e) => setLote(e.target.value.toUpperCase())}
-                        placeholder="Ex: L2405"
-                        disabled={isSomenteLeitura}
-                      />
-                      <Campo
-                        label="Validade *"
+                        ref={inputValidadeRef}
+                        label={
+                          <span className="label-com-microfone-linha">
+                            <span>Validade *</span>
+                            <button
+                              type="button"
+                              className={`btn-microfone-label ${ouvindoVozCampo === 'validade' ? 'gravando' : ''}`}
+                              title={ouvindoVozCampo === 'validade' ? "Ouvindo... Clique para parar" : "Ditar validade por voz (ex: 15 de outubro de 2026)"}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (modalDitadoAberto && campoVozAtivo === 'validade') {
+                                  handleFecharModalDitado();
+                                } else {
+                                  iniciarVozIndividual('validade');
+                                }
+                              }}
+                              disabled={isSomenteLeitura}
+                            >
+                              {ouvindoVozCampo === 'validade' ? '🎙️' : '🎤'}
+                            </button>
+                          </span>
+                        }
                         value={validade}
                         onChange={(e) => {
                           setValidade(aplicarMascaraData(e.target.value));
@@ -2160,12 +2671,35 @@ export function ConferenciaEntradaPage() {
                             verificarValidadeEObrirOcorrencia(dataCompletada, fabricacao, lote, quantidade);
                           }
                         }}
-                        placeholder="DD/MM/AAAA"
-                        disabled={isSomenteLeitura}
+                        placeholder={ouvindoVozCampo === 'validade' ? "Ouvindo... Dite a validade" : "DD/MM/AAAA"}
+                        disabled={isSomenteLeitura || loteBloqueadoAuto}
                         error={erroValidade || undefined}
+                        className={`${ouvindoVozCampo === 'validade' ? 'input-lote-ouvindo' : ''} ${loteBloqueadoAuto ? 'input-data-autopreenchida' : ''}`.trim()}
                       />
                       <Campo
-                        label="Fabricação *"
+                        ref={inputFabricacaoRef}
+                        label={
+                          <span className="label-com-microfone-linha">
+                            <span>Fabricação *</span>
+                            <button
+                              type="button"
+                              className={`btn-microfone-label ${ouvindoVozCampo === 'fabricacao' ? 'gravando' : ''}`}
+                              title={ouvindoVozCampo === 'fabricacao' ? "Ouvindo... Clique para parar" : "Ditar fabricação por voz (ex: 15 de outubro de 2024)"}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (modalDitadoAberto && campoVozAtivo === 'fabricacao') {
+                                  handleFecharModalDitado();
+                                } else {
+                                  iniciarVozIndividual('fabricacao');
+                                }
+                              }}
+                              disabled={isSomenteLeitura}
+                            >
+                              {ouvindoVozCampo === 'fabricacao' ? '🎙️' : '🎤'}
+                            </button>
+                          </span>
+                        }
                         value={fabricacao}
                         onChange={(e) => {
                           setFabricacao(aplicarMascaraData(e.target.value));
@@ -2181,9 +2715,10 @@ export function ConferenciaEntradaPage() {
                             setErroFabricacao(null);
                           }
                         }}
-                        placeholder="DD/MM/AAAA"
-                        disabled={isSomenteLeitura}
+                        placeholder={ouvindoVozCampo === 'fabricacao' ? "Ouvindo... Dite a fabricação" : "DD/MM/AAAA"}
+                        disabled={isSomenteLeitura || loteBloqueadoAuto}
                         error={erroFabricacao || undefined}
+                        className={`${ouvindoVozCampo === 'fabricacao' ? 'input-lote-ouvindo' : ''} ${loteBloqueadoAuto ? 'input-data-autopreenchida' : ''}`.trim()}
                       />
                     </div>
                   )}
@@ -2191,6 +2726,7 @@ export function ConferenciaEntradaPage() {
                   {/* Botão Conferir Produto - Abaixo dos inputs de Lote, Validade e Fabricação */}
                   <div className="scanner-row-botao-conferir">
                     <Botao
+                      ref={btnConferirRef}
                       type="submit"
                       variant="primary"
                       size="lg"
@@ -2253,7 +2789,7 @@ export function ConferenciaEntradaPage() {
 
       {/* Listagem com Abas */}
       <Painel>
-        {ocultarStatus ? (
+        {isModoCego ? (
           <div className="tabs-container">
             <button
               type="button"
@@ -2281,8 +2817,8 @@ export function ConferenciaEntradaPage() {
         </div>
         )}
 
-        {/* Conteúdo da Aba 1: Itens Pendentes */}
-        {abaAtiva === 'pendentes' && (
+        {/* Conteúdo da Aba 1: Itens Pendentes / Produtos da Conferência */}
+        {(isModoCego || abaAtiva === 'pendentes') && (
           <Container variant="outlined" padding="none">
             {itensPendentesVisiveis.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', textAlign: 'center' }}>
@@ -2324,16 +2860,18 @@ export function ConferenciaEntradaPage() {
                             {renderIndicadorGeral('volume')}
                           </div>
                         </th>
-                        <th
-                          onClick={handleAlternarOrdenacaoEsperado}
-                          className={`th-ordenavel ${ordenacao.startsWith('esperado_') ? 'th-ordenado' : ''}`}
-                          title="Clique para alternar: Menor > Maior > Padrão"
-                        >
-                          <div className="th-ordenavel-content center">
-                            <span>Esperado</span>
-                            {renderIndicadorGeral('esperado')}
-                          </div>
-                        </th>
+                        {!isModoCego && (
+                          <th
+                            onClick={handleAlternarOrdenacaoEsperado}
+                            className={`th-ordenavel ${ordenacao.startsWith('esperado_') ? 'th-ordenado' : ''}`}
+                            title="Clique para alternar: Menor > Maior > Padrão"
+                          >
+                            <div className="th-ordenavel-content center">
+                              <span>Esperado</span>
+                              {renderIndicadorGeral('esperado')}
+                            </div>
+                          </th>
+                        )}
                         <th
                           onClick={handleAlternarOrdenacaoConferido}
                           className={`th-ordenavel ${ordenacao.startsWith('conferido_') ? 'th-ordenado' : ''}`}
@@ -2344,7 +2882,7 @@ export function ConferenciaEntradaPage() {
                             {renderIndicadorGeral('conferido')}
                           </div>
                         </th>
-                        <th>Status</th>
+                        <th>{isModoCego ? 'Ações' : 'Status'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2362,11 +2900,13 @@ export function ConferenciaEntradaPage() {
                         const { lotesDetalhes, ultimoHorario } = obterLotesDetalhesItem(item);
                         const temLotes = lotesDetalhes && lotesDetalhes.length > 0;
 
+                        const ehProdutoLoteRepetido = codprodLoteRepetido === item.codprod;
+
                         return (
                           <Fragment key={`frag-pend-${item.nunota}-${item.sequencia}`}>
                             <tr
                               key={`${item.nunota}-${item.sequencia}`}
-                              className={parcial && !ocultarStatus ? 'row-parcial' : ''}
+                              className={`${parcial && !isModoCego ? 'row-parcial' : ''} ${ehProdutoLoteRepetido ? 'row-lote-repetido' : ''}`.trim()}
                             >
                               <td>
                                 <div className="produto-cell">
@@ -2402,7 +2942,9 @@ export function ConferenciaEntradaPage() {
                                 </div>
                               </td>
                               <td className="num-cell">{renderCelulaVolume(item.codprod, item.descrprod, item.codvol, item.unidadesAlternativas)}</td>
-                              <td className="num-cell">{esperado !== null ? esperado : '— (Cega)'}</td>
+                              {!isModoCego && (
+                                <td className="num-cell">{esperado !== null ? esperado : '—'}</td>
+                              )}
                               <td className="num-cell">
                                 <div>
                                   <span style={{ fontSize: '1.05rem', fontWeight: conferido > 0 ? 800 : 400, color: conferido > 0 ? 'var(--emerald-600)' : 'inherit' }}>
@@ -2430,10 +2972,12 @@ export function ConferenciaEntradaPage() {
                               </td>
                               <td>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                                  {!ocultarStatus && parcial ? (
-                                    <span className="status-parcial">Parcial</span>
-                                  ) : (
-                                    <span className="status-pendente">—</span>
+                                  {!isModoCego && (
+                                    parcial ? (
+                                      <span className="status-parcial">Parcial</span>
+                                    ) : (
+                                      <span className="status-pendente">—</span>
+                                    )
                                   )}
 
                                   {conferido > 0 && (
@@ -2489,7 +3033,7 @@ export function ConferenciaEntradaPage() {
                             {/* Sub-linha Gaveta (Dropdown Accordion) com Colunas Separadas: Lote | Quantidade | Validade | Fabricação | Ações */}
                             {isExpandido && temLotes && (
                               <tr className="subrow-lotes-drawer">
-                                <td colSpan={5}>
+                                <td colSpan={isModoCego ? 4 : 5}>
                                   <div className="drawer-lotes-wrapper">
                                     <div className="drawer-lotes-header">
                                       <span>
@@ -2619,19 +3163,30 @@ export function ConferenciaEntradaPage() {
                     >
                       Vol {ordenacao === 'volume_asc' ? '▲' : ordenacao === 'volume_desc' ? '▼' : '⇅'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleAlternarOrdenacaoEsperado}
-                      className={`mobile-sort-chip ${ordenacao.startsWith('esperado_') ? 'ativo' : ''}`}
-                    >
-                      Esp {ordenacao === 'esperado_asc' ? '▲' : ordenacao === 'esperado_desc' ? '▼' : '⇅'}
-                    </button>
+                    {!isModoCego && (
+                      <button
+                        type="button"
+                        onClick={handleAlternarOrdenacaoEsperado}
+                        className={`mobile-sort-chip ${ordenacao.startsWith('esperado_') ? 'ativo' : ''}`}
+                      >
+                        Esp {ordenacao === 'esperado_asc' ? '▲' : ordenacao === 'esperado_desc' ? '▼' : '⇅'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={handleAlternarOrdenacaoConferido}
                       className={`mobile-sort-chip ${ordenacao.startsWith('conferido_') ? 'ativo' : ''}`}
                     >
                       Conf {ordenacao === 'conferido_asc' ? '▲' : ordenacao === 'conferido_desc' ? '▼' : '⇅'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!codprodLoteRepetido}
+                      className={`mobile-sort-chip ${codprodLoteRepetido ? 'ativo-lote-repetido' : ''}`}
+                      style={!codprodLoteRepetido ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+                      title={codprodLoteRepetido ? 'Produto com lote repetido priorizado no topo da lista' : 'Nenhum lote repetido ativo no leitor'}
+                    >
+                      🏷️ Lote Repetido {codprodLoteRepetido ? '●' : ''}
                     </button>
                     {ordenacao !== 'padrao' && (
                       <button
@@ -2657,19 +3212,21 @@ export function ConferenciaEntradaPage() {
                         : item.qtdConferidaN3;
                     const esperado = item.qtdneg !== null ? item.qtdneg : null;
                     const parcial = conferido > 0;
+                    const podeSelecionar = !isSomenteLeitura && !isModoCego;
+                    const ehProdutoLoteRepetido = codprodLoteRepetido === item.codprod;
 
                     return (
                       <div
                         key={`card-${item.nunota}-${item.sequencia}`}
-                        className={`item-card-mobile ${parcial && !ocultarStatus ? 'item-card-parcial' : ''}`}
+                        className={`item-card-mobile ${parcial && !isModoCego ? 'item-card-parcial' : ''} ${ehProdutoLoteRepetido ? 'item-card-lote-repetido' : ''}`.trim()}
                         onClick={() => {
-                          if (isSomenteLeitura) return;
+                          if (!podeSelecionar) return;
                           const cod = item.codbarra || (item as any).referencia || String(item.codprod);
                           setCodigo(cod);
                           if (inputCodigoRef.current) inputCodigoRef.current.focus();
                         }}
-                        style={{ cursor: isSomenteLeitura ? 'default' : 'pointer' }}
-                        title={isSomenteLeitura ? undefined : 'Toque para selecionar este produto no leitor'}
+                        style={{ cursor: podeSelecionar ? 'pointer' : 'default' }}
+                        title={podeSelecionar ? 'Toque para selecionar este produto no leitor' : undefined}
                       >
                         <div className="item-card-header">
                           <img
@@ -2685,6 +3242,11 @@ export function ConferenciaEntradaPage() {
                           <div className="item-card-info">
                             <span className="produto-desc item-card-title">{item.descrprod}</span>
                             <span className="produto-barra item-card-sub">
+                              {ehProdutoLoteRepetido && (
+                                <span className="badge-lote-repetido-card">
+                                  🏷️ Lote Repetido
+                                </span>
+                              )}
                               {multiplasNotas && (
                                 <span
                                   style={{
@@ -2704,13 +3266,15 @@ export function ConferenciaEntradaPage() {
                               Cód: {item.codprod} | Ref: {item.referencia || '—'}
                             </span>
                           </div>
-                          <div className="item-card-badge">
-                            {parcial ? (
-                              <span className="status-parcial">Parcial</span>
-                            ) : (
-                              <span className="status-pendente">Pendente</span>
-                            )}
-                          </div>
+                          {!isModoCego && (
+                            <div className="item-card-badge">
+                              {parcial ? (
+                                <span className="status-parcial">Parcial</span>
+                              ) : (
+                                <span className="status-pendente">Pendente</span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         <div className="item-card-metrics">
@@ -2718,10 +3282,12 @@ export function ConferenciaEntradaPage() {
                             <span className="item-metric-label">Embalagem</span>
                             <span className="item-metric-val">{renderCelulaVolume(item.codprod, item.descrprod, item.codvol, item.unidadesAlternativas)}</span>
                           </div>
-                          <div className="item-card-metric-col">
-                            <span className="item-metric-label">Esperado</span>
-                            <span className="item-metric-val">{esperado !== null ? esperado : '— (Cega)'}</span>
-                          </div>
+                          {!isModoCego && (
+                            <div className="item-card-metric-col">
+                              <span className="item-metric-label">Esperado</span>
+                              <span className="item-metric-val">{esperado !== null ? esperado : '—'}</span>
+                            </div>
+                          )}
                           <div className="item-card-metric-col">
                             <span className="item-metric-label">Conferido</span>
                             <span className="item-metric-val val-conferido">{conferido}</span>
@@ -2811,7 +3377,7 @@ export function ConferenciaEntradaPage() {
         )}
 
         {/* Conteúdo da Aba 2: Itens Conferidos */}
-        {abaAtiva === 'conferidos' && (
+        {!isModoCego && abaAtiva === 'conferidos' && (
           <Container variant="outlined" padding="none">
             {itensConferidosVisiveis.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', textAlign: 'center' }}>
@@ -3510,12 +4076,12 @@ export function ConferenciaEntradaPage() {
                             color: is100Ok ? '#166534' : temSobra ? '#991b1b' : '#92400e',
                           }}
                         >
-                          {is100Ok ? '✅ 100% OK' : temSobra ? '⚠️ Com Sobra' : `⏳ ${nota.itensComFalta} pendente(s)`}
+                          {isModoCego ? '📋 Contagem Registrada' : is100Ok ? '✅ 100% OK' : temSobra ? '⚠️ Com Sobra' : `⏳ ${nota.itensComFalta} pendente(s)`}
                         </span>
                       </div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--slate-600)', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                        <span>Itens: <strong>{nota.itensOk}/{nota.totalItens} OK</strong></span>
-                        {isCega ? (
+                        {!isModoCego && (<span>Itens: <strong>{nota.itensOk}/{nota.totalItens} OK</strong></span>)}
+                        {isModoCego ? (
                           <span>Unidades Bipadas: <strong>{nota.totalConferido}</strong></span>
                         ) : (
                           <span>Unidades: <strong>{nota.totalConferido}/{nota.totalEsperado}</strong></span>
@@ -3523,7 +4089,7 @@ export function ConferenciaEntradaPage() {
                         {nota.itensSemBipagem > 0 && (
                           <span style={{ color: '#d97706', fontWeight: 600 }}>Zero bipagens: {nota.itensSemBipagem}</span>
                         )}
-                        {!isCega && nota.itensComSobra > 0 && (
+                        {!isModoCego && nota.itensComSobra > 0 && (
                           <span style={{ color: '#dc2626', fontWeight: 600 }}>Sobras: {nota.itensComSobra}</span>
                         )}
                       </div>
@@ -3564,7 +4130,7 @@ export function ConferenciaEntradaPage() {
             )}
 
             {/* Alerta de Sobra */}
-            {!isCega && estatisticas.itensComSobra > 0 && (
+            {!isModoCego && estatisticas.itensComSobra > 0 && (
               <div
                 style={{
                   margin: '8px 0',
@@ -3905,6 +4471,18 @@ export function ConferenciaEntradaPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmação do Ditado por Voz (Lote, Validade e Fabricação) */}
+      <ModalDitadoLote
+        isOpen={modalDitadoAberto}
+        isOuvindo={ouvindoVozCampo !== null}
+        tipoCampo={campoVozAtivo}
+        valorTranscrito={valorDitadoTemp}
+        erroValidacao={erroDitadoTemp}
+        onConfirmar={handleConfirmarDitadoCampo}
+        onRefazer={handleRefazerDitadoCampo}
+        onClose={handleFecharModalDitado}
+      />
     </div>
   );
 }

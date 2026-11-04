@@ -64,7 +64,8 @@ export class ConferenciaEntradaController {
   /** GET /api/recebimento/conferencia/:id/itens ou ?nunotas=1,2,3 */
   async obterItens(req: Request, res: Response): Promise<void> {
     try {
-      const conferenciaId = req.params.id !== 'novo' ? req.params.id : undefined;
+      const paramId = req.params.id;
+      const conferenciaId = paramId && paramId !== 'novo' && paramId !== 'aberto' && !paramId.startsWith('aberto_') ? paramId : undefined;
       const nunotasQuery = req.query.nunotas ? String(req.query.nunotas) : undefined;
       const nunotas = nunotasQuery ? nunotasQuery.split(',').map((n) => Number(n.trim())).filter(Boolean) : undefined;
       const usuario = req.username || (req as any).user?.username || (req as any).username || '';
@@ -187,7 +188,7 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
-      const { acao, observacao, nunota, decisoesFiscais } = req.body;
+      const { acao, observacao, nunota, decisoesFiscais, itens } = req.body;
 
       const sessao = await this.resolverDivergenciaUseCase.execute({
         conferenciaId,
@@ -196,6 +197,7 @@ export class ConferenciaEntradaController {
         acao,
         observacao,
         decisoesFiscais,
+        itens,
       });
 
       res.status(200).json({ success: true, sessao });
@@ -214,13 +216,14 @@ export class ConferenciaEntradaController {
       }
       const conferenciaId = req.params.id;
       const usuario = (req as any).user?.username || (req as any).username || 'Gestor';
-      const { motivo, nunota } = req.body;
+      const { motivo, nunota, excluirOcorrencias } = req.body;
 
       const sessao = await this.reiniciarConferenciaUseCase.execute({
         conferenciaId,
         usuario,
         motivo,
         nunota: nunota ? Number(nunota) : undefined,
+        excluirOcorrencias: excluirOcorrencias !== undefined ? Boolean(excluirOcorrencias) : undefined,
       });
 
       res.status(200).json({ success: true, sessao });

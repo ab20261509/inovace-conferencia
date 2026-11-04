@@ -94,6 +94,8 @@ export interface ItemNotaEntrada {
   codlocalorig?: number;
   nomeparc?: string;
   codparc?: number;
+  decisaoFiscal?: DecisaoFiscalItem;
+  nivelEscolhido?: number;
 }
 
 export interface BackupContagemEntrada {
@@ -160,9 +162,11 @@ export interface DecisaoFiscalItem {
   nunota: number;
   codprod: number;
   sequencia: number;
-  lote?: 'ERP' | 'BIP';
-  validade?: 'ERP' | 'BIP';
-  fabricacao?: 'ERP' | 'BIP';
+  nivelEscolhido?: 1 | 2 | 3;
+  lote?: 'ERP' | 'BIP' | 'N1' | 'N2' | 'N3';
+  validade?: 'ERP' | 'BIP' | 'N1' | 'N2' | 'N3';
+  fabricacao?: 'ERP' | 'BIP' | 'N1' | 'N2' | 'N3';
+  quantidade?: 'ERP' | 'N1' | 'N2' | 'N3';
 }
 
 export interface ConferenciaEntradaResumo {
@@ -186,6 +190,7 @@ export interface ConferenciaEntradaResumo {
   temBackupContagem: boolean;
   backupContagem?: BackupContagemEntrada;
   observacaoAprovacao?: string;
+  itensRecontagem?: Array<{ nunota: number; sequencia: number; codprod: number }>;
   statusPorNota?: Record<number, StatusConferenciaEntrada>;
   notasDetalhadas?: Array<{ nunota: number; numnota: number }>;
   chavenfe?: string;
@@ -198,6 +203,7 @@ export interface ConferenciaEntradaResumo {
   backupsDisponiveis?: BackupDisponivelResumo[];
   conferenciaIdOrig?: string;
   sessaoConjunta?: boolean;
+  decisoesFiscais?: Record<string, DecisaoFiscalItem>;
 }
 
 export interface BipagemEntrada {

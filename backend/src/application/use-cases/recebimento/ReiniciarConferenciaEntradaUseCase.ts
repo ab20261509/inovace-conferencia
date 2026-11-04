@@ -4,12 +4,14 @@ import { SessaoConferenciaEntrada, StatusConferenciaEntrada } from '../../../dom
 import { AuditService } from '../../../infrastructure/database/AuditService.js';
 import { IConfiguracaoSistemaRepository } from '../../../domain/ports/IConfiguracaoSistemaRepository.js';
 import { IOcorrenciaConferenciaEntradaRepository } from '../../../domain/ports/IOcorrenciaConferenciaEntradaRepository.js';
+import { OcorrenciaConferenciaEntrada } from '../../../domain/entities/OcorrenciaConferenciaEntrada.js';
 
 export interface ReiniciarConferenciaInput {
   conferenciaId: string;
   usuario: string;
   motivo?: string;
   nunota?: number;
+  excluirOcorrencias?: boolean;
 }
 
 export class ReiniciarConferenciaEntradaUseCase {
@@ -20,29 +22,62 @@ export class ReiniciarConferenciaEntradaUseCase {
     private readonly ocorrenciaRepo?: IOcorrenciaConferenciaEntradaRepository
   ) {}
 
-  private async cancelarOcorrenciasVinculadas(
+  private async processarOcorrenciasVinculadas(
     conferenciaId: string,
-    nunota?: number,
-    motivo?: string
+    nunotasAlvo?: number[],
+    motivo?: string,
+    excluirOcorrencias: boolean = true
   ): Promise<void> {
     if (!this.ocorrenciaRepo) return;
     try {
-      const ocorrencias = await this.ocorrenciaRepo.listar({ conferenciaId });
-      for (const oc of ocorrencias) {
-        if (oc.status !== 'CANCELADO') {
-          if (nunota && oc.nunota && oc.nunota !== nunota) {
-            continue;
+      const ocorrenciasEncontradas = new Map<string, OcorrenciaConferenciaEntrada>();
+
+      // 1. Buscar por conferenciaId
+      const confIdBase = conferenciaId.split('_')[0];
+      const porConf = await this.ocorrenciaRepo.listar({ conferenciaId: confIdBase });
+      for (const oc of porConf) {
+        ocorrenciasEncontradas.set(oc.id, oc);
+      }
+      if (conferenciaId !== confIdBase) {
+        const porConfCompleto = await this.ocorrenciaRepo.listar({ conferenciaId });
+        for (const oc of porConfCompleto) {
+          ocorrenciasEncontradas.set(oc.id, oc);
+        }
+      }
+
+      // 2. Buscar por nunotas
+      if (nunotasAlvo && nunotasAlvo.length > 0) {
+        for (const nu of nunotasAlvo) {
+          const porNota = await this.ocorrenciaRepo.listarPorNuNota(nu);
+          for (const oc of porNota) {
+            ocorrenciasEncontradas.set(oc.id, oc);
           }
-          await this.ocorrenciaRepo.atualizar(oc.id, {
-            status: 'CANCELADO',
-            motivo: oc.motivo
-              ? `${oc.motivo} [Cancelada pelo reinício da conferência: ${motivo || 'Gestor'}]`
-              : `Cancelada devido ao reinício da conferência pelo gestor.`,
-          });
+        }
+      }
+
+      // 3. Filtrar e processar
+      for (const oc of ocorrenciasEncontradas.values()) {
+        // Se há nunotas específicas sendo reiniciadas (ex: desmembramento de nota única),
+        // não afetar ocorrências de outras notas da mesma sessão conjunta
+        if (nunotasAlvo && nunotasAlvo.length > 0 && oc.nunota && !nunotasAlvo.includes(oc.nunota)) {
+          continue;
+        }
+
+        if (excluirOcorrencias) {
+          await this.ocorrenciaRepo.remover(oc.id);
+        } else {
+          if (oc.status !== 'CANCELADO') {
+            await this.ocorrenciaRepo.atualizar(oc.id, {
+              status: 'CANCELADO',
+              motivo: oc.motivo
+                ? `${oc.motivo} [Cancelada pelo reinício da conferência: ${motivo || 'Gestor'}]`
+                : `Cancelada devido ao reinício da conferência pelo gestor.`,
+            });
+          }
         }
       }
     } catch (errOcorr) {
-      console.warn('[ReiniciarConferencia] Erro ao cancelar ocorrências vinculadas:', errOcorr);
+      console.warn('[ReiniciarConferencia] Erro ao processar ocorrências vinculadas:', errOcorr);
     }
   }
 
@@ -146,8 +181,12 @@ export class ReiniciarConferenciaEntradaUseCase {
 
       await this.conferenciaRepo.salvarSessao(novaSessao);
       await this.conferenciaRepo.salvarSessao(sessao);
-    await this.cancelarOcorrenciasVinculadas(sessao.id, input.nunota, input.motivo);
-      await this.cancelarOcorrenciasVinculadas(sessao.id, nunotaAlvo, input.motivo);
+      await this.processarOcorrenciasVinculadas(
+        sessao.id,
+        [nunotaAlvo],
+        input.motivo,
+        input.excluirOcorrencias ?? true
+      );
 
       if (this.audit) {
         await this.audit.registrar({
@@ -159,6 +198,7 @@ export class ReiniciarConferenciaEntradaUseCase {
             novaSessaoId: novaSessao.id,
             nunotaDesmembrada: nunotaAlvo,
             motivo: input.motivo,
+            excluirOcorrencias: input.excluirOcorrencias ?? true,
           },
         });
       }
@@ -209,7 +249,12 @@ export class ReiniciarConferenciaEntradaUseCase {
     sessao.statusPorNotaJson = JSON.stringify(statusResetado);
 
     await this.conferenciaRepo.salvarSessao(sessao);
-    await this.cancelarOcorrenciasVinculadas(sessao.id, input.nunota, input.motivo);
+    await this.processarOcorrenciasVinculadas(
+      sessao.id,
+      input.nunota ? [input.nunota] : sessao.nunotas,
+      input.motivo,
+      input.excluirOcorrencias ?? true
+    );
 
     if (this.audit) {
       await this.audit.registrar({
@@ -221,6 +266,7 @@ export class ReiniciarConferenciaEntradaUseCase {
           nunotas: sessao.nunotas,
           totalBipagensAnuladas: bipagens.length,
           motivo: input.motivo,
+          excluirOcorrencias: input.excluirOcorrencias ?? true,
         },
       });
     }

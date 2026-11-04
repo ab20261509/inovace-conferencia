@@ -37,3 +37,10 @@ data/*.json
 *.db-shm
 *.db-wal
 *.bak
+
+# Certificados SSL locais
+certs/
+*.pem
+*.crt
+*.key
+frontend/public/rootCA.*

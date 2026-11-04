@@ -39,6 +39,8 @@ function formatarDataSankhya(dataStr?: string): string | undefined {
 }
 
 export class ExecutarDesmembramentoItemUseCase {
+  private static readonly processandoPorItem = new Set<string>();
+
   constructor(
     private readonly conferenciaRepo: IConferenciaEntradaRepository,
     private readonly gateway: IGatewayPort,
@@ -69,9 +71,18 @@ export class ExecutarDesmembramentoItemUseCase {
       throw new Error('Sequência do item na nota é obrigatória.');
     }
 
-    if (!input.lotes || input.lotes.length === 0) {
-      throw new Error('É necessário fornecer pelo menos uma fração de lote para desmembrar.');
+    const lockKey = `${nunota}-${sequencia}`;
+    if (ExecutarDesmembramentoItemUseCase.processandoPorItem.has(lockKey)) {
+      throw new Error(
+        `O item da NF #${nunota} (Seq ${sequencia}) já está sendo desmembrado no Sankhya. Por favor, aguarde.`
+      );
     }
+    ExecutarDesmembramentoItemUseCase.processandoPorItem.add(lockKey);
+
+    try {
+      if (!input.lotes || input.lotes.length === 0) {
+        throw new Error('É necessário fornecer pelo menos uma fração de lote para desmembrar.');
+      }
 
     // 1. Obter dados do item original na TGFITE (CODPROD, CODVOL, QTDNEG)
     const sqlItem = `
@@ -340,36 +351,44 @@ ORDER BY ITE.SEQUENCIA
       }
     }
 
-    // 5. Reavaliar divergências de entrada no banco/memória
-    const divergenciasAtualizadas = await this.listarDivergenciasUseCase.execute(correlationId);
+      // 5. Reavaliar divergências de entrada no banco/memória (com tolerância a falhas/timeouts)
+      let divergenciasAtualizadas: any[] | undefined = undefined;
+      try {
+        divergenciasAtualizadas = await this.listarDivergenciasUseCase.execute(correlationId);
 
-    // Se para esta nota não houver mais divergências pendentes no grupo retornado
-    const grupoNota = divergenciasAtualizadas.find((g: any) => Number(g.nunota) === nunota);
-    const temDivergenciaRestante = Boolean(
-      grupoNota && grupoNota.itensDivergentes && grupoNota.itensDivergentes.length > 0
-    );
+        // Se para esta nota não houver mais divergências pendentes no grupo retornado
+        const grupoNota = divergenciasAtualizadas.find((g: any) => Number(g.nunota) === nunota);
+        const temDivergenciaRestante = Boolean(
+          grupoNota && grupoNota.itensDivergentes && grupoNota.itensDivergentes.length > 0
+        );
 
-    if (!temDivergenciaRestante) {
-      sessao.statusPorNota = sessao.statusPorNota || {};
-      sessao.statusPorNota[nunota] = 'Conferido';
-      sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
+        if (!temDivergenciaRestante) {
+          sessao.statusPorNota = sessao.statusPorNota || {};
+          sessao.statusPorNota[nunota] = 'Conferido';
+          sessao.statusPorNotaJson = JSON.stringify(sessao.statusPorNota);
 
-      const todasConferidas = sessao.nunotas.every(
-        (n) => sessao.statusPorNota?.[n] === 'Conferido' || sessao.statusPorNota?.[n] === 'Enviado ao Sankhya'
-      );
+          const todasConferidas = sessao.nunotas.every(
+            (n) => sessao.statusPorNota?.[n] === 'Conferido' || sessao.statusPorNota?.[n] === 'Enviado ao Sankhya'
+          );
 
-      if (todasConferidas) {
-        sessao.status = 'Conferido';
-        sessao.finalizadoEm = new Date().toISOString();
+          if (todasConferidas) {
+            sessao.status = 'Conferido';
+            sessao.finalizadoEm = new Date().toISOString();
+          }
+          sessao.atualizadoEm = new Date().toISOString();
+          await this.conferenciaRepo.salvarSessao(sessao);
+        }
+      } catch (eDiv: any) {
+        console.warn('[ExecutarDesmembramentoItemUseCase] Aviso ao atualizar divergências pós-desmembramento:', eDiv?.message);
       }
-      sessao.atualizadoEm = new Date().toISOString();
-      await this.conferenciaRepo.salvarSessao(sessao);
-    }
 
-    return {
-      sucesso: true,
-      mensagem: `Item da Nota ${nunota} desmembrado com sucesso no Sankhya!`,
-      divergencias: divergenciasAtualizadas,
-    };
+      return {
+        sucesso: true,
+        mensagem: `Item da Nota ${nunota} desmembrado com sucesso no Sankhya!`,
+        divergencias: divergenciasAtualizadas,
+      };
+    } finally {
+      ExecutarDesmembramentoItemUseCase.processandoPorItem.delete(lockKey);
+    }
   }
 }

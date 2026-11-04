@@ -24,6 +24,26 @@ export interface ItemDivergenciaResumo {
   divergenciaValidade?: boolean;
   divergenciaFabricacao?: boolean;
   temMultiplosLotes?: boolean;
+  loteN2?: string;
+  validadeN2?: string;
+  fabricacaoN2?: string;
+  lotesConferidosN2?: Array<{
+    lote: string;
+    validade?: string;
+    fabricacao?: string;
+    quantidade: number;
+    conferente?: string;
+  }>;
+  loteN3?: string;
+  validadeN3?: string;
+  fabricacaoN3?: string;
+  lotesConferidosN3?: Array<{
+    lote: string;
+    validade?: string;
+    fabricacao?: string;
+    quantidade: number;
+    conferente?: string;
+  }>;
   lotesConferidos?: Array<{
     lote: string;
     validade?: string;
@@ -61,6 +81,7 @@ export interface ConferênciaDivergenciaGrupo {
   nivel2Ativo?: boolean;
   itensDivergentes: ItemDivergenciaResumo[];
   todosItens: ItemDivergenciaResumo[];
+  itensRecontagem?: any[];
 }
 
 export class ListarDivergenciasEntradaUseCase {
@@ -84,7 +105,7 @@ export class ListarDivergenciasEntradaUseCase {
     const todasSessoes = await (this.conferenciaRepo as any).client?.execute(
       `SELECT id, nunotas_json, status, nivel_atual, conferente, criado_em, atualizado_em,
               aprovado_por, aprovado_em, enviado_sankhya_em, observacao_aprovacao, resposta_sankhya_json,
-              status_por_nota_json
+              status_por_nota_json, itens_recontagem_json
        FROM conferencias_entrada
        WHERE status IN ('Divergente', 'Em Reconferência', 'Aguardando N3', 'N3 em Andamento')
           OR status_por_nota_json LIKE '%Divergente%'
@@ -109,6 +130,16 @@ export class ListarDivergenciasEntradaUseCase {
       let statusPorNota: Record<number, string> = {};
       try {
         statusPorNota = JSON.parse(String(row.status_por_nota_json || '{}'));
+      } catch {}
+
+      let itensRecontagem: any[] | undefined;
+      try {
+        itensRecontagem = row.itens_recontagem_json ? JSON.parse(String(row.itens_recontagem_json)) : undefined;
+      } catch {}
+
+      let decisoesFiscais: Record<string, any> = {};
+      try {
+        decisoesFiscais = row.decisoes_fiscais_json ? JSON.parse(String(row.decisoes_fiscais_json)) : {};
       } catch {}
 
       const nunotasStr = nunotas.join(', ');
@@ -169,7 +200,23 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           lote?: string;
           validade?: string;
           fabricacao?: string;
-          lotesMap: Record<
+          loteN2?: string;
+          validadeN2?: string;
+          fabricacaoN2?: string;
+          loteN3?: string;
+          validadeN3?: string;
+          fabricacaoN3?: string;
+          lotesMapN2: Record<
+            string,
+            {
+              lote: string;
+              validade?: string;
+              fabricacao?: string;
+              quantidade: number;
+              conferente?: string;
+            }
+          >;
+          lotesMapN3: Record<
             string,
             {
               lote: string;
@@ -188,7 +235,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       for (const b of bipagensValidas) {
         const key = `${b.nunota}|${b.codprod}|${b.sequencia}`;
         if (!mapBips[key]) {
-          mapBips[key] = { n1: 0, n2: 0, n3: 0, lotesMap: {} };
+          mapBips[key] = { n1: 0, n2: 0, n3: 0, lotesMapN2: {}, lotesMapN3: {} };
         }
         if (b.nivel === 1) {
           mapBips[key].n1 += b.qtdConferida;
@@ -196,31 +243,63 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         } else if (b.nivel === 2) {
           mapBips[key].n2 += b.qtdConferida;
           mapBips[key].conferenteN2 = b.conferente;
-          if (b.lote) mapBips[key].lote = b.lote;
-          if (b.validade) mapBips[key].validade = b.validade;
-          if (b.fabricacao) mapBips[key].fabricacao = b.fabricacao;
+          if (b.lote) {
+            mapBips[key].loteN2 = b.lote;
+            mapBips[key].lote = b.lote;
+          }
+          if (b.validade) {
+            mapBips[key].validadeN2 = b.validade;
+            mapBips[key].validade = b.validade;
+          }
+          if (b.fabricacao) {
+            mapBips[key].fabricacaoN2 = b.fabricacao;
+            mapBips[key].fabricacao = b.fabricacao;
+          }
+
+          if (b.lote) {
+            const lLimpo = b.lote.trim();
+            const subKey = `${lLimpo.toUpperCase()}|${b.validade || ''}|${b.fabricacao || ''}`;
+            if (!mapBips[key].lotesMapN2[subKey]) {
+              mapBips[key].lotesMapN2[subKey] = {
+                lote: lLimpo,
+                validade: b.validade?.trim() || undefined,
+                fabricacao: b.fabricacao?.trim() || undefined,
+                quantidade: 0,
+                conferente: b.conferente,
+              };
+            }
+            mapBips[key].lotesMapN2[subKey].quantidade += b.qtdConferida;
+          }
         } else if (b.nivel === 3) {
           mapBips[key].n3 += b.qtdConferida;
           mapBips[key].conferenteN3 = b.conferente;
-          if (b.lote) mapBips[key].lote = b.lote;
-          if (b.validade) mapBips[key].validade = b.validade;
-          if (b.fabricacao) mapBips[key].fabricacao = b.fabricacao;
-        }
-
-        // Agrupamento de frações de lotes conferidos (N2 ou N3)
-        if (b.lote && (b.nivel === 2 || b.nivel === 3)) {
-          const lLimpo = b.lote.trim();
-          const subKey = `${lLimpo.toUpperCase()}|${b.validade || ''}|${b.fabricacao || ''}`;
-          if (!mapBips[key].lotesMap[subKey]) {
-            mapBips[key].lotesMap[subKey] = {
-              lote: lLimpo,
-              validade: b.validade?.trim() || undefined,
-              fabricacao: b.fabricacao?.trim() || undefined,
-              quantidade: 0,
-              conferente: b.conferente,
-            };
+          if (b.lote) {
+            mapBips[key].loteN3 = b.lote;
+            mapBips[key].lote = b.lote;
           }
-          mapBips[key].lotesMap[subKey].quantidade += b.qtdConferida;
+          if (b.validade) {
+            mapBips[key].validadeN3 = b.validade;
+            mapBips[key].validade = b.validade;
+          }
+          if (b.fabricacao) {
+            mapBips[key].fabricacaoN3 = b.fabricacao;
+            mapBips[key].fabricacao = b.fabricacao;
+          }
+
+          if (b.lote) {
+            const lLimpo = b.lote.trim();
+            const subKey = `${lLimpo.toUpperCase()}|${b.validade || ''}|${b.fabricacao || ''}`;
+            if (!mapBips[key].lotesMapN3[subKey]) {
+              mapBips[key].lotesMapN3[subKey] = {
+                lote: lLimpo,
+                validade: b.validade?.trim() || undefined,
+                fabricacao: b.fabricacao?.trim() || undefined,
+                quantidade: 0,
+                conferente: b.conferente,
+              };
+            }
+            mapBips[key].lotesMapN3[subKey].quantidade += b.qtdConferida;
+          }
         }
       }
 
@@ -255,9 +334,49 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         const fabricacaoOriginal = r[fieldIndex['DTFABRICACAO']] ? String(r[fieldIndex['DTFABRICACAO']]).trim() : undefined;
 
         const key = `${nunotaItem}|${codprod}|${sequencia}`;
-        const bips = mapBips[key] || { n1: 0, n2: 0, n3: 0, lotesMap: {} };
+        const bips = mapBips[key] || {
+          n1: 0,
+          n2: 0,
+          n3: 0,
+          lotesMapN2: {},
+          lotesMapN3: {},
+        };
 
-        const lotesConferidos = Object.values(bips.lotesMap || {});
+        const lotesConferidosN2 = Object.values(bips.lotesMapN2 || {});
+        const lotesConferidosN3 = Object.values(bips.lotesMapN3 || {});
+
+        // Avaliar decisão prévia salva na sessão para este item
+        const itemKey = `${nunotaItem}-${codprod}-${sequencia}`;
+        const decisaoPrevia = decisoesFiscais?.[itemKey] || decisoesFiscais?.[String(codprod)];
+
+        let nivelAtivoItem: 2 | 3 = bips.n3 > 0 ? 3 : 2;
+        if (decisaoPrevia?.nivelEscolhido === 2 || decisaoPrevia?.lote === 'N2') {
+          nivelAtivoItem = 2;
+        } else if (decisaoPrevia?.nivelEscolhido === 3 || decisaoPrevia?.lote === 'N3') {
+          nivelAtivoItem = 3;
+        }
+
+        const lotesConferidos =
+          nivelAtivoItem === 3 && lotesConferidosN3.length > 0
+            ? lotesConferidosN3
+            : lotesConferidosN2;
+
+        const loteAtivo =
+          nivelAtivoItem === 3 && bips.loteN3
+            ? bips.loteN3
+            : bips.loteN2;
+
+        const validadeAtiva =
+          nivelAtivoItem === 3 && bips.validadeN3
+            ? bips.validadeN3
+            : bips.validadeN2;
+
+        const fabricacaoAtiva =
+          nivelAtivoItem === 3 && bips.fabricacaoN3
+            ? bips.fabricacaoN3
+            : bips.fabricacaoN2;
+
+        // Só há múltiplos lotes se dentro do nível ativo o conferente registrou mais de 1 lote físico
         const temMultiplosLotes = lotesConferidos.length > 1;
 
         const contagemFinal = bips.n3 > 0 ? bips.n3 : bips.n2 > 0 ? bips.n2 : bips.n1;
@@ -273,13 +392,13 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         }
 
         if (contagemFinal > 0) {
-          if (controleOriginal && bips.lote && bips.lote.toUpperCase() !== controleOriginal.toUpperCase()) {
+          if (controleOriginal && loteAtivo && loteAtivo.toUpperCase() !== controleOriginal.toUpperCase()) {
             divergenciaLote = true;
           }
-          if (validadeOriginal && bips.validade && normalizarDataBr(bips.validade) !== normalizarDataBr(validadeOriginal)) {
+          if (validadeOriginal && validadeAtiva && normalizarDataBr(validadeAtiva) !== normalizarDataBr(validadeOriginal)) {
             divergenciaValidade = true;
           }
-          if (fabricacaoOriginal && bips.fabricacao && normalizarDataBr(bips.fabricacao) !== normalizarDataBr(fabricacaoOriginal)) {
+          if (fabricacaoOriginal && fabricacaoAtiva && normalizarDataBr(fabricacaoAtiva) !== normalizarDataBr(fabricacaoOriginal)) {
             divergenciaFabricacao = true;
           }
         }
@@ -296,9 +415,17 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           qtdN2: bips.n2,
           qtdN3: bips.n3,
           diferenca,
-          lote: bips.lote,
-          validade: bips.validade,
-          fabricacao: bips.fabricacao,
+          lote: loteAtivo,
+          validade: validadeAtiva,
+          fabricacao: fabricacaoAtiva,
+          loteN2: bips.loteN2,
+          validadeN2: bips.validadeN2,
+          fabricacaoN2: bips.fabricacaoN2,
+          lotesConferidosN2,
+          loteN3: bips.loteN3,
+          validadeN3: bips.validadeN3,
+          fabricacaoN3: bips.fabricacaoN3,
+          lotesConferidosN3,
           controleOriginal,
           validadeOriginal,
           fabricacaoOriginal,
@@ -399,6 +526,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
             nivel2Ativo,
             itensDivergentes: itensDivergentesNota,
             todosItens: itensDestaNota,
+            itensRecontagem,
           });
         }
       }

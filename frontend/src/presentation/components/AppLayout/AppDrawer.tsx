@@ -160,6 +160,35 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
               </Link>
             </>
           )}
+
+          <span className="app-drawer-section-title">Ajuda & Segurança</span>
+          <a
+            href="/instalar.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="app-drawer-item"
+            onClick={onClose}
+            title="Abrir página de instalação do certificado HTTPS"
+          >
+            <span className="app-drawer-item-icon">🛡️</span>
+            <span>Certificado HTTPS</span>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ marginLeft: 'auto', opacity: 0.5 }}
+              aria-hidden="true"
+            >
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
         </nav>
 
         {/* Footer */}

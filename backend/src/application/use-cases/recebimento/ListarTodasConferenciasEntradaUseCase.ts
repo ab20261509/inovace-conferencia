@@ -357,6 +357,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
             backupContagem: sessao.backupContagem,
             observacaoAprovacao: sessao.observacaoAprovacao,
             statusPorNota: { [nunota]: statusNota },
+            itensRecontagem: sessao.itensRecontagem,
             notasDetalhadas: [{ nunota, numnota: numnotaReal }],
             chavenfe: chavenfeNota,
             numnota: numnotaReal,
@@ -366,6 +367,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
             conferenteN2: ehAbertoNota ? undefined : confN2Nota,
             conferenteN3: ehAbertoNota ? undefined : confN3Nota,
             backupsDisponiveis: backupsNota,
+            decisoesFiscais: sessao.decisoesFiscais,
           });
         }
       } else {
@@ -374,6 +376,11 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
         const fornecedor =
           fornecedoresSet.size > 0 ? Array.from(fornecedoresSet).join(' / ') : 'Fornecedor da Nota';
         const ehAbertoSessao = sessao.status === 'Em Aberto';
+        const statusNotaUnica =
+          sessao.statusPorNota && sessao.nunotas[0] && sessao.statusPorNota[sessao.nunotas[0]]
+            ? sessao.statusPorNota[sessao.nunotas[0]]
+            : sessao.status;
+        const statusFinalSessao = statusNotaUnica || sessao.status;
 
         resultado.push({
           id: sessao.id,
@@ -382,7 +389,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
           nunotas: sessao.nunotas,
           numerosNotas,
           fornecedor,
-          status: sessao.status,
+          status: statusFinalSessao,
           nivelAtual: ehAbertoSessao ? 1 : sessao.nivelAtual,
           conferente: ehAbertoSessao ? 'Aguardando Início' : (sessao.conferente || 'Operador'),
           criadoEm: sessao.criadoEm,
@@ -398,6 +405,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
           temBackupContagem: backupsDisponiveis.length > 0,
           backupContagem: sessao.backupContagem,
           observacaoAprovacao: sessao.observacaoAprovacao,
+          itensRecontagem: sessao.itensRecontagem,
           statusPorNota: sessao.statusPorNota,
           notasDetalhadas,
           chavenfe,
@@ -408,6 +416,7 @@ ORDER BY CAB.DTNEG DESC, CAB.NUNOTA DESC
           conferenteN2: ehAbertoSessao ? undefined : conferenteN2,
           conferenteN3: ehAbertoSessao ? undefined : conferenteN3,
           backupsDisponiveis,
+          decisoesFiscais: sessao.decisoesFiscais,
         });
       }
     }

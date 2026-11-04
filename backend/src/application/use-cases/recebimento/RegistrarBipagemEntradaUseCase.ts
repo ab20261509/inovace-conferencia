@@ -64,15 +64,20 @@ export class RegistrarBipagemEntradaUseCase {
       }
     }
 
+    const codigoSemZero = codigoLimpo.replace(/^0+/, '') || codigoLimpo;
     const condicaoIdentificador = podeBiparPorCodprod
       ? `(
            UPPER(PRO.REFERENCIA) = UPPER('${codigoLimpo}')
+        OR UPPER(PRO.REFFORN) = UPPER('${codigoLimpo}')
         OR UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}')
+        OR LTRIM(BAR.CODBARRA, '0') = '${codigoSemZero}'
         OR TO_CHAR(PRO.CODPROD) = '${codigoLimpo}'
       )`
       : `(
            UPPER(PRO.REFERENCIA) = UPPER('${codigoLimpo}')
+        OR UPPER(PRO.REFFORN) = UPPER('${codigoLimpo}')
         OR UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}')
+        OR LTRIM(BAR.CODBARRA, '0') = '${codigoSemZero}'
       )`;
 
     const nunotasStr = sessao.nunotas.join(', ');
@@ -105,7 +110,11 @@ LEFT JOIN (
           AND (VOA.ATIVO IS NULL OR VOA.ATIVO = 'S')
     )
 ) BAR ON BAR.CODPROD = ITE.CODPROD
-     AND (UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}') OR UPPER(BAR.CODBARRA) = UPPER(TRIM('${codigoLimpo}')))
+     AND (
+       UPPER(BAR.CODBARRA) = UPPER('${codigoLimpo}')
+       OR UPPER(TRIM(BAR.CODBARRA)) = UPPER(TRIM('${codigoLimpo}'))
+       OR LTRIM(BAR.CODBARRA, '0') = '${codigoSemZero}'
+     )
 WHERE ITE.NUNOTA IN (${nunotasStr})
   AND ${condicaoIdentificador}
 ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
@@ -199,7 +208,20 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       }
     }
 
-    // 2. Se a conferência estiver no Nível 3 (Reconferência / Desempate),
+    // 2. Se a conferência estiver com recontagem seletiva (itens específicos indicados pelo gestor),
+    // validar se o item bipado faz parte dos itens selecionados
+    if (sessao.itensRecontagem && sessao.itensRecontagem.length > 0) {
+      const fazParte = sessao.itensRecontagem.some(
+        (r) => r.nunota === nunota && r.sequencia === sequencia && r.codprod === codprod
+      );
+      if (!fazParte) {
+        throw new Error(
+          `O produto "${descrprod}" não faz parte dos itens selecionados para esta recontagem seletiva.`
+        );
+      }
+    }
+
+    // 3. Se a conferência estiver no Nível 3 (Reconferência / Desempate),
     // validar se o item bipado é realmente divergente nos níveis anteriores
     if (nivelAtual === 3) {
       const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
@@ -224,7 +246,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       }
     }
 
-    // 3. Calcular quantidade efetiva considerando fator se for embalagem alternativa
+    // 4. Calcular quantidade efetiva considerando fator se for embalagem alternativa
     let fator = 1;
     if (codBarraAlt.toUpperCase() === codigoLimpo.toUpperCase() && fatorAlt > 0) {
       fator = divideMultiplica === 'D' ? 1 / fatorAlt : fatorAlt;
@@ -233,31 +255,89 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     const qtdBase = input.quantidade !== undefined && input.quantidade > 0 ? input.quantidade : 1;
     const qtdEfetiva = qtdBase * fator;
 
-    // 3. Criar registro de bipagem
-    const novaBipagem: BipagemEntrada = {
-      id: randomUUID(),
-      conferenciaId: sessao.id,
-      nunota,
-      codprod,
-      sequencia,
-      codbarra: codigoLimpo,
-      qtdConferida: qtdEfetiva,
-      nivel: input.nivel || sessao.nivelAtual || 1,
-      conferente: input.conferente || sessao.conferente || 'Operador',
-      timestamp: new Date().toISOString(),
-      lote: input.lote ? input.lote.trim().toUpperCase() : undefined,
-      validade: input.validade ? input.validade.trim() : undefined,
-      fabricacao: input.fabricacao ? input.fabricacao.trim() : undefined,
-      anulado: false,
-    };
+    // 5. Distribuição em cascata (FIFO) entre múltiplas sequências da mesma nota/produto
+    const todasBipagens = await this.conferenciaRepo.listarBipagens(sessao.id);
+    const bipagensSalvas: BipagemEntrada[] = [];
 
-    await this.conferenciaRepo.salvarBipagem(novaBipagem);
+    if (candidateRows.length > 1) {
+      let qtdRestante = qtdEfetiva;
+
+      for (let i = 0; i < candidateRows.length && qtdRestante > 0; i++) {
+        const row = candidateRows[i];
+        const rowNunota = Number(row[fieldIndex['NUNOTA']]);
+        const rowSeq = Number(row[fieldIndex['SEQUENCIA']]);
+        const rowCodprod = Number(row[fieldIndex['CODPROD']]);
+        const rowQtdNeg = Number(row[fieldIndex['QTDNEG']] || 0);
+
+        let conferidoLinha = 0;
+        for (const b of todasBipagens) {
+          if (
+            !b.anulado &&
+            b.nunota === rowNunota &&
+            b.sequencia === rowSeq &&
+            b.codprod === rowCodprod &&
+            b.nivel === nivelAtual
+          ) {
+            conferidoLinha += b.qtdConferida;
+          }
+        }
+
+        const saldoLinha = Math.max(0, rowQtdNeg - conferidoLinha);
+        const ehUltimaLinha = i === candidateRows.length - 1;
+
+        if (saldoLinha > 0 || ehUltimaLinha) {
+          const qtdParaEstaLinha = (!ehUltimaLinha && qtdRestante > saldoLinha) ? saldoLinha : qtdRestante;
+          if (qtdParaEstaLinha > 0) {
+            const novaBip: BipagemEntrada = {
+              id: randomUUID(),
+              conferenciaId: sessao.id,
+              nunota: rowNunota,
+              codprod: rowCodprod,
+              sequencia: rowSeq,
+              codbarra: codigoLimpo,
+              qtdConferida: qtdParaEstaLinha,
+              nivel: nivelAtual,
+              conferente: input.conferente || sessao.conferente || 'Operador',
+              timestamp: new Date().toISOString(),
+              lote: input.lote ? input.lote.trim().toUpperCase() : undefined,
+              validade: input.validade ? input.validade.trim() : undefined,
+              fabricacao: input.fabricacao ? input.fabricacao.trim() : undefined,
+              anulado: false,
+            };
+            await this.conferenciaRepo.salvarBipagem(novaBip);
+            bipagensSalvas.push(novaBip);
+            qtdRestante -= qtdParaEstaLinha;
+          }
+        }
+      }
+    } else {
+      const novaBipagem: BipagemEntrada = {
+        id: randomUUID(),
+        conferenciaId: sessao.id,
+        nunota,
+        codprod,
+        sequencia,
+        codbarra: codigoLimpo,
+        qtdConferida: qtdEfetiva,
+        nivel: nivelAtual,
+        conferente: input.conferente || sessao.conferente || 'Operador',
+        timestamp: new Date().toISOString(),
+        lote: input.lote ? input.lote.trim().toUpperCase() : undefined,
+        validade: input.validade ? input.validade.trim() : undefined,
+        fabricacao: input.fabricacao ? input.fabricacao.trim() : undefined,
+        anulado: false,
+      };
+      await this.conferenciaRepo.salvarBipagem(novaBipagem);
+      bipagensSalvas.push(novaBipagem);
+    }
+
+    const bipagemPrincipal = bipagensSalvas[0];
 
     // Garantir que a conferência e a nota reflitam o status de andamento no nível corrente
     const statusEsperado =
-      (novaBipagem.nivel === 2)
+      (bipagemPrincipal.nivel === 2)
         ? 'N2 em Andamento'
-        : (novaBipagem.nivel === 3)
+        : (bipagemPrincipal.nivel === 3)
         ? 'N3 em Andamento'
         : 'N1 em Andamento';
 
@@ -292,7 +372,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     const todasBipagensItem = await this.conferenciaRepo.listarBipagens(sessao.id);
     let totalConferidoNivelItem = 0;
     for (const b of todasBipagensItem) {
-      if (!b.anulado && b.nunota === nunota && b.codprod === codprod && b.sequencia === sequencia && b.nivel === novaBipagem.nivel) {
+      if (!b.anulado && b.nunota === nunota && b.codprod === codprod && b.sequencia === sequencia && b.nivel === bipagemPrincipal.nivel) {
         totalConferidoNivelItem += b.qtdConferida;
       }
     }
@@ -300,7 +380,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     const conferidoCompleto = qtdEsperadaItem > 0 ? totalConferidoNivelItem >= qtdEsperadaItem : totalConferidoNivelItem > 0;
 
     return {
-      bipagem: novaBipagem,
+      bipagem: bipagemPrincipal,
       descrprod,
       referencia,
       fatorAplicado: fator,

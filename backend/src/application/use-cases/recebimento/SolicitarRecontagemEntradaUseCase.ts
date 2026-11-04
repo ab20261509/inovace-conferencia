@@ -28,6 +28,20 @@ export class SolicitarRecontagemEntradaUseCase {
       throw new Error('Sessão de conferência não encontrada.');
     }
 
+    const statusAlvo = (sessao.status || '').toLowerCase();
+    const emAndamento =
+      statusAlvo.includes('andamento') ||
+      statusAlvo === 'iniciado' ||
+      statusAlvo.includes('em reconferência') ||
+      statusAlvo.includes('em reconferencia');
+
+    if (emAndamento) {
+      const conferenteAtivo = sessao.conferente ? `pelo conferente ${sessao.conferente}` : 'no coletor';
+      throw new Error(
+        `Ação bloqueada: a conferência já está em andamento ${conferenteAtivo}. Só é permitido solicitar recontagem quando a conferência estiver finalizada ou aguardando.`
+      );
+    }
+
     const nivelAlvo = Number(input.nivel);
     if (![1, 2, 3].includes(nivelAlvo)) {
       throw new Error('Nível de recontagem inválido. Escolha Nível 1, 2 ou 3.');
@@ -55,13 +69,24 @@ export class SolicitarRecontagemEntradaUseCase {
 
     // Se foram especificados itens para recontagem parcial
     if (input.itens && input.itens.length > 0) {
-      sessao.itensRecontagem = input.itens;
-      sessao.itensRecontagemJson = JSON.stringify(input.itens);
-      // Anula apenas as bipagens do nível alvo para os itens selecionados
-      await this.conferenciaRepo.anularBipagensPorItens(sessao.id, nivelAlvo, input.itens);
+      const mesmoNivel = sessao.nivelAtual === nivelAlvo;
+      const itensExistentes = mesmoNivel ? (sessao.itensRecontagem || []) : [];
+      const setChavesExistentes = new Set(
+        itensExistentes.map((i) => `${i.nunota}-${i.sequencia}-${i.codprod}`)
+      );
+      const novosItens = input.itens.filter(
+        (i) => !setChavesExistentes.has(`${i.nunota}-${i.sequencia}-${i.codprod}`)
+      );
+      const itensCombinados = [...itensExistentes, ...novosItens];
+
+      sessao.itensRecontagem = itensCombinados;
+      sessao.itensRecontagemJson = JSON.stringify(itensCombinados);
+      // Anula apenas as bipagens do nível alvo para os itens selecionados (novos)
+      const itensParaAnular = novosItens.length > 0 ? novosItens : input.itens;
+      await this.conferenciaRepo.anularBipagensPorItens(sessao.id, nivelAlvo, itensParaAnular);
       sessao.observacaoAprovacao = input.motivo
-        ? `Recontagem N${nivelAlvo} parcial (${input.itens.length} itens): ${input.motivo}`
-        : `Recontagem N${nivelAlvo} parcial (${input.itens.length} itens) solicitada pelo gestor.`;
+        ? `Recontagem N${nivelAlvo} parcial (${itensCombinados.length} itens): ${input.motivo}`
+        : `Recontagem N${nivelAlvo} parcial (${itensCombinados.length} itens) solicitada pelo gestor.`;
     } else {
       sessao.itensRecontagem = undefined;
       sessao.itensRecontagemJson = undefined;

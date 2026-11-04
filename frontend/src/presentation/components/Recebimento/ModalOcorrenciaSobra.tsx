@@ -45,11 +45,29 @@ export const ModalOcorrenciaSobra: React.FC<ModalOcorrenciaSobraProps> = ({
   useEffect(() => {
     if (!isOpen || !item) return;
 
-    const sobraCalculada = item.diferenca > 0 ? item.diferenca : 0;
+    const sobraCalculada = (item as any).diferenca > 0 ? (item as any).diferenca : 0;
     setQtdSobra(sobraCalculada);
-    setLote(item.lote || item.controleOriginal || '');
-    setValidade(item.validade || item.validadeOriginal || '');
-    setFabricacao(item.fabricacao || item.fabricacaoOriginal || '');
+
+    const lotesFracoes: any[] =
+      (item as any).lotesConferidosN2 ||
+      (item as any).lotesConferidos ||
+      (item as any).lotesRegistrados ||
+      [];
+
+    // Se houver uma fração de lote cuja quantidade bata exatamente com a sobra apurada, usa ela como padrão!
+    const fracaoSobraExata = lotesFracoes.find((f: any) => Number(f.quantidade) === sobraCalculada);
+    const fracaoAlvo = fracaoSobraExata || (lotesFracoes.length > 0 ? lotesFracoes[0] : null);
+
+    if (fracaoAlvo) {
+      setLote(fracaoAlvo.lote || '');
+      setValidade(fracaoAlvo.validade || '');
+      setFabricacao(fracaoAlvo.fabricacao || '');
+    } else {
+      setLote(item.lote || item.controleOriginal || '');
+      setValidade(item.validade || item.validadeOriginal || '');
+      setFabricacao(item.fabricacao || item.fabricacaoOriginal || '');
+    }
+
     setCodlocalDestino(undefined);
     setMotivo(
       `Sobra física de ${sobraCalculada} ${item.codvol || 'UN'} identificada na conferência de recebimento. Quantidade excedente deduzida da contagem física para acerto comercial e eliminação da divergência.`
@@ -244,6 +262,51 @@ export const ModalOcorrenciaSobra: React.FC<ModalOcorrenciaSobraProps> = ({
               />
             </div>
           </div>
+
+          {/* Atalhos para Frações de Lote Conferidas */}
+          {(() => {
+            const lotesFracoes: any[] =
+              (item as any).lotesConferidosN2 ||
+              (item as any).lotesConferidos ||
+              (item as any).lotesRegistrados ||
+              [];
+            if (lotesFracoes.length <= 1) return null;
+            return (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 10px' }}>
+                <span style={{ fontSize: '0.70rem', color: 'var(--slate-600)', fontWeight: 600 }}>
+                  Lotes apurados no coletor (clique para selecionar o lote excedente):
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                  {lotesFracoes.map((f: any, fIdx: number) => {
+                    const isSelecionado = lote === f.lote;
+                    return (
+                      <button
+                        key={`fracao-${fIdx}`}
+                        type="button"
+                        onClick={() => {
+                          setLote(f.lote || '');
+                          if (f.validade) setValidade(f.validade);
+                          if (f.fabricacao) setFabricacao(f.fabricacao);
+                        }}
+                        style={{
+                          fontSize: '0.72rem',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          border: `1.5px solid ${isSelecionado ? '#10b981' : '#cbd5e1'}`,
+                          background: isSelecionado ? '#ecfdf5' : '#ffffff',
+                          color: isSelecionado ? '#065f46' : 'var(--slate-700)',
+                          fontWeight: isSelecionado ? 700 : 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🏷️ Lote {f.lote || 'Sem lote'} ({f.quantidade} {item.codvol || 'UN'})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>

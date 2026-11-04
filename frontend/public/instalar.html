@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instalar Certificado de Segurança - ConferCheck</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f1f5f9;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #ffffff;
+      padding: 28px;
+      border-radius: 18px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      max-width: 460px;
+      width: 100%;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+      box-sizing: border-box;
+    }
+    .icone {
+      font-size: 3rem;
+      margin-bottom: 8px;
+    }
+    h2 {
+      color: #0f172a;
+      margin: 0 0 8px 0;
+      font-size: 1.35rem;
+    }
+    p {
+      color: #475569;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin: 0 0 16px 0;
+    }
+    .btn-download {
+      display: block;
+      width: 100%;
+      background: #0284c7;
+      color: #ffffff !important;
+      padding: 14px 20px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.3);
+      transition: background 0.15s, transform 0.1s;
+      box-sizing: border-box;
+    }
+    .btn-download:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+    }
+    .btn-download:active {
+      transform: translateY(1px);
+    }
+    .instrucoes {
+      text-align: left;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-top: 20px;
+    }
+    .instrucoes h4 {
+      margin: 0 0 8px 0;
+      color: #1e293b;
+      font-size: 0.95rem;
+    }
+    .instrucoes ol {
+      margin: 0;
+      padding-left: 20px;
+      color: #334155;
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+    .badge-ok {
+      display: inline-block;
+      background: #dcfce7;
+      color: #15803d;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+    }
+    .badge-alerta {
+      display: inline-block;
+      background: #fef3c7;
+      color: #b45309;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+    }
+    .status-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin: 14px 0;
+      text-align: left;
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+    .status-box-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .status-box-row:last-child {
+      margin-bottom: 0;
+    }
+    .btn-recriar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: #0f172a;
+      color: #ffffff;
+      padding: 11px 16px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all 0.15s ease;
+      box-sizing: border-box;
+    }
+    .btn-recriar:hover:not(:disabled) {
+      background: #1e293b;
+      transform: translateY(-1px);
+    }
+    .btn-recriar:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .msg-feedback {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: none;
+    }
+    .msg-sucesso {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+      display: block;
+    }
+    .msg-erro {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icone">🛡️</div>
+    <span id="badge-status" class="badge-ok">Conexão Segura</span>
+    <h2>Certificado ConferCheck</h2>
+    <p>Baixe a Autoridade Raiz (<strong>rootCA.crt</strong>) no tablet para navegar sem avisos de segurança:</p>
+    
+    <a href="/download-ca" download="rootCA.crt" class="btn-download">
+      ⬇️ Baixar rootCA.crt
+    </a>
+
+    <!-- Painel de Gerenciamento do IP e Recriação -->
+    <div class="status-box">
+      <div class="status-box-row">
+        <span style="color: #64748b; font-weight: 600;">IP da Conexão Atual:</span>
+        <strong id="label-ip-conexao" style="color: #0f172a;">Detectando...</strong>
+      </div>
+      <div class="status-box-row">
+        <span style="color: #64748b; font-weight: 600;">Status no Certificado:</span>
+        <span id="label-status-ip" style="color: #0284c7; font-weight: 700;">Verificando...</span>
+      </div>
+
+      <button type="button" id="btn-recriar" class="btn-recriar" onclick="executarRecriacao()">
+        <span>🔄 Recriar Certificado para este IP</span>
+      </button>
+
+      <div id="feedback-recriacao" class="msg-feedback"></div>
+    </div>
+
+    <div class="instrucoes">
+      <h4>Como instalar no Android:</h4>
+      <ol>
+        <li>Após tocar no botão <strong>Baixar rootCA.crt</strong>, o arquivo será salvo no dispositivo.</li>
+        <li>Abra as <strong>Configurações</strong> do Android.</li>
+        <li>Vá em <strong>Segurança</strong> &gt; <strong>Mais configurações de segurança</strong> &gt; <strong>Instalar do armazenamento</strong> (ou <em>Instalar certificado</em>).</li>
+        <li>Escolha <strong>Certificado de CA</strong> e selecione o <code>rootCA.crt</code>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    const ipConexao = window.location.hostname;
+    document.getElementById('label-ip-conexao').textContent = ipConexao;
+
+    async function verificarInfoCertificado() {
+      try {
+        const res = await fetch('/info-cert');
+        if (!res.ok) return;
+        const data = await res.json();
+        const sans = data.certSans || [];
+        const ipEstaIncluso = sans.includes(ipConexao) || ipConexao === 'localhost' || ipConexao === '127.0.0.1';
+
+        const labelStatus = document.getElementById('label-status-ip');
+        const badgeStatus = document.getElementById('badge-status');
+
+        if (ipEstaIncluso) {
+          labelStatus.textContent = '✅ Registrado e Válido';
+          labelStatus.style.color = '#15803d';
+          badgeStatus.textContent = 'Conexão Segura';
+          badgeStatus.className = 'badge-ok';
+        } else {
+          labelStatus.textContent = '⚠️ IP Não Registrado no Certificado';
+          labelStatus.style.color = '#b45309';
+          badgeStatus.textContent = 'IP Pendente de Atualização';
+          badgeStatus.className = 'badge-alerta';
+        }
+      } catch (e) {
+        console.warn('Erro ao consultar /info-cert:', e);
+      }
+    }
+
+    async function executarRecriacao() {
+      const btn = document.getElementById('btn-recriar');
+      const feedback = document.getElementById('feedback-recriacao');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ Atualizando certificado com mkcert...</span>';
+      feedback.className = 'msg-feedback';
+      feedback.style.display = 'none';
+
+      try {
+        const res = await fetch('/recriar-cert', { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok && data.sucesso) {
+          feedback.textContent = '✅ Certificado recriado com sucesso! O servidor Vite foi atualizado.';
+          feedback.className = 'msg-feedback msg-sucesso';
+          await verificarInfoCertificado();
+        } else {
+          feedback.textContent = '❌ Erro ao recriar: ' + (data.error || 'Falha na execução do mkcert');
+          feedback.className = 'msg-feedback msg-erro';
+        }
+      } catch (err) {
+        feedback.textContent = '❌ Erro de conexão com o servidor ao solicitar recriação.';
+        feedback.className = 'msg-feedback msg-erro';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔄 Recriar Certificado para este IP</span>';
+      }
+    }
+
+    verificarInfoCertificado();
+  </script>
+</body>
+</html>

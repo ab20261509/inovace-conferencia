@@ -141,6 +141,7 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
 
     // Mapa de bipagens por item e nível para checagem de lote/validade
     const bipsPorItemNivel: Record<string, Array<{ lote?: string; validade?: string; fabricacao?: string }>> = {};
+    const bipsPorProdNivel: Record<string, Array<{ lote?: string; validade?: string; fabricacao?: string }>> = {};
 
     for (const b of todasBipagens) {
       if (b.anulado) continue;
@@ -156,11 +157,18 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       if (!bipsPorItemNivel[keyNivel]) {
         bipsPorItemNivel[keyNivel] = [];
       }
-      bipsPorItemNivel[keyNivel].push({
+      const bipInfo = {
         lote: b.lote?.trim(),
         validade: b.validade?.trim(),
         fabricacao: b.fabricacao?.trim(),
-      });
+      };
+      bipsPorItemNivel[keyNivel].push(bipInfo);
+
+      const prodNivelKey = `${b.nunota}|${b.codprod}|${b.nivel}`;
+      if (!bipsPorProdNivel[prodNivelKey]) {
+        bipsPorProdNivel[prodNivelKey] = [];
+      }
+      bipsPorProdNivel[prodNivelKey].push(bipInfo);
     }
 
     const normalizarDataBr = (dt?: string): string => {
@@ -192,6 +200,63 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
       const itensDestaNota = Object.entries(mapTotais).filter(([key]) => key.startsWith(`${nunota}|`));
       const numnota = numnotaPorNunota[nunota] || nunota;
 
+      // Rebalanceamento FIFO para produtos com múltiplas sequências na mesma nota fiscal
+      const totaisProdNota: Record<
+        number,
+        {
+          esperado: number;
+          n1: number;
+          n2: number;
+          n3: number;
+          itens: Array<{
+            key: string;
+            item: (typeof mapTotais)[string];
+            sequencia: number;
+          }>;
+        }
+      > = {};
+
+      for (const [key, item] of itensDestaNota) {
+        const parts = key.split('|');
+        const codprod = Number(parts[1]);
+        const sequencia = Number(parts[2]);
+        if (!totaisProdNota[codprod]) {
+          totaisProdNota[codprod] = { esperado: 0, n1: 0, n2: 0, n3: 0, itens: [] };
+        }
+        totaisProdNota[codprod].esperado += item.esperado;
+        totaisProdNota[codprod].n1 += item.n1;
+        totaisProdNota[codprod].n2 += item.n2;
+        totaisProdNota[codprod].n3 += item.n3;
+        totaisProdNota[codprod].itens.push({ key, item, sequencia });
+      }
+
+      for (const [, prodData] of Object.entries(totaisProdNota)) {
+        if (prodData.itens.length <= 1) continue;
+
+        prodData.itens.sort((a, b) => a.sequencia - b.sequencia);
+        let saldoN1 = prodData.n1;
+        let saldoN2 = prodData.n2;
+        let saldoN3 = prodData.n3;
+
+        for (let idx = 0; idx < prodData.itens.length; idx++) {
+          const itWrapper = prodData.itens[idx];
+          const ehUltima = idx === prodData.itens.length - 1;
+          const esp = itWrapper.item.esperado;
+
+          const alocN1 = (!ehUltima && saldoN1 > esp) ? esp : saldoN1;
+          const alocN2 = (!ehUltima && saldoN2 > esp) ? esp : saldoN2;
+          const alocN3 = (!ehUltima && saldoN3 > esp) ? esp : saldoN3;
+
+          itWrapper.item.n1 = alocN1;
+          itWrapper.item.n2 = alocN2;
+          itWrapper.item.n3 = alocN3;
+
+          saldoN1 = Math.max(0, saldoN1 - alocN1);
+          saldoN2 = Math.max(0, saldoN2 - alocN2);
+          saldoN3 = Math.max(0, saldoN3 - alocN3);
+        }
+      }
+
       let itensOk = 0;
       let itensPendentes = 0;
       let itensComSobra = 0;
@@ -212,7 +277,12 @@ WHERE ITE.NUNOTA IN (${nunotasStr})
 
         // Validação de Lote / Validade / Fabricação Pré-existentes na Nota (quando conferido > 0)
         if (conferidoNivel > 0) {
-          const bipsDoNivel = bipsPorItemNivel[`${key}|${input.nivel}`] || [];
+          const parts = key.split('|');
+          const codprod = Number(parts[1]);
+          const bipsDoNivel =
+            bipsPorItemNivel[`${key}|${input.nivel}`]?.length
+              ? bipsPorItemNivel[`${key}|${input.nivel}`]
+              : bipsPorProdNivel[`${nunota}|${codprod}|${input.nivel}`] || [];
 
           // Se a nota já possuía CONTROLE preenchido
           if (item.controleOriginal) {

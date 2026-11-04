@@ -1,3 +1,36 @@
+# Handoff — Sessão 2026-10-26 (Ditado por Voz de Lote, Validade e Fabricação)
+
+## Funcionalidades e Ajustes Implementados
+
+### 1. Ditado por Voz para Lote, Validade e Fabricação (Conferência de Entrada)
+- **Motor Fonético Especializado em Português Brasileiro**:
+  - Criado [`reconhecimentoLote.ts`](./frontend/src/infrastructure/speech/reconhecimentoLote.ts) com suporte a lotes industriais e datas reais de calendário.
+  - Conversão inteligente de números por extenso ("quinze de outubro de dois mil e vinte e seis" -> `15/10/2026`).
+  - Validação estrita de datas (exigindo Dia, Mês e Ano completos, com checagem de anos bissextos e limites reais de dias por mês).
+- **Popup de Confirmação & Ajuste Fino**:
+  - Criado [`ModalDitadoLote.tsx`](./frontend/src/presentation/components/Recebimento/ModalDitadoLote.tsx) e [`ModalDitadoLote.css`](./frontend/src/presentation/components/Recebimento/ModalDitadoLote.css).
+  - Suporta dinamicamente `'lote'`, `'validade'` e `'fabricacao'` com display monoespaçado de destaque, indicador visual de escuta pulsante e campo de ajuste manual com máscara `DD/MM/AAAA`.
+  - Atalhos: `Enter` confirma, `Esc` cancela e botão `🎤` refaz a fala.
+- **Fluxo Sequencial Contínuo & Acionamento Individual**:
+  - **Sequencial:** Ao bipar produto com leitor físico no N2/N3 com lote vazio, executa a sequência:
+    1. *"Informe o lote"* ➔ ouve lote ➔ operador confirma (`Enter`).
+    2. *"Informe a validade"* ➔ ouve validade ➔ operador confirma (`Enter`).
+    3. *"Informe a fabricação"* ➔ ouve fabricação ➔ operador confirma (`Enter`).
+    4. Fecha o popup, preenche os 3 campos e transfere o foco automaticamente para o botão **Conferir Produto** para revisão antes de salvar.
+  - **Individual:** Clicar no 🎤 compacto de qualquer campo executa o ditado pontual daquele campo e transfere o cursor para o próximo.
+- **Redesenho dos Botões nos Labels**:
+  - Botões de microfone reposicionados nos labels ao lado do asterisco (`Lote *` 🎤, `Validade *` 🎤, `Fabricação *` 🎤).
+  - Inputs 100% desobstruídos e com largura total.
+- **Certificação SSL Confiável Local com mkcert & Eliminação de Avisos**:
+  - Substituído o plugin auto-assinado por autoridade certificadora local confiável via `mkcert` para `localhost`, `127.0.0.1` e `192.168.0.92`.
+  - Criadas rotas com download forçado (`Content-Disposition: attachment; filename="rootCA.crt"`) em `/download-ca` (Vite) e `/api/download-ca` (Backend).
+  - Criada página responsiva de suporte [`frontend/public/instalar.html`](./frontend/public/instalar.html) com botão de download e instruções claras para instalação do certificado no Android.
+  - Documentada alternativa de flag do Chrome (`chrome://flags/#unsafely-treat-insecure-origin-as-secure`) para operação pura em HTTP sem avisos.
+- **Documentação Dedicada**:
+  - Criado [`GUIA_DITADO_VOZ.md`](./GUIA_DITADO_VOZ.md) com tabela de exemplos de frases faladas, arquitetura e fluxo operacional.
+
+---
+
 # Handoff — Sessão 2026-10-11
 
 ## Funcionalidades e Ajustes Implementados
