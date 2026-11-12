@@ -70,7 +70,7 @@ export function GestaoRecebimentoPage() {
   >(() => {
     try {
       const salvo = sessionStorage.getItem('confercheck_origem_excel');
-      if (salvo) {
+      if (salvo && salvo !== 'undefined' && salvo !== 'null') {
         const obj = JSON.parse(salvo);
         const res: Record<string, Set<number>> = {};
         for (const [k, v] of Object.entries(obj)) {
@@ -122,10 +122,23 @@ export function GestaoRecebimentoPage() {
   };
 
   const obterLotesItem = (conferenciaId: string, item: any, bipagens: any[] = []): FracaoLote[] => {
+    // Apurar contagem física real do item
+    const qtdFisica =
+      (item.qtdConferidaN3 || 0) > 0
+        ? item.qtdConferidaN3 || 0
+        : (item.qtdConferidaN2 || 0) > 0
+        ? item.qtdConferidaN2 || 0
+        : item.qtdConferidaN1 || 0;
+
+    // Se o item tem contagem física ZERO (falta isolada / item não conferido), não há frações conferidas
+    if (qtdFisica === 0) {
+      return [];
+    }
+
     const custom = lotesCustomizadosPorConferencia[conferenciaId]?.[item.codprod];
     if (custom && custom.length > 0) return custom;
 
-    // Se o item possui sequência definida e existem bipagens correspondentes a ela, filtra especificamente por sequência
+    // Se o item possui sequência definida, filtra estritamente por sequência para evitar vazamento entre frações
     const bipagensSeq = bipagens.filter(
       (b) =>
         b.codprod === item.codprod &&
@@ -137,7 +150,7 @@ export function GestaoRecebimentoPage() {
     );
 
     const bipagensProd =
-      bipagensSeq.length > 0
+      item.sequencia
         ? bipagensSeq
         : bipagens.filter(
             (b) => b.codprod === item.codprod && !b.anulado && b.lote
@@ -173,7 +186,7 @@ export function GestaoRecebimentoPage() {
       return [
         {
           lote: item.lote,
-          qtd: item.qtdneg || 0,
+          qtd: qtdFisica > 0 ? qtdFisica : item.qtdneg || 0,
           validade: item.validade,
           fabricacao: item.fabricacao,
         },
@@ -590,6 +603,37 @@ export function GestaoRecebimentoPage() {
       setFeedback({
         tipo: 'erro',
         texto: err.response?.data?.error || err.message || 'Erro ao registrar ocorrência de sobra.',
+      });
+      throw err;
+    }
+  };
+
+  const handleExecutarEnvioN3Api = async (
+    conferenciaId: string,
+    itens: Array<{ nunota: number; sequencia: number; codprod: number }>,
+    nunota?: number
+  ) => {
+    try {
+      const itensParaEnviar = itens.map((i) => ({
+        nunota: i.nunota,
+        sequencia: i.sequencia,
+        codprod: i.codprod,
+      }));
+      await recebimentoService.resolverDivergencia(conferenciaId, {
+        acao: 'RECONFERIR_N3',
+        observacao: 'Solicitado via Assistente de Divergências',
+        nunota,
+        itens: itensParaEnviar,
+      });
+      await carregarDadosSilencioso();
+      setFeedback({
+        tipo: 'sucesso',
+        texto: `Reconferência Nível 3 (N3) solicitada com sucesso para ${itensParaEnviar.length} produto(s)!`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        tipo: 'erro',
+        texto: err.response?.data?.error || err.message || 'Erro ao enviar para Reconferência N3.',
       });
       throw err;
     }
@@ -1430,6 +1474,7 @@ export function GestaoRecebimentoPage() {
                     processandoDesmembramento={processandoDesmembramento}
                     onLocalAlterado={handleLocalAlteradoDivergencia}
                     onRegistrarOcorrenciaSobra={handleRegistrarOcorrenciaSobra}
+                    onExecutarN3Api={handleExecutarEnvioN3Api}
                   />
                 )}
 

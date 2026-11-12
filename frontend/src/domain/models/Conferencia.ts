@@ -7,6 +7,7 @@ export interface PedidoConferencia {
   usuarioConferente: string | null;
   nroUnico: number;
   statusConferencia: string;
+  statusSeparacao?: 'SEPARADO' | 'EM_ANDAMENTO' | 'PENDENTE' | null;
   rotaEntrega: string | null;
   transportadora: string | null;
   ordemCarga: number | null;
@@ -46,6 +47,7 @@ export interface ConferenciaIniciada {
   tipMov: string;
   vendedor: string;
   parceiro: string;
+  statusSeparacao?: 'SEPARADO' | 'EM_ANDAMENTO' | 'PENDENTE' | null;
   /** 'S' quando o Sankhya identificou início de recontagem */
   isRecontagem?: string;
   /** Tipo de contagem retornado pelo Sankhya */

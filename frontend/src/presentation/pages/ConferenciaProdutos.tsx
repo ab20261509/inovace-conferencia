@@ -9,6 +9,9 @@ import { Botao, Campo, Container, Grid, Label, Painel, ModalCameraScanner, Modal
 import { Loading } from '../components/Loading/Loading';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { limparMensagemErro } from '../utils/erro';
+import { offlineQueue } from '../../infrastructure/offline/offlineQueue';
+import { getProdutoImagemUrl } from '../../infrastructure/api/httpClient';
+import { ProdutoImagem } from '../components/common/ProdutoImagem';
 import './ConferenciaProdutos.css';
 
 function formatarDataHora(val?: string | null): string {
@@ -71,6 +74,38 @@ export function ConferenciaProdutosPage() {
   const [feedbackVisual, setFeedbackVisual] = useState<{ codProd: string; descrProd: string } | null>(null);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [showFolhaBipagemModal, setShowFolhaBipagemModal] = useState(false);
+  const [tecladoVirtualAtivo, setTecladoVirtualAtivo] = useState(false);
+  const [isDispositivoMovel, setIsDispositivoMovel] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= 1024 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  });
+  const [bipsPendentes, setBipsPendentes] = useState(() => offlineQueue.getPendingCount());
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDispositivoMovel(window.innerWidth <= 1024 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    return offlineQueue.subscribe(() => {
+      setBipsPendentes(offlineQueue.getPendingCount());
+    });
+  }, []);
+
+  const alternarTecladoVirtual = () => {
+    setTecladoVirtualAtivo((prev) => {
+      const proximo = !prev;
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 50);
+      return proximo;
+    });
+  };
   const inputRef = useRef<HTMLInputElement>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -339,7 +374,7 @@ export function ConferenciaProdutosPage() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container scanner-saida-page-container">
       <div className="conferencia-top-fixo">
       {/* Header */}
        <header className="page-header">
@@ -347,7 +382,51 @@ export function ConferenciaProdutosPage() {
          <div className="header-info">
            <h1>Conferência #{conferencia?.numConf}</h1>
            <span className="nota-info">Pedido {conferencia?.numNota} — {conferencia?.parceiro}</span>
-           {isRecontagem && (
+           {((conferencia as any)?.statusSeparacao === 'SEPARADO' || (location.state as any)?.statusSeparacao === 'SEPARADO') && (
+             <span
+               className="badge-separado-header"
+               style={{
+                 display: 'inline-flex',
+                 alignItems: 'center',
+                 gap: 4,
+                 background: '#dcfce7',
+                 color: '#15803d',
+                 border: '1px solid #86efac',
+                 padding: '2px 8px',
+                 borderRadius: 6,
+                 fontSize: '0.75rem',
+                 fontWeight: 700,
+               }}
+               title="Separação da Carga Finalizada"
+             >
+               ✓ Separado
+             </span>
+           )}
+           {((conferencia as any)?.statusSeparacao === 'EM_ANDAMENTO' || (location.state as any)?.statusSeparacao === 'EM_ANDAMENTO') && (
+             <span
+               style={{
+                 display: 'inline-flex',
+                 alignItems: 'center',
+                 gap: 4,
+                 background: '#fef3c7',
+                 color: '#b45309',
+                 border: '1px solid #fde68a',
+                 padding: '2px 8px',
+                 borderRadius: 6,
+                 fontSize: '0.75rem',
+                 fontWeight: 600,
+               }}
+               title="Separação da Carga em Andamento"
+             >
+               ⏳ Em Separação
+             </span>
+           )}
+           {bipsPendentes > 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700 }}>
+                📶 {bipsPendentes} {bipsPendentes === 1 ? 'bip offline' : 'bips offline'}
+              </span>
+            )}
+            {isRecontagem && (
              <span className="badge-recontagem-header" title="Pedido voltou para recontagem — conferir quantidade total novamente">
                ⚠ Recontagem
              </span>
@@ -400,17 +479,27 @@ export function ConferenciaProdutosPage() {
                 onTentativaColar={handleTentativaColar}
               />
             </div>
-            <button
-              type="button"
-              className="scanner-saida-btn-camera"
-              title="Ler código de barras pela câmera"
-              onClick={() => setShowCameraModal(true)}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
-              </svg>
-            </button>
+            {isDispositivoMovel && (
+              <button
+                type="button"
+                className={`scanner-saida-btn-teclado ${tecladoVirtualAtivo ? 'ativo' : ''}`}
+                title={tecladoVirtualAtivo ? 'Desativar teclado virtual (Modo Coletor ativo)' : 'Abrir teclado virtual para digitação manual'}
+                onClick={alternarTecladoVirtual}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                  <line x1="6" y1="8" x2="6" y2="8"></line>
+                  <line x1="10" y1="8" x2="10" y2="8"></line>
+                  <line x1="14" y1="8" x2="14" y2="8"></line>
+                  <line x1="18" y1="8" x2="18" y2="8"></line>
+                  <line x1="6" y1="12" x2="6" y2="12"></line>
+                  <line x1="10" y1="12" x2="10" y2="12"></line>
+                  <line x1="14" y1="12" x2="14" y2="12"></line>
+                  <line x1="18" y1="12" x2="18" y2="12"></line>
+                  <line x1="7" y1="16" x2="17" y2="16"></line>
+                </svg>
+              </button>
+            )}
             <div className="scanner-saida-input-qtd-wrapper">
               <Campo
                 variant="compact"
@@ -514,13 +603,7 @@ export function ConferenciaProdutosPage() {
                           <tr key={item.sequencia} className={`${destacar ? 'row-parcial' : ''} ${tinhaQtdInicial ? 'row-recontagem' : ''}`}>
                             <td>
                               <div className="produto-cell">
-                                <img
-                                  src={`/api/crud/produto/${item.codProd}/imagem`}
-                                  alt={item.descrProd || ''}
-                                  className="produto-img"
-                                  onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                />
+                                <ProdutoImagem codProd={item.codProd} alt={item.descrProd || ''} className="produto-img" onFotoClick={(url) => setImagemAmpliada(url)} />
                                 <div>
                                   <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
                                   <span className="produto-barra">
@@ -574,13 +657,7 @@ export function ConferenciaProdutosPage() {
                         className={`item-card-mobile ${destacar ? 'item-card-parcial' : ''} ${tinhaQtdInicial ? 'item-card-recontagem' : ''}`}
                       >
                         <div className="item-card-header">
-                          <img
-                            src={`/api/crud/produto/${item.codProd}/imagem`}
-                            alt={item.descrProd || ''}
-                            className="produto-img item-card-img"
-                            onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
+                          <ProdutoImagem codProd={item.codProd} alt={item.descrProd || ''} className="produto-img item-card-img" onFotoClick={(url) => setImagemAmpliada(url)} />
                           <div className="item-card-info">
                             <span className="produto-desc item-card-title">{item.descrProd || `Cod ${item.codProd}`}</span>
                             <span className="produto-barra item-card-sub">
@@ -658,13 +735,7 @@ export function ConferenciaProdutosPage() {
                         <tr key={`${item.nuConf}-${item.seqConf}`} className="row-ok">
                           <td>
                             <div className="produto-cell">
-                              <img
-                                src={`/api/crud/produto/${item.codProd}/imagem`}
-                                alt={item.descrProd || ''}
-                                className="produto-img"
-                                onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
+                              <ProdutoImagem codProd={item.codProd} alt={item.descrProd || ''} className="produto-img" onFotoClick={(url) => setImagemAmpliada(url)} />
                               <div>
                                 <span className="produto-desc">{item.descrProd || `Cod ${item.codProd}`}</span>
                                 <span className="produto-barra">
@@ -710,13 +781,7 @@ export function ConferenciaProdutosPage() {
                   {itensConferidos.map((item) => (
                     <div key={`card-conf-${item.nuConf}-${item.seqConf}`} className="item-card-mobile item-card-conferido">
                       <div className="item-card-header">
-                        <img
-                          src={`/api/crud/produto/${item.codProd}/imagem`}
-                          alt={item.descrProd || ''}
-                          className="produto-img item-card-img"
-                          onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codProd}/imagem`)}
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
+                        <ProdutoImagem codProd={item.codProd} alt={item.descrProd || ''} className="produto-img item-card-img" onFotoClick={(url) => setImagemAmpliada(url)} />
                         <div className="item-card-info">
                           <span className="produto-desc item-card-title">{item.descrProd || `Cod ${item.codProd}`}</span>
                           <span className="produto-barra item-card-sub">
@@ -889,12 +954,7 @@ export function ConferenciaProdutosPage() {
           <div className="feedback-card">
             <div className="feedback-img-wrapper">
               <span className="feedback-check">&#10003;</span>
-              <img
-                src={`/api/crud/produto/${feedbackVisual.codProd}/imagem`}
-                alt={feedbackVisual.descrProd}
-                className="feedback-img"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
+              <ProdutoImagem codProd={feedbackVisual.codProd} alt={feedbackVisual.descrProd} className="feedback-img" />
             </div>
             <span className="feedback-nome">{feedbackVisual.descrProd}</span>
           </div>

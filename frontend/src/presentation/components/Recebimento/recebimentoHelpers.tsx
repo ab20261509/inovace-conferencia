@@ -57,10 +57,10 @@ export function verificarItemEmN3(
     return false;
   }
 
-  // 2. O item DEVE constar expressamente na lista de itensRecontagem enviada pelo gestor
+  // 2. Se não houver filtro específico de itens (itensRecontagem vazio/indefinido), toda a conferência está em N3
   const itensRec = sessaoOuGrupo.itensRecontagem;
   if (!itensRec || itensRec.length === 0) {
-    return false;
+    return true;
   }
 
   return itensRec.some(
@@ -354,7 +354,7 @@ export function renderBadgesOcorrenciasItem(ocorrenciasItem: any[]) {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
-              fontSize: '0.68rem',
+              fontSize: '0.70rem',
               fontWeight: 700,
               padding: '2px 7px',
               borderRadius: '6px',

@@ -26,7 +26,12 @@ export class AuthApiService implements IAuthService {
 
   getUser(): { codUsu: number; nomeUsu: string } | null {
     const raw = localStorage.getItem(USER_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw || raw === 'undefined' || raw === 'null') return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
   }
 
   logout(): void {

@@ -387,6 +387,7 @@ export function GestaoAcessosPage() {
       novosModulos = {
         conferencia_saida: true,
         conferencia_entrada: true,
+        separacao: true,
         gestao_recebimento: false,
         gestao_recebimento_aba_divergencias: false,
         gestao_recebimento_aba_envio_sankhya: false,
@@ -406,6 +407,7 @@ export function GestaoAcessosPage() {
       novosModulos = {
         conferencia_saida: true,
         conferencia_entrada: true,
+        separacao: true,
         gestao_recebimento: true,
         gestao_recebimento_aba_divergencias: true,
         gestao_recebimento_aba_envio_sankhya: true,
@@ -425,6 +427,7 @@ export function GestaoAcessosPage() {
       novosModulos = {
         conferencia_saida: true,
         conferencia_entrada: true,
+        separacao: true,
         gestao_recebimento: true,
         gestao_recebimento_aba_divergencias: true,
         gestao_recebimento_aba_envio_sankhya: true,
@@ -444,6 +447,7 @@ export function GestaoAcessosPage() {
       novosModulos = {
         conferencia_saida: false,
         conferencia_entrada: false,
+        separacao: false,
         gestao_recebimento: false,
         gestao_recebimento_aba_divergencias: false,
         gestao_recebimento_aba_envio_sankhya: false,
@@ -1402,6 +1406,25 @@ export function GestaoAcessosPage() {
                               checked={usuarioDrawer.modulos.conferencia_saida}
                               disabled={salvandoId === usuarioDrawer.codUsu}
                               onChange={() => handleToggleUsuario(usuarioDrawer, 'conferencia_saida')}
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+
+                        {/* Separação de Cargas */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">🚚 Separação de Cargas</span>
+                            <span className="drawer-toggle-sub">
+                              Separação por Ordem de Carga (ORDEMCARGA), detecção e sinalização de cortes/alterações no ERP
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(usuarioDrawer.modulos.separacao)}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() => handleToggleUsuario(usuarioDrawer, 'separacao')}
                             />
                             <span className="toggle-slider" />
                           </label>

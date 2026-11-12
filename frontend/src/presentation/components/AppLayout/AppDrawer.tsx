@@ -31,6 +31,11 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
     navigate('/login');
   }
 
+  function handleNavegar(rota: string) {
+    onClose();
+    navigate(rota);
+  }
+
   function handleConsultaClick() {
     onClose();
     if (onAbrirConsultaProduto) {
@@ -41,6 +46,8 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
   const inicialNome = user?.nomeUsu ? user.nomeUsu.charAt(0).toUpperCase() : 'U';
 
   const isSaidaAtiva = location.pathname.startsWith('/conferencias');
+  const isSeparacaoAtiva = location.pathname.startsWith('/separacao');
+  const isReabastecimentoAtiva = location.pathname.startsWith('/reabastecimento');
   const isEntradaAtiva =
     location.pathname === '/recebimento' || location.pathname.startsWith('/recebimento/conferencia');
   const isGestaoAtiva = location.pathname.startsWith('/recebimento/gestao');
@@ -97,10 +104,34 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
             <Link
               to="/conferencias"
               className={`app-drawer-item ${isSaidaAtiva ? 'active' : ''}`}
-              onClick={onClose}
+              onClick={() => handleNavegar('/conferencias')}
             >
               <span className="app-drawer-item-icon">📦</span>
               <span>Conferência de Saída</span>
+            </Link>
+          )}
+
+          {temPermissao('separacao') && (
+            <Link
+              to="/separacao"
+              className={`app-drawer-item ${isSeparacaoAtiva ? 'active' : ''}`}
+              onClick={() => handleNavegar('/separacao')}
+            >
+              <span className="app-drawer-item-icon">🚚</span>
+              <span>Separação</span>
+              <span className="app-drawer-item-badge">Cargas</span>
+            </Link>
+          )}
+
+          {(temPermissao('separacao') || temPermissao('conferencia_saida')) && (
+            <Link
+              to="/reabastecimento"
+              className={`app-drawer-item ${isReabastecimentoAtiva ? 'active' : ''}`}
+              onClick={() => handleNavegar('/reabastecimento')}
+            >
+              <span className="app-drawer-item-icon">🚜</span>
+              <span>Reabastecimento</span>
+              <span className="app-drawer-item-badge">Pulmão</span>
             </Link>
           )}
 
@@ -108,7 +139,7 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
             <Link
               to="/recebimento"
               className={`app-drawer-item ${isEntradaAtiva ? 'active' : ''}`}
-              onClick={onClose}
+              onClick={() => handleNavegar('/recebimento')}
             >
               <span className="app-drawer-item-icon">📥</span>
               <span>Conferência de Entrada</span>
@@ -120,7 +151,7 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
             <Link
               to="/recebimento/gestao"
               className={`app-drawer-item ${isGestaoAtiva ? 'active' : ''}`}
-              onClick={onClose}
+              onClick={() => handleNavegar('/recebimento/gestao')}
             >
               <span className="app-drawer-item-icon">📋</span>
               <span>Gestão de Recebimento</span>
@@ -145,7 +176,7 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
               <Link
                 to="/configuracoes/acessos"
                 className={`app-drawer-item ${isAcessosAtivo ? 'active' : ''}`}
-                onClick={onClose}
+                onClick={() => handleNavegar('/configuracoes/acessos')}
               >
                 <span className="app-drawer-item-icon">⚙️</span>
                 <span>Gestão de Acessos</span>
@@ -153,7 +184,7 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
               <Link
                 to="/configuracoes/banco"
                 className={`app-drawer-item ${isBancoAtivo ? 'active' : ''}`}
-                onClick={onClose}
+                onClick={() => handleNavegar('/configuracoes/banco')}
               >
                 <span className="app-drawer-item-icon">🗄️</span>
                 <span>Banco de Dados</span>

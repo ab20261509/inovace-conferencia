@@ -221,9 +221,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 0.78rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.70rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1926,7 +1926,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.68rem;
+  font-size: 0.70rem;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
@@ -1940,7 +1940,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.68rem;
+  font-size: 0.70rem;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
@@ -2249,10 +2249,10 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.72rem;
+  font-size: 0.70rem;
   font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 9999px;
+  padding: 2px 7px;
+  border-radius: 4px;
   background-color: #f0fdf4;
   color: #0369a1;
   border: 1px solid #bae6fd;

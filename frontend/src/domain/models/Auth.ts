@@ -1,6 +1,7 @@
 export interface ModulosUsuario {
   conferencia_saida: boolean;
   conferencia_entrada: boolean;
+  separacao?: boolean;
   gestao_recebimento?: boolean;
   gestao_recebimento_aba_divergencias?: boolean;
   gestao_recebimento_aba_envio_sankhya?: boolean;

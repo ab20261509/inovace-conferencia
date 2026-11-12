@@ -1,0 +1,1530 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   ESTILOS EXCLUSIVOS DO MÓDULO DE SEPARAÇÃO DE CARGAS (PREFIXO: .separacao-*)
+   Isolado estritamente para não colidir com Saída nem Entrada.
+   Alinhado à largura padrão do app (max-width: 1024px) e otimizado para Android.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.separacao-page-wrapper {
+  width: 100%;
+}
+
+/* ─── Card Extra de Cabeçalho Interno ─── */
+.separacao-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.separacao-header-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.separacao-header-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.separacao-header-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.separacao-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ─── Banner de Alerta de Alteração no ERP ─── */
+.separacao-alerta-erp {
+  background: #fffbeb;
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  animation: separacao-pulse 1.8s infinite;
+  box-sizing: border-box;
+}
+
+@keyframes separacao-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.separacao-alerta-erp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.separacao-alerta-erp-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #b45309;
+}
+
+.separacao-alerta-erp-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.separacao-alerta-erp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #92400e;
+  padding: 6px 10px;
+  background: #fef3c7;
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+
+.separacao-badge-acao-fisica {
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+/* ─── Barra de Bipagem (Scanner Card) ─── */
+.separacao-scanner-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-scanner-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.separacao-scanner-input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.separacao-scanner-input {
+  width: 100%;
+  height: 48px;
+  border: 2px solid #2563eb;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.separacao-scanner-input:focus {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.separacao-scanner-qtd-wrapper {
+  width: 76px;
+  flex-shrink: 0;
+}
+
+.separacao-scanner-qtd-input {
+  width: 100%;
+  height: 48px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.separacao-scanner-qtd-input:focus {
+  border-color: #2563eb;
+}
+
+.separacao-scanner-lote-wrapper {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.separacao-scanner-lote-input {
+  width: 100%;
+  height: 48px;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.separacao-scanner-lote-input:focus {
+  border-color: #2563eb;
+}
+
+.separacao-btn-bipar {
+  height: 48px;
+  padding: 0 20px;
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.separacao-btn-bipar:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.separacao-btn-bipar:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* ─── Painel de Métricas e Progresso ─── */
+.separacao-metrics-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-metrics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.separacao-stat-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.separacao-stat-label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.separacao-stat-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.separacao-progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.separacao-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #10b981);
+  transition: width 0.3s ease;
+}
+
+/* ─── Botões de Alternância de Visão ─── */
+.separacao-view-toggle {
+  display: flex;
+  background: #e2e8f0;
+  padding: 3px;
+  border-radius: 10px;
+  gap: 4px;
+}
+
+.separacao-toggle-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.separacao-toggle-btn.ativo {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* ─── Visualização Desktop (Tabela) vs Mobile (Cards) ─── */
+.separacao-desktop-table {
+  display: block;
+}
+
+.separacao-mobile-cards {
+  display: none;
+}
+
+.separacao-grid-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.separacao-table th {
+  background: #f8fafc;
+  color: #475569;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.separacao-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.separacao-table tr:hover {
+  background-color: #f8fafc;
+}
+
+/* ─── Cards Mobile para Android ─── */
+.separacao-item-mobile-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.separacao-item-mobile-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.separacao-item-mobile-prod-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.separacao-item-mobile-prod-sub {
+  font-size: 12px;
+  color: #64748b;
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}
+
+.separacao-item-mobile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.separacao-item-mobile-contagem {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* ─── Imagem do Produto e Modal de Foto ─── */
+.separacao-produto-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.separacao-produto-thumb:hover {
+  transform: scale(1.06);
+}
+
+.separacao-img-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 16px;
+  cursor: pointer;
+}
+
+.separacao-img-modal {
+  max-width: 90vw;
+  max-height: 85vh;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 8px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  object-fit: contain;
+}
+
+/* ─── Badges de Status ─── */
+.separacao-barras-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.separacao-barcode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.separacao-barcode-chip:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+/* Campo Expansível de Códigos de Barras */
+.separacao-barras-expansivel {
+  position: relative;
+  display: inline-block;
+  margin-top: 4px;
+  max-width: 100%;
+}
+
+.separacao-barras-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.separacao-barras-trigger:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.separacao-barras-trigger.expandido {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.separacao-barras-trigger-seta {
+  font-size: 9px;
+  color: #64748b;
+  transition: transform 0.15s ease;
+}
+
+.separacao-barras-trigger.expandido .separacao-barras-trigger-seta {
+  color: #1d4ed8;
+}
+
+.separacao-barras-expansivel {
+  position: relative;
+  display: inline-block;
+}
+
+.separacao-barras-painel-expandido {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 100;
+  min-width: 320px;
+  max-width: 480px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: separacao-fade-in 0.15s ease;
+}
+
+.separacao-barras-painel-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.separacao-barras-painel-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+@keyframes separacao-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.separacao-badge-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.separacao-badge-status.pendente {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.separacao-badge-status.parcial {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.separacao-badge-status.separado {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.separacao-badge-status.removido_erp {
+  background: #fee2e2;
+  color: #b91c1c;
+  text-decoration: line-through;
+}
+
+.separacao-badge-status.novo_erp {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+/* ─── Botões de Ação Geral ─── */
+.separacao-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.separacao-btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.separacao-btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.separacao-btn-success {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.separacao-btn-success:hover {
+  background: #059669;
+}
+
+.separacao-btn-secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.separacao-btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+/* ─── Cards de Cargas Pendentes ─── */
+.separacao-cargas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-carga-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.separacao-carga-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.separacao-carga-num {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.separacao-carga-info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.separacao-carga-info-val {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* ─── Modal ─── */
+.separacao-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.separacao-modal-box {
+  background: #ffffff;
+  border-radius: 14px;
+  max-width: 500px;
+  width: 100%;
+  padding: 20px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+}
+
+.separacao-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #0f172a;
+}
+
+.separacao-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ADAPTAÇÃO ESPECÍFICA PARA DISPOSITIVOS ANDROID / TELAS PEQUENAS (<= 768px)
+   Empilhamento vertical dos inputs e botões com largura 100% e cards táteis.
+   ══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .separacao-page-header {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .separacao-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .separacao-header-actions .separacao-btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .separacao-scanner-form {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .separacao-scanner-input-wrapper {
+    width: 100%;
+  }
+
+  .separacao-scanner-qtd-wrapper,
+  .separacao-scanner-lote-wrapper {
+    width: 100%;
+  }
+
+  .separacao-btn-bipar {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .separacao-metrics-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .separacao-view-toggle {
+    width: 100%;
+  }
+
+  .separacao-toggle-btn {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+  }
+
+  /* Ocultar tabela e exibir cards no Android */
+  .separacao-desktop-table {
+    display: none;
+  }
+
+  .separacao-mobile-cards {
+    display: block;
+    width: 100%;
+  }
+
+  .separacao-cargas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .separacao-rota-swipe-hint {
+    display: inline-block;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ROTA GUIADA (ITEM DA VEZ) & ENDEREÇAMENTO FÍSICO
+   ══════════════════════════════════════════════════════════════════════════════ */
+.separacao-rota-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.separacao-rota-swipe-hint {
+  display: none;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.separacao-rota-card {
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  will-change: transform;
+}
+
+.separacao-rota-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.separacao-rota-passo-badge {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.separacao-rota-nav-botoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.separacao-rota-btn-nav {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.separacao-rota-btn-nav:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.separacao-rota-btn-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Banner de Endereçamento */
+.separacao-rota-endereco-banner {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 2px solid #3b82f6;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-rota-endereco-banner.sem-endereco {
+  background: #fff7ed;
+  border-color: #f97316;
+}
+
+/* Linha 1: Cabeçalho com Ícone + PICKING: + LADO e Botão Alterar à direita */
+.separacao-rota-header-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.separacao-rota-header-esquerda {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.separacao-rota-endereco-icone {
+  font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.separacao-rota-titulo-picking {
+  font-size: 13px;
+  font-weight: 900;
+  color: #1e3a8a;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.separacao-rota-btn-alterar-end {
+  background: #ffffff;
+  border: 1px solid #3b82f6;
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.separacao-rota-btn-alterar-end:hover {
+  background: #dbeafe;
+}
+
+/* Linha 2: Os 4 chips de coordenadas em Grid de 4 colunas proporcionais */
+.separacao-rota-coords-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-coord-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  text-align: center;
+  min-width: 0;
+}
+
+.separacao-coord-card .separacao-coord-rotulo {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.separacao-coord-card .separacao-coord-valor {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.1;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Courier New', monospace);
+}
+
+.separacao-coord-card.destacada {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.separacao-coord-card.destacada .separacao-coord-rotulo {
+  color: #15803d;
+}
+
+.separacao-coord-card.destacada .separacao-coord-valor {
+  color: #166534;
+}
+
+/* Fallback ou Sem Endereço */
+.separacao-chip-sem-endereco-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff7ed;
+  border: 1px dashed #fdba74;
+  color: #c2410c;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-coord-fallback-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Linha 3 / Rodapé */
+.separacao-rota-endereco-rodape {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.separacao-rota-endereco-sub {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.separacao-rota-pulmao-linha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px dashed #bfdbfe;
+}
+
+.separacao-rota-pulmao-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.separacao-rota-pulmao-tag {
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Corpo do Item da Vez */
+.separacao-rota-corpo {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.separacao-rota-foto-wrapper {
+  flex-shrink: 0;
+}
+
+.separacao-rota-foto {
+  width: 90px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.separacao-rota-foto:hover {
+  transform: scale(1.04);
+}
+
+.separacao-rota-detalhes {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.separacao-rota-prod-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.separacao-rota-vol-badge {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+/* Placar de Contagem do Item da Vez */
+.separacao-rota-placar {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.separacao-rota-placar-contagem {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.separacao-rota-placar-contagem.concluido {
+  color: #16a34a;
+}
+
+.separacao-rota-placar-contagem.parcial {
+  color: #d97706;
+}
+
+.separacao-rota-placar-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.separacao-rota-btn-falta {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #e11d48;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.separacao-rota-btn-falta:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.separacao-rota-btn-estornar {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.separacao-rota-btn-estornar:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ABA FALTAS & AVARIAS
+   ══════════════════════════════════════════════════════════════════════════════ */
+.separacao-faltas-vazio {
+  background: #ffffff;
+  border: 2px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 40px 20px;
+  text-align: center;
+  color: #64748b;
+}
+
+.separacao-faltas-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.separacao-falta-card {
+  background: #ffffff;
+  border: 1px solid #fecdd3;
+  border-left: 5px solid #e11d48;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.separacao-falta-card.cortado {
+  border-color: #cbd5e1;
+  border-left-color: #64748b;
+  opacity: 0.75;
+}
+
+.separacao-falta-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.separacao-falta-banner-pulmao {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #166534;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.separacao-falta-banner-pulmao.sem-pulmao {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+.separacao-falta-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.separacao-btn-reseparar {
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.separacao-btn-reseparar:hover {
+  background: #15803d;
+}
+
+.separacao-btn-cortar {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.separacao-btn-cortar:hover {
+  background: #fecdd3;
+}
+
+/* ==========================================================================
+   CHIPS DE ENDEREÇAMENTO LOGÍSTICO MODULAR (WMS - RUA / TORRE / NÍVEL / POS)
+   ========================================================================== */
+
+.separacao-endereco-chips-container {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  vertical-align: middle;
+}
+
+/* Lado: Esquerda (Ímpar) vs Direita (Par) */
+.separacao-chip-lado {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  flex-shrink: 0;
+}
+
+.separacao-chip-lado.lado-esq {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.separacao-chip-lado.lado-dir {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.separacao-chip-lado .chip-arrow {
+  font-size: 10px;
+}
+
+/* Pílula Coordenada (Rua, Torre, Nível, Pos) */
+.separacao-chip-coord {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #1e293b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.separacao-chip-coord .chip-coord-rotulo {
+  font-size: 9px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.separacao-chip-coord .chip-coord-valor {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Posição física com destaque sutil */
+.separacao-chip-coord.destacada {
+  border-color: #3b82f6;
+  background: #f0fdf4;
+}
+
+.separacao-chip-coord.destacada .chip-coord-rotulo {
+  color: #15803d;
+}
+
+.separacao-chip-coord.destacada .chip-coord-valor {
+  color: #166534;
+}
+
+/* Máscara do Endereço (sublinha sutil - opcional) */
+.separacao-chip-mascara {
+  font-size: 10px;
+  color: #64748b;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Courier New', monospace);
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
+/* Sem endereço */
+.separacao-chip-sem-endereco {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px dashed #fdba74;
+  padding: 2px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+/* Fallback de texto */
+.separacao-endereco-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+
+/* Variação DESTAQUE (Banner do Item da Vez) - Reduzido para proporção elegante em linha única */
+.separacao-endereco-chips-container.destaque {
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-lado {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 800;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-lado.lado-esq {
+  background: #2563eb;
+  color: #ffffff;
+  border: 1px solid #1d4ed8;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-lado.lado-dir {
+  background: #d97706;
+  color: #ffffff;
+  border: 1px solid #b45309;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-coord {
+  font-size: 11.5px;
+  padding: 2.5px 7px;
+  border-radius: 6px;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-coord .chip-coord-rotulo {
+  font-size: 9.5px;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-coord .chip-coord-valor {
+  font-size: 12px;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-coord.destacada {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.separacao-endereco-chips-container.destaque .separacao-chip-mascara {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* Variação COMPACTO (Mobile e Cards) */
+.separacao-endereco-chips-container.compacto {
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.separacao-endereco-chips-container.compacto .separacao-chip-lado {
+  font-size: 9px;
+  padding: 1px 4px;
+}
+
+.separacao-endereco-chips-container.compacto .separacao-chip-coord {
+  font-size: 9.5px;
+  padding: 1px 4px;
+}
+
+.separacao-endereco-chips-container.compacto .separacao-chip-coord .chip-coord-rotulo {
+  font-size: 8px;
+}
+
+.separacao-endereco-chips-container.compacto .separacao-chip-coord .chip-coord-valor {
+  font-size: 10px;
+}
+
+.separacao-endereco-chips-container.compacto .separacao-chip-mascara {
+  font-size: 9px;
+}
+
+/* Variação PULMÃO */
+.separacao-endereco-chips-container.pulmao {
+  background: #f8fafc;
+  padding: 2px 5px;
+  border-radius: 5px;
+  border: 1px dashed #cbd5e1;
+}
+

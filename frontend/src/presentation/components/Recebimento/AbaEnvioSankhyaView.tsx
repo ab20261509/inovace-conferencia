@@ -925,12 +925,15 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                   ? 'sobra'
                                   : 'ok';
 
-                              const lotesDoItem = obterLotesItem(
-                                grupo.conferenciaId,
-                                item,
-                                detalhes.bipagens
-                              );
-                              const temMultiplosLotes = lotesDoItem.length > 1;
+                              const isFaltaIsolada = qtdNivel === 0 && (item.qtdneg || 0) > 0;
+                              const lotesDoItem = isFaltaIsolada
+                                ? []
+                                : obterLotesItem(
+                                    grupo.conferenciaId,
+                                    item,
+                                    detalhes.bipagens
+                                  );
+                              const temMultiplosLotes = !isFaltaIsolada && lotesDoItem.length > 1;
                               const isLotesAberto = Boolean(lotesExpandidosEnvio[itemKey]);
                               const isVeioExcel = origemExcelPorConferencia[
                                 grupo.conferenciaId
@@ -1067,7 +1070,39 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                       )}
                                     </td>
                                     <td>
-                                      {temMultiplosLotes ? (
+                                      {isFaltaIsolada ? (
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                          }}
+                                        >
+                                          <span title="Lote original da Nota Fiscal (ERP)">📄</span>
+                                          <strong
+                                            style={{
+                                              color: 'var(--slate-800)',
+                                              fontFamily: 'JetBrains Mono, monospace',
+                                            }}
+                                          >
+                                            {item.controle || item.lote || '—'}
+                                          </strong>
+                                          <span
+                                            style={{
+                                              fontSize: '0.68rem',
+                                              padding: '1px 5px',
+                                              borderRadius: '4px',
+                                              background: '#fef2f2',
+                                              color: '#b91c1c',
+                                              border: '1px solid #fecaca',
+                                              fontWeight: 600,
+                                            }}
+                                            title="Item com contagem física zero na conferência (Falta Isolada)"
+                                          >
+                                            Falta Isolada
+                                          </span>
+                                        </div>
+                                      ) : temMultiplosLotes ? (
                                         <div
                                           style={{
                                             display: 'inline-flex',
@@ -1496,12 +1531,15 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                               ? 'sobra'
                               : 'ok';
 
-                          const lotesDoItem = obterLotesItem(
-                            grupo.conferenciaId,
-                            item,
-                            detalhes.bipagens
-                          );
-                          const temMultiplosLotes = lotesDoItem.length > 1;
+                          const isFaltaIsolada = qtdNivel === 0 && (item.qtdneg || 0) > 0;
+                          const lotesDoItem = isFaltaIsolada
+                            ? []
+                            : obterLotesItem(
+                                grupo.conferenciaId,
+                                item,
+                                detalhes.bipagens
+                              );
+                          const temMultiplosLotes = !isFaltaIsolada && lotesDoItem.length > 1;
                           const itemKey = `${grupo.conferenciaId}-${item.nunota}-${item.codprod}-${item.sequencia}`;
                           const isLotesAberto = Boolean(lotesExpandidosEnvio[itemKey]);
                           const isVeioExcel = origemExcelPorConferencia[
@@ -1612,7 +1650,33 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                   gap: '6px',
                                 }}
                               >
-                                {temMultiplosLotes ? (
+                                {isFaltaIsolada ? (
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                    <span title="Lote original da Nota Fiscal (ERP)">📄</span>
+                                    <strong
+                                      style={{
+                                        color: 'var(--slate-800)',
+                                        fontFamily: 'JetBrains Mono, monospace',
+                                      }}
+                                    >
+                                      {item.controle || item.lote || '—'}
+                                    </strong>
+                                    <span
+                                      style={{
+                                        fontSize: '0.68rem',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        background: '#fef2f2',
+                                        color: '#b91c1c',
+                                        border: '1px solid #fecaca',
+                                        fontWeight: 600,
+                                      }}
+                                      title="Item com contagem física zero na conferência (Falta Isolada)"
+                                    >
+                                      Falta Isolada
+                                    </span>
+                                  </div>
+                                ) : temMultiplosLotes ? (
                                   <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>

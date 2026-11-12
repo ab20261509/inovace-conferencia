@@ -200,6 +200,9 @@ export function falar(texto: string, onFim?: () => void): void {
   const sintese = window.speechSynthesis;
 
   try {
+    if (sintese.paused) {
+      sintese.resume();
+    }
     // Cancela a fala anterior: em leitura em sequência, o operador precisa
     // ouvir o erro atual, não a fila acumulada.
     sintese.cancel();
@@ -227,6 +230,9 @@ export function falar(texto: string, onFim?: () => void): void {
     }
 
     sintese.speak(fala);
+    if (sintese.paused) {
+      sintese.resume();
+    }
   } catch {
     onFim?.();
   }

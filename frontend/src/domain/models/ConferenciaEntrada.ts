@@ -82,6 +82,7 @@ export interface ItemNotaEntrada {
   codigosAlternativos: CodigoAlternativoEntrada[];
   unidadesAlternativas?: UnidadeAlternativaEntrada[];
   divergente?: boolean;
+  controle?: string;
   codlocal?: number;
   codlocalorig?: number;
   lote?: string;

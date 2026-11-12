@@ -32,6 +32,8 @@ const MENSAGENS: Record<CodigoErro, string> = {
 interface ErroRequisicao {
   message?: string;
   isNetworkError?: boolean;
+  detalheTecnico?: string;
+  urlTentada?: string;
   code?: string;
   response?: {
     status?: number;
@@ -53,6 +55,9 @@ export function mensagemErroLogin(erro: unknown): string {
 
   // 1. Nem chegamos ao backend: servidor parado, rede caída, proxy sem destino
   if (e?.isNetworkError) {
+    if (e.detalheTecnico || e.urlTentada) {
+      return `Servidor indisponível (${e.detalheTecnico || 'Erro de conexão'}${e.urlTentada ? ` em ${e.urlTentada}` : ''}). Verifique a URL na engrenagem.`;
+    }
     return 'Servidor indisponível. Verifique sua conexão ou avise o suporte técnico.';
   }
 

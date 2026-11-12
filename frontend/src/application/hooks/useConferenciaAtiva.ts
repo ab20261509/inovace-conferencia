@@ -28,7 +28,12 @@ export function useConferenciaAtiva(nuNota: number) {
       setError(null);
       const user = authService.getUser();
       const storedUser = localStorage.getItem('conferencia_user');
-      const mgeSession = storedUser ? JSON.parse(storedUser)?.jsessionid : undefined;
+      let mgeSession: string | undefined = undefined;
+      if (storedUser && storedUser !== 'undefined' && storedUser !== 'null') {
+        try {
+          mgeSession = JSON.parse(storedUser)?.jsessionid;
+        } catch {}
+      }
       const conf = await service.iniciarConferencia(nuNota, user?.codUsu, user?.nomeUsu, mgeSession);
       setConferencia(conf);
 

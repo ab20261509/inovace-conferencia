@@ -32,7 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [permissoes, setPermissoes] = useState<ModulosUsuario | null>(() => {
     const stored = localStorage.getItem(PERMISSOES_KEY);
-    return stored ? JSON.parse(stored) : null;
+    if (!stored || stored === 'undefined' || stored === 'null') return null;
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return null;
+    }
   });
 
   const [loadingPermissoes, setLoadingPermissoes] = useState<boolean>(false);

@@ -20,6 +20,9 @@ interface ModalDesmembrarItemProps {
   onClose: () => void;
   item: ItemDivergenciaResumo | null;
   grupo: ConferenciaDivergenciaGrupo | null;
+  dadosPrevios?: {
+    lotes?: Array<{ lote: string; qtd: number; dtval?: string; dtfab?: string; codlocal?: number }>;
+  } | null;
   onConfirmar: (dados: {
     nunota: number;
     sequencia: number;
@@ -61,6 +64,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
   onClose,
   item,
   grupo,
+  dadosPrevios,
   onConfirmar,
   loading = false,
 }) => {
@@ -122,7 +126,7 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
     };
   }, []);
 
-  // Inicializa as frações quando o modal abre com base no item
+  // Inicializa as frações quando o modal abre com base no item ou restaura dados previamente configurados
   useEffect(() => {
     if (!isOpen || !item) {
       setFracoes([]);
@@ -133,6 +137,25 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
     setErroProcessamento(null);
 
     const numnotaStr = String(grupo?.numnota || item.nunota || '');
+
+    // Se já existem frações previamente configuradas (revalidação), restaura os lotes e locais intactos!
+    if (dadosPrevios && dadosPrevios.lotes && dadosPrevios.lotes.length > 0) {
+      const fracoesRestauradas: FracaoLoteEditavel[] = dadosPrevios.lotes.map((l, idx) => {
+        const isFalta = String(l.lote || '').trim() === numnotaStr || String(l.lote || '').trim() === String(item.nunota || '');
+        return {
+          id: `prev-${idx}-${Date.now()}`,
+          lote: String(l.lote || '').trim(),
+          quantidade: Number(l.qtd) || 0,
+          validade: formatarDataSimples(l.dtval || item.validade),
+          fabricacao: formatarDataSimples(l.dtfab || item.fabricacao),
+          codlocal: l.codlocal !== undefined ? Number(l.codlocal) : undefined,
+          isFalta,
+        };
+      });
+      setFracoes(fracoesRestauradas);
+      return;
+    }
+
     const lotesConf: any[] = (item as any).lotesConferidos || [];
     const novasFracoes: FracaoLoteEditavel[] = [];
 

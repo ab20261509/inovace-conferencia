@@ -9,6 +9,8 @@ import {
 } from '../../../domain/models/OcorrenciaRecebimento';
 import { BipagemEntrada } from '../../../domain/models/ConferenciaEntrada';
 import { RecebimentoApiService } from '../../../infrastructure/api/RecebimentoApiService';
+import { getProdutoImagemUrl } from '../../../infrastructure/api/httpClient';
+import { ProdutoImagem } from '../common/ProdutoImagem';
 import { aplicarMascaraData, completarAnoData, validarData } from '../../utils/dateMaskHelper';
 
 export interface ModalRegistrarOcorrenciaProps {
@@ -602,7 +604,7 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                         const imgUrl =
                           produtoSelecionado.imagemUrl ||
                           (produtoSelecionado.codprod
-                            ? `/api/crud/produto/${produtoSelecionado.codprod}/imagem`
+                            ? getProdutoImagemUrl(produtoSelecionado.codprod)
                             : null);
                         if (imgUrl) setImagemAmpliada(imgUrl);
                       }}
@@ -621,33 +623,12 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                         cursor: 'zoom-in',
                       }}
                     >
-                      {(() => {
-                        const imgUrl =
-                          produtoSelecionado.imagemUrl ||
-                          (produtoSelecionado.codprod
-                            ? `/api/crud/produto/${produtoSelecionado.codprod}/imagem`
-                            : null);
-                        return imgUrl ? (
-                          <img
-                            src={imgUrl}
-                            alt={produtoSelecionado.descrprod}
-                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                              const parent = (e.target as HTMLImageElement).parentElement;
-                              if (parent && !parent.querySelector('.fallback-box')) {
-                                const span = document.createElement('span');
-                                span.className = 'fallback-box';
-                                span.innerText = '📦';
-                                span.style.fontSize = '1.4rem';
-                                parent.appendChild(span);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span style={{ fontSize: '1.4rem' }}>📦</span>
-                        );
-                      })()}
+                      <ProdutoImagem
+                        codProd={produtoSelecionado.codprod}
+                        alt={produtoSelecionado.descrprod}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onFotoClick={(url) => setImagemAmpliada(url)}
+                      />
                     </div>
 
                     <div style={{ minWidth: 0 }}>
@@ -975,13 +956,14 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
-                  Validade
+                  Fabricação *
                 </label>
                 <input
                   type="text"
-                  value={validade}
-                  onChange={(e) => setValidade(aplicarMascaraData(e.target.value))}
-                  onBlur={() => setValidade(completarAnoData(validade))}
+                  required
+                  value={fabricacao}
+                  onChange={(e) => setFabricacao(aplicarMascaraData(e.target.value))}
+                  onBlur={() => setFabricacao(completarAnoData(fabricacao))}
                   placeholder="DD/MM/AAAA"
                   maxLength={10}
                   style={{
@@ -998,14 +980,13 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
-                  Fabricação *
+                  Validade
                 </label>
                 <input
                   type="text"
-                  required
-                  value={fabricacao}
-                  onChange={(e) => setFabricacao(aplicarMascaraData(e.target.value))}
-                  onBlur={() => setFabricacao(completarAnoData(fabricacao))}
+                  value={validade}
+                  onChange={(e) => setValidade(aplicarMascaraData(e.target.value))}
+                  onBlur={() => setValidade(completarAnoData(validade))}
                   placeholder="DD/MM/AAAA"
                   maxLength={10}
                   style={{
@@ -1450,7 +1431,7 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
               }}
             >
               {popupResultados.map((prod, idx) => {
-                const imgUrl = prod.imagemUrl || (prod.codprod ? `/api/crud/produto/${prod.codprod}/imagem` : null);
+                const imgUrl = prod.imagemUrl || (prod.codprod ? getProdutoImagemUrl(prod.codprod) : null);
                 return (
                   <div
                     key={`${prod.codprod || prod.codbarra || idx}`}
@@ -1494,26 +1475,12 @@ export const ModalRegistrarOcorrencia: React.FC<ModalRegistrarOcorrenciaProps> =
                         cursor: imgUrl ? 'zoom-in' : 'default',
                       }}
                     >
-                      {imgUrl ? (
-                        <img
-                          src={imgUrl}
-                          alt={prod.descrprod}
-                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            const parent = (e.target as HTMLImageElement).parentElement;
-                            if (parent && !parent.querySelector('.fallback-box')) {
-                              const span = document.createElement('span');
-                              span.className = 'fallback-box';
-                              span.innerText = '📦';
-                              span.style.fontSize = '1.5rem';
-                              parent.appendChild(span);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span style={{ fontSize: '1.5rem' }}>📦</span>
-                      )}
+                      <ProdutoImagem
+                        codProd={prod.codprod}
+                        alt={prod.descrprod}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        onFotoClick={(url) => setImagemAmpliada(url)}
+                      />
                     </div>
 
                     {/* Informações do Produto */}

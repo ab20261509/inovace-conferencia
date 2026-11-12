@@ -1,0 +1,367 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   ESTILOS EXCLUSIVOS: REABASTECIMENTO DE PICKING (EQUIPE DE EMPILHADEIRA)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.reabastecimento-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* ═══ CARDS DE MÉTRICAS DO TOPO ═══ */
+.reabastecimento-metricas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.reabastecimento-metrica-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.reabastecimento-metrica-icone {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.reabastecimento-metrica-icone.total {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.reabastecimento-metrica-icone.pendente {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.reabastecimento-metrica-icone.sempulmao {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.reabastecimento-metrica-icone.concluido {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.reabastecimento-metrica-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.reabastecimento-metrica-valor {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.reabastecimento-metrica-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* ═══ FILTROS E BUSCA ═══ */
+.reabastecimento-filtros-bar {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reabastecimento-chips-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reabastecimento-chip-btn {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reabastecimento-chip-btn:hover {
+  background: #e2e8f0;
+}
+
+.reabastecimento-chip-btn.ativo {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.reabastecimento-busca-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  min-width: 240px;
+  outline: none;
+  background: #ffffff;
+}
+
+.reabastecimento-busca-input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+}
+
+/* ═══ GRADE DE TAREFAS (CARDS) ═══ */
+.reabastecimento-grid-tarefas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .reabastecimento-grid-tarefas {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reabastecimento-card-tarefa {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.reabastecimento-card-tarefa:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.reabastecimento-card-tarefa.concluida {
+  opacity: 0.75;
+  background: #f8fafc;
+}
+
+.reabastecimento-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+
+.reabastecimento-carga-badge {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.reabastecimento-status-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reabastecimento-status-badge.pendente {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.reabastecimento-status-badge.sempulmao {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.reabastecimento-status-badge.concluido {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.reabastecimento-produto-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reabastecimento-prod-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.reabastecimento-prod-sub {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ═══ CARD DE MOVIMENTAÇÃO ORIGEM -> DESTINO ═══ */
+.reabastecimento-rota-box {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reabastecimento-rota-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.reabastecimento-rota-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.reabastecimento-rota-end {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reabastecimento-rota-seta {
+  font-size: 18px;
+  color: #f97316;
+  font-weight: 800;
+}
+
+/* ═══ QUANTIDADE E AÇÃO ═══ */
+.reabastecimento-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.reabastecimento-qtd-badge {
+  font-size: 14px;
+  font-weight: 800;
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.reabastecimento-btn-concluir {
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reabastecimento-btn-concluir:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+}
+
+.reabastecimento-btn-concluir:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══ MODAL DE CONFIRMAÇÃO ═══ */
+.reabastecimento-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.reabastecimento-modal-box {
+  background: #ffffff;
+  border-radius: 20px;
+  max-width: 480px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reabastecimento-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.reabastecimento-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}

@@ -23,6 +23,14 @@ interface ModalOcorrenciaSobraProps {
     codlocalDestino?: number;
     fotos?: string[];
   }) => Promise<void>;
+  dadosPrevios?: {
+    quantidadeSobra?: number;
+    lote?: string;
+    validade?: string;
+    fabricacao?: string;
+    motivo?: string;
+    codlocalDestino?: number;
+  } | null;
   loading?: boolean;
 }
 
@@ -32,6 +40,7 @@ export const ModalOcorrenciaSobra: React.FC<ModalOcorrenciaSobraProps> = ({
   item,
   grupo,
   onConfirmar,
+  dadosPrevios,
   loading = false,
 }) => {
   const [qtdSobra, setQtdSobra] = useState<number>(0);
@@ -44,6 +53,16 @@ export const ModalOcorrenciaSobra: React.FC<ModalOcorrenciaSobraProps> = ({
 
   useEffect(() => {
     if (!isOpen || !item) return;
+
+    if (dadosPrevios) {
+      if (dadosPrevios.quantidadeSobra !== undefined) setQtdSobra(dadosPrevios.quantidadeSobra);
+      if (dadosPrevios.lote !== undefined) setLote(dadosPrevios.lote);
+      if (dadosPrevios.validade !== undefined) setValidade(dadosPrevios.validade);
+      if (dadosPrevios.fabricacao !== undefined) setFabricacao(dadosPrevios.fabricacao);
+      if (dadosPrevios.motivo !== undefined) setMotivo(dadosPrevios.motivo);
+      if (dadosPrevios.codlocalDestino !== undefined) setCodlocalDestino(dadosPrevios.codlocalDestino);
+      return;
+    }
 
     const sobraCalculada = (item as any).diferenca > 0 ? (item as any).diferenca : 0;
     setQtdSobra(sobraCalculada);

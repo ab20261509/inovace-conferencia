@@ -20,6 +20,9 @@ import { ModalDitadoLote, TipoCampoDitado } from '../components/Recebimento/Moda
 import { TipoOcorrenciaRecebimento, OcorrenciaRecebimento, obterTermosOcorrencia } from '../../domain/models/OcorrenciaRecebimento';
 import { ConfiguracaoSistemaApiService } from '../../infrastructure/api/ConfiguracaoSistemaApiService';
 import { podeVerCamposSensiveis } from '../../domain/permissions';
+import { offlineQueue } from '../../infrastructure/offline/offlineQueue';
+import { getProdutoImagemUrl } from '../../infrastructure/api/httpClient';
+import { ProdutoImagem } from '../components/common/ProdutoImagem';
 import './ConferenciaEntradaPage.css';
 
 const recebimentoService = new RecebimentoApiService();
@@ -324,6 +327,13 @@ export function ConferenciaEntradaPage() {
   const [mostrarCamera, setMostrarCamera] = useState(false);
   const [scannerRecolhido, setScannerRecolhido] = useState(false);
   const [tecladoVirtualAtivo, setTecladoVirtualAtivo] = useState(false);
+  const [bipsPendentes, setBipsPendentes] = useState(() => offlineQueue.getPendingCount());
+
+  useEffect(() => {
+    return offlineQueue.subscribe(() => {
+      setBipsPendentes(offlineQueue.getPendingCount());
+    });
+  }, []);
   const [isDispositivoMovel, setIsDispositivoMovel] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth <= 1024 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
@@ -467,6 +477,23 @@ export function ConferenciaEntradaPage() {
     validade: string;
     fabricacao: string;
   } | null>(null);
+
+  // Destaque visual do item ativo/bipando e do recém-conferido
+  const [codprodRecenteBipado, setCodprodRecenteBipado] = useState<number | null>(null);
+  const timerRecenteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Item ativo no scanner (correspondente ao código digitado no momento)
+  const itemAtivoCodigo = useMemo(() => {
+    const codLimpo = codigo.trim();
+    if (!codLimpo) return null;
+    return itens.find((it) => itemCorrespondeAoCodigo(it, codLimpo)) || null;
+  }, [codigo, itens]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRecenteRef.current) clearTimeout(timerRecenteRef.current);
+    };
+  }, []);
 
   const checarLoteExistente = useCallback(
     (loteDigitado: string, codAtual?: string): boolean => {
@@ -672,23 +699,6 @@ export function ConferenciaEntradaPage() {
           btnConferirRef.current?.focus();
         }, 100);
       } else if (isSequenciaAtivaRef.current) {
-        // Passa para o próximo passo da sequência contínua: Validade
-        setTimeout(() => {
-          iniciarEscutaCampo('validade', true);
-        }, 300);
-      } else {
-        setModalDitadoAberto(false);
-        setTimeout(() => {
-          inputValidadeRef.current?.focus();
-          inputValidadeRef.current?.select();
-        }, 100);
-      }
-    } else if (campoVozAtivo === 'validade') {
-      setValidade(valorConfirmado);
-      if (erroValidade) setErroValidade(null);
-      tocarAlertaSucesso();
-
-      if (isSequenciaAtivaRef.current) {
         // Passa para o próximo passo da sequência contínua: Fabricação
         setTimeout(() => {
           iniciarEscutaCampo('fabricacao', true);
@@ -703,6 +713,23 @@ export function ConferenciaEntradaPage() {
     } else if (campoVozAtivo === 'fabricacao') {
       setFabricacao(valorConfirmado);
       if (erroFabricacao) setErroFabricacao(null);
+      tocarAlertaSucesso();
+
+      if (isSequenciaAtivaRef.current) {
+        // Passa para o próximo passo da sequência contínua: Validade
+        setTimeout(() => {
+          iniciarEscutaCampo('validade', true);
+        }, 300);
+      } else {
+        setModalDitadoAberto(false);
+        setTimeout(() => {
+          inputValidadeRef.current?.focus();
+          inputValidadeRef.current?.select();
+        }, 100);
+      }
+    } else if (campoVozAtivo === 'validade') {
+      setValidade(valorConfirmado);
+      if (erroValidade) setErroValidade(null);
       isSequenciaAtivaRef.current = false;
       setModalDitadoAberto(false);
       tocarAlertaSucesso();
@@ -1365,7 +1392,7 @@ export function ConferenciaEntradaPage() {
           return;
         }
 
-        // Produto válido! Inicia sequência contínua de voz (Lote -> Validade -> Fabricação)
+        // Produto válido! Inicia sequência contínua de voz (Lote -> Fabricação -> Validade)
         inputLoteRef.current?.focus();
         iniciarSequenciaVoz();
         return;
@@ -1445,6 +1472,13 @@ export function ConferenciaEntradaPage() {
       setFeedbackVisual({ codProd: resp.bipagem.codprod, descrProd: resp.descrprod });
       if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
       feedbackTimeoutRef.current = setTimeout(() => setFeedbackVisual(null), 2500);
+
+      // Ativa pulso verde no item recém-bipado
+      setCodprodRecenteBipado(resp.bipagem.codprod);
+      if (timerRecenteRef.current) clearTimeout(timerRecenteRef.current);
+      timerRecenteRef.current = setTimeout(() => {
+        setCodprodRecenteBipado(null);
+      }, 3500);
 
       // Atualiza status da sessão local se retornado ou se ainda estiver Em Aberto
       if (resp.statusSessao) {
@@ -1848,20 +1882,35 @@ export function ConferenciaEntradaPage() {
       });
     }
 
-    // Se houver um lote repetido ativo no leitor, move o produto prioritariamente para o topo da lista
-    if (codprodLoteRepetido) {
+    const codprodAtivo = itemAtivoCodigo?.codprod;
+
+    // Prioriza no topo da lista:
+    // 1º: Item atualmente digitado / ativo no scanner
+    // 2º: Item recém-bipado com sucesso (pulso verde temporário de 3.5s)
+    // 3º: Lote repetido
+    if (codprodAtivo || codprodRecenteBipado || codprodLoteRepetido) {
       lista.sort((a, b) => {
-        if (a.codprod === codprodLoteRepetido && b.codprod !== codprodLoteRepetido) return -1;
-        if (b.codprod === codprodLoteRepetido && a.codprod !== codprodLoteRepetido) return 1;
+        if (codprodAtivo) {
+          if (a.codprod === codprodAtivo && b.codprod !== codprodAtivo) return -1;
+          if (b.codprod === codprodAtivo && a.codprod !== codprodAtivo) return 1;
+        }
+        if (codprodRecenteBipado) {
+          if (a.codprod === codprodRecenteBipado && b.codprod !== codprodRecenteBipado) return -1;
+          if (b.codprod === codprodRecenteBipado && a.codprod !== codprodRecenteBipado) return 1;
+        }
+        if (codprodLoteRepetido) {
+          if (a.codprod === codprodLoteRepetido && b.codprod !== codprodLoteRepetido) return -1;
+          if (b.codprod === codprodLoteRepetido && a.codprod !== codprodLoteRepetido) return 1;
+        }
         return 0;
       });
     }
 
     return lista;
-  }, [itensPendentesVisiveis, ordenacao, nivelAtual, codprodLoteRepetido]);
+  }, [itensPendentesVisiveis, ordenacao, nivelAtual, codprodLoteRepetido, itemAtivoCodigo, codprodRecenteBipado]);
 
   const itensConferidosVisiveis = useMemo<ItemEntradaConferidoVisivel[]>(() => {
-    return itensConsolidados
+    const resultado = itensConsolidados
       .filter((item) => {
         // No Nível 3, não polui a visualização com itens de notas que já foram aprovadas
         if (nivelAtual === 3 && sessao?.statusPorNota) {
@@ -1939,7 +1988,42 @@ export function ConferenciaEntradaPage() {
           ultimoBip,
         };
       });
-  }, [itensExibidos, bipagensValidas, nivelAtual, sessao]);
+
+    const codprodAtivo = itemAtivoCodigo?.codprod;
+    if (codprodAtivo || codprodRecenteBipado || codprodLoteRepetido) {
+      resultado.sort((a, b) => {
+        if (codprodAtivo) {
+          if (a.item.codprod === codprodAtivo && b.item.codprod !== codprodAtivo) return -1;
+          if (b.item.codprod === codprodAtivo && a.item.codprod !== codprodAtivo) return 1;
+        }
+        if (codprodRecenteBipado) {
+          if (a.item.codprod === codprodRecenteBipado && b.item.codprod !== codprodRecenteBipado) return -1;
+          if (b.item.codprod === codprodRecenteBipado && a.item.codprod !== codprodRecenteBipado) return 1;
+        }
+        if (codprodLoteRepetido) {
+          if (a.item.codprod === codprodLoteRepetido && b.item.codprod !== codprodLoteRepetido) return -1;
+          if (b.item.codprod === codprodLoteRepetido && a.item.codprod !== codprodLoteRepetido) return 1;
+        }
+        return 0;
+      });
+    }
+
+    return resultado;
+  }, [itensConsolidados, bipagensValidas, nivelAtual, sessao, itemAtivoCodigo, codprodRecenteBipado, codprodLoteRepetido]);
+
+  // Alternância automática de abas no Modo Supervisor quando o item digitado já estiver conferido
+  useEffect(() => {
+    if (isModoCego) return;
+    const codprodAtivo = itemAtivoCodigo?.codprod;
+    if (!codprodAtivo) return;
+
+    const estaPendente = itensPendentesVisiveis.some((it) => it.codprod === codprodAtivo);
+    if (!estaPendente) {
+      if (abaAtiva !== 'conferidos') setAbaAtiva('conferidos');
+    } else {
+      if (abaAtiva !== 'pendentes') setAbaAtiva('pendentes');
+    }
+  }, [itemAtivoCodigo, itensPendentesVisiveis, isModoCego, abaAtiva]);
 
   if (!podeAcessar) {
     return (
@@ -2089,6 +2173,11 @@ export function ConferenciaEntradaPage() {
                       ? `Nota Fiscal ${notaSelecionadaObj.numnota} — Recebimento`
                       : `NF(s) ${numerosNFsUnicas.join(', ')} — Recebimento`}
                   </span>
+                  {bipsPendentes > 0 && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700 }}>
+                      📶 {bipsPendentes} {bipsPendentes === 1 ? 'bip offline' : 'bips offline'}
+                    </span>
+                  )}
                   {multiplasNotas && (
                     <span className="conferencia-conjunta-tag" title="Esta conferência agrupa múltiplas Notas Fiscais">
                       📦 Conferência Conjunta ({numerosNFsUnicas.length} Notas)
@@ -2634,49 +2723,6 @@ export function ConferenciaEntradaPage() {
                         />
                       </div>
                       <Campo
-                        ref={inputValidadeRef}
-                        label={
-                          <span className="label-com-microfone-linha">
-                            <span>Validade *</span>
-                            <button
-                              type="button"
-                              className={`btn-microfone-label ${ouvindoVozCampo === 'validade' ? 'gravando' : ''}`}
-                              title={ouvindoVozCampo === 'validade' ? "Ouvindo... Clique para parar" : "Ditar validade por voz (ex: 15 de outubro de 2026)"}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (modalDitadoAberto && campoVozAtivo === 'validade') {
-                                  handleFecharModalDitado();
-                                } else {
-                                  iniciarVozIndividual('validade');
-                                }
-                              }}
-                              disabled={isSomenteLeitura}
-                            >
-                              {ouvindoVozCampo === 'validade' ? '🎙️' : '🎤'}
-                            </button>
-                          </span>
-                        }
-                        value={validade}
-                        onChange={(e) => {
-                          setValidade(aplicarMascaraData(e.target.value));
-                          if (erroValidade) setErroValidade(null);
-                        }}
-                        onBlur={() => {
-                          const dataCompletada = completarAnoData(validade);
-                          setValidade(dataCompletada);
-                          const res = validarData(dataCompletada, true);
-                          setErroValidade(res.valida ? null : res.erro || 'Data inválida');
-                          if (res.valida && dataCompletada.length === 10) {
-                            verificarValidadeEObrirOcorrencia(dataCompletada, fabricacao, lote, quantidade);
-                          }
-                        }}
-                        placeholder={ouvindoVozCampo === 'validade' ? "Ouvindo... Dite a validade" : "DD/MM/AAAA"}
-                        disabled={isSomenteLeitura || loteBloqueadoAuto}
-                        error={erroValidade || undefined}
-                        className={`${ouvindoVozCampo === 'validade' ? 'input-lote-ouvindo' : ''} ${loteBloqueadoAuto ? 'input-data-autopreenchida' : ''}`.trim()}
-                      />
-                      <Campo
                         ref={inputFabricacaoRef}
                         label={
                           <span className="label-com-microfone-linha">
@@ -2719,6 +2765,49 @@ export function ConferenciaEntradaPage() {
                         disabled={isSomenteLeitura || loteBloqueadoAuto}
                         error={erroFabricacao || undefined}
                         className={`${ouvindoVozCampo === 'fabricacao' ? 'input-lote-ouvindo' : ''} ${loteBloqueadoAuto ? 'input-data-autopreenchida' : ''}`.trim()}
+                      />
+                      <Campo
+                        ref={inputValidadeRef}
+                        label={
+                          <span className="label-com-microfone-linha">
+                            <span>Validade *</span>
+                            <button
+                              type="button"
+                              className={`btn-microfone-label ${ouvindoVozCampo === 'validade' ? 'gravando' : ''}`}
+                              title={ouvindoVozCampo === 'validade' ? "Ouvindo... Clique para parar" : "Ditar validade por voz (ex: 15 de outubro de 2026)"}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (modalDitadoAberto && campoVozAtivo === 'validade') {
+                                  handleFecharModalDitado();
+                                } else {
+                                  iniciarVozIndividual('validade');
+                                }
+                              }}
+                              disabled={isSomenteLeitura}
+                            >
+                              {ouvindoVozCampo === 'validade' ? '🎙️' : '🎤'}
+                            </button>
+                          </span>
+                        }
+                        value={validade}
+                        onChange={(e) => {
+                          setValidade(aplicarMascaraData(e.target.value));
+                          if (erroValidade) setErroValidade(null);
+                        }}
+                        onBlur={() => {
+                          const dataCompletada = completarAnoData(validade);
+                          setValidade(dataCompletada);
+                          const res = validarData(dataCompletada, true);
+                          setErroValidade(res.valida ? null : res.erro || 'Data inválida');
+                          if (res.valida && dataCompletada.length === 10) {
+                            verificarValidadeEObrirOcorrencia(dataCompletada, fabricacao, lote, quantidade);
+                          }
+                        }}
+                        placeholder={ouvindoVozCampo === 'validade' ? "Ouvindo... Dite a validade" : "DD/MM/AAAA"}
+                        disabled={isSomenteLeitura || loteBloqueadoAuto}
+                        error={erroValidade || undefined}
+                        className={`${ouvindoVozCampo === 'validade' ? 'input-lote-ouvindo' : ''} ${loteBloqueadoAuto ? 'input-data-autopreenchida' : ''}`.trim()}
                       />
                     </div>
                   )}
@@ -2775,11 +2864,10 @@ export function ConferenciaEntradaPage() {
           <div className="feedback-card">
             <div className="feedback-img-wrapper">
               <span className="feedback-check">&#10003;</span>
-              <img
-                src={`/api/crud/produto/${feedbackVisual.codProd}/imagem`}
+              <ProdutoImagem
+                codProd={feedbackVisual.codProd}
                 alt={feedbackVisual.descrProd}
                 className="feedback-img"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             </div>
             <span className="feedback-nome">{feedbackVisual.descrProd}</span>
@@ -2901,25 +2989,36 @@ export function ConferenciaEntradaPage() {
                         const temLotes = lotesDetalhes && lotesDetalhes.length > 0;
 
                         const ehProdutoLoteRepetido = codprodLoteRepetido === item.codprod;
+                        const ehItemAtivo = itemAtivoCodigo?.codprod === item.codprod;
+                        const ehItemRecente = codprodRecenteBipado === item.codprod;
 
                         return (
                           <Fragment key={`frag-pend-${item.nunota}-${item.sequencia}`}>
                             <tr
                               key={`${item.nunota}-${item.sequencia}`}
-                              className={`${parcial && !isModoCego ? 'row-parcial' : ''} ${ehProdutoLoteRepetido ? 'row-lote-repetido' : ''}`.trim()}
+                              className={`${parcial && !isModoCego ? 'row-parcial' : ''} ${ehItemAtivo ? 'row-ativo-bipando' : ''} ${!ehItemAtivo && ehItemRecente ? 'row-recente-bipado' : ''} ${ehProdutoLoteRepetido ? 'row-lote-repetido' : ''}`.trim()}
                             >
                               <td>
                                 <div className="produto-cell">
-                                  <img
-                                    src={`/api/crud/produto/${item.codprod}/imagem`}
+                                  <ProdutoImagem
+                                    codProd={item.codprod}
                                     alt={item.descrprod}
                                     className="produto-img"
-                                    onClick={() => setImagemAmpliada(`/api/crud/produto/${item.codprod}/imagem`)}
-                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    onFotoClick={(url) => setImagemAmpliada(url)}
                                   />
                                   <div>
                                     <span className="produto-desc">{item.descrprod}</span>
                                     <span className="produto-barra">
+                                      {ehItemAtivo && (
+                                        <span className="badge-ativo-bipando-card">
+                                          🎯 Bipando...
+                                        </span>
+                                      )}
+                                      {!ehItemAtivo && ehItemRecente && (
+                                        <span className="badge-recente-bipado-card">
+                                          ✓ Conferido agora
+                                        </span>
+                                      )}
                                       {multiplasNotas && (
                                         <span
                                           style={{
@@ -3214,11 +3313,13 @@ export function ConferenciaEntradaPage() {
                     const parcial = conferido > 0;
                     const podeSelecionar = !isSomenteLeitura && !isModoCego;
                     const ehProdutoLoteRepetido = codprodLoteRepetido === item.codprod;
+                    const ehItemAtivo = itemAtivoCodigo?.codprod === item.codprod;
+                    const ehItemRecente = codprodRecenteBipado === item.codprod;
 
                     return (
                       <div
                         key={`card-${item.nunota}-${item.sequencia}`}
-                        className={`item-card-mobile ${parcial && !isModoCego ? 'item-card-parcial' : ''} ${ehProdutoLoteRepetido ? 'item-card-lote-repetido' : ''}`.trim()}
+                        className={`item-card-mobile ${parcial && !isModoCego ? 'item-card-parcial' : ''} ${ehItemAtivo ? 'item-card-ativo-bipando' : ''} ${!ehItemAtivo && ehItemRecente ? 'item-card-recente-bipado' : ''} ${ehProdutoLoteRepetido ? 'item-card-lote-repetido' : ''}`.trim()}
                         onClick={() => {
                           if (!podeSelecionar) return;
                           const cod = item.codbarra || (item as any).referencia || String(item.codprod);
@@ -3229,19 +3330,26 @@ export function ConferenciaEntradaPage() {
                         title={podeSelecionar ? 'Toque para selecionar este produto no leitor' : undefined}
                       >
                         <div className="item-card-header">
-                          <img
-                            src={`/api/crud/produto/${item.codprod}/imagem`}
+                          <ProdutoImagem
+                            codProd={item.codprod}
                             alt={item.descrprod}
                             className="produto-img item-card-img"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setImagemAmpliada(`/api/crud/produto/${item.codprod}/imagem`);
-                            }}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            onClick={(e) => e.stopPropagation()}
+                            onFotoClick={(url) => setImagemAmpliada(url)}
                           />
                           <div className="item-card-info">
                             <span className="produto-desc item-card-title">{item.descrprod}</span>
                             <span className="produto-barra item-card-sub">
+                              {ehItemAtivo && (
+                                <span className="badge-ativo-bipando-card">
+                                  🎯 Bipando...
+                                </span>
+                              )}
+                              {!ehItemAtivo && ehItemRecente && (
+                                <span className="badge-recente-bipado-card">
+                                  ✓ Conferido agora
+                                </span>
+                              )}
                               {ehProdutoLoteRepetido && (
                                 <span className="badge-lote-repetido-card">
                                   🏷️ Lote Repetido
@@ -3417,22 +3525,33 @@ export function ConferenciaEntradaPage() {
                             oc.codprod === confItem.item.codprod &&
                             (oc.sequencia ? oc.sequencia === confItem.item.sequencia : true)
                         );
+                        const ehItemAtivo = itemAtivoCodigo?.codprod === confItem.item.codprod;
+                        const ehItemRecente = codprodRecenteBipado === confItem.item.codprod;
 
                         return (
                           <Fragment key={`frag-conf-${confItem.item.nunota}-${confItem.item.sequencia}`}>
-                            <tr className="row-ok">
+                            <tr className={`row-ok ${ehItemAtivo ? 'row-ativo-bipando' : ''} ${!ehItemAtivo && ehItemRecente ? 'row-recente-bipado' : ''}`.trim()}>
                               <td>
                                 <div className="produto-cell">
-                                  <img
-                                    src={`/api/crud/produto/${confItem.item.codprod}/imagem`}
+                                  <ProdutoImagem
+                                    codProd={confItem.item.codprod}
                                     alt={confItem.item.descrprod}
                                     className="produto-img"
-                                    onClick={() => setImagemAmpliada(`/api/crud/produto/${confItem.item.codprod}/imagem`)}
-                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    onFotoClick={(url) => setImagemAmpliada(url)}
                                   />
                                   <div>
                                     <span className="produto-desc">{confItem.item.descrprod}</span>
                                     <span className="produto-barra">
+                                      {ehItemAtivo && (
+                                        <span className="badge-ativo-bipando-card">
+                                          🎯 Bipando...
+                                        </span>
+                                      )}
+                                      {!ehItemAtivo && ehItemRecente && (
+                                        <span className="badge-recente-bipado-card">
+                                          ✓ Conferido agora
+                                        </span>
+                                      )}
                                       {multiplasNotas && (
                                         <span
                                           style={{
@@ -3699,20 +3818,34 @@ export function ConferenciaEntradaPage() {
                         oc.codprod === confItem.item.codprod &&
                         (oc.sequencia ? oc.sequencia === confItem.item.sequencia : true)
                     );
+                    const ehItemAtivo = itemAtivoCodigo?.codprod === confItem.item.codprod;
+                    const ehItemRecente = codprodRecenteBipado === confItem.item.codprod;
 
                     return (
-                    <div key={`card-conf-${confItem.item.nunota}-${confItem.item.sequencia}`} className="item-card-mobile item-card-conferido">
+                    <div
+                      key={`card-conf-${confItem.item.nunota}-${confItem.item.sequencia}`}
+                      className={`item-card-mobile item-card-conferido ${ehItemAtivo ? 'item-card-ativo-bipando' : ''} ${!ehItemAtivo && ehItemRecente ? 'item-card-recente-bipado' : ''}`.trim()}
+                    >
                       <div className="item-card-header">
-                        <img
-                          src={`/api/crud/produto/${confItem.item.codprod}/imagem`}
+                        <ProdutoImagem
+                          codProd={confItem.item.codprod}
                           alt={confItem.item.descrprod}
                           className="produto-img item-card-img"
-                          onClick={() => setImagemAmpliada(`/api/crud/produto/${confItem.item.codprod}/imagem`)}
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          onFotoClick={(url) => setImagemAmpliada(url)}
                         />
                         <div className="item-card-info">
                           <span className="produto-desc item-card-title">{confItem.item.descrprod}</span>
                           <span className="produto-barra item-card-sub">
+                            {ehItemAtivo && (
+                              <span className="badge-ativo-bipando-card">
+                                🎯 Bipando...
+                              </span>
+                            )}
+                            {!ehItemAtivo && ehItemRecente && (
+                              <span className="badge-recente-bipado-card">
+                                ✓ Conferido agora
+                              </span>
+                            )}
                             {multiplasNotas && (
                               <span
                                 style={{

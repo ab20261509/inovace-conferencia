@@ -24,7 +24,12 @@ export function ListaConferenciasPage() {
   });
   const [filtrosDinamicos, setFiltrosDinamicos] = useState<Record<string, string>>(() => {
     const stored = localStorage.getItem('conferencia_filtros');
-    return stored ? JSON.parse(stored) : {};
+    if (!stored || stored === 'undefined' || stored === 'null') return {};
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return {};
+    }
   });
   const [pedidoNotificarDiscord, setPedidoNotificarDiscord] = useState<PedidoConferencia | null>(null);
   const navigate = useNavigate();
@@ -69,7 +74,7 @@ export function ListaConferenciasPage() {
     [pedidosFiltrados, statusSelecionado],
   );
 
-  function handleAbrirConferencia(nunota: number, statusConferencia?: string) {
+  function handleAbrirConferencia(nunota: number, statusConferencia?: string, statusSeparacao?: string | null) {
     navigate(`/conferencias/${nunota}`, { state: { statusConferencia } });
   }
 
@@ -161,10 +166,10 @@ export function ListaConferenciasPage() {
               className={`card-conferencia ${pedido.statusConferencia === 'Em andamento' ? 'em-andamento' : ''}`}
             >
               <div
-                onDoubleClick={() => handleAbrirConferencia(pedido.nunota, pedido.statusConferencia)}
+                onDoubleClick={() => handleAbrirConferencia(pedido.nunota, pedido.statusConferencia, pedido.statusSeparacao)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleAbrirConferencia(pedido.nunota, pedido.statusConferencia)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAbrirConferencia(pedido.nunota, pedido.statusConferencia, pedido.statusSeparacao)}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="card-header">
@@ -174,6 +179,64 @@ export function ListaConferenciasPage() {
                     <span className="card-parceiro">{pedido.parceiro}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {pedido.statusSeparacao === 'SEPARADO' && (
+                      <span
+                        className="badge-separado"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          background: '#dcfce7',
+                          color: '#15803d',
+                          border: '1px solid #86efac',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                        }}
+                        title="Separação da Carga Finalizada"
+                      >
+                        ✓ Separado
+                      </span>
+                    )}
+                    {pedido.statusSeparacao === 'EM_ANDAMENTO' && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          background: '#fef3c7',
+                          color: '#b45309',
+                          border: '1px solid #fde68a',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                        }}
+                        title="Separação da Carga em Andamento"
+                      >
+                        ⏳ Em Separação
+                      </span>
+                    )}
+                    {pedido.statusSeparacao === 'PENDENTE' && Boolean(pedido.ordemCarga) && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          background: '#f1f5f9',
+                          color: '#475569',
+                          border: '1px solid #cbd5e1',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                        }}
+                        title="Aguardando Início da Separação da Carga"
+                      >
+                        ⏳ Aguardando Separação
+                      </span>
+                    )}
                     {pedido.statusConferencia === 'Em andamento' && (
                       <button
                         type="button"
