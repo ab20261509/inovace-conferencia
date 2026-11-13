@@ -116,6 +116,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Operadores padrão: inativo (false) por padrão
         return permissoes[modulo] === true;
       }
+      if (
+        modulo === 'separacao_iniciar' ||
+        modulo === 'separacao_bipar' ||
+        modulo === 'separacao_finalizar' ||
+        modulo === 'separacao_cortar' ||
+        modulo === 'reabastecimento' ||
+        modulo === 'reabastecimento_confirmar' ||
+        modulo === 'reabastecimento_cancelar' ||
+        modulo === 'reabastecimento_finalizar_falta' ||
+        modulo === 'enderecamento' ||
+        modulo === 'enderecamento_visualizar' ||
+        modulo === 'enderecamento_manipular'
+      ) {
+        // Administradores/supervisores: true por padrão
+        if (ehAdminPadrao || permissoes.gerenciar_acessos) {
+          return permissoes[modulo] !== false;
+        }
+        if (modulo === 'enderecamento') {
+          return permissoes.enderecamento !== false && (permissoes.enderecamento_visualizar !== false || permissoes.enderecamento_manipular === true);
+        }
+        if (modulo === 'enderecamento_visualizar') {
+          return permissoes.enderecamento_visualizar !== false;
+        }
+        // Operadores padrão: inativo (false) por padrão (bloqueio seguro)
+        return permissoes[modulo] === true;
+      }
       return !!permissoes[modulo];
     }
 

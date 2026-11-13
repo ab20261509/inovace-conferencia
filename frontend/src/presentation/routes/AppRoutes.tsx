@@ -9,25 +9,33 @@ import { GestaoAcessosPage } from '../pages/GestaoAcessos';
 import { BancoDadosPage } from '../pages/BancoDados/BancoDadosPage';
 import { SeparacaoPage } from '../pages/separacao/SeparacaoPage';
 import { ReabastecimentoPage } from '../pages/reabastecimento/ReabastecimentoPage';
+import { EnderecamentoPage } from '../pages/enderecamento/EnderecamentoPage';
+import { HubPage } from '../pages/Hub/HubPage';
 import { PrivateRoute } from './PrivateRoute';
 
 import { useAuth } from '../../application/contexts/AuthContext';
 
 function RotaInicialRedirect() {
-  const location = useLocation();
-  if (location.pathname.startsWith('/reabastecimento')) {
-    return <ReabastecimentoPage />;
-  }
-
   const { isAuthenticated, temPermissao, loadingPermissoes, permissoes } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (loadingPermissoes && !permissoes) return null;
-  if (temPermissao('conferencia_saida')) return <Navigate to="/conferencias" replace />;
-  if (temPermissao('separacao')) return <Navigate to="/separacao" replace />;
-  if (temPermissao('conferencia_entrada')) return <Navigate to="/recebimento" replace />;
-  if (temPermissao('gestao_recebimento')) return <Navigate to="/recebimento/gestao" replace />;
-  if (temPermissao('gerenciar_acessos')) return <Navigate to="/configuracoes/acessos" replace />;
-  return <Navigate to="/login" replace />;
+
+  const rotasAutorizadas: string[] = [];
+  if (temPermissao('conferencia_saida')) rotasAutorizadas.push('/conferencias');
+  if (temPermissao('separacao')) rotasAutorizadas.push('/separacao');
+  if (temPermissao('reabastecimento')) rotasAutorizadas.push('/reabastecimento');
+  if (temPermissao('enderecamento') || temPermissao('enderecamento_visualizar')) rotasAutorizadas.push('/enderecamento');
+  if (temPermissao('conferencia_entrada')) rotasAutorizadas.push('/recebimento');
+  if (temPermissao('gestao_recebimento')) rotasAutorizadas.push('/recebimento/gestao');
+  if (temPermissao('gerenciar_acessos')) rotasAutorizadas.push('/configuracoes/acessos');
+
+  // Se tiver exatamente 1 módulo, redireciona direto para economizar cliques
+  if (rotasAutorizadas.length === 1) {
+    return <Navigate to={rotasAutorizadas[0]} replace />;
+  }
+
+  // Se tiver múltiplos módulos (como o Supervisor), exibe o Hub Inicial com cards
+  return <HubPage />;
 }
 
 export function AppRoutes() {
@@ -36,6 +44,16 @@ export function AppRoutes() {
       <Routes>
         <Route path="/" element={<RotaInicialRedirect />} />
         <Route path="/login" element={<LoginPage />} />
+
+        {/* Hub Inicial de Boas-Vindas */}
+        <Route
+          path="/hub"
+          element={
+            <PrivateRoute>
+              <HubPage />
+            </PrivateRoute>
+          }
+        />
 
         {/* Conferência de Saída */}
         <Route
@@ -66,8 +84,40 @@ export function AppRoutes() {
         />
 
         {/* Reabastecimento de Picking (Equipe de Empilhadeira) */}
-        <Route path="/reabastecimento" element={<ReabastecimentoPage />} />
-        <Route path="/reabastecimento/*" element={<ReabastecimentoPage />} />
+        <Route
+          path="/reabastecimento"
+          element={
+            <PrivateRoute modulo="reabastecimento">
+              <ReabastecimentoPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/reabastecimento/*"
+          element={
+            <PrivateRoute modulo="reabastecimento">
+              <ReabastecimentoPage />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Endereçamento WMS (Produto x Endereço & Movimentações) */}
+        <Route
+          path="/enderecamento"
+          element={
+            <PrivateRoute modulo="enderecamento">
+              <EnderecamentoPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/enderecamento/*"
+          element={
+            <PrivateRoute modulo="enderecamento">
+              <EnderecamentoPage />
+            </PrivateRoute>
+          }
+        />
 
         {/* Conferência de Entrada (Recebimento) */}
         <Route

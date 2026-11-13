@@ -1430,6 +1430,95 @@ export function GestaoAcessosPage() {
                           </label>
                         </div>
 
+                        {/* Reabastecimento de Pulmão (Empilhadeira) */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">🚜 Reabastecimento de Pulmão</span>
+                            <span className="drawer-toggle-sub">
+                              Fila de tarefas de reabastecimento de picking pela empilhadeira
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(usuarioDrawer.modulos.reabastecimento)}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() => handleToggleUsuario(usuarioDrawer, 'reabastecimento')}
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+
+                        {/* Endereçamento WMS (Produto x Endereço & Movimentações) */}
+                        <div className="drawer-toggle-row">
+                          <div className="drawer-toggle-desc">
+                            <span className="drawer-toggle-label">📍 Endereçamento WMS</span>
+                            <span className="drawer-toggle-sub">
+                              Gestão produto x endereços (Picking e Pulmões), transferências e desocupação
+                            </span>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(usuarioDrawer.modulos.enderecamento)}
+                              disabled={salvandoId === usuarioDrawer.codUsu}
+                              onChange={() => handleToggleUsuario(usuarioDrawer, 'enderecamento')}
+                            />
+                            <span className="toggle-slider" />
+                          </label>
+                        </div>
+
+                        {/* Sub-painel de rotinas autorizadas no Endereçamento */}
+                        {usuarioDrawer.modulos.enderecamento && (
+                          <div className="drawer-subpainel-gestao" style={{ borderLeftColor: '#f59e0b' }}>
+                            <div className="drawer-subpainel-header">
+                              <span className="drawer-subpainel-titulo">Permissões de Endereçamento WMS</span>
+                              <span className="drawer-subpainel-aviso">Armazenagem e Estoque</span>
+                            </div>
+                            <div className="drawer-subpainel-lista">
+                              <div className="drawer-subtoggle-row">
+                                <div className="drawer-toggle-desc">
+                                  <span className="drawer-toggle-label">👁️ Consultar Endereços e Produtos</span>
+                                  <span className="drawer-toggle-sub">
+                                    Visualizar mapa de endereços, picking/pulmões e histórico de movimentações
+                                  </span>
+                                </div>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(usuarioDrawer.modulos.enderecamento_visualizar)}
+                                    disabled={salvandoId === usuarioDrawer.codUsu}
+                                    onChange={() =>
+                                      handleToggleUsuario(usuarioDrawer, 'enderecamento_visualizar')
+                                    }
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
+
+                              <div className="drawer-subtoggle-row">
+                                <div className="drawer-toggle-desc">
+                                  <span className="drawer-toggle-label">↔️ Manipular e Movimentar Endereços</span>
+                                  <span className="drawer-toggle-sub">
+                                    Mover entre endereços, vincular novos pulmões/pickings e desendereçar
+                                  </span>
+                                </div>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(usuarioDrawer.modulos.enderecamento_manipular)}
+                                    disabled={salvandoId === usuarioDrawer.codUsu}
+                                    onChange={() =>
+                                      handleToggleUsuario(usuarioDrawer, 'enderecamento_manipular')
+                                    }
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Conferência de Entrada (Bipagem) */}
                         <div className="drawer-toggle-row">
                           <div className="drawer-toggle-desc">

@@ -1344,6 +1344,12 @@
   background: #ecfdf5;
 }
 
+.perfil-btn.perfil-empilhadeirista {
+  color: #0e7490;
+  border-color: #a5f3fc;
+  background: #ecfeff;
+}
+
 .perfil-btn.perfil-gestor {
   color: #7e22ce;
   border-color: #e9d5ff;
@@ -1466,6 +1472,30 @@
   color: #6b21a8;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.drawer-subpainel-separacao {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  border-left: 3px solid #16a34a;
+}
+.drawer-subpainel-separacao .drawer-subpainel-header {
+  border-bottom-color: #bbf7d0;
+}
+.drawer-subpainel-separacao .drawer-subpainel-titulo {
+  color: #166534;
+}
+
+.drawer-subpainel-reabastecimento {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+  border-left: 3px solid #0891b2;
+}
+.drawer-subpainel-reabastecimento .drawer-subpainel-header {
+  border-bottom-color: #a5f3fc;
+}
+.drawer-subpainel-reabastecimento .drawer-subpainel-titulo {
+  color: #155e75;
 }
 
 .drawer-subpainel-aviso {

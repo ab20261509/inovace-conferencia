@@ -45,9 +45,11 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
 
   const inicialNome = user?.nomeUsu ? user.nomeUsu.charAt(0).toUpperCase() : 'U';
 
+  const isInicioAtivo = location.pathname === '/' || location.pathname === '/hub';
   const isSaidaAtiva = location.pathname.startsWith('/conferencias');
   const isSeparacaoAtiva = location.pathname.startsWith('/separacao');
   const isReabastecimentoAtiva = location.pathname.startsWith('/reabastecimento');
+  const isEnderecamentoAtivo = location.pathname.startsWith('/enderecamento');
   const isEntradaAtiva =
     location.pathname === '/recebimento' || location.pathname.startsWith('/recebimento/conferencia');
   const isGestaoAtiva = location.pathname.startsWith('/recebimento/gestao');
@@ -98,6 +100,15 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
 
         {/* Navigation list */}
         <nav className="app-drawer-nav">
+          <Link
+            to="/hub"
+            className={`app-drawer-item ${isInicioAtivo ? 'active' : ''}`}
+            onClick={() => handleNavegar('/hub')}
+          >
+            <span className="app-drawer-item-icon">🏠</span>
+            <span>Início / Módulos</span>
+          </Link>
+
           <span className="app-drawer-section-title">Módulos Operacionais</span>
 
           {temPermissao('conferencia_saida') && (
@@ -123,7 +134,7 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
             </Link>
           )}
 
-          {(temPermissao('separacao') || temPermissao('conferencia_saida')) && (
+          {temPermissao('reabastecimento') && (
             <Link
               to="/reabastecimento"
               className={`app-drawer-item ${isReabastecimentoAtiva ? 'active' : ''}`}
@@ -132,6 +143,18 @@ export function AppDrawer({ isOpen, onClose, onAbrirConsultaProduto }: AppDrawer
               <span className="app-drawer-item-icon">🚜</span>
               <span>Reabastecimento</span>
               <span className="app-drawer-item-badge">Pulmão</span>
+            </Link>
+          )}
+
+          {(temPermissao('enderecamento') || temPermissao('enderecamento_visualizar') || temPermissao('gerenciar_acessos')) && (
+            <Link
+              to="/enderecamento"
+              className={`app-drawer-item ${isEnderecamentoAtivo ? 'active' : ''}`}
+              onClick={() => handleNavegar('/enderecamento')}
+            >
+              <span className="app-drawer-item-icon">📍</span>
+              <span>Endereçamento</span>
+              <span className="app-drawer-item-badge">WMS</span>
             </Link>
           )}
 

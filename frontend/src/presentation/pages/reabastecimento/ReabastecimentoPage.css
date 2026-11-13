@@ -60,6 +60,11 @@
   color: #16a34a;
 }
 
+.reabastecimento-metrica-icone.falta {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
 .reabastecimento-metrica-info {
   display: flex;
   flex-direction: column;
@@ -240,74 +245,391 @@
   flex-wrap: wrap;
 }
 
-/* ═══ CARD DE MOVIMENTAÇÃO ORIGEM -> DESTINO ═══ */
-.reabastecimento-rota-box {
+/* ═══ HEADER DO CARD ═══ */
+.reabastecimento-header-origem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reabastecimento-empresa-badge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reabastecimento-header-qtd-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.reabastecimento-header-qtd-badge.concluido {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+/* ═══ ROTA PULMÃO -> PICKING COMPACTA (2 COLUNAS) ═══ */
+.reabastecimento-rota-compacta {
   background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
-.reabastecimento-rota-col {
+.reabastecimento-rota-compacta .rota-coluna {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
 }
 
-.reabastecimento-rota-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #64748b;
+.reabastecimento-rota-compacta .rota-coluna.origem {
+  align-items: flex-start;
+  text-align: left;
 }
 
-.reabastecimento-rota-end {
-  font-size: 14px;
-  font-weight: 800;
-  color: #0f172a;
-  display: flex;
+.reabastecimento-rota-compacta .rota-coluna.destino {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.reabastecimento-rota-compacta .rota-rotulo {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
-.reabastecimento-rota-seta {
-  font-size: 18px;
-  color: #f97316;
-  font-weight: 800;
+.reabastecimento-rota-compacta .rota-endereco {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
 }
 
-/* ═══ QUANTIDADE E AÇÃO ═══ */
+.reabastecimento-rota-compacta .rota-endereco.sem-endereco {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.reabastecimento-rota-compacta .rota-seta {
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* ═══ SALDO DE ESTOQUE INTEGRADO ═══ */
+/* ═══ SALDO DE ESTOQUE DISPONÍVEL COM POPOVER FLUTUANTE ═══ */
+.reabastecimento-saldo-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+}
+
+.reabastecimento-saldo-trigger {
+  background: transparent;
+  border: none;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.reabastecimento-saldo-trigger.tem-detalhes {
+  cursor: pointer;
+}
+
+.reabastecimento-saldo-trigger.tem-detalhes:hover {
+  background: #f1f5f9;
+}
+
+.reabastecimento-saldo-trigger .saldo-texto {
+  font-size: 12px;
+  color: #334155;
+}
+
+.saldo-indicador-badge {
+  background: #e2e8f0;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.reabastecimento-saldo-trigger.tem-detalhes:hover .saldo-indicador-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.reabastecimento-saldo-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 280px;
+  max-width: 360px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+  animation: fadeInPopover 0.15s ease;
+}
+
+@keyframes fadeInPopover {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reabastecimento-saldo-popover::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 18px;
+  border-width: 6px;
+  border-style: solid;
+  border-color: transparent transparent #0f172a transparent;
+}
+
+.saldo-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.saldo-popover-titulo {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.saldo-popover-total {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.saldo-popover-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.saldo-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  gap: 12px;
+}
+
+.saldo-popover-item:last-child {
+  border-bottom: none;
+}
+
+.saldo-popover-local-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.saldo-popover-linha1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saldo-badge-local {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.saldo-nome-local {
+  font-size: 11px;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.saldo-lote-info {
+  font-size: 10px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.saldo-popover-qtd {
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.saldo-popover-qtd.positivo {
+  color: #4ade80;
+}
+
+.saldo-popover-qtd.zerado {
+  color: #94a3b8;
+}
+
+/* ═══ RODAPÉ E AÇÕES COMPACTAS ═══ */
 .reabastecimento-footer-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-top: 1px solid #f1f5f9;
-  padding-top: 12px;
-  margin-top: 4px;
+  padding-top: 10px;
+  margin-top: 2px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.reabastecimento-qtd-badge {
-  font-size: 14px;
-  font-weight: 800;
-  color: #dc2626;
-  background: #fee2e2;
-  padding: 6px 12px;
+.reabastecimento-meta-info {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.reabastecimento-meta-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.reabastecimento-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.reabastecimento-btn-info {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.reabastecimento-btn-info:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  transform: scale(1.1);
+}
+
+.reabastecimento-tooltip-box {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: max-content;
+  max-width: 320px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 8px 12px;
   border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+  word-break: break-word;
+}
+
+.reabastecimento-tooltip-box .tooltip-titulo {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.reabastecimento-tooltip-box::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 10px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #0f172a transparent transparent transparent;
+}
+
+.reabastecimento-acoes-botoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .reabastecimento-btn-concluir {
   background: #0f172a;
   color: #ffffff;
   border: none;
-  border-radius: 10px;
-  padding: 8px 16px;
-  font-size: 13px;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -324,6 +646,93 @@
 .reabastecimento-btn-concluir:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.reabastecimento-btn-cancelar {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reabastecimento-btn-cancelar:hover {
+  background: #fecaca;
+  color: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.reabastecimento-btn-cancelar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reabastecimento-btn-nao-encontrado {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reabastecimento-btn-nao-encontrado:hover {
+  background: #ffedd5;
+  color: #9a3412;
+  transform: translateY(-1px);
+}
+
+.reabastecimento-btn-nao-encontrado:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reabastecimento-btn-finalizar-falta {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reabastecimento-btn-finalizar-falta:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.reabastecimento-card-tarefa.falta-pulmao {
+  border-left: 4px solid #ea580c;
+  background: #fffdf9;
+}
+
+.reabastecimento-falta-badge {
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #fed7aa;
 }
 
 /* ═══ MODAL DE CONFIRMAÇÃO ═══ */

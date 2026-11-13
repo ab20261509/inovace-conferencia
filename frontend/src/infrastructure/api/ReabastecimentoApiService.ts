@@ -38,6 +38,50 @@ export class ReabastecimentoApiService {
     });
     return res.data;
   }
+
+  async cancelar(
+    id: string,
+    motivo?: string,
+  ): Promise<{ sucesso: boolean; mensagem: string; tarefa: TarefaReabastecimento }> {
+    const res = await httpClient.post<{
+      sucesso: boolean;
+      mensagem: string;
+      tarefa: TarefaReabastecimento;
+    }>(`/api/reabastecimento/${id}/cancelar`, {
+      motivo,
+    });
+    return res.data;
+  }
+
+  async registrarFalta(
+    id: string,
+    motivo?: string,
+  ): Promise<{ sucesso: boolean; mensagem: string; tarefa: TarefaReabastecimento }> {
+    const res = await httpClient.post<{
+      sucesso: boolean;
+      mensagem: string;
+      tarefa: TarefaReabastecimento;
+    }>(`/api/reabastecimento/${id}/falta`, {
+      motivo,
+    });
+    return res.data;
+  }
+
+  async finalizarFalta(
+    id: string,
+    acao: 'CORTAR' = 'CORTAR',
+    observacao?: string,
+  ): Promise<{ sucesso: boolean; mensagem: string; tarefa: TarefaReabastecimento }> {
+    const res = await httpClient.post<{
+      sucesso: boolean;
+      mensagem: string;
+      tarefa: TarefaReabastecimento;
+    }>(`/api/reabastecimento/${id}/finalizar-falta`, {
+      acao,
+      observacao,
+    });
+    return res.data;
+  }
 }
 
 export const reabastecimentoApiService = new ReabastecimentoApiService();

@@ -3,7 +3,9 @@ export type StatusReabastecimento =
   | 'VERIFICAR_ESTOQUE'
   | 'EM_ANDAMENTO'
   | 'CONCLUIDO'
-  | 'CANCELADO';
+  | 'CANCELADO'
+  | 'FALTA_PULMAO'
+  | 'FALTA_CONFIRMADA';
 
 export interface EstoqueDisponivelDetalhe {
   codLocal: number;

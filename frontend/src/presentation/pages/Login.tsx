@@ -12,8 +12,15 @@ export function LoginPage() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Se já estiver autenticado, vai direto para o Hub/Início
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   // Configuração do Servidor Backend para Mobile / Coletor
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -61,16 +68,8 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const perms = await login(usuario, senha);
-      if (perms?.conferencia_saida) {
-        navigate('/conferencias');
-      } else if (perms?.conferencia_entrada) {
-        navigate('/recebimento');
-      } else if (perms?.gerenciar_acessos) {
-        navigate('/configuracoes/acessos');
-      } else {
-        navigate('/recebimento');
-      }
+      await login(usuario, senha);
+      navigate('/', { replace: true });
     } catch (err: unknown) {
       setError(mensagemErroLogin(err));
     } finally {

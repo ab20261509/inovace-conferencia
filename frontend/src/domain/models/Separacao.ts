@@ -1,4 +1,9 @@
-export type StatusSeparacao = 'EM_ANDAMENTO' | 'FINALIZADA' | 'CANCELADA';
+export type StatusSeparacao =
+  | 'EM_ANDAMENTO'
+  | 'AGUARDANDO_REABASTECIMENTO'
+  | 'REABASTECIDO'
+  | 'FINALIZADA'
+  | 'CANCELADA';
 
 export type StatusItemSeparacao =
   | 'PENDENTE'
@@ -6,6 +11,7 @@ export type StatusItemSeparacao =
   | 'SEPARADO'
   | 'FALTA'
   | 'RESEPARADO'
+  | 'REABASTECIDO'
   | 'CORTADO_DEFINITIVO'
   | 'REMOVIDO_ERP'
   | 'ALTERADO_ERP'
@@ -21,7 +27,12 @@ export interface CargaPendente {
   dtPrimeiroPedido: string;
   dtUltimoPedido: string;
   qtdClientes: number;
-  statusLocal: 'SEM_INICIAR' | 'EM_ANDAMENTO' | 'FINALIZADA';
+  statusLocal:
+    | 'SEM_INICIAR'
+    | 'EM_ANDAMENTO'
+    | 'AGUARDANDO_REABASTECIMENTO'
+    | 'REABASTECIDO'
+    | 'FINALIZADA';
   separacaoId?: string;
   usuarioSeparacao?: string;
   criadoEm?: string;

@@ -10,6 +10,7 @@ import {
   AlteracaoErpItem,
 } from '../../../domain/models/Separacao';
 import { EnderecoChips, parseEndereco } from './EnderecoChips';
+import { useAuth } from '../../../application/contexts/AuthContext';
 import './SeparacaoPage.css';
 
 // Componente expansível para códigos de barras e multiplicadores de embalagem
@@ -257,6 +258,12 @@ function tocarSom(tipo: 'sucesso' | 'erro' | 'alerta') {
 }
 
 export function SeparacaoPage() {
+  const { temPermissao } = useAuth();
+  const podeIniciar = temPermissao('separacao_iniciar');
+  const podeBipar = temPermissao('separacao_bipar');
+  const podeFinalizar = temPermissao('separacao_finalizar');
+  const podeCortar = temPermissao('separacao_cortar');
+
   // Estados de navegação e dados
   const [cargas, setCargas] = useState<CargaPendente[]>([]);
   const [filtroOrdemCarga, setFiltroOrdemCarga] = useState('');
@@ -439,6 +446,15 @@ export function SeparacaoPage() {
 
   // 2. Iniciar / Retomar sessão de separação
   const handleIniciarSeparacao = async (ordemCarga: number) => {
+    if (!podeIniciar) {
+      setMensagemStatus({
+        tipo: 'erro',
+        texto: 'Acesso negado: seu usuário não possui permissão para iniciar ou continuar separações de carga.',
+      });
+      tocarSom('erro');
+      return;
+    }
+
     try {
       setCarregando(true);
       setMensagemStatus(null);
@@ -508,6 +524,15 @@ export function SeparacaoPage() {
   const handleBipar = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!sessaoAtiva || !codigoBarras.trim() || bipando) return;
+
+    if (!podeBipar) {
+      setMensagemStatus({
+        tipo: 'erro',
+        texto: 'Acesso negado: seu usuário não possui permissão para bipar itens na separação.',
+      });
+      tocarSom('erro');
+      return;
+    }
 
     try {
       setBipando(true);
@@ -590,6 +615,12 @@ export function SeparacaoPage() {
   const handleConfirmarFalta = async () => {
     if (!sessaoAtiva || !modalFalta.item || salvandoFalta) return;
 
+    if (!podeCortar) {
+      alert('Acesso negado: seu usuário não possui permissão para registrar falta ou corte de itens.');
+      tocarSom('erro');
+      return;
+    }
+
     try {
       setSalvandoFalta(true);
       const motivoFinal =
@@ -666,6 +697,13 @@ export function SeparacaoPage() {
   // 4.4 Resolver Falta: Confirmar Corte Definitivo
   const handleConfirmarCorte = async (cons: SeparacaoItemConsolidado) => {
     if (!sessaoAtiva) return;
+
+    if (!podeCortar) {
+      alert('Acesso negado: seu usuário não possui permissão para registrar corte definitivo de itens.');
+      tocarSom('erro');
+      return;
+    }
+
     const falta = cons.qtdFaltaTotal || Math.max(0, cons.qtdEsperadaTotal - cons.qtdSeparadaTotal);
     if (!confirm(`Confirma o corte definitivo de ${falta} UN do produto ${cons.codprod} - ${cons.descrprod}? O saldo faltante não bloqueará a conclusão da carga.`)) {
       return;
@@ -697,6 +735,12 @@ export function SeparacaoPage() {
   const handleFinalizar = async (permitirParcial: boolean = false) => {
     if (!sessaoAtiva) return;
 
+    if (!podeFinalizar) {
+      alert('Acesso negado: seu usuário não possui permissão para finalizar separações.');
+      tocarSom('erro');
+      return;
+    }
+
     try {
       setCarregando(true);
       const res = await separacaoApiService.finalizar(
@@ -714,6 +758,35 @@ export function SeparacaoPage() {
       alert(err.response?.data?.error || err.message);
     } finally {
       setCarregando(false);
+    }
+  };
+
+  // 5.1 Solicitar Reabastecimento para a equipe de empilhadeira
+  const [solicitandoReabastecimento, setSolicitandoReabastecimento] = useState(false);
+
+  const handleSolicitarReabastecimento = async (codprod?: number) => {
+    if (!sessaoAtiva) return;
+
+    try {
+      setSolicitandoReabastecimento(true);
+      const res = await separacaoApiService.solicitarReabastecimento(sessaoAtiva.id, {
+        codprod,
+      });
+      tocarSom('sucesso');
+      setMensagemStatus({
+        tipo: 'sucesso',
+        texto: res.mensagem,
+      });
+      const dados = await separacaoApiService.obterSeparacao(sessaoAtiva.id);
+      setSessaoAtiva(dados.separacao);
+      setItens(dados.itens);
+      setItensConsolidados(dados.itensConsolidados);
+      setProgresso(dados.progresso);
+    } catch (err: any) {
+      tocarSom('erro');
+      alert(err.response?.data?.error || err.message || 'Erro ao solicitar reabastecimento.');
+    } finally {
+      setSolicitandoReabastecimento(false);
     }
   };
 
@@ -829,12 +902,40 @@ export function SeparacaoPage() {
                       ? `Ordem de Carga: #${sessaoAtiva.ordemCarga}${sessaoAtiva.codemp ? ` — Empresa: ${sessaoAtiva.codemp}${sessaoAtiva.nomeEmpresa ? ` - ${sessaoAtiva.nomeEmpresa}` : ''}` : ''} — Operador: ${sessaoAtiva.usuario}`
                       : 'Selecione ou escaneie uma Ordem de Carga pendente no Sankhya'}
                   </p>
+                  {sessaoAtiva && sessaoAtiva.status === 'AGUARDANDO_REABASTECIMENTO' && (
+                    <div style={{ marginTop: 4 }}>
+                      <span className="separacao-badge-status aguardando-reabastecimento">
+                        ⏳ Aguardando Reabastecimento no Picking
+                      </span>
+                    </div>
+                  )}
+                  {sessaoAtiva && sessaoAtiva.status === 'REABASTECIDO' && (
+                    <div style={{ marginTop: 4 }}>
+                      <span className="separacao-badge-status reabastecido">
+                        ⚡ Pick Reabastecido pela Empilhadeira
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="separacao-header-actions">
                 {sessaoAtiva ? (
                   <>
+                    <button
+                      type="button"
+                      className="separacao-btn"
+                      style={{ background: '#f59e0b', color: '#ffffff', fontWeight: 700 }}
+                      onClick={() => handleSolicitarReabastecimento()}
+                      disabled={solicitandoReabastecimento || progresso.itensPendentes === 0}
+                      title={
+                        progresso.itensPendentes === 0
+                          ? 'Não há itens pendentes para solicitar reabastecimento'
+                          : 'Acionar equipe de empilhadeira para buscar produtos no estoque/pulmão'
+                      }
+                    >
+                      {solicitandoReabastecimento ? '🚜 Solicitando...' : '🚜 Solicitar Reabastecimento'}
+                    </button>
                     <button
                       type="button"
                       className="separacao-btn separacao-btn-secondary"
@@ -855,6 +956,12 @@ export function SeparacaoPage() {
                       type="button"
                       className="separacao-btn separacao-btn-success"
                       onClick={() => setModalFinalizarAberto(true)}
+                      disabled={!podeFinalizar}
+                      title={!podeFinalizar ? 'Acesso negado: seu usuário não possui permissão para finalizar separação' : undefined}
+                      style={{
+                        opacity: podeFinalizar ? 1 : 0.6,
+                        cursor: podeFinalizar ? 'pointer' : 'not-allowed',
+                      }}
                     >
                       ✓ Concluir Carga
                     </button>
@@ -954,14 +1061,22 @@ export function SeparacaoPage() {
                             <span className="separacao-carga-num">Carga #{c.ordemCarga}</span>
                             <span
                               className={`separacao-badge-status ${
-                                c.statusLocal === 'FINALIZADA'
+                                c.statusLocal === 'REABASTECIDO'
+                                  ? 'reabastecido'
+                                  : c.statusLocal === 'AGUARDANDO_REABASTECIMENTO'
+                                  ? 'aguardando-reabastecimento'
+                                  : c.statusLocal === 'FINALIZADA'
                                   ? 'separado'
                                   : c.statusLocal === 'EM_ANDAMENTO'
                                   ? 'parcial'
                                   : 'pendente'
                               }`}
                             >
-                              {c.statusLocal === 'FINALIZADA'
+                              {c.statusLocal === 'REABASTECIDO'
+                                ? '⚡ Pick Reabastecido'
+                                : c.statusLocal === 'AGUARDANDO_REABASTECIMENTO'
+                                ? '⏳ Aguardando Reabastecimento'
+                                : c.statusLocal === 'FINALIZADA'
                                 ? 'Finalizada'
                                 : c.statusLocal === 'EM_ANDAMENTO'
                                 ? 'Em Andamento'
@@ -998,10 +1113,24 @@ export function SeparacaoPage() {
                         <button
                           type="button"
                           className="separacao-btn separacao-btn-primary"
-                          style={{ marginTop: 14, width: '100%', minHeight: 44 }}
+                          style={{
+                            marginTop: 14,
+                            width: '100%',
+                            minHeight: 44,
+                            opacity: podeIniciar ? 1 : 0.6,
+                            cursor: podeIniciar ? 'pointer' : 'not-allowed',
+                          }}
+                          disabled={!podeIniciar}
+                          title={!podeIniciar ? 'Acesso negado: seu usuário não possui permissão para iniciar separações' : undefined}
                           onClick={() => handleIniciarSeparacao(c.ordemCarga)}
                         >
-                          {c.statusLocal === 'EM_ANDAMENTO' ? 'Continuar Separação ➔' : 'Separar Carga ➔'}
+                          {c.statusLocal === 'REABASTECIDO'
+                            ? 'Continuar Separação (Reabastecido) ⚡'
+                            : c.statusLocal === 'AGUARDANDO_REABASTECIMENTO'
+                            ? 'Acompanhar Separação ➔'
+                            : c.statusLocal === 'EM_ANDAMENTO'
+                            ? 'Continuar Separação ➔'
+                            : 'Separar Carga ➔'}
                         </button>
                       </div>
                     ))}
@@ -1129,11 +1258,15 @@ export function SeparacaoPage() {
                         ref={inputCodigoRef}
                         type="text"
                         className="separacao-scanner-input"
-                        placeholder="Bipar ou digitar Código de Barras / Ref / Código..."
+                        placeholder={
+                          podeBipar
+                            ? 'Bipar ou digitar Código de Barras / Ref / Código...'
+                            : 'Apenas visualização: sem permissão para bipar'
+                        }
                         value={codigoBarras}
                         onChange={(e) => setCodigoBarras(e.target.value)}
-                        disabled={bipando}
-                        autoFocus
+                        disabled={bipando || !podeBipar}
+                        autoFocus={podeBipar}
                       />
                     </div>
 
@@ -1144,7 +1277,7 @@ export function SeparacaoPage() {
                         className="separacao-scanner-qtd-input"
                         value={quantidade}
                         onChange={(e) => setQuantidade(Math.max(1, Number(e.target.value)))}
-                        disabled={bipando}
+                        disabled={bipando || !podeBipar}
                         title="Quantidade a bipar"
                       />
                     </div>
@@ -1156,14 +1289,15 @@ export function SeparacaoPage() {
                         placeholder="Lote (opcional)"
                         value={lote}
                         onChange={(e) => setLote(e.target.value)}
-                        disabled={bipando}
+                        disabled={bipando || !podeBipar}
                       />
                     </div>
 
                     <button
                       type="submit"
                       className="separacao-btn-bipar"
-                      disabled={!codigoBarras.trim() || bipando}
+                      disabled={!codigoBarras.trim() || bipando || !podeBipar}
+                      title={!podeBipar ? 'Sem permissão para bipar' : undefined}
                     >
                       {bipando ? 'Gravando...' : 'Conferir Bip'}
                     </button>
@@ -1446,6 +1580,8 @@ export function SeparacaoPage() {
                                 className={`separacao-badge-status ${
                                   itemAtualRota.statusConsolidado === 'SEPARADO'
                                     ? 'separado'
+                                    : itemAtualRota.statusConsolidado === 'REABASTECIDO'
+                                    ? 'reabastecido'
                                     : itemAtualRota.statusConsolidado === 'PARCIAL'
                                     ? 'parcial'
                                     : itemAtualRota.statusConsolidado === 'FALTA'
@@ -1453,7 +1589,9 @@ export function SeparacaoPage() {
                                     : 'pendente'
                                 }`}
                               >
-                                {itemAtualRota.statusConsolidado}
+                                {itemAtualRota.statusConsolidado === 'REABASTECIDO'
+                                  ? '⚡ Pick Reabastecido'
+                                  : itemAtualRota.statusConsolidado}
                               </span>
                               <span style={{ fontSize: 12, color: '#64748b' }}>
                                 Presente em {itemAtualRota.pedidos.length} pedido(s)
@@ -1511,7 +1649,8 @@ export function SeparacaoPage() {
                             )}
 
                             {itemAtualRota.qtdSeparadaTotal < itemAtualRota.qtdEsperadaTotal &&
-                              itemAtualRota.statusConsolidado !== 'FALTA' && (
+                              itemAtualRota.statusConsolidado !== 'FALTA' &&
+                              podeCortar && (
                                 <button
                                   type="button"
                                   className="separacao-rota-btn-falta"
@@ -1573,6 +1712,8 @@ export function SeparacaoPage() {
                                   className={`separacao-badge-status ${
                                     cons.statusConsolidado === 'SEPARADO'
                                       ? 'separado'
+                                      : cons.statusConsolidado === 'REABASTECIDO'
+                                      ? 'reabastecido'
                                       : cons.statusConsolidado === 'PARCIAL'
                                       ? 'parcial'
                                       : cons.statusConsolidado === 'FALTA'
@@ -1582,7 +1723,9 @@ export function SeparacaoPage() {
                                       : 'pendente'
                                   }`}
                                 >
-                                  {cons.statusConsolidado}
+                                  {cons.statusConsolidado === 'REABASTECIDO'
+                                    ? '⚡ Pick Reabastecido'
+                                    : cons.statusConsolidado}
                                 </span>
                               </td>
                               <td>
@@ -1703,6 +1846,8 @@ export function SeparacaoPage() {
                               className={`separacao-badge-status ${
                                 cons.statusConsolidado === 'SEPARADO'
                                   ? 'separado'
+                                  : cons.statusConsolidado === 'REABASTECIDO'
+                                  ? 'reabastecido'
                                   : cons.statusConsolidado === 'PARCIAL'
                                   ? 'parcial'
                                   : cons.statusConsolidado === 'FALTA'
@@ -1710,7 +1855,9 @@ export function SeparacaoPage() {
                                   : 'pendente'
                               }`}
                             >
-                              {cons.statusConsolidado}
+                              {cons.statusConsolidado === 'REABASTECIDO'
+                                ? '⚡ Pick Reabastecido'
+                                : cons.statusConsolidado}
                             </span>
                             <span style={{ fontSize: 12, color: '#64748b' }}>
                               {cons.pedidos.length} pedido(s)
@@ -2080,13 +2227,15 @@ export function SeparacaoPage() {
                                       >
                                         🔄 Re-separar do Pulmão
                                       </button>
-                                      <button
-                                        type="button"
-                                        className="separacao-btn-cortar"
-                                        onClick={() => handleConfirmarCorte(cons)}
-                                      >
-                                        ✂️ Confirmar Corte
-                                      </button>
+                                      {podeCortar && (
+                                        <button
+                                          type="button"
+                                          className="separacao-btn-cortar"
+                                          onClick={() => handleConfirmarCorte(cons)}
+                                        >
+                                          ✂️ Confirmar Corte
+                                        </button>
+                                      )}
                                     </>
                                   )}
                                   {isCortado && (
@@ -2176,11 +2325,25 @@ export function SeparacaoPage() {
                     >
                       Cancelar
                     </button>
+                    {progresso.itensPendentes > 0 && (
+                      <button
+                        type="button"
+                        className="separacao-btn"
+                        style={{ background: '#f59e0b', color: '#ffffff', fontWeight: 700 }}
+                        onClick={async () => {
+                          await handleSolicitarReabastecimento();
+                          setModalFinalizarAberto(false);
+                        }}
+                        disabled={solicitandoReabastecimento}
+                      >
+                        {solicitandoReabastecimento ? '🚜 Solicitando...' : '🚜 Solicitar Reabastecimento e Aguardar'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="separacao-btn separacao-btn-success"
                       onClick={() => handleFinalizar(progresso.itensPendentes > 0)}
-                      disabled={carregando}
+                      disabled={carregando || solicitandoReabastecimento}
                     >
                       Confirmar Finalização
                     </button>

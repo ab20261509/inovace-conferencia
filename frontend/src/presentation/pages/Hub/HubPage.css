@@ -1,0 +1,218 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   ESTILOS EXCLUSIVOS: HUB INICIAL / BOAS-VINDAS (CARDS ESTILO APP)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.hub-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* ═══ BANNER DE BOAS-VINDAS ═══ */
+.hub-welcome-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 16px;
+  padding: 20px 24px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hub-welcome-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hub-welcome-greeting {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: #ffffff;
+}
+
+.hub-welcome-user {
+  color: #f97316;
+}
+
+.hub-welcome-sub {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.hub-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+/* ═══ GRADE DE APLICATIVOS COMPACTA ═══ */
+.hub-section-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin: 0 0 12px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-apps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .hub-apps-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+  }
+}
+
+.hub-app-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  position: relative;
+  user-select: none;
+  border: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hub-app-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+
+.hub-app-card:active {
+  transform: translateY(-1px);
+}
+
+.hub-app-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  transition: transform 0.2s ease;
+}
+
+.hub-app-card:hover .hub-app-icon-wrapper {
+  transform: scale(1.08);
+}
+
+/* Variações de cor do ícone */
+.hub-app-icon-wrapper.saida {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.hub-app-icon-wrapper.separacao {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.hub-app-icon-wrapper.reabastecimento {
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+}
+
+.hub-app-icon-wrapper.entrada {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.hub-app-icon-wrapper.gestao {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+}
+
+.hub-app-icon-wrapper.produtos {
+  background: #fefce8;
+  border: 1px solid #fef08a;
+}
+
+.hub-app-icon-wrapper.acessos {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+}
+
+.hub-app-icon-wrapper.banco {
+  background: #f1f5f9;
+  border: 1px solid #94a3b8;
+}
+
+.hub-app-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.hub-app-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  margin-top: -4px;
+}
+
+.hub-app-badge.destaque-laranja {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.hub-app-badge.destaque-verde {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.hub-app-badge.destaque-ciano {
+  background: #cffafe;
+  color: #0e7490;
+}
+
+.hub-app-badge.destaque-azul {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.hub-app-badge.destaque-roxo {
+  background: #f3e8ff;
+  color: #7e22ce;
+}

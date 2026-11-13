@@ -22,10 +22,7 @@ export function PrivateRoute({ children, modulo }: PrivateRouteProps) {
   }
 
   if (modulo && !temPermissao(modulo)) {
-    if (temPermissao('conferencia_saida')) return <Navigate to="/conferencias" replace />;
-    if (temPermissao('conferencia_entrada')) return <Navigate to="/recebimento" replace />;
-    if (temPermissao('gerenciar_acessos')) return <Navigate to="/configuracoes/acessos" replace />;
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

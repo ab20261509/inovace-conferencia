@@ -116,6 +116,17 @@ export class SeparacaoApiService {
     );
     return response.data;
   }
+
+  async solicitarReabastecimento(
+    separacaoId: string,
+    dados?: { codprod?: number; observacao?: string }
+  ): Promise<{ sucesso: boolean; mensagem: string; tarefasCriadas: number }> {
+    const response = await httpClient.post<{ sucesso: boolean; mensagem: string; tarefasCriadas: number }>(
+      `/api/separacao/${separacaoId}/solicitar-reabastecimento`,
+      dados || {}
+    );
+    return response.data;
+  }
 }
 
 export const separacaoApiService = new SeparacaoApiService();
