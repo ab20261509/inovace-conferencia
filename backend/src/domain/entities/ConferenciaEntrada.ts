@@ -82,6 +82,7 @@ export interface ItemNotaEntrada {
   codigosAlternativos: CodigoAlternativoEntrada[];
   unidadesAlternativas?: UnidadeAlternativaEntrada[];
   divergente?: boolean;
+  controle?: string;
   lote?: string;
   validade?: string;
   fabricacao?: string;
@@ -96,6 +97,7 @@ export interface ItemNotaEntrada {
   codparc?: number;
   decisaoFiscal?: DecisaoFiscalItem;
   nivelEscolhido?: number;
+  isFaltaIsolada?: boolean;
 }
 
 export interface BackupContagemEntrada {
@@ -182,6 +184,7 @@ export interface ConferenciaEntradaResumo {
   finalizadoEm?: string;
   enviadoSankhyaEm?: string;
   aprovadoPor?: string;
+  aprovadoEm?: string;
   totalItens: number;
   totalQtdEsperada?: number;
   totalBipadoN1: number;

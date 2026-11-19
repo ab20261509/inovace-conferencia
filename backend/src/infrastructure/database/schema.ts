@@ -132,6 +132,8 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
      VALUES ('recebimento_shelf_life_dias_alerta', '90', 'Prazo em dias para disparar alerta de validade próxima no recebimento', datetime('now'));`,
     `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
      VALUES ('recebimento_local_ocorrencia_padrao', '99', 'Local padrão no Sankhya para demais ocorrências de estoque', datetime('now'));`,
+    `INSERT OR IGNORE INTO configuracoes_sistema (chave, valor, descricao, atualizado_em)
+     VALUES ('separacao_exigir_lote', 'false', 'Exige bipagem e validação de lote durante a separação de pedidos', datetime('now'));`,
 
     // 7. Ocorrências e Divergências da Conferência de Entrada (Avaria, Vencidos, Trocados, etc.)
     `CREATE TABLE IF NOT EXISTS ocorrencias_conferencia_entrada (
@@ -159,6 +161,132 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_ocorr_conf ON ocorrencias_conferencia_entrada(conferencia_id);`,
     `CREATE INDEX IF NOT EXISTS idx_ocorr_nunota ON ocorrencias_conferencia_entrada(nunota);`,
     `CREATE INDEX IF NOT EXISTS idx_ocorr_tipo ON ocorrencias_conferencia_entrada(tipo);`,
+
+    // 8. Sessões de Separação de Cargas (Pedidos de Venda agrupados por ORDEMCARGA)
+    `CREATE TABLE IF NOT EXISTS separacoes (
+      id TEXT PRIMARY KEY,
+      ordem_carga INTEGER NOT NULL,
+      codemp INTEGER,
+      nome_empresa TEXT,
+      status TEXT NOT NULL DEFAULT 'EM_ANDAMENTO',
+      usuario TEXT NOT NULL,
+      criado_em TEXT NOT NULL,
+      atualizado_em TEXT NOT NULL,
+      finalizado_em TEXT,
+      total_pedidos INTEGER NOT NULL DEFAULT 0,
+      total_itens INTEGER NOT NULL DEFAULT 0,
+      total_unidades REAL NOT NULL DEFAULT 0,
+      observacoes TEXT,
+      dados_carga_json TEXT
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_separacoes_ordem ON separacoes(ordem_carga);`,
+    `CREATE INDEX IF NOT EXISTS idx_separacoes_status ON separacoes(status);`,
+
+    // 9. Snapshot estrutural de itens por pedido para controle de alterações/cortes no Sankhya
+    `CREATE TABLE IF NOT EXISTS separacoes_itens (
+      id TEXT PRIMARY KEY,
+      separacao_id TEXT NOT NULL,
+      ordem_carga INTEGER NOT NULL,
+      nunota INTEGER NOT NULL,
+      sequencia INTEGER NOT NULL,
+      codprod INTEGER NOT NULL,
+      descrprod TEXT,
+      referencia TEXT,
+      codbarra TEXT,
+      controle TEXT,
+      codlocal INTEGER,
+      codvol TEXT,
+      codend INTEGER,
+      endereco TEXT,
+      descrend TEXT,
+      lado TEXT,
+      codend_pulmao INTEGER,
+      endereco_pulmao TEXT,
+      descrend_pulmao TEXT,
+      lado_pulmao TEXT,
+      qtd_esperada REAL NOT NULL,
+      qtd_separada REAL NOT NULL DEFAULT 0,
+      qtd_falta REAL NOT NULL DEFAULT 0,
+      motivo_falta TEXT,
+      status_item TEXT NOT NULL DEFAULT 'PENDENTE',
+      qtd_erp_atual REAL,
+      observacao_alteracao TEXT,
+      atualizado_em TEXT NOT NULL,
+      FOREIGN KEY (separacao_id) REFERENCES separacoes(id) ON DELETE CASCADE
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_sep_itens_separacao ON separacoes_itens(separacao_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_sep_itens_nunota ON separacoes_itens(nunota);`,
+    `CREATE INDEX IF NOT EXISTS idx_sep_itens_prod ON separacoes_itens(codprod);`,
+    `CREATE INDEX IF NOT EXISTS idx_sep_itens_barra ON separacoes_itens(codbarra);`,
+
+    // 10. Bipagens individuais da separação
+    `CREATE TABLE IF NOT EXISTS separacoes_bipagens (
+      id TEXT PRIMARY KEY,
+      separacao_id TEXT NOT NULL,
+      item_id TEXT,
+      nunota INTEGER NOT NULL,
+      codprod INTEGER NOT NULL,
+      codbarra TEXT NOT NULL,
+      quantidade REAL NOT NULL,
+      lote TEXT,
+      usuario TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      anulado INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (separacao_id) REFERENCES separacoes(id) ON DELETE CASCADE
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_sep_bip_separacao ON separacoes_bipagens(separacao_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_sep_bip_prod ON separacoes_bipagens(codprod);`,
+
+    // 11. Tarefas de Reabastecimento de Picking (Equipe de Empilhadeira)
+    `CREATE TABLE IF NOT EXISTS tarefas_reabastecimento (
+      id TEXT PRIMARY KEY,
+      separacao_id TEXT,
+      ordem_carga INTEGER NOT NULL,
+      codemp INTEGER,
+      nome_empresa TEXT,
+      codprod INTEGER NOT NULL,
+      descrprod TEXT,
+      referencia TEXT,
+      codbarra TEXT,
+      codend_pulmao INTEGER,
+      endereco_pulmao TEXT,
+      descrend_pulmao TEXT,
+      codend_picking INTEGER,
+      endereco_picking TEXT,
+      descrend_picking TEXT,
+      quantidade_solicitada REAL NOT NULL,
+      quantidade_atendida REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'PENDENTE',
+      observacao TEXT,
+      solicitado_em TEXT NOT NULL,
+      solicitado_por TEXT NOT NULL,
+      concluido_em TEXT,
+      concluido_por TEXT
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_reabast_status ON tarefas_reabastecimento(status);`,
+    `CREATE INDEX IF NOT EXISTS idx_reabast_carga ON tarefas_reabastecimento(ordem_carga);`,
+    `CREATE INDEX IF NOT EXISTS idx_reabast_prod ON tarefas_reabastecimento(codprod);`,
+
+    // 12. Histórico e Auditoria de Movimentações de Endereçamento WMS
+    `CREATE TABLE IF NOT EXISTS historico_enderecamento (
+      id TEXT PRIMARY KEY,
+      codprod INTEGER NOT NULL,
+      descrprod TEXT,
+      controle TEXT DEFAULT ' ',
+      tipo_acao TEXT NOT NULL,
+      codend_origem INTEGER,
+      endereco_origem TEXT,
+      tipo_origem TEXT,
+      codend_destino INTEGER,
+      endereco_destino TEXT,
+      tipo_destino TEXT,
+      motivo TEXT,
+      usuario TEXT NOT NULL,
+      criado_em TEXT NOT NULL
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_hist_end_codprod ON historico_enderecamento(codprod);`,
+    `CREATE INDEX IF NOT EXISTS idx_hist_end_criado_em ON historico_enderecamento(criado_em);`,
+    `CREATE INDEX IF NOT EXISTS idx_hist_end_acao ON historico_enderecamento(tipo_acao);`,
   ];
 
   for (const sql of statements) {
@@ -185,6 +313,25 @@ export async function initDatabaseSchema(client: Client): Promise<void> {
   // Evolução da tabela ocorrencias_conferencia_entrada (numnota para identificação fiscal direta)
   await garantirColuna(client, 'ocorrencias_conferencia_entrada', 'numnota', 'INTEGER');
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_ocorr_numnota ON ocorrencias_conferencia_entrada(numnota);`);
+
+  // Evolução da tabela separacoes_itens (Endereçamento WMS Picking/Pulmão e Faltas)
+  await garantirColuna(client, 'separacoes_itens', 'codend', 'INTEGER');
+  await garantirColuna(client, 'separacoes_itens', 'endereco', 'TEXT');
+  await garantirColuna(client, 'separacoes_itens', 'descrend', 'TEXT');
+  await garantirColuna(client, 'separacoes_itens', 'codend_pulmao', 'INTEGER');
+  await garantirColuna(client, 'separacoes_itens', 'endereco_pulmao', 'TEXT');
+  await garantirColuna(client, 'separacoes_itens', 'descrend_pulmao', 'TEXT');
+  await garantirColuna(client, 'separacoes_itens', 'qtd_falta', 'REAL NOT NULL DEFAULT 0');
+  await garantirColuna(client, 'separacoes_itens', 'motivo_falta', 'TEXT');
+  await garantirColuna(client, 'separacoes_itens', 'lado', 'TEXT');
+  await garantirColuna(client, 'separacoes_itens', 'lado_pulmao', 'TEXT');
+  await client.execute(`CREATE INDEX IF NOT EXISTS idx_sep_itens_end ON separacoes_itens(codend);`);
+
+  // Evolução das tabelas de Separação e Reabastecimento com Empresa (CODEMP)
+  await garantirColuna(client, 'separacoes', 'codemp', 'INTEGER');
+  await garantirColuna(client, 'separacoes', 'nome_empresa', 'TEXT');
+  await garantirColuna(client, 'tarefas_reabastecimento', 'codemp', 'INTEGER');
+  await garantirColuna(client, 'tarefas_reabastecimento', 'nome_empresa', 'TEXT');
 
   // Migração segura para ocorrencias_conferencia_entrada (remover NOT NULL e FK de conferencia_id / nunota se existir)
   try {
@@ -467,6 +614,65 @@ export const SCHEMA_DOCUMENTATION = {
         { nome: 'valor', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Valor do parâmetro ("true", "false", numérico ou JSON).' },
         { nome: 'descricao', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Explicação do impacto operacional da configuração.' },
         { nome: 'atualizado_em', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp ISO 8601 da última alteração.' },
+      ],
+    },
+    {
+      nome: 'separacoes',
+      descricao: 'Sessões de separação de mercadorias agrupadas por Ordem de Carga (ORDEMCARGA).',
+      colunas: [
+        { nome: 'id', tipo: 'TEXT', pk: true, notnull: true, descricao: 'UUID identificador único da sessão de separação.' },
+        { nome: 'ordem_carga', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Número da Ordem de Carga no Sankhya (TGFCAB.ORDEMCARGA).' },
+        { nome: 'status', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Estado da separação (EM_ANDAMENTO, FINALIZADA, CANCELADA).' },
+        { nome: 'usuario', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Login do usuário operador/separador.' },
+        { nome: 'criado_em', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp de início da separação.' },
+        { nome: 'atualizado_em', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp da última ação ou bipagem.' },
+        { nome: 'finalizado_em', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Timestamp de conclusão da separação.' },
+        { nome: 'total_pedidos', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Quantidade de pedidos de venda associados à carga.' },
+        { nome: 'total_itens', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Total de linhas de produtos na carga.' },
+        { nome: 'total_unidades', tipo: 'REAL', pk: false, notnull: true, descricao: 'Volume total em unidades da carga.' },
+        { nome: 'observacoes', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Observações ou ocorrências gerais da separação.' },
+        { nome: 'dados_carga_json', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Dados cadastrais da carga/veículo/motorista serializados.' },
+      ],
+    },
+    {
+      nome: 'separacoes_itens',
+      descricao: 'Snapshot estrutural de cada item/produto por pedido da carga para detecção de alterações no ERP.',
+      colunas: [
+        { nome: 'id', tipo: 'TEXT', pk: true, notnull: true, descricao: 'UUID único da linha de item do snapshot.' },
+        { nome: 'separacao_id', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Chave estrangeira vinculada a separacoes.id (DELETE CASCADE).' },
+        { nome: 'ordem_carga', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Número da carga.' },
+        { nome: 'nunota', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Número único do pedido de venda no Sankhya (TGFCAB.NUNOTA).' },
+        { nome: 'sequencia', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Sequência do item no pedido (TGFITE.SEQUENCIA).' },
+        { nome: 'codprod', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Código do produto no Sankhya.' },
+        { nome: 'descrprod', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Descrição cadastral do produto.' },
+        { nome: 'referencia', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Referência comercial do produto.' },
+        { nome: 'codbarra', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Código de barras principal.' },
+        { nome: 'controle', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Controle de lote/série reservado no pedido se houver.' },
+        { nome: 'codlocal', tipo: 'INTEGER', pk: false, notnull: false, descricao: 'Código do local de estoque de origem.' },
+        { nome: 'codvol', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Unidade de medida ou volume do item.' },
+        { nome: 'qtd_esperada', tipo: 'REAL', pk: false, notnull: true, descricao: 'Quantidade do pedido no momento de abertura da separação.' },
+        { nome: 'qtd_separada', tipo: 'REAL', pk: false, notnull: true, descricao: 'Quantidade acumulada separada fisicamente.' },
+        { nome: 'status_item', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Status da linha (PENDENTE, PARCIAL, SEPARADO, REMOVIDO_ERP, ALTERADO_ERP, NOVO_ERP).' },
+        { nome: 'qtd_erp_atual', tipo: 'REAL', pk: false, notnull: false, descricao: 'Quantidade atual no ERP caso tenha ocorrido alteração no Sankhya durante a separação.' },
+        { nome: 'observacao_alteracao', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Descrição da divergência (corte, alteração ou item novo).' },
+        { nome: 'atualizado_em', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp da última modificação.' },
+      ],
+    },
+    {
+      nome: 'separacoes_bipagens',
+      descricao: 'Registro das bipagens individuais efetuadas durante a separação de carga.',
+      colunas: [
+        { nome: 'id', tipo: 'TEXT', pk: true, notnull: true, descricao: 'UUID único da bipagem.' },
+        { nome: 'separacao_id', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Chave estrangeira vinculada a separacoes.id (DELETE CASCADE).' },
+        { nome: 'item_id', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Vínculo ao item da separação correspondente.' },
+        { nome: 'nunota', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Número do pedido de venda.' },
+        { nome: 'codprod', tipo: 'INTEGER', pk: false, notnull: true, descricao: 'Código do produto bipado.' },
+        { nome: 'codbarra', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Código de barras escaneado.' },
+        { nome: 'quantidade', tipo: 'REAL', pk: false, notnull: true, descricao: 'Quantidade bipada no evento.' },
+        { nome: 'lote', tipo: 'TEXT', pk: false, notnull: false, descricao: 'Lote informado na leitura (se exigido).' },
+        { nome: 'usuario', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Operador que realizou o bip.' },
+        { nome: 'timestamp', tipo: 'TEXT', pk: false, notnull: true, descricao: 'Timestamp ISO 8601 da leitura.' },
+        { nome: 'anulado', tipo: 'INTEGER', pk: false, notnull: true, descricao: '0 = Ativo; 1 = Anulado.' },
       ],
     },
   ],

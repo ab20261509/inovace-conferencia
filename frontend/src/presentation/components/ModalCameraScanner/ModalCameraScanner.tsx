@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Botao } from '../Botao/Botao';
 import './ModalCameraScanner.css';
@@ -134,11 +135,11 @@ export function ModalCameraScanner({ aberto, onFechar, onScan }: ModalCameraScan
         setIniciando(false);
         const msg = String(err?.message || err || '');
         if (msg.includes('NotAllowedError') || msg.includes('Permission')) {
-          setErroCamera('Acesso à câmera foi negado. Permita o uso da câmera nas configurações do navegador.');
+          setErroCamera('Acesso à câmera foi negado. Permita o uso da câmera nas permissões do aplicativo no Android.');
         } else if (msg.includes('NotFoundError') || msg.includes('DevicesNotFoundError')) {
           setErroCamera('Nenhuma câmera encontrada no dispositivo.');
         } else {
-          setErroCamera('Não foi possível iniciar a câmera. Verifique se o endereço está em HTTPS ou se o Chrome permite a câmera.');
+          setErroCamera('Não foi possível iniciar a câmera. Verifique as permissões de acesso da câmera no dispositivo.');
         }
       }
     };
@@ -164,7 +165,7 @@ export function ModalCameraScanner({ aberto, onFechar, onScan }: ModalCameraScan
 
   if (!aberto) return null;
 
-  return (
+  const modalConteudo = (
     <div className="modal-overlay modal-camera-overlay" onClick={onFechar}>
       <div className="modal-camera-container" onClick={(e) => e.stopPropagation()}>
         {/* Cabeçalho */}
@@ -242,4 +243,8 @@ export function ModalCameraScanner({ aberto, onFechar, onScan }: ModalCameraScan
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined'
+    ? createPortal(modalConteudo, document.body)
+    : modalConteudo;
 }

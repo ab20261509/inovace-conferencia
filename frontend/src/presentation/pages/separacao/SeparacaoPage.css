@@ -122,6 +122,145 @@
   text-transform: uppercase;
 }
 
+/* ─── Busca de Carga (Tela 1: Normal Inline Flow) ─── */
+.separacao-busca-carga-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.separacao-busca-carga-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.separacao-busca-carga-input-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.separacao-busca-carga-input {
+  width: 100%;
+  height: 48px;
+  border: 2px solid #2563eb;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.separacao-busca-carga-input:focus {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.separacao-header-sticky-wrapper {
+  width: 100%;
+}
+
+.separacao-mobile-stats-carga {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+  white-space: nowrap;
+}
+
+.separacao-btn-iniciar-busca {
+  height: 48px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 800;
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.separacao-btn-iniciar-busca:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.separacao-btn-iniciar-busca:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Topo da Lista de Cargas & Ordenador ─── */
+.separacao-cargas-topo-lista {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 0 10px 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.separacao-cargas-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0;
+}
+
+.separacao-cargas-sort-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.separacao-cargas-sort-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.separacao-cargas-sort-select {
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+}
+
+.separacao-cargas-sort-select:focus {
+  border-color: #2563eb;
+}
+
+/* Em desktop, a aba retrátil e o bottom sheet ficam ocultos (os botões normais aparecem no topo) */
+.separacao-sheet-handle-wrapper,
+.separacao-actions-backdrop,
+.separacao-actions-sheet {
+  display: none !important;
+}
+
 /* ─── Barra de Bipagem (Scanner Card) ─── */
 .separacao-scanner-card {
   background: #ffffff;
@@ -249,6 +388,16 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   width: 100%;
   box-sizing: border-box;
+}
+
+.separacao-mobile-stats-row {
+  display: none;
+}
+
+.separacao-desktop-stats {
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
 .separacao-metrics-row {
@@ -756,9 +905,88 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   .separacao-page-header {
-    padding: 12px 14px;
-    flex-direction: column;
-    align-items: flex-start;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  /* Cabeçalho fixo no topo no mobile (AppHeader + Linha de Progresso com Carga + Abas) */
+  .separacao-header-sticky-wrapper.sessao-ativa {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #f8fafc;
+    margin: -12px -8px 8px -8px;
+    padding: 8px 8px 6px 8px;
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  }
+
+  .separacao-header-sticky-wrapper.sessao-ativa .app-global-header {
+    margin-bottom: 4px;
+  }
+
+  .separacao-header-sticky-wrapper.sessao-ativa .separacao-metrics-card {
+    margin-bottom: 0;
+    padding: 6px 10px;
+    box-shadow: none;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+  }
+
+  /* Quando sessão ativa: o card com o caminhão e o título é 100% oculto no mobile (marcado com X na imagem) */
+  .separacao-page-header.sessao-ativa {
+    display: none !important;
+  }
+
+  .separacao-header-actions-sessao {
+    display: none !important;
+  }
+
+  /* Tela 1 (Lista de Cargas): título à esquerda e botão Atualizar Cargas alinhado à direita na mesma linha */
+  .separacao-page-header:not(.sessao-ativa) {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .separacao-page-header:not(.sessao-ativa) .separacao-header-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .separacao-page-header:not(.sessao-ativa) h1 {
+    font-size: 14.5px;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .separacao-page-header:not(.sessao-ativa) .separacao-header-subtitle {
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  .separacao-page-header:not(.sessao-ativa) .separacao-header-actions {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .separacao-btn-atualizar-cargas {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 12px !important;
+    font-size: 12px !important;
+    border-radius: 10px !important;
+    white-space: nowrap;
+    width: auto !important;
+    flex: none !important;
   }
 
   .separacao-header-actions {
@@ -771,39 +999,397 @@
     min-height: 44px;
   }
 
+  /* Busca de Carga na Tela 1: HORIZONTAL em linha única (input + botão lado a lado) */
+  .separacao-busca-carga-card {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    position: static !important;
+  }
+
+  .separacao-busca-carga-form {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .separacao-busca-carga-input-wrapper {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .separacao-busca-carga-input {
+    height: 44px;
+    font-size: 13px;
+    padding: 0 10px;
+  }
+
+  .separacao-btn-iniciar-busca {
+    height: 44px;
+    padding: 0 12px;
+    font-size: 12.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Topo da Lista de Cargas com Ordenador no Mobile */
+  .separacao-cargas-topo-lista {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin: 14px 0 8px 0;
+  }
+
+  .separacao-cargas-titulo {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .separacao-cargas-sort-wrapper {
+    flex-shrink: 0;
+    gap: 4px;
+  }
+
+  .separacao-cargas-sort-label {
+    display: none; /* Oculta o rótulo no mobile para economizar espaço */
+  }
+
+  .separacao-cargas-sort-select {
+    height: 34px;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 0 6px;
+    border-radius: 8px;
+    max-width: 165px;
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+  }
+
+  /* Rodapé Fixo no Mobile (Bottom Docked Bar) - APENAS na sessão ativa com container acoplado */
+  .separacao-docked-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 999;
+    pointer-events: none;
+  }
+
+  .separacao-sheet-handle-wrapper {
+    display: flex !important;
+    justify-content: center;
+    width: 100%;
+    pointer-events: auto;
+  }
+
+  .separacao-sheet-handle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #0f172a;
+    color: #ffffff;
+    border: 1.5px solid #334155;
+    border-bottom: none;
+    border-radius: 12px 12px 0 0;
+    padding: 4px 18px 3px 18px;
+    font-size: 11.5px;
+    font-weight: 700;
+    box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+
+  .separacao-sheet-handle-btn:active {
+    transform: scale(0.96);
+    background: #1e293b;
+  }
+
+  .separacao-sheet-handle-icon {
+    font-size: 11px;
+    color: #38bdf8;
+    line-height: 1;
+  }
+
+  .separacao-sheet-handle-text {
+    letter-spacing: 0.3px;
+  }
+
+  .separacao-scanner-docked {
+    pointer-events: auto;
+    background: #ffffff;
+    border-top: 2px solid #cbd5e1;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 18px 18px 0 0;
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
   .separacao-scanner-form {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
   }
 
   .separacao-scanner-input-wrapper {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
   }
 
-  .separacao-scanner-qtd-wrapper,
-  .separacao-scanner-lote-wrapper {
+  .separacao-scanner-input {
+    height: 48px;
+    font-size: 14px;
+    border-radius: 12px;
+    border: 2px solid #2563eb;
+    padding: 0 12px;
+  }
+
+  .separacao-scanner-qtd-wrapper {
+    width: 64px;
+    flex-shrink: 0;
+  }
+
+  .separacao-scanner-qtd-input {
     width: 100%;
+    height: 48px;
+    font-size: 16px;
+    font-weight: 800;
+    text-align: center;
+    border-radius: 12px;
+    border: 2px solid #cbd5e1;
+  }
+
+  /* Ocultar campo de lote no mobile conforme solicitado pelo usuário */
+  .separacao-scanner-lote-wrapper {
+    display: none !important;
   }
 
   .separacao-btn-bipar {
-    width: 100%;
+    height: 48px;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 800;
+    background: #0f172a;
+    color: #ffffff;
+    border-radius: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
     min-height: 48px;
   }
 
-  .separacao-metrics-row {
+  /* Backdrop do painel retrátil */
+  .separacao-actions-backdrop {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 1000;
+    pointer-events: auto;
+    animation: fadeInBackdrop 0.2s ease-out;
+  }
+
+  /* Gaveta Retrátil (Bottom Sheet) sobrepondo a tela */
+  .separacao-actions-sheet {
+    display: flex !important;
     flex-direction: column;
-    align-items: flex-start;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1001;
+    background: #ffffff;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.28);
+    max-height: 80vh;
+    padding: 14px 16px max(16px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+    transform: translateY(105%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
+  }
+
+  .separacao-actions-sheet.aberto {
+    transform: translateY(0%);
+  }
+
+  .separacao-actions-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 12px;
+  }
+
+  .separacao-actions-sheet-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #0f172a;
+  }
+
+  .separacao-actions-sheet-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #cbd5e1;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .separacao-actions-sheet-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+  }
+
+  .separacao-sheet-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.1s ease, filter 0.15s ease;
+  }
+
+  .separacao-sheet-btn:active {
+    transform: scale(0.98);
+  }
+
+  .separacao-sheet-btn-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .separacao-sheet-btn-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .separacao-sheet-btn-info strong {
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+
+  .separacao-sheet-btn-info small {
+    font-size: 11px;
+    opacity: 0.85;
+  }
+
+  .separacao-sheet-btn-secondary {
+    background: #f8fafc;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+  }
+
+  .separacao-sheet-btn-success {
+    background: #16a34a;
+    color: #ffffff;
+  }
+
+  .separacao-sheet-btn-outline {
+    background: #ffffff;
+    color: #475569;
+    border: 1.5px solid #cbd5e1;
+  }
+
+  @keyframes fadeInBackdrop {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Padding inferior na página para o conteúdo não ficar coberto pela barra fixa */
+  .separacao-page-wrapper {
+    padding-bottom: 96px;
+  }
+
+  /* Topo Compacto no Mobile */
+  .separacao-metrics-card {
+    padding: 10px 12px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+
+  .separacao-desktop-stats {
+    display: none !important;
+  }
+
+  .separacao-mobile-stats-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+  }
+
+  .separacao-mobile-stats-main {
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .separacao-mobile-stats-main strong {
+    color: #2563eb;
+    font-weight: 800;
+  }
+
+  .separacao-mobile-stats-sub {
+    font-weight: 700;
+    color: #16a34a;
+    background: #dcfce7;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
   }
 
   .separacao-view-toggle {
     width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-bottom: 8px;
+    gap: 4px;
+    padding: 3px;
+    background: #f1f5f9;
   }
 
   .separacao-toggle-btn {
-    flex: 1;
-    text-align: center;
-    padding: 8px 4px;
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
   }
 
   /* Ocultar tabela e exibir cards no Android */

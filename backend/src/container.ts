@@ -113,6 +113,40 @@ import { ListarLocaisSankhyaUseCase } from './application/use-cases/recebimento/
 import { createAuthMiddleware } from './presentation/http/middlewares/authMiddleware.js';
 import { createServer } from './presentation/server.js';
 
+// Application (Use Cases) - Separação de Cargas
+import { LibsqlSeparacaoRepository } from './infrastructure/repositories/LibsqlSeparacaoRepository.js';
+import { ListarCargasPendentesUseCase } from './application/use-cases/separacao/ListarCargasPendentesUseCase.js';
+import { IniciarSeparacaoUseCase } from './application/use-cases/separacao/IniciarSeparacaoUseCase.js';
+import { ObterSeparacaoUseCase } from './application/use-cases/separacao/ObterSeparacaoUseCase.js';
+import { SincronizarItensSeparacaoUseCase } from './application/use-cases/separacao/SincronizarItensSeparacaoUseCase.js';
+import { RegistrarBipagemSeparacaoUseCase } from './application/use-cases/separacao/RegistrarBipagemSeparacaoUseCase.js';
+import { AnularBipagemSeparacaoUseCase } from './application/use-cases/separacao/AnularBipagemSeparacaoUseCase.js';
+import { FinalizarSeparacaoUseCase } from './application/use-cases/separacao/FinalizarSeparacaoUseCase.js';
+import { AtualizarEnderecoProdutoUseCase } from './application/use-cases/separacao/AtualizarEnderecoProdutoUseCase.js';
+import { RegistrarFaltaItemUseCase } from './application/use-cases/separacao/RegistrarFaltaItemUseCase.js';
+import { ResolverFaltaSeparacaoUseCase } from './application/use-cases/separacao/ResolverFaltaSeparacaoUseCase.js';
+import { SolicitarReabastecimentoSeparacaoUseCase } from './application/use-cases/separacao/SolicitarReabastecimentoSeparacaoUseCase.js';
+import { SeparacaoController } from './presentation/http/controllers/SeparacaoController.js';
+import { LibsqlReabastecimentoRepository } from './infrastructure/repositories/LibsqlReabastecimentoRepository.js';
+import { ListarTarefasReabastecimentoUseCase } from './application/use-cases/reabastecimento/ListarTarefasReabastecimentoUseCase.js';
+import { ConcluirTarefaReabastecimentoUseCase } from './application/use-cases/reabastecimento/ConcluirTarefaReabastecimentoUseCase.js';
+import { CancelarTarefaReabastecimentoUseCase } from './application/use-cases/reabastecimento/CancelarTarefaReabastecimentoUseCase.js';
+import { RegistrarFaltaPulmaoUseCase } from './application/use-cases/reabastecimento/RegistrarFaltaPulmaoUseCase.js';
+import { FinalizarFaltaPulmaoUseCase } from './application/use-cases/reabastecimento/FinalizarFaltaPulmaoUseCase.js';
+import { ReabastecimentoController } from './presentation/http/controllers/ReabastecimentoController.js';
+
+// Application (Use Cases) - Endereçamento WMS
+import { LibsqlEnderecamentoRepository } from './infrastructure/repositories/LibsqlEnderecamentoRepository.js';
+import { BuscarEnderecosProdutoUseCase } from './application/use-cases/enderecamento/BuscarEnderecosProdutoUseCase.js';
+import { BuscarProdutosPorEnderecoUseCase } from './application/use-cases/enderecamento/BuscarProdutosPorEnderecoUseCase.js';
+import { VincularEnderecoProdutoUseCase } from './application/use-cases/enderecamento/VincularEnderecoProdutoUseCase.js';
+import { MovimentarEnderecoProdutoUseCase } from './application/use-cases/enderecamento/MovimentarEnderecoProdutoUseCase.js';
+import { DesenderecarProdutoUseCase } from './application/use-cases/enderecamento/DesenderecarProdutoUseCase.js';
+import { ListarHistoricoEnderecamentoUseCase } from './application/use-cases/enderecamento/ListarHistoricoEnderecamentoUseCase.js';
+import { ListarEnderecosAnaliticoUseCase } from './application/use-cases/enderecamento/ListarEnderecosAnaliticoUseCase.js';
+import { CadastrarProdutoEnderecoUseCase } from './application/use-cases/enderecamento/CadastrarProdutoEnderecoUseCase.js';
+import { EnderecamentoController } from './presentation/http/controllers/EnderecamentoController.js';
+
 /**
  * Composition Root
  * Monta o grafo completo de dependências e retorna a aplicação configurada
@@ -146,6 +180,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const configSistemaRepo = new LibsqlConfiguracaoSistemaRepository(dbClient, auditService);
   const conferenciaEntradaRepo = new LibsqlConferenciaEntradaRepository(dbClient, auditService);
   const ocorrenciaEntradaRepo = new LibsqlOcorrenciaConferenciaEntradaRepository(dbClient);
+  const separacaoRepo = new LibsqlSeparacaoRepository(dbClient, auditService);
+  const reabastecimentoRepo = new LibsqlReabastecimentoRepository(dbClient);
 
   // 2. Use Cases (Application)
   const loginUseCase = new LoginUseCase(authAdapter, tokenAdapter);
@@ -187,7 +223,11 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     conferenciaEntradaRepo,
     configSistemaRepo
   );
-  const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(conferenciaEntradaRepo);
+  const resolverDivergenciaUseCase = new ResolverDivergenciaUseCase(
+    conferenciaEntradaRepo,
+    auditService,
+    listarDivergenciasEntradaUseCase
+  );
   const reiniciarConferenciaEntradaUseCase = new ReiniciarConferenciaEntradaUseCase(
     conferenciaEntradaRepo,
     auditService,
@@ -237,8 +277,8 @@ export async function buildApp(customClient?: Client): Promise<Application> {
   const consultarEstoqueUseCase = new ConsultarEstoqueUseCase(gatewayAdapter);
 
   // Conferências
-  const getConferenciaSaidaUseCase = new GetConferenciaSaidaUseCase(gatewayAdapter);
-  const iniciarConferenciaUseCase = new IniciarConferenciaUseCase(gatewayAdapter);
+  const getConferenciaSaidaUseCase = new GetConferenciaSaidaUseCase(gatewayAdapter, separacaoRepo);
+  const iniciarConferenciaUseCase = new IniciarConferenciaUseCase(gatewayAdapter, separacaoRepo);
   const excluirConferenciaUseCase = new ExcluirConferenciaUseCase(gatewayAdapter);
   const listarItensPedidoUseCase = new ListarItensPedidoUseCase(gatewayAdapter, permissoesRepo, configTelasRepo);
   const listarItensConferidosUseCase = new ListarItensConferidosUseCase(gatewayAdapter);
@@ -344,6 +384,78 @@ export async function buildApp(customClient?: Client): Promise<Application> {
     discordAdapter
   );
 
+  // Separação de Cargas (Vendas agrupadas por ORDEMCARGA)
+  const listarCargasPendentesUseCase = new ListarCargasPendentesUseCase(gatewayAdapter, separacaoRepo);
+  const iniciarSeparacaoUseCase = new IniciarSeparacaoUseCase(gatewayAdapter, separacaoRepo);
+  const obterSeparacaoUseCase = new ObterSeparacaoUseCase(separacaoRepo);
+  const sincronizarItensSeparacaoUseCase = new SincronizarItensSeparacaoUseCase(gatewayAdapter, separacaoRepo);
+  const registrarBipagemSeparacaoUseCase = new RegistrarBipagemSeparacaoUseCase(
+    separacaoRepo,
+    configSistemaRepo,
+    gatewayAdapter,
+  );
+  const anularBipagemSeparacaoUseCase = new AnularBipagemSeparacaoUseCase(separacaoRepo);
+  const finalizarSeparacaoUseCase = new FinalizarSeparacaoUseCase(
+    separacaoRepo,
+    sincronizarItensSeparacaoUseCase,
+    gatewayAdapter,
+    reabastecimentoRepo,
+  );
+  const atualizarEnderecoProdutoUseCase = new AtualizarEnderecoProdutoUseCase(gatewayAdapter, separacaoRepo);
+  const registrarFaltaItemUseCase = new RegistrarFaltaItemUseCase(separacaoRepo);
+  const resolverFaltaSeparacaoUseCase = new ResolverFaltaSeparacaoUseCase(separacaoRepo);
+  const solicitarReabastecimentoUseCase = new SolicitarReabastecimentoSeparacaoUseCase(separacaoRepo, reabastecimentoRepo);
+
+  const separacaoController = new SeparacaoController(
+    listarCargasPendentesUseCase,
+    iniciarSeparacaoUseCase,
+    obterSeparacaoUseCase,
+    sincronizarItensSeparacaoUseCase,
+    registrarBipagemSeparacaoUseCase,
+    anularBipagemSeparacaoUseCase,
+    finalizarSeparacaoUseCase,
+    separacaoRepo,
+    atualizarEnderecoProdutoUseCase,
+    registrarFaltaItemUseCase,
+    resolverFaltaSeparacaoUseCase,
+    solicitarReabastecimentoUseCase,
+  );
+
+  // Reabastecimento de Picking (Equipe de Empilhadeira)
+  const listarTarefasReabastecimentoUseCase = new ListarTarefasReabastecimentoUseCase(reabastecimentoRepo, gatewayAdapter);
+  const concluirTarefaReabastecimentoUseCase = new ConcluirTarefaReabastecimentoUseCase(reabastecimentoRepo, separacaoRepo);
+  const cancelarTarefaReabastecimentoUseCase = new CancelarTarefaReabastecimentoUseCase(reabastecimentoRepo);
+  const registrarFaltaPulmaoUseCase = new RegistrarFaltaPulmaoUseCase(reabastecimentoRepo);
+  const finalizarFaltaPulmaoUseCase = new FinalizarFaltaPulmaoUseCase(reabastecimentoRepo, separacaoRepo);
+  const reabastecimentoController = new ReabastecimentoController(
+    listarTarefasReabastecimentoUseCase,
+    concluirTarefaReabastecimentoUseCase,
+    cancelarTarefaReabastecimentoUseCase,
+    registrarFaltaPulmaoUseCase,
+    finalizarFaltaPulmaoUseCase,
+  );
+
+  // Endereçamento WMS (Produto x Endereço & Movimentações)
+  const enderecamentoRepo = new LibsqlEnderecamentoRepository(dbClient);
+  const buscarEnderecosProdutoUseCase = new BuscarEnderecosProdutoUseCase(gatewayAdapter);
+  const buscarProdutosPorEnderecoUseCase = new BuscarProdutosPorEnderecoUseCase(gatewayAdapter);
+  const vincularEnderecoProdutoUseCase = new VincularEnderecoProdutoUseCase(gatewayAdapter, enderecamentoRepo);
+  const movimentarEnderecoProdutoUseCase = new MovimentarEnderecoProdutoUseCase(gatewayAdapter, enderecamentoRepo);
+  const desenderecarProdutoUseCase = new DesenderecarProdutoUseCase(gatewayAdapter, enderecamentoRepo);
+  const listarHistoricoEnderecamentoUseCase = new ListarHistoricoEnderecamentoUseCase(enderecamentoRepo);
+  const listarEnderecosAnaliticoUseCase = new ListarEnderecosAnaliticoUseCase(gatewayAdapter);
+  const cadastrarProdutoEnderecoUseCase = new CadastrarProdutoEnderecoUseCase(gatewayAdapter, enderecamentoRepo);
+  const enderecamentoController = new EnderecamentoController(
+    buscarEnderecosProdutoUseCase,
+    buscarProdutosPorEnderecoUseCase,
+    vincularEnderecoProdutoUseCase,
+    movimentarEnderecoProdutoUseCase,
+    desenderecarProdutoUseCase,
+    listarHistoricoEnderecamentoUseCase,
+    listarEnderecosAnaliticoUseCase,
+    cadastrarProdutoEnderecoUseCase,
+  );
+
   // 4. Middleware de autenticação
   const authMiddleware = createAuthMiddleware(tokenAdapter);
 
@@ -362,6 +474,9 @@ export async function buildApp(customClient?: Client): Promise<Application> {
       conferenciaEntradaController,
       databaseExplorerController,
       ocorrenciasRecebimentoController,
+      separacaoController,
+      reabastecimentoController,
+      enderecamentoController,
     },
     authMiddleware,
     permissoesRepo,

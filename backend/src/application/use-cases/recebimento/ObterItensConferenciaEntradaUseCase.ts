@@ -78,13 +78,21 @@ SELECT
     NVL(PRO.REFFORN, ' ') AS REFFORN,
     NVL(ITE.CODVOL, 'UN') AS CODVOL,
     NVL(ITE.QTDNEG, 0) AS QTDNEG,
+    ITE.CONTROLE,
     ITE.CODLOCALORIG,
     NVL(PAR.RAZAOSOCIAL, NVL(PAR.NOMEPARC, 'FORNECEDOR NÃO INFORMADO')) AS NOMEPARC,
-    CAB.CODPARC
+    CAB.CODPARC,
+    TO_CHAR(EST.DTVAL, 'DD/MM/YYYY') AS DTVAL,
+    TO_CHAR(EST.DTFABRICACAO, 'DD/MM/YYYY') AS DTFABRICACAO
 FROM TGFITE ITE
 INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
 LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
 INNER JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+LEFT JOIN TGFEST EST ON EST.CODPROD = ITE.CODPROD 
+                    AND EST.CONTROLE = ITE.CONTROLE 
+                    AND EST.CODEMP = CAB.CODEMP
+                    AND EST.TIPO = 'P'
+                    AND EST.CODPARC = 0
 WHERE ITE.NUNOTA IN (${nunotasStr})
 ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
     `.trim();
@@ -292,26 +300,35 @@ ORDER BY 1, 2
     }
 
     // Regras de Ocultação de Campos Sensíveis para conferencia_entrada
-    const ocultarQtdNota = (
-      await this.configTelasRepo.deveOcultarCampo('conferencia_entrada', 'qtdNota', input.usuario)
-    ) || (
-      await this.configTelasRepo.deveOcultarCampo('conferencia_entrada', 'qtdPed', input.usuario)
-    );
-    const ocultarCodBarra = await this.configTelasRepo.deveOcultarCampo(
-      'conferencia_entrada',
-      'codBarra',
-      input.usuario
-    );
-    const ocultarReferencia = await this.configTelasRepo.deveOcultarCampo(
-      'conferencia_entrada',
-      'referencia',
-      input.usuario
-    );
-    const ocultarStatus = await this.configTelasRepo.deveOcultarCampo(
-      'conferencia_entrada',
-      'status',
-      input.usuario
-    );
+    // Na Gestão de Recebimento (origem === 'gestao'), campos fiscais e gerenciais NUNCA são ocultados (tela de auditoria e envio)
+    const isGestao = input.origem === 'gestao';
+    const ocultarQtdNota = isGestao
+      ? false
+      : (
+          (await this.configTelasRepo.deveOcultarCampo('conferencia_entrada', 'qtdNota', input.usuario)) ||
+          (await this.configTelasRepo.deveOcultarCampo('conferencia_entrada', 'qtdPed', input.usuario))
+        );
+    const ocultarCodBarra = isGestao
+      ? false
+      : await this.configTelasRepo.deveOcultarCampo(
+          'conferencia_entrada',
+          'codBarra',
+          input.usuario
+        );
+    const ocultarReferencia = isGestao
+      ? false
+      : await this.configTelasRepo.deveOcultarCampo(
+          'conferencia_entrada',
+          'referencia',
+          input.usuario
+        );
+    const ocultarStatus = isGestao
+      ? false
+      : await this.configTelasRepo.deveOcultarCampo(
+          'conferencia_entrada',
+          'status',
+          input.usuario
+        );
 
     // Mapear Itens
     const itensRows: any[] = respItens?.responseBody?.rows || [];
@@ -319,6 +336,13 @@ ORDER BY 1, 2
     const itensIndex: Record<string, number> = {};
     itensFields.forEach((f: any, idx: number) => {
       itensIndex[f.name.toUpperCase()] = idx;
+    });
+
+    // Contar sequências por produto na nota para detecção de desmembramentos
+    const countSeqPorProd: Record<string, number> = {};
+    itensRows.forEach((r) => {
+      const pk = `${r[itensIndex['NUNOTA']]}|${r[itensIndex['CODPROD']]}`;
+      countSeqPorProd[pk] = (countSeqPorProd[pk] || 0) + 1;
     });
 
     // Rebalanceamento FIFO inteligente para produtos com múltiplas sequências na mesma nota fiscal
@@ -336,16 +360,27 @@ ORDER BY 1, 2
         lotesMapN2: Record<string, FracaoLoteItem>;
         lotesMapN3: Record<string, FracaoLoteItem>;
         dadosPorNivel: Record<number, { lote?: string; validade?: string; fabricacao?: string }>;
-        seqs: Array<{ sequencia: number; rawQtd: number }>;
+        seqs: Array<{ sequencia: number; rawQtd: number; isFaltaIsolada: boolean }>;
       }
     > = {};
 
     itensRows.forEach((r) => {
       const nunota = Number(r[itensIndex['NUNOTA']]);
+      const numnota = Number(r[itensIndex['NUMNOTA']] || 0);
       const codprod = Number(r[itensIndex['CODPROD']]);
       const sequencia = Number(r[itensIndex['SEQUENCIA']]);
       const rawQtd = Number(r[itensIndex['QTDNEG']] || 0);
+      const controleOriginal = r[itensIndex['CONTROLE']] ? String(r[itensIndex['CONTROLE']]).trim() : undefined;
       const prodKey = `${nunota}|${codprod}`;
+
+      const numnotaStr = numnota ? String(numnota).trim() : '';
+      const nunotaStr = nunota ? String(nunota).trim() : '';
+      const ehLoteFalta = Boolean(
+        controleOriginal &&
+        (controleOriginal === numnotaStr || controleOriginal === nunotaStr)
+      );
+      // Sequência identificada como Falta Isolada no ERP
+      const isFaltaIsolada = ehLoteFalta && (countSeqPorProd[prodKey] > 1 || rawQtd > 0);
 
       if (!totaisProdNota[prodKey]) {
         totaisProdNota[prodKey] = {
@@ -361,7 +396,7 @@ ORDER BY 1, 2
         };
       }
       totaisProdNota[prodKey].esperado += rawQtd;
-      totaisProdNota[prodKey].seqs.push({ sequencia, rawQtd });
+      totaisProdNota[prodKey].seqs.push({ sequencia, rawQtd, isFaltaIsolada });
 
       const itemKey = `${nunota}|${codprod}|${sequencia}`;
       const bip = mapBipsDetalhadas[itemKey];
@@ -380,16 +415,64 @@ ORDER BY 1, 2
     });
 
     Object.entries(totaisProdNota).forEach(([prodKey, data]) => {
-      if (data.seqs.length <= 1) return;
+      // 1. Isolar sequências de Falta Isolada: contagem física é estritamente ZERO
+      data.seqs.forEach((seqInfo) => {
+        if (seqInfo.isFaltaIsolada) {
+          const itemKey = `${prodKey}|${seqInfo.sequencia}`;
+          mapBipsDetalhadas[itemKey] = {
+            n1: 0,
+            n2: 0,
+            n3: 0,
+            dadosPorNivel: {},
+            lotesMapN1: {},
+            lotesMapN2: {},
+            lotesMapN3: {},
+          };
+        }
+      });
 
-      data.seqs.sort((a, b) => a.sequencia - b.sequencia);
+      // 2. Apenas sequências físicas recebem o rateio das bipagens
+      const seqsFisicas = data.seqs.filter((s) => !s.isFaltaIsolada);
+      if (seqsFisicas.length === 0) return;
+
+      if (seqsFisicas.length === 1 && data.seqs.length > 1) {
+        // Se há 1 física e demais são faltas isoladas, todo o saldo do produto vai para ela
+        const seqInfo = seqsFisicas[0];
+        const itemKey = `${prodKey}|${seqInfo.sequencia}`;
+        if (!mapBipsDetalhadas[itemKey]) {
+          mapBipsDetalhadas[itemKey] = {
+            n1: 0,
+            n2: 0,
+            n3: 0,
+            dadosPorNivel: {},
+            lotesMapN1: {},
+            lotesMapN2: {},
+            lotesMapN3: {},
+          };
+        }
+        mapBipsDetalhadas[itemKey].n1 = data.n1;
+        mapBipsDetalhadas[itemKey].n2 = data.n2;
+        mapBipsDetalhadas[itemKey].n3 = data.n3;
+        if (data.conferenteN1) mapBipsDetalhadas[itemKey].conferenteN1 = data.conferenteN1;
+        if (data.conferenteN2) mapBipsDetalhadas[itemKey].conferenteN2 = data.conferenteN2;
+        if (data.conferenteN3) mapBipsDetalhadas[itemKey].conferenteN3 = data.conferenteN3;
+        mapBipsDetalhadas[itemKey].dadosPorNivel = data.dadosPorNivel;
+        mapBipsDetalhadas[itemKey].lotesMapN1 = data.lotesMapN1;
+        mapBipsDetalhadas[itemKey].lotesMapN2 = data.lotesMapN2;
+        mapBipsDetalhadas[itemKey].lotesMapN3 = data.lotesMapN3;
+        return;
+      }
+
+      if (seqsFisicas.length <= 1) return;
+
+      seqsFisicas.sort((a, b) => a.sequencia - b.sequencia);
       let saldoN1 = data.n1;
       let saldoN2 = data.n2;
       let saldoN3 = data.n3;
 
-      data.seqs.forEach((seqInfo, idx) => {
+      seqsFisicas.forEach((seqInfo, idx) => {
         const itemKey = `${prodKey}|${seqInfo.sequencia}`;
-        const ehUltima = idx === data.seqs.length - 1;
+        const ehUltima = idx === seqsFisicas.length - 1;
         const esp = seqInfo.rawQtd;
 
         const alocN1 = (!ehUltima && saldoN1 > esp) ? esp : saldoN1;
@@ -424,16 +507,16 @@ ORDER BY 1, 2
         if (data.conferenteN3 && !mapBipsDetalhadas[itemKey].conferenteN3) {
           mapBipsDetalhadas[itemKey].conferenteN3 = data.conferenteN3;
         }
-        if (Object.keys(mapBipsDetalhadas[itemKey].dadosPorNivel).length === 0) {
+        if ((alocN1 > 0 || alocN2 > 0 || alocN3 > 0) && Object.keys(mapBipsDetalhadas[itemKey].dadosPorNivel).length === 0) {
           mapBipsDetalhadas[itemKey].dadosPorNivel = data.dadosPorNivel;
         }
-        if (Object.keys(mapBipsDetalhadas[itemKey].lotesMapN1).length === 0) {
+        if (alocN1 > 0 && Object.keys(mapBipsDetalhadas[itemKey].lotesMapN1).length === 0) {
           mapBipsDetalhadas[itemKey].lotesMapN1 = data.lotesMapN1;
         }
-        if (Object.keys(mapBipsDetalhadas[itemKey].lotesMapN2).length === 0) {
+        if (alocN2 > 0 && Object.keys(mapBipsDetalhadas[itemKey].lotesMapN2).length === 0) {
           mapBipsDetalhadas[itemKey].lotesMapN2 = data.lotesMapN2;
         }
-        if (Object.keys(mapBipsDetalhadas[itemKey].lotesMapN3).length === 0) {
+        if (alocN3 > 0 && Object.keys(mapBipsDetalhadas[itemKey].lotesMapN3).length === 0) {
           mapBipsDetalhadas[itemKey].lotesMapN3 = data.lotesMapN3;
         }
       });
@@ -446,7 +529,19 @@ ORDER BY 1, 2
       const codprod = Number(r[itensIndex['CODPROD']]);
       const rawQtd = Number(r[itensIndex['QTDNEG']] || 0);
 
+      const controleOriginal = r[itensIndex['CONTROLE']] ? String(r[itensIndex['CONTROLE']]).trim() : undefined;
+      const dtvalOriginal = r[itensIndex['DTVAL']] ? String(r[itensIndex['DTVAL']]).trim() : undefined;
+      const dtfabricacaoOriginal = r[itensIndex['DTFABRICACAO']] ? String(r[itensIndex['DTFABRICACAO']]).trim() : undefined;
+
       const key = `${nunota}|${codprod}|${sequencia}`;
+      const numnotaStr = numnota ? String(numnota).trim() : '';
+      const nunotaStr = nunota ? String(nunota).trim() : '';
+      const ehLoteFalta = Boolean(
+        controleOriginal &&
+        (controleOriginal === numnotaStr || controleOriginal === nunotaStr)
+      );
+      const isFaltaIsolada = ehLoteFalta && (countSeqPorProd[`${nunota}|${codprod}`] > 1 || rawQtd > 0);
+
       const bip = mapBipsDetalhadas[key] || {
         n1: 0,
         n2: 0,
@@ -457,26 +552,32 @@ ORDER BY 1, 2
         lotesMapN3: {},
       };
 
+      // Se for Falta Isolada no ERP, as contagens são forçadas a 0 e o status resolvido
+      const qtdN1Final = isFaltaIsolada ? 0 : bip.n1;
+      const qtdN2Final = isFaltaIsolada ? 0 : bip.n2;
+      const qtdN3Final = isFaltaIsolada ? 0 : bip.n3;
+
       // Se houve contagem em N1 e N2, compara N1 x N2 x NF.
       // Se não houve N1 (iniciado direto em N2), compara N2 x NF.
       // Se não houve N2 (contagem única em N1), compara N1 x NF.
       const houveNivel1 = bipagens.some((b) => !b.anulado && b.nivel === 1);
       const houveNivel2 = bipagens.some((b) => !b.anulado && b.nivel === 2);
-      const divergente =
-        houveNivel1 && houveNivel2
-          ? bip.n1 !== rawQtd || bip.n2 !== rawQtd || bip.n1 !== bip.n2
-          : houveNivel2
-          ? bip.n2 !== rawQtd
-          : bip.n1 !== rawQtd;
+      const divergente = isFaltaIsolada
+        ? false
+        : houveNivel1 && houveNivel2
+        ? bip.n1 !== rawQtd || bip.n2 !== rawQtd || bip.n1 !== bip.n2
+        : houveNivel2
+        ? bip.n2 !== rawQtd
+        : bip.n1 !== rawQtd;
 
       // Contagem física final apurada
-      const contagemFinal = bip.n3 > 0 ? bip.n3 : bip.n2 > 0 ? bip.n2 : bip.n1;
-      const diferenca = contagemFinal - rawQtd;
+      const contagemFinal = isFaltaIsolada ? 0 : (bip.n3 > 0 ? bip.n3 : bip.n2 > 0 ? bip.n2 : bip.n1);
+      const diferenca = isFaltaIsolada ? 0 : contagemFinal - rawQtd;
 
       // Na conferência cega, indica se a contagem do nível ativo atingiu ou superou a quantidade esperada da NF
       const nivelAtivo = sessao?.nivelAtual || 1;
-      const conferidoNivelAtivo = nivelAtivo === 1 ? bip.n1 : nivelAtivo === 2 ? bip.n2 : bip.n3;
-      const conferidoCompleto = rawQtd > 0 ? conferidoNivelAtivo >= rawQtd : conferidoNivelAtivo > 0;
+      const conferidoNivelAtivo = isFaltaIsolada ? 0 : (nivelAtivo === 1 ? bip.n1 : nivelAtivo === 2 ? bip.n2 : bip.n3);
+      const conferidoCompleto = isFaltaIsolada ? true : (rawQtd > 0 ? conferidoNivelAtivo >= rawQtd : conferidoNivelAtivo > 0);
 
       const codigosAlternativos = mapaBarras[codprod] || [];
 
@@ -494,32 +595,46 @@ ORDER BY 1, 2
         nivelAdotado = bip.n2 > 0 ? 2 : 1;
       }
 
-      // Frações de lote EXCLUSIVAMENTE do nível adotado
+      // Frações de lote EXCLUSIVAMENTE do nível adotado (se contagem final > 0)
       let lotesConferidos: FracaoLoteItem[] = [];
-      if (nivelAdotado === 3) {
-        lotesConferidos = Object.values(bip.lotesMapN3 || {});
-      } else if (nivelAdotado === 2) {
-        lotesConferidos = Object.values(bip.lotesMapN2 || {});
-      } else {
-        lotesConferidos = Object.values(bip.lotesMapN1 || {});
+      if (!isFaltaIsolada && contagemFinal > 0) {
+        if (nivelAdotado === 3) {
+          lotesConferidos = Object.values(bip.lotesMapN3 || {});
+        } else if (nivelAdotado === 2) {
+          lotesConferidos = Object.values(bip.lotesMapN2 || {});
+        } else {
+          lotesConferidos = Object.values(bip.lotesMapN1 || {});
+        }
       }
 
       const dadosDoNivel = (bip.dadosPorNivel && bip.dadosPorNivel[nivelAdotado]) || {};
-      const loteFinal =
-        dadosDoNivel.lote ||
-        bip.dadosPorNivel?.[2]?.lote ||
-        bip.dadosPorNivel?.[3]?.lote ||
-        bip.dadosPorNivel?.[1]?.lote;
-      const validadeFinal =
-        dadosDoNivel.validade ||
-        bip.dadosPorNivel?.[2]?.validade ||
-        bip.dadosPorNivel?.[3]?.validade ||
-        bip.dadosPorNivel?.[1]?.validade;
-      const fabricacaoFinal =
-        dadosDoNivel.fabricacao ||
-        bip.dadosPorNivel?.[2]?.fabricacao ||
-        bip.dadosPorNivel?.[3]?.fabricacao ||
-        bip.dadosPorNivel?.[1]?.fabricacao;
+      const loteFinal = isFaltaIsolada
+        ? controleOriginal
+        : contagemFinal > 0
+        ? dadosDoNivel.lote ||
+          bip.dadosPorNivel?.[2]?.lote ||
+          bip.dadosPorNivel?.[3]?.lote ||
+          bip.dadosPorNivel?.[1]?.lote ||
+          controleOriginal
+        : controleOriginal;
+      const validadeFinal = isFaltaIsolada
+        ? dtvalOriginal
+        : contagemFinal > 0
+        ? dadosDoNivel.validade ||
+          bip.dadosPorNivel?.[2]?.validade ||
+          bip.dadosPorNivel?.[3]?.validade ||
+          bip.dadosPorNivel?.[1]?.validade ||
+          dtvalOriginal
+        : dtvalOriginal;
+      const fabricacaoFinal = isFaltaIsolada
+        ? dtfabricacaoOriginal
+        : contagemFinal > 0
+        ? dadosDoNivel.fabricacao ||
+          bip.dadosPorNivel?.[2]?.fabricacao ||
+          bip.dadosPorNivel?.[3]?.fabricacao ||
+          bip.dadosPorNivel?.[1]?.fabricacao ||
+          dtfabricacaoOriginal
+        : dtfabricacaoOriginal;
 
       return {
         nunota,
@@ -533,19 +648,20 @@ ORDER BY 1, 2
         codvol: String(r[itensIndex['CODVOL']] || 'UN'),
         qtdneg: ocultarQtdNota ? null : rawQtd,
         conferidoCompleto: ocultarStatus ? false : conferidoCompleto,
-        qtdConferidaN1: bip.n1,
-        qtdConferidaN2: bip.n2,
-        qtdConferidaN3: bip.n3,
+        qtdConferidaN1: qtdN1Final,
+        qtdConferidaN2: qtdN2Final,
+        qtdConferidaN3: qtdN3Final,
         codigosAlternativos,
         unidadesAlternativas: mapaUnidadesAlternativas[codprod] || [],
         divergente,
+        controle: controleOriginal,
         lote: loteFinal,
         validade: validadeFinal,
         fabricacao: fabricacaoFinal,
         lotesConferidos,
-        conferenteN1: bip.conferenteN1,
-        conferenteN2: bip.conferenteN2,
-        conferenteN3: bip.conferenteN3,
+        conferenteN1: isFaltaIsolada ? undefined : bip.conferenteN1,
+        conferenteN2: isFaltaIsolada ? undefined : bip.conferenteN2,
+        conferenteN3: isFaltaIsolada ? undefined : bip.conferenteN3,
         diferenca,
         codlocal: r[itensIndex['CODLOCALORIG']] !== null && r[itensIndex['CODLOCALORIG']] !== undefined ? Number(r[itensIndex['CODLOCALORIG']]) : undefined,
         codlocalorig: r[itensIndex['CODLOCALORIG']] !== null && r[itensIndex['CODLOCALORIG']] !== undefined ? Number(r[itensIndex['CODLOCALORIG']]) : undefined,
@@ -553,6 +669,7 @@ ORDER BY 1, 2
         codparc: r[itensIndex['CODPARC']] !== null && r[itensIndex['CODPARC']] !== undefined ? Number(r[itensIndex['CODPARC']]) : undefined,
         decisaoFiscal: decisao,
         nivelEscolhido: nivelEscolhido || (sessao?.status === 'Enviado ao Sankhya' ? nivelAdotado : undefined),
+        isFaltaIsolada,
       };
     });
 

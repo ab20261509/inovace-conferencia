@@ -97,6 +97,7 @@ export interface ItemNotaEntrada {
   codparc?: number;
   decisaoFiscal?: DecisaoFiscalItem;
   nivelEscolhido?: number;
+  isFaltaIsolada?: boolean;
 }
 
 export interface BackupContagemEntrada {
@@ -172,6 +173,7 @@ export interface ConferenciaEntradaResumo {
   finalizadoEm?: string;
   enviadoSankhyaEm?: string;
   aprovadoPor?: string;
+  aprovadoEm?: string;
   totalItens: number;
   totalQtdEsperada?: number;
   totalBipadoN1: number;
@@ -291,6 +293,7 @@ export interface ItemDivergenciaResumo {
   conferenteN3?: string;
   lotesConferidos?: any[];
   codlocalorig?: number;
+  isFaltaIsolada?: boolean;
 }
 
 export interface ConferenciaDivergenciaGrupo {

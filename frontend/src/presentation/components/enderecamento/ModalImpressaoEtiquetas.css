@@ -1,0 +1,1363 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   CENTRAL DE IMPRESSÃO DE ETIQUETAS DE ENDEREÇAMENTO WMS
+   Modal, Painel de Configurações e Preview Real A4
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.modal-etiquetas-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100020;
+  padding: 16px;
+  box-sizing: border-box;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-etiquetas-container {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 1240px;
+  height: 90vh;
+  max-height: 900px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1.5px solid #cbd5e1;
+  animation: slideUpColetor 0.2s ease-out;
+}
+
+/* ─── Header ─── */
+.modal-etiquetas-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #f97316;
+}
+
+.modal-etiquetas-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-etiquetas-title h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.modal-etiquetas-title p {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.modal-etiquetas-btn-fechar {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.modal-etiquetas-btn-fechar:hover {
+  background: #ef4444;
+}
+
+/* ─── Body: Duas Colunas ─── */
+.modal-etiquetas-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Painel Esquerdo: Configurações */
+.modal-etiquetas-painel-config {
+  width: 380px;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.config-secao {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-secao-titulo {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Tabs de Escopo */
+.escopo-tabs {
+  display: flex;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.escopo-tab {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.escopo-tab.ativo {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.escopo-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Filtros por Intervalo */
+.intervalo-filtros-box {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.btn-filtro-tipo {
+  flex: 1;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.btn-filtro-tipo.ativo {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.grid-intervalo-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.input-label-mini {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.input-mini {
+  width: 100%;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  box-sizing: border-box;
+}
+
+/* Modelos de Layout A4 */
+.grid-modelos-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-modelo-layout {
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.card-modelo-layout:hover {
+  border-color: #f97316;
+  background: #fff7ed;
+}
+
+.card-modelo-layout.selecionado {
+  border-color: #ea580c;
+  background: #fff7ed;
+  box-shadow: 0 0 0 1px #ea580c;
+}
+
+.modelo-icone {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.modelo-desc {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.modelo-tag-recomendado {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  background: #dcfce7;
+  color: #15803d;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ─── Estilos Visuais da Etiqueta ─── */
+.grid-estilos-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-estilo-layout {
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.card-estilo-layout:hover {
+  border-color: #f97316;
+  background: #fff7ed;
+}
+
+.card-estilo-layout.selecionado {
+  border-color: #ea580c;
+  background: #fff7ed;
+  box-shadow: 0 0 0 1px #ea580c;
+}
+
+.estilo-icone {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.estilo-desc {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.modelo-tag-novo {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Opções de Código */
+.grid-tipo-codigo {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-opcao-codigo {
+  flex: 1;
+  padding: 8px 4px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.btn-opcao-codigo.ativo {
+  border-color: #0284c7;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+/* Checkboxes de Informações */
+.btn-toggle-todos {
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0284c7;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.grid-checkboxes-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.checkbox-item input {
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+  accent-color: #ea580c;
+}
+
+/* Resumo */
+.resumo-impressao-box {
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resumo-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #475569;
+}
+
+.resumo-item strong {
+  color: #0f172a;
+}
+
+/* ─── Painel Direito: Preview da Folha A4 ─── */
+.modal-etiquetas-painel-preview {
+  flex: 1;
+  background: #334155;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-top-bar {
+  background: #1e293b;
+  color: #ffffff;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #475569;
+}
+
+.preview-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.preview-paginacao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.preview-paginacao button {
+  background: #334155;
+  border: 1px solid #475569;
+  color: #ffffff;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.preview-paginacao button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Folha A4 no Preview */
+.preview-folha-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.preview-folha-a4 {
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+/* Layout 2 por folha Retrato */
+.preview-folha-a4.layout-2 {
+  width: 480px;
+  min-height: 680px;
+  grid-template-rows: 1fr 1fr;
+  grid-template-columns: 1fr;
+}
+
+/* Layout 4 por folha Paisagem */
+.preview-folha-a4.layout-4 {
+  width: 660px;
+  min-height: 460px;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* Layout 8 por folha Retrato */
+.preview-folha-a4.layout-8 {
+  width: 480px;
+  min-height: 680px;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(4, 1fr);
+  gap: 8px;
+}
+
+/* Card da Etiqueta no Preview */
+.preview-etiqueta-card {
+  border: 1.5px dashed #94a3b8;
+  border-radius: 10px;
+  padding: 10px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Borda sólida de 3px nos Cards Par (Azul) e Ímpar (Laranja) */
+.preview-etiqueta-card.nivel-par {
+  border: 3px solid #2563eb !important;
+}
+.preview-etiqueta-card.nivel-impar {
+  border: 3px solid #ea580c !important;
+}
+
+/* Fundo Nível Par (Azul) no Preview */
+.preview-etiqueta-card.nivel-par .p-coord-linha-nivel-invertido {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+}
+.preview-etiqueta-card.nivel-par .p-coord-linha-nivel-invertido .p-coord-linha-label {
+  color: #dbeafe !important;
+}
+.preview-etiqueta-card.nivel-par .p-coord-linha-nivel-invertido .p-coord-linha-val {
+  color: #ffffff !important;
+}
+.preview-etiqueta-card.nivel-par .preview-coord-chip.nivel-chip {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+}
+.preview-etiqueta-card.nivel-par .preview-coord-chip.nivel-chip .p-coord-label {
+  color: #dbeafe !important;
+}
+.preview-etiqueta-card.nivel-par .preview-coord-chip.nivel-chip .p-coord-val {
+  color: #ffffff !important;
+}
+
+/* Fundo Nível Ímpar (Laranja) no Preview */
+.preview-etiqueta-card.nivel-impar .p-coord-linha-nivel-invertido {
+  background: #ea580c !important;
+  border-color: #c2410c !important;
+}
+.preview-etiqueta-card.nivel-impar .p-coord-linha-nivel-invertido .p-coord-linha-label {
+  color: #ffedd5 !important;
+}
+.preview-etiqueta-card.nivel-impar .p-coord-linha-nivel-invertido .p-coord-linha-val {
+  color: #ffffff !important;
+}
+.preview-etiqueta-card.nivel-impar .preview-coord-chip.nivel-chip {
+  background: #ea580c !important;
+  border-color: #c2410c !important;
+}
+.preview-etiqueta-card.nivel-impar .preview-coord-chip.nivel-chip .p-coord-label {
+  color: #ffedd5 !important;
+}
+.preview-etiqueta-card.nivel-impar .preview-coord-chip.nivel-chip .p-coord-val {
+  color: #ffffff !important;
+}
+
+.preview-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 4px;
+}
+
+.preview-tipo-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.preview-tipo-badge.picking {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.preview-tipo-badge.pulmao {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.preview-codend-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.preview-deposito-tag {
+  font-size: 10px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.preview-folha-a4.layout-2 .preview-deposito-tag { font-size: 14px; }
+.preview-folha-a4.layout-4 .preview-deposito-tag { font-size: 10px; }
+.preview-folha-a4.layout-8 .preview-deposito-tag { font-size: 7px; }
+.preview-folha-a4.layout-montante .preview-deposito-tag { font-size: 8px; }
+
+/* Coordenadas com Escala Dinâmica no Preview */
+.preview-coords-grid {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+  align-items: stretch;
+  flex: 1;
+}
+
+.preview-coord-chip {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.preview-coord-chip.pos-destaque,
+.preview-coord-chip.pos-picking,
+.preview-coord-chip.pos {
+  border: 2px solid #16a34a;
+  background: #f0fdf4;
+}
+
+.p-coord-label {
+  font-weight: 900;
+  color: #0284c7;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.preview-coord-chip.pos-destaque .p-coord-label,
+.preview-coord-chip.pos-picking .p-coord-label,
+.preview-coord-chip.pos .p-coord-label {
+  color: #16a34a;
+}
+
+.p-coord-val {
+  font-weight: 900;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #0f172a;
+  line-height: 1.05;
+}
+
+/* ─── Escala Dinâmica no Preview ─── */
+/* 1 campo (ex: Apenas POSIÇÃO selecionada) */
+.preview-coords-grid.campos-1 .preview-coord-chip {
+  padding: 14px 10px;
+  min-height: 80px;
+}
+.layout-2 .preview-coords-grid.campos-1 .p-coord-label { font-size: 15px; margin-bottom: 4px; }
+.layout-2 .preview-coords-grid.campos-1 .p-coord-val { font-size: 54px; }
+
+.layout-4 .preview-coords-grid.campos-1 .p-coord-label { font-size: 14px; margin-bottom: 3px; }
+.layout-4 .preview-coords-grid.campos-1 .p-coord-val { font-size: 46px; }
+
+.layout-8 .preview-coords-grid.campos-1 .p-coord-label { font-size: 11px; margin-bottom: 2px; }
+.layout-8 .preview-coords-grid.campos-1 .p-coord-val { font-size: 28px; }
+
+/* 2 campos */
+.preview-coords-grid.campos-2 .preview-coord-chip {
+  padding: 10px 6px;
+}
+.layout-2 .preview-coords-grid.campos-2 .p-coord-label { font-size: 13px; margin-bottom: 3px; }
+.layout-2 .preview-coords-grid.campos-2 .p-coord-val { font-size: 38px; }
+
+.layout-4 .preview-coords-grid.campos-2 .p-coord-label { font-size: 12px; margin-bottom: 2px; }
+.layout-4 .preview-coords-grid.campos-2 .p-coord-val { font-size: 32px; }
+
+.layout-8 .preview-coords-grid.campos-2 .p-coord-label { font-size: 9px; margin-bottom: 1px; }
+.layout-8 .preview-coords-grid.campos-2 .p-coord-val { font-size: 20px; }
+
+/* 3 ou 4 campos */
+.preview-coords-grid.campos-3 .preview-coord-chip,
+.preview-coords-grid.campos-4 .preview-coord-chip {
+  padding: 5px 3px;
+}
+.layout-2 .preview-coords-grid.campos-3 .p-coord-label,
+.layout-2 .preview-coords-grid.campos-4 .p-coord-label { font-size: 10px; }
+.layout-2 .preview-coords-grid.campos-3 .p-coord-val,
+.layout-2 .preview-coords-grid.campos-4 .p-coord-val { font-size: 24px; }
+
+.layout-4 .preview-coords-grid.campos-3 .p-coord-label,
+.layout-4 .preview-coords-grid.campos-4 .p-coord-label { font-size: 9px; }
+.layout-4 .preview-coords-grid.campos-3 .p-coord-val,
+.layout-4 .preview-coords-grid.campos-4 .p-coord-val { font-size: 20px; }
+
+.layout-8 .preview-coords-grid.campos-3 .p-coord-label,
+.layout-8 .preview-coords-grid.campos-4 .p-coord-label { font-size: 8px; }
+.layout-8 .preview-coords-grid.campos-3 .p-coord-val,
+.layout-8 .preview-coords-grid.campos-4 .p-coord-val { font-size: 14px; }
+
+/* Códigos */
+.preview-codigos-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.preview-barcode-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.preview-barcode-wrap svg {
+  max-width: 100%;
+}
+
+.preview-barcode-txt {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: #0f172a;
+  margin-top: 2px;
+}
+
+/* ─── Preview: Estilo Lateral (QR Esquerda + Coordenadas Verticais Direita) ─── */
+.preview-corpo-lateral {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 1;
+  margin: 4px 0;
+}
+
+.preview-lateral-qr-box {
+  flex: 1.05;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 4px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.preview-lateral-qr-box .etiqueta-qrcode-canvas {
+  flex: 1;
+  max-width: 100%;
+  max-height: calc(100% - 16px);
+  width: auto;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.preview-lateral-qr-box .preview-barcode-txt {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: #0f172a;
+  margin-top: 2px;
+  line-height: 1.1;
+}
+
+.preview-lateral-coords-col {
+  flex: 1.15;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.p-coord-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.p-coord-linha-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #0284c7;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.p-coord-linha-val {
+  font-size: 20px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1;
+  font-family: Arial, sans-serif;
+}
+
+.p-coord-linha-nivel-invertido {
+  background: #0f172a !important;
+  border-color: #0f172a !important;
+}
+
+.p-coord-linha-nivel-invertido .p-coord-linha-label {
+  color: #94a3b8 !important;
+}
+
+.p-coord-linha-nivel-invertido .p-coord-linha-val {
+  color: #ffffff !important;
+  font-size: 21px;
+}
+
+.coord-linha-posicao-picking,
+.p-coord-linha.coord-linha-posicao-picking,
+.p-coord-linha-posicao {
+  border-color: #16a34a !important;
+  background: #f0fdf4 !important;
+}
+
+.coord-linha-posicao-picking .p-coord-linha-label,
+.coord-linha-posicao-picking .coord-linha-label,
+.p-coord-linha-posicao .p-coord-linha-label {
+  color: #16a34a !important;
+}
+
+.coord-linha-posicao-picking .p-coord-linha-val,
+.coord-linha-posicao-picking .coord-linha-val,
+.p-coord-linha-posicao .p-coord-linha-val {
+  color: #0f172a !important;
+}
+
+/* Escalas no Preview do Estilo Lateral */
+.preview-folha-a4.layout-2 .preview-corpo-lateral { gap: 14px; margin: 10px 0; }
+.preview-folha-a4.layout-2 .preview-lateral-qr-box { padding: 8px; }
+.preview-folha-a4.layout-2 .preview-lateral-qr-box .preview-barcode-txt { font-size: 12px; }
+.preview-folha-a4.layout-2 .p-coord-linha { padding: 8px 12px; border-radius: 8px; }
+.preview-folha-a4.layout-2 .p-coord-linha-label { font-size: 13px; }
+.preview-folha-a4.layout-2 .p-coord-linha-val { font-size: 32px; }
+.preview-folha-a4.layout-2 .p-coord-linha-nivel-invertido .p-coord-linha-val { font-size: 34px; }
+
+.preview-folha-a4.layout-4 .preview-lateral-qr-box { padding: 4px; }
+.preview-folha-a4.layout-4 .preview-lateral-qr-box .preview-barcode-txt { font-size: 9px; }
+.preview-folha-a4.layout-4 .p-coord-linha { padding: 4px 8px; }
+.preview-folha-a4.layout-4 .p-coord-linha-label { font-size: 10px; }
+.preview-folha-a4.layout-4 .p-coord-linha-val { font-size: 20px; }
+.preview-folha-a4.layout-4 .p-coord-linha-nivel-invertido .p-coord-linha-val { font-size: 22px; }
+
+.preview-folha-a4.layout-8 .preview-corpo-lateral { gap: 4px; margin: 2px 0; }
+.preview-folha-a4.layout-8 .preview-lateral-qr-box { padding: 2px; }
+.preview-folha-a4.layout-8 .preview-lateral-qr-box .preview-barcode-txt { font-size: 7px; }
+.preview-folha-a4.layout-8 .p-coord-linha { padding: 2px 4px; border-radius: 4px; }
+.preview-folha-a4.layout-8 .p-coord-linha-label { font-size: 8px; }
+.preview-folha-a4.layout-8 .p-coord-linha-val { font-size: 13px; }
+.preview-folha-a4.layout-8 .p-coord-linha-nivel-invertido .p-coord-linha-val { font-size: 14px; }
+
+/* ─── Preview: Faixa Vertical de Nível (Poste/Montante - 3 Colunas A4) ─── */
+.preview-folha-a4.layout-faixa-nivel {
+  width: 560px;
+  min-height: 760px;
+  max-height: 760px;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.preview-faixa-nivel-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  background: #ffffff;
+  border: 3.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.preview-faixa-nivel-card.nivel-par {
+  border: 3.5px solid #2563eb !important;
+}
+
+.preview-faixa-nivel-card.nivel-impar {
+  border: 3.5px solid #ea580c !important;
+}
+
+.preview-faixa-nivel-letras {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1.1;
+  width: 100%;
+  padding-top: 4px;
+}
+
+.preview-faixa-nivel-letras span {
+  font-size: 38px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1;
+  display: block;
+}
+
+.preview-faixa-nivel-numero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 0.9;
+  padding-bottom: 4px;
+}
+
+.preview-faixa-nivel-numero span {
+  font-size: 90px;
+  font-weight: 900;
+  line-height: 0.9;
+  display: block;
+  letter-spacing: -2px;
+}
+
+.preview-faixa-nivel-card.nivel-par .preview-faixa-nivel-numero span {
+  color: #2563eb;
+}
+
+.preview-faixa-nivel-card.nivel-impar .preview-faixa-nivel-numero span {
+  color: #ea580c;
+}
+
+/* ─── Preview: Tira de Montante Multi-Nível (3 Colunas A4 • ~60mm) ─── */
+.preview-folha-a4.layout-montante {
+  width: 560px;
+  min-height: 760px;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+  gap: 8px;
+}
+
+.preview-montante-coluna-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.preview-montante-nivel-card {
+  border: 1.5px dashed #94a3b8;
+  border-radius: 6px;
+  padding: 3px 4px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.preview-montante-nivel-card .preview-card-header {
+  padding-bottom: 1px;
+  margin-bottom: 1px;
+}
+
+.preview-montante-nivel-card .preview-tipo-badge {
+  font-size: 6.5px;
+  padding: 1px 3px;
+}
+
+.preview-montante-nivel-card .preview-deposito-tag {
+  font-size: 6.8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.preview-montante-nivel-card .preview-codend-tag {
+  font-size: 6.5px;
+  white-space: nowrap;
+}
+
+.preview-montante-nivel-card .preview-corpo-lateral {
+  gap: 3px;
+  margin: 1px 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview-montante-nivel-card .preview-lateral-qr-box {
+  padding: 1px;
+  border-radius: 4px;
+  flex: 0.85;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.preview-montante-nivel-card .preview-lateral-qr-box .etiqueta-qrcode-canvas {
+  max-height: 38px;
+  width: auto;
+  aspect-ratio: 1 / 1;
+  flex: 1;
+  min-height: 0;
+  object-fit: contain;
+}
+
+.preview-montante-nivel-card .preview-lateral-qr-box .preview-barcode-txt {
+  font-size: 5.5px;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.preview-montante-nivel-card .preview-lateral-coords-col {
+  gap: 1.5px;
+  flex: 1.45;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.preview-montante-nivel-card .p-coord-linha {
+  padding: 1px 2px;
+  border-radius: 3px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.preview-montante-nivel-card .p-coord-linha-label {
+  font-size: 7.5px;
+}
+
+.preview-montante-nivel-card .p-coord-linha-val {
+  font-size: 15px;
+}
+
+.preview-montante-nivel-card .p-coord-linha-nivel-invertido .p-coord-linha-val {
+  font-size: 15px;
+}
+
+.preview-montante-coluna-container.col-niveis-2 .p-coord-linha-val,
+.preview-montante-coluna-container.col-niveis-3 .p-coord-linha-val,
+.preview-montante-coluna-container.col-niveis-4 .p-coord-linha-val { font-size: 15px; }
+.preview-montante-coluna-container.col-niveis-2 .p-coord-linha-nivel-invertido .p-coord-linha-val,
+.preview-montante-coluna-container.col-niveis-3 .p-coord-linha-nivel-invertido .p-coord-linha-val,
+.preview-montante-coluna-container.col-niveis-4 .p-coord-linha-nivel-invertido .p-coord-linha-val { font-size: 15px; }
+.preview-montante-coluna-container.col-niveis-5 .p-coord-linha-val { font-size: 12px; }
+.preview-montante-coluna-container.col-niveis-5 .p-coord-linha-nivel-invertido .p-coord-linha-val { font-size: 12px; }
+
+.preview-montante-nivel-card .preview-card-footer {
+  padding-top: 1px;
+  margin-top: 1px;
+  font-size: 6px;
+}
+
+/* Seta Indicativa no Topo da Coluna (Preview) */
+.preview-montante-topo-seta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 22px;
+  margin-bottom: 3px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.preview-montante-seta-svg {
+  width: 100%;
+  height: 22px;
+  display: block;
+}
+
+/* Painel de Configuração de Orientação e Seta do Montante */
+.montante-config-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.montante-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.montante-config-titulo {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Botão Restaurar Tamanho da Fonte / Padrão */
+.btn-restaurar-fonte {
+  padding: 3px 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-restaurar-fonte:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* Linhas de Ajuste com Stepper */
+.config-linha-ajuste {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.config-linha-label {
+  font-size: 12px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.stepper-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-stepper {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-stepper:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-stepper:active {
+  transform: scale(0.95);
+}
+
+.input-stepper-val-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.input-stepper-val {
+  width: 48px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+.input-stepper-val.input-stepper-copias {
+  width: 38px;
+}
+
+.input-stepper-val:focus {
+  outline: none;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.input-stepper-val::-webkit-inner-spin-button,
+.input-stepper-val::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-stepper-val {
+  -moz-appearance: textfield;
+}
+
+.unidade-px {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  margin-left: 3px;
+}
+
+.montante-direcao-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.btn-direcao-opcao {
+  padding: 8px 12px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-direcao-opcao:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.btn-direcao-opcao.ativo {
+  border-color: #0284c7;
+  background: #e0f2fe;
+  color: #0369a1;
+  box-shadow: 0 0 0 1px #0284c7;
+}
+
+.montante-regra-nota {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+/* Footer do Card */
+.preview-card-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #94a3b8;
+  border-top: 1px dashed #f1f5f9;
+  padding-top: 3px;
+}
+
+.preview-vazio {
+  grid-column: 1 / -1;
+  padding: 40px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+/* ─── Footer do Modal ─── */
+.modal-etiquetas-footer {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancelar-impressao {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancelar-impressao:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-confirmar-impressao {
+  height: 44px;
+  padding: 0 24px;
+  border-radius: 10px;
+  border: none;
+  background: #ea580c;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-confirmar-impressao:hover:not(:disabled) {
+  background: #c2410c;
+  box-shadow: 0 6px 16px rgba(234, 88, 12, 0.4);
+}
+
+.btn-confirmar-impressao:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Responsivo ─── */
+@media (max-width: 900px) {
+  .modal-etiquetas-body {
+    flex-direction: column;
+  }
+  .modal-etiquetas-painel-config {
+    width: 100%;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+}

@@ -140,4 +140,53 @@ A barra de bipagem da Conferência de Saída deve manter rigorosamente o padrão
 5. **ALINHAMENTO HORIZONTAL NA COLUNA PRODUTO:**
    - Badges de status (`Pendente de Decisão` / `Aguardando Desmembramento`) e botões de ação (`Decidir Divergência` / `Revisar Desempate`) devem ser renderizados **lado a lado (horizontalmente)** em container flex, sem empilhamento vertical.
 
+---
+
+## 🚜 7. Regra Mandatória: Reabastecimento de Pulmão ⟷ Separação de Cargas e Gestão de Faltas
+
+> [!CAUTION]
+> **PROIBIDO ALTERAR SEM AUTORIZAÇÃO EXPRESSA DO OPERADOR HUMANO.**
+> A especificação completa e detalhada deste fluxo reside em 👉 [`docs/regras/reabastecimento-pulmao-e-separacao.md`](./docs/regras/reabastecimento-pulmao-e-separacao.md).
+
+### 🚫 Restrições Rígidas para Reabastecimento e Separação:
+1. **RETENÇÃO DA CARGA EM ESPERA:**
+   - Quando a separação solicitar reabastecimento do picking, a carga deve assumir `status = 'AGUARDANDO_REABASTECIMENTO'` com badge `⏳ Aguardando Reabastecimento`, bloqueando o fechamento precipitado do pedido.
+2. **PRIORIDADE MÁXIMA PARA CARGAS REABASTECIDAS:**
+   - Ao concluir a última tarefa de reabastecimento vinculada, a carga vai para `status = 'REABASTECIDO'` com badge `⚡ Pick Reabastecido` e deve ser posicionada no **topo absoluto da lista de cargas pendentes**.
+   - Na rota guiada de separação, o produto recém-abastecido é priorizado no início da fila com badge `⚡ Pick Reabastecido`.
+3. **DUPLO DESFECHO PARA FALTAS DE PULMÃO:**
+   - Tarefas com `status = 'FALTA_PULMAO'` (acionadas pelo botão `⚠️ Não Encontrado`) oferecem dois caminhos no card:
+     - `[ 🚜 Abastecer ]`: Caso o produto seja localizado posteriormente, permitindo baixa física imediata no picking.
+     - `[ ✂️ Confirmar Corte Definitivo ]`: Exclusivo para quem possui a permissão `reabastecimento_finalizar_falta`, autorizando o corte no pedido da carga e desbloqueando a finalização.
+4. **PADRÃO VISUAL MINIMALISTA E BOTÃO INFORMATIVO:**
+   - Os cards de reabastecimento devem manter o layout compacto em linha única.
+   - É proibido renderizar caixas estáticas amarelas fixas de observação; o histórico de notas deve residir no botão flutuante `[ ℹ️ ]` (hover no desktop e toque no mobile).
+
+---
+
+## 📍 8. Regra Mandatória: Gestão de Endereçamento WMS e Movimentações Produto x Endereço
+
+> [!CAUTION]
+> **PROIBIDO ALTERAR SEM AUTORIZAÇÃO EXPRESSA DO OPERADOR HUMANO.**
+> A especificação completa e detalhada deste fluxo reside em 👉 [`docs/regras/modulo-enderecamento-wms.md`](./docs/regras/modulo-enderecamento-wms.md).
+
+### 🚫 Restrições Rígidas para Endereçamento WMS:
+1. **REGRA DE OURO DO PICKING ÚNICO:**
+   - Cada produto possui **no máximo 1 endereço de Picking ativo** cadastrado no Sankhya ERP (`TGWEND.PICKING = 'S'`).
+   - Ao vincular um novo endereço de picking ou promover um pulmão para picking, o sistema inativa automaticamente qualquer picking ativo anterior (`ATIVO = 'N'`, `DTFIM = hoje`) via `DatasetSP.save` na entidade nativa `ProdutoEndereco` (`TGWEXP`).
+2. **MÚLTIPLOS PULMÕES SIMULTÂNEOS:**
+   - Um produto pode ter múltiplos endereços de pulmão (`TGWEND.PICKING = 'N'`) ativos simultaneamente para reserva de estoque e verticalização.
+3. **BUSCA ESTRITA POR CÓDIGO DE PRODUTO (`CODPROD`):**
+   - É **proibido** utilizar busca parcial (`LIKE '%termo%'`) em códigos numéricos de produtos ou referências que geram falsos positivos. Termos estritamente numéricos buscam por `PRO.CODPROD = {termo}` ou correspondência exata em `TGFBAR.CODBARRA`.
+   - Transições analíticas de endereço para produtos utilizam consultas em lote com cláusula `IN (...)` via `codprods: number[]`.
+4. **INTEGRIDADE DO DICIONÁRIO ORACLE/SANKHYA:**
+   - A tabela `TGFPRO` **não possui** as colunas `CODBARRA` nem `TIPCONREST`. Códigos de barras devem ser obtidos exclusivamente na tabela `TGFBAR`. O controle de lotes reside em `TGWEXP.CONTROLE`.
+5. **ISOLAMENTO VISUAL E ORDEM DAS ABAS:**
+   - O módulo de endereçamento possui CSS dedicado em [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css) com prefixo `.enderecamento-*`.
+   - A ordem padrão das abas é: **1ª `📍 Por Endereço`**, **2ª `📦 Por Produto`**, **3ª `🕒 Histórico`**.
+6. **AUDITORIA OBRIGATÓRIA:**
+   - Toda e qualquer movimentação, desvinculação ou associação deve registrar log com usuário, data/hora, produto, endereço de origem e de destino na tabela local `historico_enderecamento`.
+
+
+
 

@@ -45,14 +45,26 @@ export function AppHeader({
       <div className="app-header-actions">
         {children}
         {temPermissao('consulta_produtos') && onAbrirConsultaProduto && (
-          <Botao variant="secondary" size="sm" onClick={onAbrirConsultaProduto}>
-            Consultar Produto
-          </Botao>
+          <button
+            type="button"
+            className="app-header-btn-consulta"
+            onClick={onAbrirConsultaProduto}
+            title="Consultar Produto"
+            aria-label="Consultar Produto"
+          >
+            <span className="app-header-btn-consulta-icon">🔍</span>
+            <span className="app-header-btn-consulta-text">Consultar Produto</span>
+          </button>
         )}
         <span className="user-info">{user?.nomeUsu}</span>
-        <Botao variant="ghost" size="sm" onClick={logout}>
+        <button
+          type="button"
+          className="app-header-btn-sair"
+          onClick={logout}
+          title="Sair do sistema"
+        >
           Sair
-        </Botao>
+        </button>
       </div>
     </header>
   );

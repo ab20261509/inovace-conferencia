@@ -1,7 +1,37 @@
 import { httpClient } from './httpClient';
 
-export type TipoAcaoEnderecamento = 'VINCULAR' | 'MOVER' | 'RETIRAR' | 'DEFINIR_PICKING';
+export type TipoAcaoEnderecamento = 'VINCULAR' | 'MOVER' | 'RETIRAR' | 'DEFINIR_PICKING' | 'CADASTRAR';
 export type TipoEnderecoWMS = 'PICKING' | 'PULMAO';
+
+export interface CadastrarProdutoEnderecoParams {
+  codigoEndereco: string;
+  termoProduto: string;
+  controle?: string;
+  confirmarSubstituicaoPicking?: boolean;
+  motivo?: string;
+}
+
+export interface CadastrarProdutoEnderecoResponse {
+  status: 'SUCESSO' | 'JA_CADASTRADO' | 'EXIGE_CONFIRMACAO_PICKING';
+  mensagem: string;
+  produto: {
+    codprod: number;
+    descrprod: string;
+    codbarra?: string | null;
+    codvol: string;
+    controle: string;
+  };
+  endereco: {
+    codend: number;
+    endereco: string;
+    descrend?: string | null;
+    tipo: TipoEnderecoWMS;
+  };
+  pickingAnterior?: {
+    codend: number;
+    endereco: string;
+  } | null;
+}
 
 export interface EnderecoVinculado {
   codend: number;
@@ -72,6 +102,11 @@ export interface RegistroHistoricoEnderecamento {
 export class EnderecamentoApiService {
   async listarAnalitico(filtros?: {
     termo?: string;
+    deposito?: string;
+    rua?: string;
+    torre?: string;
+    nivel?: string;
+    pos?: string;
     tipo?: 'TODOS' | 'PICKING' | 'PULMAO';
     ocupacao?: 'TODOS' | 'LIVRES' | 'OCUPADOS';
     limite?: number;
@@ -102,6 +137,11 @@ export class EnderecamentoApiService {
       params: { termo },
     });
     return res.data.endereco;
+  }
+
+  async cadastrar(dados: CadastrarProdutoEnderecoParams): Promise<CadastrarProdutoEnderecoResponse> {
+    const res = await httpClient.post<CadastrarProdutoEnderecoResponse>('/api/enderecamento/cadastrar', dados);
+    return res.data;
   }
 
   async vincular(dados: {

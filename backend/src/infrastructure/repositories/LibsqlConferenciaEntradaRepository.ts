@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Client } from '@libsql/client';
 import { IConferenciaEntradaRepository } from '../../domain/ports/IConferenciaEntradaRepository.js';
 import {
@@ -435,7 +436,7 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
   ): Promise<number> {
     if (!itensTGFITE || itensTGFITE.length === 0) return 0;
 
-    const sql = `SELECT id, sequencia, lote, qtd_conferida
+    const sql = `SELECT id, sequencia, lote, validade, fabricacao, nivel, conferente, timestamp, codbarra, qtd_conferida
                  FROM bipagens_entrada
                  WHERE conferencia_id = ? AND nunota = ? AND codprod = ? AND anulado = 0
                  ORDER BY timestamp ASC`;
@@ -444,22 +445,109 @@ export class LibsqlConferenciaEntradaRepository implements IConferenciaEntradaRe
 
     let alteradas = 0;
 
-    for (const row of res.rows) {
-      const bId = String(row.id);
-      const bLote = row.lote ? String(row.lote).trim().toUpperCase() : '';
-      const bSeqAtual = Number(row.sequencia);
+    // Buscar NUMNOTA da conferência para garantir identificação precisa de Falta Isolada
+    let numnotaConf: number | undefined;
+    try {
+      const confRow = await this.client.execute({
+        sql: `SELECT numnota FROM conferencias_entrada WHERE id = ? LIMIT 1`,
+        args: [conferenciaId],
+      });
+      if (confRow.rows.length > 0 && confRow.rows[0].numnota) {
+        numnotaConf = Number(confRow.rows[0].numnota);
+      }
+    } catch {
+      // continua sem numnotaConf se falhar
+    }
 
-      if (bLote) {
-        const itemCorrespondente = itensTGFITE.find(
-          (it) => it.controle && String(it.controle).trim().toUpperCase() === bLote
+    const ehFaltaIsolada = (controle?: string) => {
+      if (!controle) return false;
+      const c = String(controle).trim();
+      return c === String(nunota).trim() || (numnotaConf !== undefined && c === String(numnotaConf).trim());
+    };
+
+    // Apenas sequências físicas recebem contagem física; faltas isoladas são ignoradas
+    const sequenciasFisicas = itensTGFITE.filter((it) => !ehFaltaIsolada(it.controle));
+    const sequenciasCandidatas = sequenciasFisicas.length > 0 ? sequenciasFisicas : itensTGFITE;
+
+    // Mapa de saldo restante por sequência (respeitando o teto QTDNEG de cada sequência faturada)
+    const saldoRestante: Record<number, number> = {};
+    itensTGFITE.forEach((it) => {
+      saldoRestante[it.sequencia] = ehFaltaIsolada(it.controle) ? 0 : it.qtdneg;
+    });
+
+    for (const row of res.rows) {
+      let bIdAtual = String(row.id);
+      const bLote = row.lote ? String(row.lote).trim().toUpperCase() : '';
+      let bSeqAtual = Number(row.sequencia);
+      let qtdRestanteBipagem = Number(row.qtd_conferida) || 0;
+
+      while (qtdRestanteBipagem > 0) {
+        // 1. Tentar sequência física que tenha o mesmo lote faturado e saldo restante > 0
+        let seqAlvo = sequenciasCandidatas.find(
+          (it) => it.controle && String(it.controle).trim().toUpperCase() === bLote && (saldoRestante[it.sequencia] || 0) > 0
         );
 
-        if (itemCorrespondente && itemCorrespondente.sequencia !== bSeqAtual) {
+        // 2. Se não houver com o mesmo lote e saldo disponível, alocar na próxima sequência física com saldo
+        if (!seqAlvo) {
+          seqAlvo = sequenciasCandidatas.find((it) => (saldoRestante[it.sequencia] || 0) > 0);
+        }
+
+        // 3. Se todas as sequências físicas estiverem preenchidas (excesso real), aloca na última sequência FÍSICA
+        if (!seqAlvo) {
+          seqAlvo = sequenciasCandidatas[sequenciasCandidatas.length - 1];
+        }
+
+        const saldoDisp = saldoRestante[seqAlvo.sequencia] || 0;
+
+        // Se a quantidade da bipagem cabe inteira no saldo disponível ou se já é excesso (sem saldo restante)
+        if (saldoDisp <= 0 || qtdRestanteBipagem <= saldoDisp) {
+          if (seqAlvo.sequencia !== bSeqAtual) {
+            await this.client.execute({
+              sql: `UPDATE bipagens_entrada SET sequencia = ? WHERE id = ?`,
+              args: [seqAlvo.sequencia, bIdAtual],
+            });
+            alteradas++;
+          }
+          if (saldoDisp > 0) {
+            saldoRestante[seqAlvo.sequencia] -= qtdRestanteBipagem;
+          }
+          qtdRestanteBipagem = 0;
+        } else {
+          // Bipagem maior que o saldo da sequência: aloca a fatia que cabe e cria nova linha para o restante
+          const fatia = saldoDisp;
+          const sobraBip = qtdRestanteBipagem - fatia;
+
           await this.client.execute({
-            sql: `UPDATE bipagens_entrada SET sequencia = ? WHERE id = ?`,
-            args: [itemCorrespondente.sequencia, bId],
+            sql: `UPDATE bipagens_entrada SET sequencia = ?, qtd_conferida = ? WHERE id = ?`,
+            args: [seqAlvo.sequencia, fatia, bIdAtual],
           });
           alteradas++;
+          saldoRestante[seqAlvo.sequencia] = 0;
+
+          const novoId = randomUUID();
+          await this.client.execute({
+            sql: `INSERT INTO bipagens_entrada (id, conferencia_id, nunota, codprod, sequencia, codbarra, qtd_conferida, nivel, conferente, timestamp, lote, validade, fabricacao, anulado)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+            args: [
+              novoId,
+              conferenciaId,
+              nunota,
+              codprod,
+              seqAlvo.sequencia,
+              row.codbarra || '',
+              sobraBip,
+              row.nivel,
+              row.conferente,
+              row.timestamp,
+              row.lote,
+              row.validade,
+              row.fabricacao,
+            ],
+          });
+
+          bIdAtual = novoId;
+          bSeqAtual = seqAlvo.sequencia;
+          qtdRestanteBipagem = sobraBip;
         }
       }
     }

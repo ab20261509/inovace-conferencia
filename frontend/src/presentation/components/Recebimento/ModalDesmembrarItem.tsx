@@ -949,8 +949,8 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                     <th style={{ padding: '6px 8px', color: 'var(--slate-400)', fontWeight: 700, width: '26px', textAlign: 'center' }}>#</th>
                     <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '25%' }}>Lote / Controle</th>
                     <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '15%' }}>Quantidade</th>
-                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '17%' }}>Validade</th>
                     <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '17%' }}>Fabricação</th>
+                    <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '17%' }}>Validade</th>
                     <th style={{ padding: '6px 10px', color: 'var(--slate-600)', fontWeight: 700, width: '23%' }}>Local ERP</th>
                     <th style={{ padding: '6px 6px', textAlign: 'center', width: '28px' }}></th>
                   </tr>
@@ -1061,6 +1061,51 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                         </div>
                       </td>
 
+                      {/* Campo Fabricação */}
+                      <td style={{ padding: '4px 10px' }}>
+                        <input
+                          type="text"
+                          value={fracao.fabricacao}
+                          onChange={(e) =>
+                            handleUpdateFracao(
+                              fracao.id,
+                              'fabricacao',
+                              aplicarMascaraData(e.target.value)
+                            )
+                          }
+                          onBlur={() => {
+                            const dataComp = completarAnoData(fracao.fabricacao);
+                            handleUpdateFracao(fracao.id, 'fabricacao', dataComp);
+                          }}
+                          placeholder="DD/MM/AAAA"
+                          disabled={isProcessando}
+                          title={
+                            fracao.fabricacao.trim() &&
+                            !validarData(completarAnoData(fracao.fabricacao), false).valida
+                              ? validarData(completarAnoData(fracao.fabricacao), false).erro
+                              : undefined
+                          }
+                          style={{
+                            width: '100%',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            border:
+                              fracao.fabricacao.trim() &&
+                              !validarData(completarAnoData(fracao.fabricacao), false).valida
+                                ? '1px solid #ef4444'
+                                : '1px solid #cbd5e1',
+                            fontFamily: 'JetBrains Mono, monospace',
+                            fontSize: '0.75rem',
+                            color: 'var(--slate-800)',
+                            background: isProcessando
+                              ? '#f8fafc'
+                              : fracao.fabricacao.trim() &&
+                                !validarData(completarAnoData(fracao.fabricacao), false).valida
+                                ? '#fef2f2'
+                                : '#ffffff',
+                          }}
+                        />
+                      </td>
                       {/* Campo Validade */}
                       <td style={{ padding: '4px 10px' }}>
                         <input
@@ -1107,51 +1152,6 @@ export const ModalDesmembrarItem: React.FC<ModalDesmembrarItemProps> = ({
                         />
                       </td>
 
-                      {/* Campo Fabricação */}
-                      <td style={{ padding: '4px 10px' }}>
-                        <input
-                          type="text"
-                          value={fracao.fabricacao}
-                          onChange={(e) =>
-                            handleUpdateFracao(
-                              fracao.id,
-                              'fabricacao',
-                              aplicarMascaraData(e.target.value)
-                            )
-                          }
-                          onBlur={() => {
-                            const dataComp = completarAnoData(fracao.fabricacao);
-                            handleUpdateFracao(fracao.id, 'fabricacao', dataComp);
-                          }}
-                          placeholder="DD/MM/AAAA"
-                          disabled={isProcessando}
-                          title={
-                            fracao.fabricacao.trim() &&
-                            !validarData(completarAnoData(fracao.fabricacao), false).valida
-                              ? validarData(completarAnoData(fracao.fabricacao), false).erro
-                              : undefined
-                          }
-                          style={{
-                            width: '100%',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            border:
-                              fracao.fabricacao.trim() &&
-                              !validarData(completarAnoData(fracao.fabricacao), false).valida
-                                ? '1px solid #ef4444'
-                                : '1px solid #cbd5e1',
-                            fontFamily: 'JetBrains Mono, monospace',
-                            fontSize: '0.75rem',
-                            color: 'var(--slate-800)',
-                            background: isProcessando
-                              ? '#f8fafc'
-                              : fracao.fabricacao.trim() &&
-                                !validarData(completarAnoData(fracao.fabricacao), false).valida
-                                ? '#fef2f2'
-                                : '#ffffff',
-                          }}
-                        />
-                      </td>
 
                       {/* Campo Local ERP com Botão de Pesquisa 🔍 */}
                       <td style={{ padding: '4px 8px' }}>

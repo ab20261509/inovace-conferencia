@@ -388,6 +388,9 @@ export function GestaoAcessosPage() {
         conferencia_saida: true,
         conferencia_entrada: true,
         separacao: true,
+        enderecamento: true,
+        enderecamento_visualizar: true,
+        enderecamento_cadastrar: true,
         gestao_recebimento: false,
         gestao_recebimento_aba_divergencias: false,
         gestao_recebimento_aba_envio_sankhya: false,
@@ -408,6 +411,10 @@ export function GestaoAcessosPage() {
         conferencia_saida: true,
         conferencia_entrada: true,
         separacao: true,
+        enderecamento: true,
+        enderecamento_visualizar: true,
+        enderecamento_manipular: true,
+        enderecamento_cadastrar: true,
         gestao_recebimento: true,
         gestao_recebimento_aba_divergencias: true,
         gestao_recebimento_aba_envio_sankhya: true,
@@ -428,6 +435,10 @@ export function GestaoAcessosPage() {
         conferencia_saida: true,
         conferencia_entrada: true,
         separacao: true,
+        enderecamento: true,
+        enderecamento_visualizar: true,
+        enderecamento_manipular: true,
+        enderecamento_cadastrar: true,
         gestao_recebimento: true,
         gestao_recebimento_aba_divergencias: true,
         gestao_recebimento_aba_envio_sankhya: true,
@@ -1510,6 +1521,26 @@ export function GestaoAcessosPage() {
                                     disabled={salvandoId === usuarioDrawer.codUsu}
                                     onChange={() =>
                                       handleToggleUsuario(usuarioDrawer, 'enderecamento_manipular')
+                                    }
+                                  />
+                                  <span className="toggle-slider" />
+                                </label>
+                              </div>
+
+                              <div className="drawer-subtoggle-row">
+                                <div className="drawer-toggle-desc">
+                                  <span className="drawer-toggle-label">⚡ Cadastrar no Endereço (Modo Coletor)</span>
+                                  <span className="drawer-toggle-sub">
+                                    Acesso à rotina rápida de coletor para bipar endereços e associar produtos em massa
+                                  </span>
+                                </div>
+                                <label className="toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(usuarioDrawer.modulos.enderecamento_cadastrar)}
+                                    disabled={salvandoId === usuarioDrawer.codUsu}
+                                    onChange={() =>
+                                      handleToggleUsuario(usuarioDrawer, 'enderecamento_cadastrar')
                                     }
                                   />
                                   <span className="toggle-slider" />

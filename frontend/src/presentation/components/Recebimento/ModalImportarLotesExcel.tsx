@@ -224,7 +224,7 @@ export const ModalImportarLotesExcel: React.FC<ModalImportarLotesExcelProps> = (
                       <th>Cód. Barras</th>
                       <th>Ref. Fornecedor</th>
                       <th>Descrição</th>
-                      <th>Lote(s) / Validade / Fab.</th>
+                      <th>Lote(s) / Fab. / Validade</th>
                       <th>Origem</th>
                     </tr>
                   </thead>
@@ -241,8 +241,8 @@ export const ModalImportarLotesExcel: React.FC<ModalImportarLotesExcelProps> = (
                           {prod.lotes.map((l, i) => (
                             <div key={i} style={{ fontSize: '0.78rem' }}>
                               <strong>{l.lote}</strong>
-                              {l.validade ? ` • Val: ${l.validade}` : ''}
                               {l.fabricacao ? ` • Fab: ${l.fabricacao}` : ''}
+                              {l.validade ? ` • Val: ${l.validade}` : ''}
                             </div>
                           ))}
                         </td>

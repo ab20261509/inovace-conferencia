@@ -23,4 +23,17 @@ Consulte o arquivo principal de regras em [`GEMINI.md`](./GEMINI.md).
    - No reinício de conferência, listar expressamente as ocorrências ativas com opção de exclusão definitiva do banco de dados (checkbox marcado por padrão).
    - Cancelamento automático de ocorrências órfãs de notas fiscais excluídas no Sankhya ERP.
    - Especificação detalhada em [`docs/regras/sobras-multiplos-lotes-ocorrencias.md`](./docs/regras/sobras-multiplos-lotes-ocorrencias.md). Proibido alterar sem autorização.
+7. **REABASTECIMENTO DE PULMÃO (EMPILHADEIRA) ⟷ SEPARAÇÃO DE CARGAS (VENDAS):**
+   - Carga retida em `AGUARDANDO_REABASTECIMENTO` trava conclusão prematura.
+   - Ao abastecer, status `REABASTECIDO` prioriza a carga no topo absoluto da fila e o produto no início da rota guiada.
+   - Faltas no pulmão (`FALTA_PULMAO`) oferecem duplo desfecho: `[ 🚜 Abastecer ]` (se localizado depois) ou `[ ✂️ Confirmar Corte Definitivo ]` (exclusivo para quem tem `reabastecimento_finalizar_falta`).
+   - Observações utilizam botão flutuante `[ ℹ️ ]` (hover no desktop e toque no mobile), sem caixas amarelas estáticas.
+   - Especificação detalhada em [`docs/regras/reabastecimento-pulmao-e-separacao.md`](./docs/regras/reabastecimento-pulmao-e-separacao.md). Proibido alterar sem autorização.
+8. **ENDEREÇAMENTO WMS (PRODUTO X ENDEREÇOS & MOVIMENTAÇÕES):**
+   - Picking único: no máximo 1 picking ativo por produto; novo picking inativa o anterior automaticamente no Sankhya ERP (`TGWEXP`).
+   - Múltiplos pulmões ativos simultâneos permitidos.
+   - Busca de produtos estritamente numérica sem varredura aberta de `LIKE '%N%'` em referências para evitar falsos positivos. Códigos de barras resolvidos exclusivamente em `TGFBAR` (`CODBARRA` não existe em `TGFPRO`).
+   - Ordem das abas: `📍 Por Endereço` (1ª com filtros analíticos), `📦 Por Produto` (2ª com banner de contexto e saldos), `🕒 Histórico` (3ª com log auditável).
+   - Especificação detalhada em [`docs/regras/modulo-enderecamento-wms.md`](./docs/regras/modulo-enderecamento-wms.md). Proibido alterar sem autorização.
+
 

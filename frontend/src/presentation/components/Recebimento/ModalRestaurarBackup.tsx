@@ -264,8 +264,8 @@ export const ModalRestaurarBackup: React.FC<ModalRestaurarBackupProps> = ({
                     <th style={{ padding: '8px 10px' }}>Produto</th>
                     <th style={{ padding: '8px 10px', textAlign: 'center', width: '90px' }}>Qtd. Conf.</th>
                     <th style={{ padding: '8px 10px', width: '130px' }}>Lote</th>
-                    <th style={{ padding: '8px 10px', width: '100px' }}>Validade</th>
                     <th style={{ padding: '8px 10px', width: '100px' }}>Fabricação</th>
+                    <th style={{ padding: '8px 10px', width: '100px' }}>Validade</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,11 +303,11 @@ export const ModalRestaurarBackup: React.FC<ModalRestaurarBackupProps> = ({
                             <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sem lote</span>
                           )}
                         </td>
-                        <td style={{ padding: '6px 10px', color: it.validade ? '#1e293b' : '#94a3b8' }}>
-                          {it.validade || '-'}
-                        </td>
                         <td style={{ padding: '6px 10px', color: it.fabricacao ? '#1e293b' : '#94a3b8' }}>
                           {it.fabricacao || '-'}
+                        </td>
+                        <td style={{ padding: '6px 10px', color: it.validade ? '#1e293b' : '#94a3b8' }}>
+                          {it.validade || '-'}
                         </td>
                       </tr>
                     ))

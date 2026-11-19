@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { AppLayout, AppHeader } from '../../components';
+import { ProdutoImagem } from '../../components/common/ProdutoImagem';
 import { useAuth } from '../../../application/contexts/AuthContext';
 import {
   TarefaReabastecimento,
@@ -90,6 +91,8 @@ export function ReabastecimentoPage() {
   const [tooltipAberto, setTooltipAberto] = useState<Record<string, boolean>>({});
   const [tooltipModalHover, setTooltipModalHover] = useState(false);
   const [tooltipModalAberto, setTooltipModalAberto] = useState(false);
+  const [modoVisualizacao, setModoVisualizacao] = useState<'CARD' | 'LISTA'>('CARD');
+  const [imagemAmpliada, setImagemAmpliada] = useState<string | null>(null);
 
   const carregarDados = useCallback(async () => {
     try {
@@ -272,52 +275,123 @@ export function ReabastecimentoPage() {
     <AppLayout>
       {({ openDrawer, abrirConsultaProduto }) => (
         <div className="reabastecimento-container">
-          <AppHeader
-            titulo="Reabastecimento de Picking"
-            onOpenDrawer={openDrawer}
-            onAbrirConsultaProduto={abrirConsultaProduto}
-          />
+          {/* ═══ CABEÇALHO FIXO: TÍTULO + KPIS EM LINHA + BUSCA COM ALTERNADOR DE MODO ═══ */}
+          <div className="reabastecimento-header-sticky">
+            <AppHeader
+              titulo="Reabastecimento de Picking"
+              onOpenDrawer={openDrawer}
+              onAbrirConsultaProduto={abrirConsultaProduto}
+            />
 
-          {/* ═══ CARDS DE RESUMO / MÉTRICAS ═══ */}
-          <div className="reabastecimento-metricas-grid">
-            <div className="reabastecimento-metrica-card">
-              <div className="reabastecimento-metrica-icone total">🚜</div>
-              <div className="reabastecimento-metrica-info">
-                <span className="reabastecimento-metrica-valor">{resumo.total}</span>
-                <span className="reabastecimento-metrica-label">Total de Tarefas</span>
-              </div>
+            {/* Linha única de KPIs compactos com ícone no topo */}
+            <div className="reabastecimento-kpis-row">
+              <button
+                type="button"
+                className={`reabastecimento-kpi-pill total ${filtroStatus === 'TODOS' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('TODOS')}
+                title="Filtrar todas as tarefas"
+              >
+                <span className="kpi-icon">🚜</span>
+                <span className="kpi-dados">
+                  <strong className="kpi-num">{resumo.total}</strong>
+                  <span className="kpi-rotulo">Total</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`reabastecimento-kpi-pill pendente ${filtroStatus === 'PENDENTE' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('PENDENTE')}
+                title="Filtrar tarefas aguardando pulmão"
+              >
+                <span className="kpi-icon">⏳</span>
+                <span className="kpi-dados">
+                  <strong className="kpi-num">{resumo.pendentes}</strong>
+                  <span className="kpi-rotulo">Aguard.</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`reabastecimento-kpi-pill sempulmao ${filtroStatus === 'VERIFICAR_ESTOQUE' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('VERIFICAR_ESTOQUE')}
+                title="Filtrar sem pulmão cadastrado"
+              >
+                <span className="kpi-icon">⚠️</span>
+                <span className="kpi-dados">
+                  <strong className="kpi-num">{resumo.semPulmao}</strong>
+                  <span className="kpi-rotulo">S/ Pulm</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`reabastecimento-kpi-pill concluido ${filtroStatus === 'CONCLUIDO' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('CONCLUIDO')}
+                title="Filtrar tarefas concluídas hoje"
+              >
+                <span className="kpi-icon">✓</span>
+                <span className="kpi-dados">
+                  <strong className="kpi-num">{resumo.concluidasHoje}</strong>
+                  <span className="kpi-rotulo">Hoje</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`reabastecimento-kpi-pill falta ${filtroStatus === 'FALTA_PULMAO' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('FALTA_PULMAO')}
+                title="Filtrar tarefas com falta de pulmão"
+              >
+                <span className="kpi-icon">⚠️</span>
+                <span className="kpi-dados">
+                  <strong className="kpi-num">{totalFaltasPulmao}</strong>
+                  <span className="kpi-rotulo">Faltas</span>
+                </span>
+              </button>
             </div>
 
-            <div className="reabastecimento-metrica-card">
-              <div className="reabastecimento-metrica-icone pendente">⏳</div>
-              <div className="reabastecimento-metrica-info">
-                <span className="reabastecimento-metrica-valor">{resumo.pendentes}</span>
-                <span className="reabastecimento-metrica-label">Aguardando Pulmão</span>
+            {/* Linha de Busca + Alternador de Modo (Cards / Lista) */}
+            <div className="reabastecimento-search-row">
+              <div className="reabastecimento-search-input-wrapper">
+                <span className="search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reabastecimento-busca-input"
+                  placeholder="Buscar carga, produto, barras, endereço..."
+                  value={termoBusca}
+                  onChange={(e) => setTermoBusca(e.target.value)}
+                />
+                {termoBusca && (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={() => setTermoBusca('')}
+                    title="Limpar busca"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
-            </div>
 
-            <div className="reabastecimento-metrica-card">
-              <div className="reabastecimento-metrica-icone sempulmao">⚠️</div>
-              <div className="reabastecimento-metrica-info">
-                <span className="reabastecimento-metrica-valor">{resumo.semPulmao}</span>
-                <span className="reabastecimento-metrica-label">Sem Pulmão (Geral)</span>
-              </div>
-            </div>
-
-            <div className="reabastecimento-metrica-card">
-              <div className="reabastecimento-metrica-icone concluido">✓</div>
-              <div className="reabastecimento-metrica-info">
-                <span className="reabastecimento-metrica-valor">{resumo.concluidasHoje}</span>
-                <span className="reabastecimento-metrica-label">Abastecidas Hoje</span>
-              </div>
-            </div>
-
-            <div className="reabastecimento-metrica-card">
-              <div className="reabastecimento-metrica-icone falta">⚠️</div>
-              <div className="reabastecimento-metrica-info">
-                <span className="reabastecimento-metrica-valor" style={{ color: '#c2410c' }}>{totalFaltasPulmao}</span>
-                <span className="reabastecimento-metrica-label">Faltas de Pulmão</span>
-              </div>
+              <button
+                type="button"
+                className="reabastecimento-btn-modo-toggle"
+                onClick={() => setModoVisualizacao(modoVisualizacao === 'CARD' ? 'LISTA' : 'CARD')}
+                title={modoVisualizacao === 'CARD' ? 'Alternar para Modo Lista' : 'Alternar para Modo Cards'}
+              >
+                {modoVisualizacao === 'CARD' ? (
+                  <>
+                    <span>📋</span>
+                    <span className="toggle-rotulo">Lista</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🗂️</span>
+                    <span className="toggle-rotulo">Cards</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -328,65 +402,15 @@ export function ReabastecimentoPage() {
                 background: '#dcfce7',
                 border: '1px solid #86efac',
                 color: '#166534',
-                padding: '12px 16px',
+                padding: '10px 14px',
                 borderRadius: 12,
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 13,
               }}
             >
               ✓ {mensagemSucesso}
             </div>
           )}
-
-          {/* ═══ FILTROS E BUSCA ═══ */}
-          <div className="reabastecimento-filtros-bar">
-            <div className="reabastecimento-chips-status">
-              <button
-                type="button"
-                className={`reabastecimento-chip-btn ${filtroStatus === 'TODOS' ? 'ativo' : ''}`}
-                onClick={() => setFiltroStatus('TODOS')}
-              >
-                Todas ({tarefas.length})
-              </button>
-              <button
-                type="button"
-                className={`reabastecimento-chip-btn ${filtroStatus === 'PENDENTE' ? 'ativo' : ''}`}
-                onClick={() => setFiltroStatus('PENDENTE')}
-              >
-                ⏳ Aguardando Pulmão ({resumo.pendentes})
-              </button>
-              <button
-                type="button"
-                className={`reabastecimento-chip-btn ${filtroStatus === 'VERIFICAR_ESTOQUE' ? 'ativo' : ''}`}
-                onClick={() => setFiltroStatus('VERIFICAR_ESTOQUE')}
-              >
-                ⚠️ Sem Pulmão ({resumo.semPulmao})
-              </button>
-              <button
-                type="button"
-                className={`reabastecimento-chip-btn ${filtroStatus === 'CONCLUIDO' ? 'ativo' : ''}`}
-                onClick={() => setFiltroStatus('CONCLUIDO')}
-              >
-                ✓ Concluídas
-              </button>
-              <button
-                type="button"
-                className={`reabastecimento-chip-btn ${filtroStatus === 'FALTA_PULMAO' ? 'ativo' : ''}`}
-                style={filtroStatus === 'FALTA_PULMAO' ? { background: '#ea580c', borderColor: '#ea580c', color: '#fff' } : { color: '#c2410c' }}
-                onClick={() => setFiltroStatus('FALTA_PULMAO')}
-              >
-                ⚠️ Faltas de Pulmão ({totalFaltasPulmao})
-              </button>
-            </div>
-
-            <input
-              type="text"
-              className="reabastecimento-busca-input"
-              placeholder="Buscar por carga, produto, barras, endereço..."
-              value={termoBusca}
-              onChange={(e) => setTermoBusca(e.target.value)}
-            />
-          </div>
 
           {/* ═══ LISTA / GRADE DE TAREFAS ═══ */}
           {carregando && tarefas.length === 0 ? (
@@ -411,8 +435,9 @@ export function ReabastecimentoPage() {
                 Quando uma carga de separação for finalizada com falta, as tarefas de busca no pulmão aparecerão aqui.
               </p>
             </div>
-          ) : (
-            <div className="reabastecimento-grid-tarefas">
+          ) : modoVisualizacao === 'LISTA' ? (
+            /* ═══ MODO LISTA COMPACTA ═══ */
+            <div className="reabastecimento-lista-tarefas">
               {tarefasFiltradas.map((t) => {
                 const isConcluida = t.status === 'CONCLUIDO';
                 const isSemPulmao = t.status === 'VERIFICAR_ESTOQUE';
@@ -422,7 +447,186 @@ export function ReabastecimentoPage() {
                 return (
                   <div
                     key={t.id}
-                    className={`reabastecimento-card-tarefa ${isConcluida ? 'concluida' : ''} ${
+                    className={`reabastecimento-item-lista ${isConcluida ? 'concluida' : ''} ${
+                      isFaltaPulmao ? 'falta-pulmao' : ''
+                    }`}
+                  >
+                    {/* Topo do Item Lista: Carga, Empresa, Badges e Quantidade */}
+                    <div className="reabastecimento-item-lista-topo">
+                      <div className="reabastecimento-item-lista-origem">
+                        <span className="reabastecimento-carga-badge">Carga #{t.ordemCarga}</span>
+                        {t.codemp && (
+                          <span className="reabastecimento-empresa-badge">
+                            🏢 Emp {t.codemp}
+                          </span>
+                        )}
+                        {isFaltaPulmao && (
+                          <span className="reabastecimento-falta-badge">⚠️ Falta Pulmão</span>
+                        )}
+                        {isFaltaConfirmada && (
+                          <span
+                            style={{
+                              background: '#f1f5f9',
+                              color: '#64748b',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 6,
+                              border: '1px solid #cbd5e1',
+                            }}
+                          >
+                            ✂️ Corte
+                          </span>
+                        )}
+                      </div>
+
+                      <span
+                        className={`reabastecimento-header-qtd-badge ${
+                          isConcluida ? 'concluido' : ''
+                        }`}
+                        style={{ fontSize: 12, padding: '3px 8px' }}
+                      >
+                        {isConcluida
+                          ? `✓ ${t.quantidadeAtendida} UN`
+                          : isFaltaConfirmada
+                          ? `✂️ ${t.quantidadeSolicitada} UN`
+                          : `${t.quantidadeSolicitada} UN`}
+                      </span>
+                    </div>
+
+                    {/* Descrição do Produto */}
+                    <div>
+                      <div className="reabastecimento-item-lista-prod">
+                        {t.codprod} - {t.descrprod}
+                      </div>
+                      <div className="reabastecimento-item-lista-sub">
+                        {t.referencia && <span>Ref: {t.referencia}</span>}
+                        {t.codbarra && <span>Barras: {t.codbarra}</span>}
+                      </div>
+                    </div>
+
+                    {/* Rota Pulmão ➔ Picking + Saldo */}
+                    <div className="reabastecimento-item-lista-rota">
+                      <span>📦 <strong>{t.enderecoPulmao || 'Sem Pulmão'}</strong></span>
+                      <span style={{ color: '#94a3b8' }}>➔</span>
+                      <span>📍 <strong>{t.enderecoPicking || 'Sem Picking'}</strong></span>
+                      <span style={{ marginLeft: 'auto', color: '#475569', fontSize: 11 }}>
+                        Saldo: <strong>{t.saldoDisponivel != null ? `${t.saldoDisponivel} UN` : '—'}</strong>
+                      </span>
+                    </div>
+
+                    {/* Ações e Metadados do Item: (i) e Solicitado à esquerda, Ações à direita */}
+                    <div className="reabastecimento-item-lista-acoes">
+                      <div className="reabastecimento-item-lista-meta-esq">
+                        {t.observacao && (
+                          <div className="reabastecimento-tooltip-wrapper">
+                            <button
+                              type="button"
+                              className="reabastecimento-btn-info"
+                              style={{ width: 24, height: 24, fontSize: 12, flexShrink: 0 }}
+                              title="Ver observação"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTooltipAberto((prev) => ({ ...prev, [t.id]: !prev[t.id] }));
+                              }}
+                            >
+                              ℹ️
+                            </button>
+                            {(tooltipHoverId === t.id || tooltipAberto[t.id]) && (
+                              <div className="reabastecimento-tooltip-box">
+                                <span className="tooltip-titulo">Observação da Solicitação:</span>
+                                <span>{t.observacao}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <span className="reabastecimento-meta-info" style={{ fontSize: 11 }}>
+                          {isConcluida
+                            ? `✓ Concluído: ${formatarData(t.concluidoEm)}${t.concluidoPor ? ` • ${t.concluidoPor}` : ''}`
+                            : isFaltaConfirmada
+                            ? `✂️ Cortado: ${formatarData(t.concluidoEm)}${t.concluidoPor ? ` • ${t.concluidoPor}` : ''}`
+                            : `Solicitado: ${formatarData(t.solicitadoEm)}${t.solicitadoPor ? ` • ${t.solicitadoPor}` : ''}`}
+                        </span>
+                      </div>
+
+                      {!isConcluida && !isFaltaConfirmada && (
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          {isFaltaPulmao ? (
+                            <>
+                              {podeConfirmar && (
+                                <button
+                                  type="button"
+                                  className="reabastecimento-btn-concluir"
+                                  style={{ minHeight: 32, padding: '4px 10px', fontSize: 12 }}
+                                  onClick={() => handleAbrirModalConcluir(t)}
+                                >
+                                  🚜 Abastecer
+                                </button>
+                              )}
+                              {podeFinalizarFalta && (
+                                <button
+                                  type="button"
+                                  className="reabastecimento-btn-finalizar-falta"
+                                  style={{ minHeight: 32, padding: '4px 10px', fontSize: 12 }}
+                                  onClick={() => handleAbrirModalFinalizarFalta(t)}
+                                >
+                                  ✂️ Corte
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {podeCancelar && (
+                                <button
+                                  type="button"
+                                  className="reabastecimento-btn-cancelar"
+                                  style={{ minHeight: 32, padding: '4px 8px', fontSize: 12 }}
+                                  onClick={() => handleAbrirModalCancelar(t)}
+                                >
+                                  ✕
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="reabastecimento-btn-nao-encontrado"
+                                style={{ minHeight: 32, padding: '4px 10px', fontSize: 12 }}
+                                onClick={() => handleAbrirModalFalta(t)}
+                              >
+                                ⚠️ Falta
+                              </button>
+                              {podeConfirmar && (
+                                <button
+                                  type="button"
+                                  className="reabastecimento-btn-concluir"
+                                  style={{ minHeight: 32, padding: '4px 12px', fontSize: 12 }}
+                                  onClick={() => handleAbrirModalConcluir(t)}
+                                >
+                                  🚜 Abastecer
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ═══ MODO CARDS COM SNAP SCROLL ═══ */
+            <div className="reabastecimento-grid-tarefas modo-cards">
+              {tarefasFiltradas.map((t) => {
+                const isConcluida = t.status === 'CONCLUIDO';
+                const isSemPulmao = t.status === 'VERIFICAR_ESTOQUE';
+                const isFaltaPulmao = t.status === 'FALTA_PULMAO';
+                const isFaltaConfirmada = t.status === 'FALTA_CONFIRMADA';
+
+                return (
+                  <div
+                    key={t.id}
+                    className={`reabastecimento-card-tarefa snap-item ${isConcluida ? 'concluida' : ''} ${
                       isFaltaPulmao ? 'falta-pulmao' : ''
                     }`}
                   >
@@ -476,6 +680,16 @@ export function ReabastecimentoPage() {
                           ? `✂️ ${t.quantidadeSolicitada} UN Cortadas`
                           : `${t.quantidadeSolicitada} UN a Abastecer`}
                       </span>
+                    </div>
+
+                    {/* Imagem do Produto Centralizada */}
+                    <div className="reabastecimento-card-imagem-wrapper">
+                      <ProdutoImagem
+                        codProd={t.codprod}
+                        alt={t.descrprod || undefined}
+                        className="reabastecimento-card-imagem"
+                        onFotoClick={(url) => setImagemAmpliada(url)}
+                      />
                     </div>
 
                     {/* Informações do Produto */}
@@ -589,14 +803,6 @@ export function ReabastecimentoPage() {
                     {/* Rodapé: Metadados da Solicitação e Ações Compactas */}
                     <div className="reabastecimento-footer-row">
                       <div className="reabastecimento-meta-wrapper">
-                        <span className="reabastecimento-meta-info">
-                          {isConcluida
-                            ? `Concluído: ${formatarData(t.concluidoEm)} • ${t.concluidoPor}`
-                            : isFaltaConfirmada
-                            ? `Cortado: ${formatarData(t.concluidoEm)} • ${t.concluidoPor}`
-                            : `Solicitado: ${formatarData(t.solicitadoEm)} • ${t.solicitadoPor}`}
-                        </span>
-
                         {t.observacao && (
                           <div className="reabastecimento-tooltip-wrapper">
                             <button
@@ -620,6 +826,14 @@ export function ReabastecimentoPage() {
                             )}
                           </div>
                         )}
+
+                        <span className="reabastecimento-meta-info">
+                          {isConcluida
+                            ? `Concluído: ${formatarData(t.concluidoEm)} • ${t.concluidoPor}`
+                            : isFaltaConfirmada
+                            ? `Cortado: ${formatarData(t.concluidoEm)} • ${t.concluidoPor}`
+                            : `Solicitado: ${formatarData(t.solicitadoEm)} • ${t.solicitadoPor}`}
+                        </span>
                       </div>
 
                       {!isConcluida && !isFaltaConfirmada && (
@@ -686,6 +900,53 @@ export function ReabastecimentoPage() {
               })}
             </div>
           )}
+
+          {/* ═══ RODAPÉ FIXO: FILTROS DE STATUS SEM ROLAGEM HORIZONTAL ═══ */}
+          <div className="reabastecimento-footer-fixed">
+            <div className="reabastecimento-chips-status">
+              <button
+                type="button"
+                className={`reabastecimento-chip-btn ${filtroStatus === 'TODOS' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('TODOS')}
+              >
+                <span className="chip-icon">📦</span>
+                <span className="chip-texto">Todas ({tarefas.length})</span>
+              </button>
+              <button
+                type="button"
+                className={`reabastecimento-chip-btn ${filtroStatus === 'PENDENTE' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('PENDENTE')}
+              >
+                <span className="chip-icon">⏳</span>
+                <span className="chip-texto">Aguard. ({resumo.pendentes})</span>
+              </button>
+              <button
+                type="button"
+                className={`reabastecimento-chip-btn ${filtroStatus === 'VERIFICAR_ESTOQUE' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('VERIFICAR_ESTOQUE')}
+              >
+                <span className="chip-icon">⚠️</span>
+                <span className="chip-texto">S/ Pulm ({resumo.semPulmao})</span>
+              </button>
+              <button
+                type="button"
+                className={`reabastecimento-chip-btn ${filtroStatus === 'CONCLUIDO' ? 'ativo' : ''}`}
+                onClick={() => setFiltroStatus('CONCLUIDO')}
+              >
+                <span className="chip-icon">✓</span>
+                <span className="chip-texto">Hoje ({resumo.concluidasHoje})</span>
+              </button>
+              <button
+                type="button"
+                className={`reabastecimento-chip-btn ${filtroStatus === 'FALTA_PULMAO' ? 'ativo' : ''}`}
+                style={filtroStatus === 'FALTA_PULMAO' ? { background: '#ea580c', borderColor: '#ea580c', color: '#fff' } : { color: '#c2410c' }}
+                onClick={() => setFiltroStatus('FALTA_PULMAO')}
+              >
+                <span className="chip-icon">⚠️</span>
+                <span className="chip-texto">Faltas ({totalFaltasPulmao})</span>
+              </button>
+            </div>
+          </div>
 
           {/* ═══ MODAL DE CONFIRMAÇÃO DE REABASTECIMENTO ═══ */}
           {modalConcluir.aberto && modalConcluir.tarefa && (
@@ -1099,6 +1360,12 @@ export function ReabastecimentoPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+          {/* Modal de Zoom da Imagem do Produto */}
+          {imagemAmpliada && (
+            <div className="img-modal-overlay" onClick={() => setImagemAmpliada(null)}>
+              <img src={imagemAmpliada} alt="Produto Ampliado" className="img-modal" />
             </div>
           )}
         </div>

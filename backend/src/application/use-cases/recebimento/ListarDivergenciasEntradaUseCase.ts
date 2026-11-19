@@ -55,6 +55,7 @@ export interface ItemDivergenciaResumo {
   conferenteN2?: string;
   conferenteN3?: string;
   codlocalorig?: number;
+  isFaltaIsolada?: boolean;
 }
 
 export interface ConferênciaDivergenciaGrupo {
@@ -186,7 +187,33 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         fieldIndex[f.name.toUpperCase()] = idx;
       });
 
-      // Bipagens da sessão
+      // Se houver produtos com múltiplas sequências na TGFITE (ex: após desmembramento no ERP),
+      // reatribui as bipagens locais respeitando a regra FIFO de saldo por sequência
+      const prodsMultiSeq: Record<string, Array<{ sequencia: number; controle?: string; qtdneg: number }>> = {};
+      for (const r of rows) {
+        const nunotaItem = Number(r[fieldIndex['NUNOTA']]);
+        const codprodItem = Number(r[fieldIndex['CODPROD']]);
+        const k = `${nunotaItem}|${codprodItem}`;
+        if (!prodsMultiSeq[k]) prodsMultiSeq[k] = [];
+        prodsMultiSeq[k].push({
+          sequencia: Number(r[fieldIndex['SEQUENCIA']]),
+          controle: r[fieldIndex['CONTROLE']] ? String(r[fieldIndex['CONTROLE']]).trim() : undefined,
+          qtdneg: Number(r[fieldIndex['QTDNEG']] || 0),
+        });
+      }
+
+      for (const [k, itensTg] of Object.entries(prodsMultiSeq)) {
+        if (itensTg.length > 1) {
+          const [nStr, cStr] = k.split('|');
+          try {
+            await this.conferenciaRepo.reatribuirSequenciasBipagens(id, Number(nStr), Number(cStr), itensTg);
+          } catch (e) {
+            console.warn(`[ListarDivergencias] Falha ao reatribuir sequências para ${k}:`, e);
+          }
+        }
+      }
+
+      // Bipagens da sessão (já reatribuídas com base nas sequências atuais da TGFITE)
       const bipagens = await this.conferenciaRepo.listarBipagens(id);
       const bipagensValidas = bipagens.filter((b) => !b.anulado);
 
@@ -317,6 +344,12 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
       const fornecedorPorNota: Record<number, string> = {};
       const numnotaPorNota: Record<number, number> = {};
 
+      const countSeqPorProd: Record<string, number> = {};
+      rows.forEach((r) => {
+        const pk = `${r[fieldIndex['NUNOTA']]}|${r[fieldIndex['CODPROD']]}`;
+        countSeqPorProd[pk] = (countSeqPorProd[pk] || 0) + 1;
+      });
+
       for (const r of rows) {
         const nunotaItem = Number(r[fieldIndex['NUNOTA']]);
         const numnota = Number(r[fieldIndex['NUMNOTA']] || 0);
@@ -333,6 +366,14 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         const validadeOriginal = r[fieldIndex['DTVAL']] ? String(r[fieldIndex['DTVAL']]).trim() : undefined;
         const fabricacaoOriginal = r[fieldIndex['DTFABRICACAO']] ? String(r[fieldIndex['DTFABRICACAO']]).trim() : undefined;
 
+        const numnotaStr = numnota ? String(numnota).trim() : '';
+        const nunotaStr = nunotaItem ? String(nunotaItem).trim() : '';
+        const ehLoteFalta = Boolean(
+          controleOriginal &&
+          (controleOriginal === numnotaStr || controleOriginal === nunotaStr)
+        );
+        const isFaltaIsolada = ehLoteFalta && (countSeqPorProd[`${nunotaItem}|${codprod}`] > 1 || qtdEsperada > 0);
+
         const key = `${nunotaItem}|${codprod}|${sequencia}`;
         const bips = mapBips[key] || {
           n1: 0,
@@ -342,8 +383,8 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           lotesMapN3: {},
         };
 
-        const lotesConferidosN2 = Object.values(bips.lotesMapN2 || {});
-        const lotesConferidosN3 = Object.values(bips.lotesMapN3 || {});
+        const lotesConferidosN2 = isFaltaIsolada ? [] : Object.values(bips.lotesMapN2 || {});
+        const lotesConferidosN3 = isFaltaIsolada ? [] : Object.values(bips.lotesMapN3 || {});
 
         // Avaliar decisão prévia salva na sessão para este item
         const itemKey = `${nunotaItem}-${codprod}-${sequencia}`;
@@ -356,31 +397,35 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           nivelAtivoItem = 3;
         }
 
-        const lotesConferidos =
-          nivelAtivoItem === 3 && lotesConferidosN3.length > 0
-            ? lotesConferidosN3
-            : lotesConferidosN2;
+        const lotesConferidos = isFaltaIsolada
+          ? []
+          : nivelAtivoItem === 3 && lotesConferidosN3.length > 0
+          ? lotesConferidosN3
+          : lotesConferidosN2;
 
-        const loteAtivo =
-          nivelAtivoItem === 3 && bips.loteN3
-            ? bips.loteN3
-            : bips.loteN2;
+        const loteAtivo = isFaltaIsolada
+          ? controleOriginal
+          : nivelAtivoItem === 3 && bips.loteN3
+          ? bips.loteN3
+          : bips.loteN2;
 
-        const validadeAtiva =
-          nivelAtivoItem === 3 && bips.validadeN3
-            ? bips.validadeN3
-            : bips.validadeN2;
+        const validadeAtiva = isFaltaIsolada
+          ? validadeOriginal
+          : nivelAtivoItem === 3 && bips.validadeN3
+          ? bips.validadeN3
+          : bips.validadeN2;
 
-        const fabricacaoAtiva =
-          nivelAtivoItem === 3 && bips.fabricacaoN3
-            ? bips.fabricacaoN3
-            : bips.fabricacaoN2;
+        const fabricacaoAtiva = isFaltaIsolada
+          ? fabricacaoOriginal
+          : nivelAtivoItem === 3 && bips.fabricacaoN3
+          ? bips.fabricacaoN3
+          : bips.fabricacaoN2;
 
         // Só há múltiplos lotes se dentro do nível ativo o conferente registrou mais de 1 lote físico
-        const temMultiplosLotes = lotesConferidos.length > 1;
+        const temMultiplosLotes = isFaltaIsolada ? false : lotesConferidos.length > 1;
 
-        const contagemFinal = bips.n3 > 0 ? bips.n3 : bips.n2 > 0 ? bips.n2 : bips.n1;
-        const diferenca = contagemFinal - qtdEsperada;
+        const contagemFinal = isFaltaIsolada ? 0 : (bips.n3 > 0 ? bips.n3 : bips.n2 > 0 ? bips.n2 : bips.n1);
+        const diferenca = isFaltaIsolada ? 0 : contagemFinal - qtdEsperada;
 
         let divergenciaLote = false;
         let divergenciaValidade = false;
@@ -391,7 +436,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           divergenciaLote = true;
         }
 
-        if (contagemFinal > 0) {
+        if (!isFaltaIsolada && contagemFinal > 0) {
           if (controleOriginal && loteAtivo && loteAtivo.toUpperCase() !== controleOriginal.toUpperCase()) {
             divergenciaLote = true;
           }
@@ -411,20 +456,20 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           referencia,
           codvol,
           qtdEsperada,
-          qtdN1: bips.n1,
-          qtdN2: bips.n2,
-          qtdN3: bips.n3,
+          qtdN1: isFaltaIsolada ? 0 : bips.n1,
+          qtdN2: isFaltaIsolada ? 0 : bips.n2,
+          qtdN3: isFaltaIsolada ? 0 : bips.n3,
           diferenca,
           lote: loteAtivo,
           validade: validadeAtiva,
           fabricacao: fabricacaoAtiva,
-          loteN2: bips.loteN2,
-          validadeN2: bips.validadeN2,
-          fabricacaoN2: bips.fabricacaoN2,
+          loteN2: isFaltaIsolada ? undefined : bips.loteN2,
+          validadeN2: isFaltaIsolada ? undefined : bips.validadeN2,
+          fabricacaoN2: isFaltaIsolada ? undefined : bips.fabricacaoN2,
           lotesConferidosN2,
-          loteN3: bips.loteN3,
-          validadeN3: bips.validadeN3,
-          fabricacaoN3: bips.fabricacaoN3,
+          loteN3: isFaltaIsolada ? undefined : bips.loteN3,
+          validadeN3: isFaltaIsolada ? undefined : bips.validadeN3,
+          fabricacaoN3: isFaltaIsolada ? undefined : bips.fabricacaoN3,
           lotesConferidosN3,
           controleOriginal,
           validadeOriginal,
@@ -434,12 +479,13 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
           divergenciaFabricacao,
           temMultiplosLotes,
           lotesConferidos,
-          conferenteN1: bips.conferenteN1,
-          conferenteN2: bips.conferenteN2,
-          conferenteN3: bips.conferenteN3,
+          conferenteN1: isFaltaIsolada ? undefined : bips.conferenteN1,
+          conferenteN2: isFaltaIsolada ? undefined : bips.conferenteN2,
+          conferenteN3: isFaltaIsolada ? undefined : bips.conferenteN3,
           codlocalorig: r[fieldIndex['CODLOCALORIG']] !== undefined && r[fieldIndex['CODLOCALORIG']] !== null && r[fieldIndex['CODLOCALORIG']] !== ''
             ? Number(r[fieldIndex['CODLOCALORIG']])
             : undefined,
+          isFaltaIsolada,
         };
 
         if (!itensPorNota[nunotaItem]) {
@@ -480,6 +526,7 @@ ORDER BY ITE.NUNOTA, ITE.SEQUENCIA
         // Identificar produtos com divergência (quantidade ou fiscal) ou com desmembramento
         const codprodsComDivergencia = new Set<number>();
         itensDestaNota.forEach((it) => {
+          if (it.isFaltaIsolada) return; // Falta Isolada no ERP já está resolvida e não gera divergência
           const temDivFiscal = it.divergenciaLote || it.divergenciaValidade || it.divergenciaFabricacao;
           let temDivQtd = false;
           if (it.qtdN3 > 0) temDivQtd = it.qtdN3 !== it.qtdEsperada;

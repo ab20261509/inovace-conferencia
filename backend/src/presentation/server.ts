@@ -24,7 +24,7 @@ export function createServer(
   const app = express();
 
   // Middlewares globais
-  app.use(cors({ origin: config.corsOrigin }));
+  app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
   app.use(morgan('tiny'));

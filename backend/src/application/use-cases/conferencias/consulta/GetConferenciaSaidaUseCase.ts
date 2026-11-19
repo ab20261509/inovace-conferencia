@@ -1,4 +1,5 @@
 import { IGatewayPort } from '../../../../domain/ports/IGatewayPort.js';
+import { ISeparacaoRepository } from '../../../../domain/ports/ISeparacaoRepository.js';
 
 export interface ConferenciaSaidaRecord {
   nunota: number;
@@ -9,6 +10,7 @@ export interface ConferenciaSaidaRecord {
   usuarioConferente: string | null;
   nroUnico: number;
   statusConferencia: string;
+  statusSeparacao?: 'SEPARADO' | 'EM_ANDAMENTO' | 'PENDENTE' | null;
   rotaEntrega: string | null;
   transportadora: string | null;
   ordemCarga: number | null;
@@ -30,7 +32,10 @@ export interface GetConferenciaSaidaOutput {
  * Usa DbExplorerSP.executeQuery para query SQL complexa com JOINs
  */
 export class GetConferenciaSaidaUseCase {
-  constructor(private readonly gateway: IGatewayPort) {}
+  constructor(
+    private readonly gateway: IGatewayPort,
+    private readonly separacaoRepo?: ISeparacaoRepository,
+  ) {}
 
   async execute(correlationId?: string): Promise<GetConferenciaSaidaOutput> {
     const sql = `
@@ -58,7 +63,8 @@ SELECT
     PAR.RAZAOSOCIAL AS PARCEIRO,
     CAB.OBSERVACAO AS OBS_PEDIDO,
     CAB.QTDVOL AS QTD_VOLUMES,
-    ITE.QTD_PRODUTOS_DISTINTOS
+    ITE.QTD_PRODUTOS_DISTINTOS,
+    ORD.AD_STATUSSEP AS STATUS_SEPARACAO_ERP
 FROM TGFCAB CAB
 INNER JOIN TGFTOP TOP
         ON TOP.CODTIPOPER = CAB.CODTIPOPER
@@ -71,6 +77,9 @@ LEFT JOIN TGFPAR PAR
        ON PAR.CODPARC = CAB.CODPARC
 LEFT JOIN TGFPAR TRANS
        ON TRANS.CODPARC = CAB.CODPARCTRANSP
+LEFT JOIN TGFORD ORD
+       ON ORD.ORDEMCARGA = CAB.ORDEMCARGA
+      AND ORD.CODEMP = CAB.CODEMP
 LEFT JOIN (
     SELECT RTP.CODPARC, MIN(ROT.DESCRROTA) AS DESCRROTA
     FROM TGFRTP RTP
@@ -107,14 +116,57 @@ WHERE CAB.TIPMOV = 'P'
     const timeQuery = body?.timeQuery || '';
     if (timeQuery) {
       console.log(`[GetConferenciaSaida] Query Sankhya: ${timeQuery}`);
-    }    const rows: any[] = body?.rows || [];
+    }
+
+    const rows: any[] = body?.rows || [];
     const metadata: { name: string }[] = body?.fieldsMetadata || [];
+
+    // Mapear status de sessões locais de separação para conferência cruzada
+    const mapaSeparacaoLocal = new Map<number, string>();
+    if (this.separacaoRepo) {
+      const ordensCargaUnicas = [
+        ...new Set(
+          rows
+            .map((r) => {
+              const idx = metadata.findIndex((m) => m.name === 'ORDEMCARGA');
+              return idx >= 0 && r[idx] != null ? Number(r[idx]) : null;
+            })
+            .filter((oc): oc is number => oc != null && !isNaN(oc) && oc > 0),
+        ),
+      ];
+
+      await Promise.all(
+        ordensCargaUnicas.map(async (oc) => {
+          try {
+            const sep = await this.separacaoRepo!.buscarPorOrdemCarga(oc);
+            if (sep) {
+              mapaSeparacaoLocal.set(oc, sep.status);
+            }
+          } catch {
+            // Silencioso para não travar a lista de conferências
+          }
+        }),
+      );
+    }
 
     const records: ConferenciaSaidaRecord[] = rows.map((row) => {
       const obj: Record<string, any> = {};
       metadata.forEach((field, index) => {
         obj[field.name] = row[index];
       });
+
+      const oc = obj.ORDEMCARGA != null ? Number(obj.ORDEMCARGA) : null;
+      const localStatus = oc ? mapaSeparacaoLocal.get(oc) : null;
+      const erpStatusSep = obj.STATUS_SEPARACAO_ERP ? String(obj.STATUS_SEPARACAO_ERP).trim().toUpperCase() : null;
+
+      let statusSeparacao: 'SEPARADO' | 'EM_ANDAMENTO' | 'PENDENTE' | null = null;
+      if (localStatus === 'FINALIZADA' || (localStatus == null && erpStatusSep === 'F')) {
+        statusSeparacao = 'SEPARADO';
+      } else if (localStatus === 'EM_ANDAMENTO') {
+        statusSeparacao = 'EM_ANDAMENTO';
+      } else if (oc != null && oc > 0) {
+        statusSeparacao = 'PENDENTE';
+      }
 
       return {
         nunota: obj.NUNOTA,
@@ -125,6 +177,7 @@ WHERE CAB.TIPMOV = 'P'
         usuarioConferente: obj.USUARIO_CONFERENTE || null,
         nroUnico: obj.NRO_UNICO,
         statusConferencia: obj.STATUS_CONFERENCIA,
+        statusSeparacao,
         rotaEntrega: obj.ROTA_ENTREGA || null,
         transportadora: obj.TRANSPORTADORA || null,
         ordemCarga: obj.ORDEMCARGA || null,

@@ -496,7 +496,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
             const numnotaG = String(grupo.numnota || it.nunota || '').trim();
             const nunotaG = String(it.nunota || '').trim();
             const loteOrig = String(it.controleOriginal || '').trim();
-            const isFaltaIsolada = Boolean(dif < 0 && loteOrig && (loteOrig === numnotaG || loteOrig === nunotaG));
+            const isFaltaIsolada = Boolean(it.isFaltaIsolada || (loteOrig && (loteOrig === numnotaG || loteOrig === nunotaG)));
+            if (isFaltaIsolada) return false;
             const ehMulti = (contagemSeqsPorCodprod[it.codprod] || 0) > 1;
             const saldoProd = (saldoConsolidadoPorProd[it.codprod]?.saldo ?? dif);
             const itemSobraReal = ehMulti ? (saldoProd > 0 && dif > 0) : dif > 0;
@@ -526,7 +527,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
             const pF = Boolean(i.divergenciaFabricacao && !d?.fabricacao);
             return pL || pV || pF;
           }).length;
-          const podeResolverDivergencia = totalFiscaisPendentes === 0 && !estaAguardandoOuEmN3;
+          const podeResolverDivergencia =
+            totalPendentesAssistente === 0 && totalFiscaisPendentes === 0 && !estaAguardandoOuEmN3;
 
           const selecionadosDoGrupo = itensSelecionadosPorGrupo[grupo.id] || new Set();
           const itensElegiveisParaSelecao = itensParaExibir.filter((i) => !verificarItemEmN3(grupo, i));
@@ -998,8 +1000,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           <th>Diferença</th>
                           <th>Local</th>
                           <th className="th-grupo-comparativo lote">LOTE</th>
-                          <th className="th-grupo-comparativo validade">VALIDADE</th>
                           <th className="th-grupo-comparativo fabricacao">FABRICAÇÃO</th>
+                          <th className="th-grupo-comparativo validade">VALIDADE</th>
                           <th>Conferente</th>
                         </tr>
                       </thead>
@@ -1082,10 +1084,11 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const nunotaStr = String(item.nunota || '').trim();
                           const loteOriginal = String(item.controleOriginal || loteAtivo || '').trim();
                           const isFaltaIsolada = Boolean(
-                            diferenca < 0 &&
-                            loteOriginal &&
-                            (loteOriginal === numnotaStr || loteOriginal === nunotaStr)
+                            item.isFaltaIsolada ||
+                            (loteOriginal && (loteOriginal === numnotaStr || loteOriginal === nunotaStr))
                           );
+                          const diferencaEfetiva = isFaltaIsolada ? 0 : diferenca;
+                          const classeDifEfetiva = isFaltaIsolada ? 'ok' : classeDif;
 
                           const temDivergenciaFiscal = Boolean(
                             item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao
@@ -1096,6 +1099,83 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                           const estaEmN3 = verificarItemEmN3(grupo, item);
                           const isItemPendente = !estaEmN3 && temDivergenciaFiscal && (pendenteLote || pendenteValidade || pendenteFabricacao);
                           const isItemDecidido = !estaEmN3 && temDivergenciaFiscal && !isItemPendente;
+
+                          const diffLote = Boolean(
+                            item.divergenciaLote ||
+                            (item.controleOriginal && loteAtivo && item.controleOriginal.trim().toUpperCase() !== loteAtivo.trim().toUpperCase())
+                          );
+                          const diffValidade = Boolean(
+                            item.divergenciaValidade ||
+                            (item.validadeOriginal && validadeAtiva && formatarDataSimples(item.validadeOriginal) !== formatarDataSimples(validadeAtiva))
+                          );
+                          const diffFabricacao = Boolean(
+                            item.divergenciaFabricacao ||
+                            (item.fabricacaoOriginal && fabricacaoAtiva && formatarDataSimples(item.fabricacaoOriginal) !== formatarDataSimples(fabricacaoAtiva))
+                          );
+
+                          const isPendenteLote = diffLote && (temN3Grupo ? (!isItemDecidido && nivelAtivoItem !== 'ERP') : pendenteLote);
+                          const isDecididoLote = diffLote && (temN3Grupo ? (isItemDecidido || nivelAtivoItem === 'ERP') : Boolean(decisaoItem?.lote));
+
+                          const isPendenteValidade = diffValidade && (temN3Grupo ? (!isItemDecidido && nivelAtivoItem !== 'ERP') : pendenteValidade);
+                          const isDecididoValidade = diffValidade && (temN3Grupo ? (isItemDecidido || nivelAtivoItem === 'ERP') : Boolean(decisaoItem?.validade));
+
+                          const isPendenteFabricacao = diffFabricacao && (temN3Grupo ? (!isItemDecidido && nivelAtivoItem !== 'ERP') : pendenteFabricacao);
+                          const isDecididoFabricacao = diffFabricacao && (temN3Grupo ? (isItemDecidido || nivelAtivoItem === 'ERP') : Boolean(decisaoItem?.fabricacao));
+
+                          const temN1Item = Boolean(exibirN1 && (item.qtdN1 > 0 || (item as any).loteN1 || lotesConferidosN1.length > 0));
+                          const temN2Item = Boolean(exibirN2 && (item.qtdN2 > 0 || (item as any).loteN2 || item.lote || lotesConferidosN2.length > 0));
+
+                          const loteN1Str = String((item as any).loteN1 || (lotesConferidosN1.length === 1 ? lotesConferidosN1[0].lote : '')).trim();
+                          const loteN2Str = String((item as any).loteN2 || item.lote || (lotesConferidosN2.length === 1 ? lotesConferidosN2[0].lote : '')).trim();
+                          const loteN3Str = String((item as any).loteN3 || (lotesConferidosN3.length === 1 ? lotesConferidosN3[0].lote : '')).trim();
+
+                          const valN1Str = formatarDataSimples((item as any).validadeN1 || (lotesConferidosN1.length === 1 ? lotesConferidosN1[0].validade : ''));
+                          const valN2Str = formatarDataSimples((item as any).validadeN2 || item.validade || (lotesConferidosN2.length === 1 ? lotesConferidosN2[0].validade : ''));
+                          const valN3Str = formatarDataSimples((item as any).validadeN3 || (lotesConferidosN3.length === 1 ? lotesConferidosN3[0].validade : ''));
+
+                          const fabN1Str = formatarDataSimples((item as any).fabricacaoN1 || (lotesConferidosN1.length === 1 ? lotesConferidosN1[0].fabricacao : ''));
+                          const fabN2Str = formatarDataSimples((item as any).fabricacaoN2 || item.fabricacao || (lotesConferidosN2.length === 1 ? lotesConferidosN2[0].fabricacao : ''));
+                          const fabN3Str = formatarDataSimples((item as any).fabricacaoN3 || (lotesConferidosN3.length === 1 ? lotesConferidosN3[0].fabricacao : ''));
+
+                          const multiplosLotesN1 = lotesConferidosN1.length > 1;
+                          const multiplosLotesN2 = lotesConferidosN2.length > 1;
+                          const multiplosLotesN3 = lotesConferidosN3.length > 1;
+
+                          const getEstiloBoxDivergencia = (isPendente: boolean, isDecidido: boolean) => {
+                            if (isPendente) {
+                              return {
+                                display: 'inline-flex' as const,
+                                flexDirection: 'column' as const,
+                                border: '1.5px solid #ef4444',
+                                backgroundColor: '#fef2f2',
+                                borderRadius: '6px',
+                                gap: '3px',
+                                padding: '4px 6px',
+                                minWidth: '78px',
+                                transition: 'all 0.15s ease',
+                              };
+                            }
+                            if (isDecidido) {
+                              return {
+                                display: 'inline-flex' as const,
+                                flexDirection: 'column' as const,
+                                border: '1px solid #bbf7d0',
+                                backgroundColor: '#f0fdf4',
+                                borderRadius: '6px',
+                                gap: '3px',
+                                padding: '4px 6px',
+                                minWidth: '78px',
+                                transition: 'all 0.15s ease',
+                              };
+                            }
+                            return {
+                              display: 'inline-flex' as const,
+                              flexDirection: 'column' as const,
+                              gap: '3px',
+                              padding: '4px 6px',
+                              minWidth: '78px',
+                            };
+                          };
 
                           const classeLinhaDecisao = isItemPendente
                             ? 'linha-pendente-decisao'
@@ -1171,11 +1251,6 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                       );
                                     })()}
                                     {item.referencia ? <span>• Ref: {item.referencia}</span> : null}
-                                    {item.controleOriginal ? (
-                                      <span style={{ color: '#475569' }}>
-                                        • Lote NF: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.controleOriginal}</strong>
-                                      </span>
-                                    ) : null}
                                   </div>
                                   {renderBadgesOcorrenciasItem(
                                     obterOcorrenciasDoItem(ocorrencias, item.nunota, item.codprod, item.sequencia)
@@ -1249,19 +1324,33 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 )}
                                 <td>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'center' }}>
-                                    <span className={`pill-contagem-status ${classeDif}`}>
-                                      {diferenca === 0
-                                        ? '✓ OK'
-                                        : diferenca < 0
-                                        ? `⚠️ ${diferenca} (Falta)`
-                                        : `+${diferenca} (Sobra)`}
-                                    </span>
-                                    {diferenca < 0 && isFaltaIsolada && (
+                                    {isFaltaIsolada ? (
                                       <span
-                                        className="badge-falta-isolada-erp"
-                                        title={`Esta falta (${Math.abs(diferenca)} un) já foi desmembrada no Sankhya e isolada com o lote da Nota Fiscal (${loteOriginal}).`}
+                                        className="pill-contagem-status ok"
+                                        style={{
+                                          background: '#ecfdf5',
+                                          color: '#047857',
+                                          border: '1px solid #a7f3d0',
+                                          display: 'inline-flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'center',
+                                          padding: '2px 8px',
+                                          lineHeight: 1.2,
+                                        }}
+                                        title="Item desmembrado como Falta no ERP (contagem física 0)"
                                       >
-                                        ✓ Falta Isolada no ERP
+                                        <span>✓ OK</span>
+                                        <span style={{ fontSize: '0.66rem', fontWeight: 600, opacity: 0.9 }}>
+                                          Falta Isolada ERP
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      <span className={`pill-contagem-status ${classeDifEfetiva}`}>
+                                        {diferencaEfetiva === 0
+                                          ? '✓ OK'
+                                          : diferencaEfetiva < 0
+                                          ? `⚠️ ${diferencaEfetiva} (Falta)`
+                                          : `+${diferencaEfetiva} (Sobra)`}
                                       </span>
                                     )}
                                   </div>
@@ -1342,176 +1431,320 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                   })()}
                                 </td>
 
-                                {/* LOTE - COMPARAÇÃO NOTA VS CONFERIDO MINIMALISTA */}
+                                {/* LOTE - COMPARAÇÃO NOTA VS CONFERIDO (NF -> N1 -> N2 -> N3) */}
                                 <td>
-                                  <div>
-                                    {temMultiplosLotes ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleLotesDiv(itemKey)}
+                                  <div style={getEstiloBoxDivergencia(isPendenteLote, isDecididoLote)}>
+                                    {/* 1. NF */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                      <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>
+                                        NF
+                                      </span>
+                                      <span
                                         style={{
-                                          background: isLotesAberto ? '#fef3c7' : '#fffbeb',
-                                          color: '#b45309',
-                                          border: '1px solid #fde68a',
-                                          borderRadius: '4px',
-                                          padding: '2px 6px',
-                                          fontSize: '0.70rem',
-                                          fontWeight: 700,
+                                          fontSize: '0.68rem',
                                           fontFamily: 'JetBrains Mono, monospace',
-                                          cursor: 'pointer',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
-                                          whiteSpace: 'nowrap',
+                                          color: nivelAtivoItem === 'ERP' ? '#047857' : isPendenteLote ? '#b91c1c' : '#334155',
+                                          fontWeight: nivelAtivoItem === 'ERP' ? 700 : 500,
                                         }}
-                                        title={`Clique para ${isLotesAberto ? 'recolher' : 'expandir'} os ${lotesConferidos.length} lotes`}
+                                        title={`Lote na Nota Fiscal: ${item.controleOriginal || 'Sem Lote'}`}
                                       >
-                                        <span>{lotesConferidos.length} Lotes</span>
-                                        <span style={{ fontSize: '0.56rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
-                                      </button>
-                                    ) : (
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                        <strong
-                                          style={{
-                                            color: isItemDecidido ? '#047857' : '#1e293b',
-                                            fontSize: '0.70rem',
-                                            fontFamily: 'JetBrains Mono, monospace',
-                                          }}
-                                        >
-                                          {isItemDecidido ? '✓ ' : ''}{loteAtivo || 'Sem Lote'}
-                                        </strong>
-                                        <span
-                                          style={{
-                                            fontSize: '0.60rem',
-                                            color: '#64748b',
-                                            background: '#f1f5f9',
-                                            padding: '0 3px',
-                                            borderRadius: '3px',
-                                          }}
-                                        >
-                                          {nivelAtivoItem}
+                                        {nivelAtivoItem === 'ERP' ? '✓ ' : ''}{item.controleOriginal || 'Sem Lote'}
+                                      </span>
+                                    </div>
+
+                                    {/* 2. N1 (se existir) */}
+                                    {temN1Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                          N1
                                         </span>
+                                        {multiplosLotesN1 ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLotesDiv(itemKey)}
+                                            style={{
+                                              background: isLotesAberto ? '#fef3c7' : '#fffbeb',
+                                              color: '#b45309',
+                                              border: '1px solid #fde68a',
+                                              borderRadius: '3px',
+                                              padding: '1px 5px',
+                                              fontSize: '0.64rem',
+                                              fontWeight: 700,
+                                              fontFamily: 'JetBrains Mono, monospace',
+                                              cursor: 'pointer',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '3px',
+                                            }}
+                                            title={`Clique para ${isLotesAberto ? 'recolher' : 'expandir'} os ${lotesConferidosN1.length} lotes`}
+                                          >
+                                            <span>{lotesConferidosN1.length} Lotes</span>
+                                            <span style={{ fontSize: '0.50rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
+                                          </button>
+                                        ) : (
+                                          <span
+                                            style={{
+                                              fontSize: '0.68rem',
+                                              fontFamily: 'JetBrains Mono, monospace',
+                                              color: nivelAtivoItem === 'N1' ? (isItemDecidido ? '#047857' : isPendenteLote ? '#b91c1c' : '#1e293b') : '#475569',
+                                              fontWeight: nivelAtivoItem === 'N1' ? 700 : 500,
+                                            }}
+                                          >
+                                            {nivelAtivoItem === 'N1' && (isItemDecidido ? '✓ ' : '')}{loteN1Str || 'Sem Lote'}
+                                          </span>
+                                        )}
                                       </div>
                                     )}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.58rem',
-                                      color: '#94a3b8',
-                                      marginTop: '1px',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                    title={`Lote na Nota Fiscal: ${item.controleOriginal || 'Sem Lote'}`}
-                                  >
-                                    NF: {item.controleOriginal || 'Sem Lote'}
+
+                                    {/* 3. N2 (se existir) */}
+                                    {temN2Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                          N2
+                                        </span>
+                                        {multiplosLotesN2 ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLotesDiv(itemKey)}
+                                            style={{
+                                              background: isLotesAberto ? '#fef3c7' : '#fffbeb',
+                                              color: '#b45309',
+                                              border: '1px solid #fde68a',
+                                              borderRadius: '3px',
+                                              padding: '1px 5px',
+                                              fontSize: '0.64rem',
+                                              fontWeight: 700,
+                                              fontFamily: 'JetBrains Mono, monospace',
+                                              cursor: 'pointer',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '3px',
+                                            }}
+                                            title={`Clique para ${isLotesAberto ? 'recolher' : 'expandir'} os ${lotesConferidosN2.length} lotes`}
+                                          >
+                                            <span>{lotesConferidosN2.length} Lotes</span>
+                                            <span style={{ fontSize: '0.50rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
+                                          </button>
+                                        ) : (
+                                          <span
+                                            style={{
+                                              fontSize: '0.68rem',
+                                              fontFamily: 'JetBrains Mono, monospace',
+                                              color: nivelAtivoItem === 'N2' ? (isItemDecidido ? '#047857' : isPendenteLote ? '#b91c1c' : '#0f172a') : '#475569',
+                                              fontWeight: nivelAtivoItem === 'N2' ? 700 : 500,
+                                            }}
+                                          >
+                                            {nivelAtivoItem === 'N2' && (isItemDecidido ? '✓ ' : '')}{loteN2Str || 'Sem Lote'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* 4. N3 (se existir) */}
+                                    {temN3Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+                                          N3
+                                        </span>
+                                        {multiplosLotesN3 ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLotesDiv(itemKey)}
+                                            style={{
+                                              background: isLotesAberto ? '#fef3c7' : '#fffbeb',
+                                              color: '#b45309',
+                                              border: '1px solid #fde68a',
+                                              borderRadius: '3px',
+                                              padding: '1px 5px',
+                                              fontSize: '0.64rem',
+                                              fontWeight: 700,
+                                              fontFamily: 'JetBrains Mono, monospace',
+                                              cursor: 'pointer',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '3px',
+                                            }}
+                                            title={`Clique para ${isLotesAberto ? 'recolher' : 'expandir'} os ${lotesConferidosN3.length} lotes`}
+                                          >
+                                            <span>{lotesConferidosN3.length} Lotes</span>
+                                            <span style={{ fontSize: '0.50rem' }}>{isLotesAberto ? '▲' : '▼'}</span>
+                                          </button>
+                                        ) : (
+                                          <span
+                                            style={{
+                                              fontSize: '0.68rem',
+                                              fontFamily: 'JetBrains Mono, monospace',
+                                              color: nivelAtivoItem === 'N3' ? (isItemDecidido ? '#047857' : isPendenteLote ? '#b91c1c' : '#0f172a') : '#475569',
+                                              fontWeight: nivelAtivoItem === 'N3' ? 700 : 500,
+                                            }}
+                                          >
+                                            {nivelAtivoItem === 'N3' && (isItemDecidido ? '✓ ' : '')}{loteN3Str || 'Sem Lote'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </td>
 
-                                {/* VALIDADE - COMPARAÇÃO NOTA VS CONFERIDO MINIMALISTA */}
+                                {/* FABRICAÇÃO - COMPARAÇÃO NOTA VS CONFERIDO (NF -> N1 -> N2 -> N3) */}
                                 <td>
-                                  <div>
-                                    {temMultiplosLotes ? (
+                                  <div style={getEstiloBoxDivergencia(isPendenteFabricacao, isDecididoFabricacao)}>
+                                    {/* 1. NF */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                      <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>
+                                        NF
+                                      </span>
                                       <span
                                         style={{
-                                          color: '#b45309',
-                                          fontWeight: 600,
-                                          fontSize: '0.70rem',
+                                          fontSize: '0.68rem',
                                           fontFamily: 'JetBrains Mono, monospace',
+                                          color: nivelAtivoItem === 'ERP' ? '#047857' : isPendenteFabricacao ? '#b91c1c' : '#334155',
+                                          fontWeight: nivelAtivoItem === 'ERP' ? 700 : 500,
                                         }}
+                                        title={`Fabricação na Nota Fiscal: ${formatarDataSimples(item.fabricacaoOriginal) || '—'}`}
                                       >
-                                        Múltiplas
+                                        {nivelAtivoItem === 'ERP' ? '✓ ' : ''}{formatarDataSimples(item.fabricacaoOriginal) || '—'}
                                       </span>
-                                    ) : (
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                        <span
-                                          style={{
-                                            color: isItemDecidido ? '#047857' : '#1e293b',
-                                            fontWeight: 600,
-                                            fontSize: '0.70rem',
-                                            fontFamily: 'JetBrains Mono, monospace',
-                                          }}
-                                        >
-                                          {isItemDecidido ? '✓ ' : ''}{formatarDataSimples(validadeAtiva) || '—'}
+                                    </div>
+
+                                    {/* 2. N1 (se existir) */}
+                                    {temN1Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                          N1
                                         </span>
                                         <span
                                           style={{
-                                            fontSize: '0.60rem',
-                                            color: '#64748b',
-                                            background: '#f1f5f9',
-                                            padding: '0 3px',
-                                            borderRadius: '3px',
+                                            fontSize: '0.68rem',
+                                            fontFamily: 'JetBrains Mono, monospace',
+                                            color: nivelAtivoItem === 'N1' ? (isItemDecidido ? '#047857' : isPendenteFabricacao ? '#b91c1c' : '#1e293b') : '#475569',
+                                            fontWeight: nivelAtivoItem === 'N1' ? 700 : 500,
                                           }}
                                         >
-                                          {nivelAtivoItem}
+                                          {nivelAtivoItem === 'N1' && (isItemDecidido ? '✓ ' : '')}{multiplosLotesN1 ? 'Múltiplas' : (fabN1Str || '—')}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* 3. N2 (se existir) */}
+                                    {temN2Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                          N2
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '0.68rem',
+                                            fontFamily: 'JetBrains Mono, monospace',
+                                            color: nivelAtivoItem === 'N2' ? (isItemDecidido ? '#047857' : isPendenteFabricacao ? '#b91c1c' : '#0f172a') : '#475569',
+                                            fontWeight: nivelAtivoItem === 'N2' ? 700 : 500,
+                                          }}
+                                        >
+                                          {nivelAtivoItem === 'N2' && (isItemDecidido ? '✓ ' : '')}{multiplosLotesN2 ? 'Múltiplas' : (fabN2Str || '—')}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* 4. N3 (se existir) */}
+                                    {temN3Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+                                          N3
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '0.68rem',
+                                            fontFamily: 'JetBrains Mono, monospace',
+                                            color: nivelAtivoItem === 'N3' ? (isItemDecidido ? '#047857' : isPendenteFabricacao ? '#b91c1c' : '#0f172a') : '#475569',
+                                            fontWeight: nivelAtivoItem === 'N3' ? 700 : 500,
+                                          }}
+                                        >
+                                          {nivelAtivoItem === 'N3' && (isItemDecidido ? '✓ ' : '')}{multiplosLotesN3 ? 'Múltiplas' : (fabN3Str || '—')}
                                         </span>
                                       </div>
                                     )}
                                   </div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.58rem',
-                                      color: '#94a3b8',
-                                      marginTop: '1px',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                    title={`Validade na Nota Fiscal: ${formatarDataSimples(item.validadeOriginal) || '—'}`}
-                                  >
-                                    NF: {formatarDataSimples(item.validadeOriginal) || '—'}
+                                </td>
+                                {/* VALIDADE - COMPARAÇÃO NOTA VS CONFERIDO (NF -> N1 -> N2 -> N3) */}
+                                <td>
+                                  <div style={getEstiloBoxDivergencia(isPendenteValidade, isDecididoValidade)}>
+                                    {/* 1. NF */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                      <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>
+                                        NF
+                                      </span>
+                                      <span
+                                        style={{
+                                          fontSize: '0.68rem',
+                                          fontFamily: 'JetBrains Mono, monospace',
+                                          color: nivelAtivoItem === 'ERP' ? '#047857' : isPendenteValidade ? '#b91c1c' : '#334155',
+                                          fontWeight: nivelAtivoItem === 'ERP' ? 700 : 500,
+                                        }}
+                                        title={`Validade na Nota Fiscal: ${formatarDataSimples(item.validadeOriginal) || '—'}`}
+                                      >
+                                        {nivelAtivoItem === 'ERP' ? '✓ ' : ''}{formatarDataSimples(item.validadeOriginal) || '—'}
+                                      </span>
+                                    </div>
+
+                                    {/* 2. N1 (se existir) */}
+                                    {temN1Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                          N1
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '0.68rem',
+                                            fontFamily: 'JetBrains Mono, monospace',
+                                            color: nivelAtivoItem === 'N1' ? (isItemDecidido ? '#047857' : isPendenteValidade ? '#b91c1c' : '#1e293b') : '#475569',
+                                            fontWeight: nivelAtivoItem === 'N1' ? 700 : 500,
+                                          }}
+                                        >
+                                          {nivelAtivoItem === 'N1' && (isItemDecidido ? '✓ ' : '')}{multiplosLotesN1 ? 'Múltiplas' : (valN1Str || '—')}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* 3. N2 (se existir) */}
+                                    {temN2Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                          N2
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '0.68rem',
+                                            fontFamily: 'JetBrains Mono, monospace',
+                                            color: nivelAtivoItem === 'N2' ? (isItemDecidido ? '#047857' : isPendenteValidade ? '#b91c1c' : '#0f172a') : '#475569',
+                                            fontWeight: nivelAtivoItem === 'N2' ? 700 : 500,
+                                          }}
+                                        >
+                                          {nivelAtivoItem === 'N2' && (isItemDecidido ? '✓ ' : '')}{multiplosLotesN2 ? 'Múltiplas' : (valN2Str || '—')}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* 4. N3 (se existir) */}
+                                    {temN3Item && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 3px', borderRadius: '3px', background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+                                          N3
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: '0.68rem',
+                                            fontFamily: 'JetBrains Mono, monospace',
+                                            color: nivelAtivoItem === 'N3' ? (isItemDecidido ? '#047857' : isPendenteValidade ? '#b91c1c' : '#0f172a') : '#475569',
+                                            fontWeight: nivelAtivoItem === 'N3' ? 700 : 500,
+                                          }}
+                                        >
+                                          {nivelAtivoItem === 'N3' && (isItemDecidido ? '✓ ' : '')}{multiplosLotesN3 ? 'Múltiplas' : (valN3Str || '—')}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </td>
 
-                                {/* FABRICAÇÃO - COMPARAÇÃO NOTA VS CONFERIDO MINIMALISTA */}
-                                <td>
-                                  <div>
-                                    {temMultiplosLotes ? (
-                                      <span
-                                        style={{
-                                          color: '#b45309',
-                                          fontWeight: 600,
-                                          fontSize: '0.70rem',
-                                          fontFamily: 'JetBrains Mono, monospace',
-                                        }}
-                                      >
-                                        Múltiplas
-                                      </span>
-                                    ) : (
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                        <span
-                                          style={{
-                                            color: isItemDecidido ? '#047857' : '#1e293b',
-                                            fontWeight: 600,
-                                            fontSize: '0.70rem',
-                                            fontFamily: 'JetBrains Mono, monospace',
-                                          }}
-                                        >
-                                          {isItemDecidido ? '✓ ' : ''}{formatarDataSimples(fabricacaoAtiva) || '—'}
-                                        </span>
-                                        <span
-                                          style={{
-                                            fontSize: '0.60rem',
-                                            color: '#64748b',
-                                            background: '#f1f5f9',
-                                            padding: '0 3px',
-                                            borderRadius: '3px',
-                                          }}
-                                        >
-                                          {nivelAtivoItem}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.58rem',
-                                      color: '#94a3b8',
-                                      marginTop: '1px',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                    title={`Fabricação na Nota Fiscal: ${formatarDataSimples(item.fabricacaoOriginal) || '—'}`}
-                                  >
-                                    NF: {formatarDataSimples(item.fabricacaoOriginal) || '—'}
-                                  </div>
-                                </td>
                                 <td
                                   style={{
                                     fontSize: '0.70rem',
@@ -1533,8 +1766,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                           <tr>
                                             <th>Lote</th>
                                             <th style={{ textAlign: 'center' }}>Quantidade</th>
-                                            <th>Data de Validade</th>
                                             <th>Data de Fabricação</th>
+                                            <th>Data de Validade</th>
                                             <th>Conferente</th>
                                           </tr>
                                         </thead>
@@ -1549,11 +1782,11 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                               <td style={{ textAlign: 'center' }}>
                                                 <strong>{fracao.quantidade}</strong> {item.codvol || 'UN'}
                                               </td>
-                                              <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
-                                                {formatarDataSimples(fracao.validade)}
-                                              </td>
                                               <td style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-600)' }}>
                                                 {formatarDataSimples(fracao.fabricacao)}
+                                              </td>
+                                              <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
+                                                {formatarDataSimples(fracao.validade)}
                                               </td>
                                               <td style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
                                                 {fracao.conferente ? `👤 ${fracao.conferente}` : '—'}
@@ -1632,10 +1865,11 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       const nunotaStr = String(item.nunota || '').trim();
                       const loteOriginal = String(item.controleOriginal || loteAtivo || '').trim();
                       const isFaltaIsolada = Boolean(
-                        diferenca < 0 &&
-                        loteOriginal &&
-                        (loteOriginal === numnotaStr || loteOriginal === nunotaStr)
+                        item.isFaltaIsolada ||
+                        (loteOriginal && (loteOriginal === numnotaStr || loteOriginal === nunotaStr))
                       );
+                      const diferencaEfetiva = isFaltaIsolada ? 0 : diferenca;
+                      const classeDifEfetiva = isFaltaIsolada ? 'ok' : classeDif;
 
                       const temDivergenciaFiscal = Boolean(
                         item.divergenciaLote || item.divergenciaValidade || item.divergenciaFabricacao
@@ -1714,11 +1948,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 })()}
                                 {item.referencia ? <span>• Ref: {item.referencia}</span> : null}
                                 <span>• Vol: {item.codvol || 'UN'}</span>
-                                {item.controleOriginal ? (
-                                  <span style={{ color: '#475569' }}>
-                                    • Lote NF: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.controleOriginal}</strong>
-                                  </span>
-                                ) : null}
+                                
                               </div>
                               {renderBadgesOcorrenciasItem(
                                 obterOcorrenciasDoItem(ocorrencias, item.nunota, item.codprod, item.sequencia)
@@ -1756,19 +1986,33 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                 </div>
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
-                                  <span className={`pill-contagem-status ${classeDif}`}>
-                                    {diferenca === 0
-                                      ? '✓ OK'
-                                      : diferenca < 0
-                                      ? `⚠️ ${diferenca} (Falta)`
-                                      : `+${diferenca} (Sobra)`}
-                                  </span>
-                                  {diferenca < 0 && isFaltaIsolada && (
+                                  {isFaltaIsolada ? (
                                     <span
-                                      className="badge-falta-isolada-erp"
-                                      title={`Esta falta (${Math.abs(diferenca)} un) já foi desmembrada no Sankhya e isolada com o lote da Nota Fiscal (${loteOriginal}).`}
+                                      className="pill-contagem-status ok"
+                                      style={{
+                                        background: '#ecfdf5',
+                                        color: '#047857',
+                                        border: '1px solid #a7f3d0',
+                                        display: 'inline-flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        padding: '2px 6px',
+                                        lineHeight: 1.2,
+                                      }}
+                                      title="Item desmembrado como Falta no ERP (contagem física 0)"
                                     >
-                                      ✓ Falta Isolada no ERP
+                                      <span>✓ OK</span>
+                                      <span style={{ fontSize: '0.64rem', fontWeight: 600, opacity: 0.9 }}>
+                                        Falta Isolada ERP
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className={`pill-contagem-status ${classeDifEfetiva}`}>
+                                      {diferencaEfetiva === 0
+                                        ? '✓ OK'
+                                        : diferencaEfetiva < 0
+                                        ? `⚠️ ${diferencaEfetiva} (Falta)`
+                                        : `+${diferencaEfetiva} (Sobra)`}
                                     </span>
                                   )}
                             </div>
@@ -1897,8 +2141,8 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                           </span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
-                                          <span>Val: {formatarDataSimples(fracao.validade)}</span>
                                           <span>Fab: {formatarDataSimples(fracao.fabricacao)}</span>
+                                          <span>Val: {formatarDataSimples(fracao.validade)}</span>
                                         </div>
                                       </div>
                                     ))}
@@ -1983,27 +2227,6 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                           </div>
                                         </div>
                                       )}
-                                      {item.divergenciaValidade && (
-                                        <div style={{ fontSize: '0.68rem', color: '#991b1b', marginTop: '4px' }}>
-                                          <div>Val Bip: <strong>{formatarDataSimples(item.validade)}</strong> (Orig: {item.validadeOriginal})</div>
-                                          <div className="grupo-botoes-decisao-fiscal">
-                                            <button
-                                              type="button"
-                                              className={`btn-decisao-fiscal ${decisaoItem?.validade === 'ERP' ? 'ativo-erp' : ''}`}
-                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'ERP')}
-                                            >
-                                              {decisaoItem?.validade === 'ERP' && '✓ '}ERP
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className={`btn-decisao-fiscal ${decisaoItem?.validade === 'BIP' ? 'ativo-bip' : ''}`}
-                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'BIP')}
-                                            >
-                                              {decisaoItem?.validade === 'BIP' && '✓ '}BIP
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
                                       {item.divergenciaFabricacao && (
                                         <div style={{ fontSize: '0.68rem', color: '#991b1b', marginTop: '4px' }}>
                                           <div>Fab Bip: <strong>{formatarDataSimples(item.fabricacao)}</strong> (Orig: {item.fabricacaoOriginal})</div>
@@ -2025,14 +2248,35 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                                           </div>
                                         </div>
                                       )}
+                                      {item.divergenciaValidade && (
+                                        <div style={{ fontSize: '0.68rem', color: '#991b1b', marginTop: '4px' }}>
+                                          <div>Val Bip: <strong>{formatarDataSimples(item.validade)}</strong> (Orig: {item.validadeOriginal})</div>
+                                          <div className="grupo-botoes-decisao-fiscal">
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.validade === 'ERP' ? 'ativo-erp' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'ERP')}
+                                            >
+                                              {decisaoItem?.validade === 'ERP' && '✓ '}ERP
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className={`btn-decisao-fiscal ${decisaoItem?.validade === 'BIP' ? 'ativo-bip' : ''}`}
+                                              onClick={() => handleSetDecisao(grupo.id, itemKey, item, 'validade', 'BIP')}
+                                            >
+                                              {decisaoItem?.validade === 'BIP' && '✓ '}BIP
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   ) : item.lote ? (
                                     <>
                                       Lote: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.lote}</strong>
-                                      {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}
                                       {item.fabricacao
                                         ? ` • Fab: ${formatarDataSimples(item.fabricacao)}`
                                         : ''}
+                                      {item.validade ? ` • Val: ${formatarDataSimples(item.validade)}` : ''}
                                     </>
                                   ) : (
                                     <span style={{ color: 'var(--slate-400)' }}>Sem lote</span>
@@ -2101,7 +2345,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                     estaAguardandoOuEmN3
                       ? 'Aguarde a finalização da reconferência N3 no coletor para resolver a divergência.'
                       : !podeResolverDivergencia
-                      ? `Defina a decisão fiscal (ERP ou BIP) para os ${totalFiscaisPendentes} item(ns) pendente(s) antes de resolver.`
+                      ? `Existem ${totalPendentesAssistente || totalFiscaisPendentes} pendência(s) não resolvidas (desmembramento, sobras/faltas ou cadastrais) antes de aprovar.`
                       : 'Resolver e aprovar divergência'
                   }
                 >
@@ -2110,7 +2354,7 @@ export const AbaDivergenciasView: React.FC<AbaDivergenciasViewProps> = ({
                       ? '⏳ Aguardando N3'
                       : podeResolverDivergencia
                       ? '✓ Resolver Divergência'
-                      : `⚠️ Resolver Divergência (${totalFiscaisPendentes} pendente${totalFiscaisPendentes > 1 ? 's' : ''})`}
+                      : `⚠️ Resolver Divergência (${totalPendentesAssistente || totalFiscaisPendentes} pendente${(totalPendentesAssistente || totalFiscaisPendentes) > 1 ? 's' : ''})`}
                   </span>
                 </button>
 

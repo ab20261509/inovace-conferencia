@@ -11,6 +11,9 @@ import { createAcessosRoutes } from './acessosRoutes.js';
 import { createConfiguracaoTelasRoutes } from './configuracaoTelasRoutes.js';
 import { createConfiguracaoSistemaRoutes } from './configuracaoSistemaRoutes.js';
 import { createConferenciaEntradaRoutes } from './conferenciaEntradaRoutes.js';
+import { createSeparacaoRoutes } from './separacaoRoutes.js';
+import { createReabastecimentoRoutes } from './reabastecimentoRoutes.js';
+import { createEnderecamentoRoutes } from './enderecamentoRoutes.js';
 import { createDatabaseRoutes } from './databaseRoutes.js';
 import { AuthController } from '../controllers/AuthController.js';
 import { CrudController } from '../controllers/CrudController.js';
@@ -23,6 +26,9 @@ import { ConfiguracaoSistemaController } from '../controllers/ConfiguracaoSistem
 import { ConferenciaEntradaController } from '../controllers/ConferenciaEntradaController.js';
 import { DatabaseExplorerController } from '../controllers/DatabaseExplorerController.js';
 import { OcorrenciasRecebimentoController } from '../controllers/OcorrenciasRecebimentoController.js';
+import { SeparacaoController } from '../controllers/SeparacaoController.js';
+import { ReabastecimentoController } from '../controllers/ReabastecimentoController.js';
+import { EnderecamentoController } from '../controllers/EnderecamentoController.js';
 
 export interface RouteControllers {
   authController: AuthController;
@@ -36,6 +42,9 @@ export interface RouteControllers {
   conferenciaEntradaController: ConferenciaEntradaController;
   databaseExplorerController: DatabaseExplorerController;
   ocorrenciasRecebimentoController: OcorrenciasRecebimentoController;
+  separacaoController: SeparacaoController;
+  reabastecimentoController?: ReabastecimentoController;
+  enderecamentoController?: EnderecamentoController;
 }
 
 import { IPermissoesRepository } from '../../../domain/ports/IPermissoesRepository.js';
@@ -75,6 +84,9 @@ export function registerRoutes(
   // Middlewares de permissão por módulo
   const permSaida = createPermissionMiddleware(permissoesRepo, 'conferencia_saida');
   const permRecebimento = createPermissionMiddleware(permissoesRepo, ['conferencia_entrada', 'gestao_recebimento']);
+  const permSeparacao = createPermissionMiddleware(permissoesRepo, 'separacao');
+  const permReabastecimento = createPermissionMiddleware(permissoesRepo, 'reabastecimento');
+  const permEnderecamento = createPermissionMiddleware(permissoesRepo, ['enderecamento_visualizar', 'enderecamento_manipular']);
   const permProdutos = createPermissionMiddleware(permissoesRepo, 'consulta_produtos');
   const permAdmin = createPermissionMiddleware(permissoesRepo, 'gerenciar_acessos');
 
@@ -90,6 +102,23 @@ export function registerRoutes(
       permissoesRepo
     )
   );
+  app.use('/api/separacao', authMiddleware, permSeparacao, createSeparacaoRoutes(controllers.separacaoController, permissoesRepo));
+  if (controllers.reabastecimentoController) {
+    app.use(
+      '/api/reabastecimento',
+      authMiddleware,
+      permReabastecimento,
+      createReabastecimentoRoutes(controllers.reabastecimentoController, permissoesRepo)
+    );
+  }
+  if (controllers.enderecamentoController) {
+    app.use(
+      '/api/enderecamento',
+      authMiddleware,
+      permEnderecamento,
+      createEnderecamentoRoutes(controllers.enderecamentoController, permissoesRepo)
+    );
+  }
   app.use('/api/crud', authMiddleware, createCrudRoutes(controllers.crudController));
   app.use('/api/produtos', authMiddleware, permProdutos, createProdutoRoutes(controllers.produtoController));
   app.use('/api/acessos', authMiddleware, createAcessosRoutes(controllers.acessosController, permAdmin));

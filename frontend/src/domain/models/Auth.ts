@@ -13,6 +13,7 @@ export interface ModulosUsuario {
   enderecamento?: boolean;
   enderecamento_visualizar?: boolean;
   enderecamento_manipular?: boolean;
+  enderecamento_cadastrar?: boolean;
   gestao_recebimento?: boolean;
   gestao_recebimento_aba_divergencias?: boolean;
   gestao_recebimento_aba_envio_sankhya?: boolean;

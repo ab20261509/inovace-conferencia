@@ -5,118 +5,336 @@
 .reabastecimento-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 12px 16px 84px 16px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* ═══ CABEÇALHO FIXO (STICKY TOP) ═══ */
+.reabastecimento-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  background: #f8fafc;
+  padding: 4px 0 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* ═══ KPIS EM LINHA ÚNICA (PÍLULAS COMPACTAS COM ÍCONE NO TOPO) ═══ */
+.reabastecimento-kpis-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 2px 0 4px 0;
+}
+
+.reabastecimento-kpi-pill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
   box-sizing: border-box;
 }
 
-/* ═══ CARDS DE MÉTRICAS DO TOPO ═══ */
-.reabastecimento-metricas-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+.reabastecimento-kpi-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
-.reabastecimento-metrica-card {
-  background: #ffffff;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+.reabastecimento-kpi-pill .kpi-icon {
+  font-size: 14px;
+  line-height: 1;
 }
 
-.reabastecimento-metrica-icone {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+.reabastecimento-kpi-pill .kpi-dados {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
 }
 
-.reabastecimento-metrica-icone.total {
+.reabastecimento-kpi-pill .kpi-num {
+  font-weight: 800;
+  font-size: 12px;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.reabastecimento-kpi-pill .kpi-rotulo {
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cores das Pílulas */
+.reabastecimento-kpi-pill.total {
+  border-color: #bfdbfe;
   background: #eff6ff;
-  color: #2563eb;
+}
+.reabastecimento-kpi-pill.total .kpi-num {
+  color: #1d4ed8;
+}
+.reabastecimento-kpi-pill.total.ativo {
+  background: #1d4ed8;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+.reabastecimento-kpi-pill.total.ativo .kpi-num,
+.reabastecimento-kpi-pill.total.ativo .kpi-rotulo {
+  color: #ffffff;
 }
 
-.reabastecimento-metrica-icone.pendente {
+.reabastecimento-kpi-pill.pendente {
+  border-color: #fde68a;
   background: #fef3c7;
-  color: #d97706;
+}
+.reabastecimento-kpi-pill.pendente .kpi-num {
+  color: #b45309;
+}
+.reabastecimento-kpi-pill.pendente.ativo {
+  background: #d97706;
+  color: #ffffff;
+  border-color: #d97706;
+}
+.reabastecimento-kpi-pill.pendente.ativo .kpi-num,
+.reabastecimento-kpi-pill.pendente.ativo .kpi-rotulo {
+  color: #ffffff;
 }
 
-.reabastecimento-metrica-icone.sempulmao {
+.reabastecimento-kpi-pill.sempulmao {
+  border-color: #fecaca;
   background: #fee2e2;
+}
+.reabastecimento-kpi-pill.sempulmao .kpi-num {
   color: #dc2626;
 }
-
-.reabastecimento-metrica-icone.concluido {
-  background: #dcfce7;
-  color: #16a34a;
+.reabastecimento-kpi-pill.sempulmao.ativo {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+.reabastecimento-kpi-pill.sempulmao.ativo .kpi-num,
+.reabastecimento-kpi-pill.sempulmao.ativo .kpi-rotulo {
+  color: #ffffff;
 }
 
-.reabastecimento-metrica-icone.falta {
+.reabastecimento-kpi-pill.concluido {
+  border-color: #bbf7d0;
+  background: #dcfce7;
+}
+.reabastecimento-kpi-pill.concluido .kpi-num {
+  color: #15803d;
+}
+.reabastecimento-kpi-pill.concluido.ativo {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+}
+.reabastecimento-kpi-pill.concluido.ativo .kpi-num,
+.reabastecimento-kpi-pill.concluido.ativo .kpi-rotulo {
+  color: #ffffff;
+}
+
+.reabastecimento-kpi-pill.falta {
+  border-color: #fed7aa;
   background: #ffedd5;
+}
+.reabastecimento-kpi-pill.falta .kpi-num {
   color: #c2410c;
 }
+.reabastecimento-kpi-pill.falta.ativo {
+  background: #ea580c;
+  color: #ffffff;
+  border-color: #ea580c;
+}
+.reabastecimento-kpi-pill.falta.ativo .kpi-num,
+.reabastecimento-kpi-pill.falta.ativo .kpi-rotulo {
+  color: #ffffff;
+}
 
-.reabastecimento-metrica-info {
+/* ═══ BUSCA E ALTERNADOR DE MODO ═══ */
+.reabastecimento-search-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
 }
 
-.reabastecimento-metrica-valor {
-  font-size: 22px;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.1;
+.reabastecimento-search-input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.reabastecimento-metrica-label {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 600;
-  margin-top: 2px;
+.reabastecimento-search-input-wrapper .search-icon {
+  position: absolute;
+  left: 14px;
+  font-size: 15px;
+  color: #94a3b8;
+  pointer-events: none;
 }
 
-/* ═══ FILTROS E BUSCA ═══ */
-.reabastecimento-filtros-bar {
+.reabastecimento-search-input-wrapper .reabastecimento-busca-input {
+  width: 100%;
+  padding-left: 38px;
+  padding-right: 36px;
+  height: 44px;
+  box-sizing: border-box;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
   background: #ffffff;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
 }
 
-.reabastecimento-chips-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.reabastecimento-search-input-wrapper .reabastecimento-busca-input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
 }
 
-.reabastecimento-chip-btn {
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
+.reabastecimento-search-input-wrapper .search-clear-btn {
+  position: absolute;
+  right: 10px;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
   color: #475569;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 20px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s;
+}
+
+.reabastecimento-search-input-wrapper .search-clear-btn:hover {
+  background: #cbd5e1;
+}
+
+.reabastecimento-btn-modo-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 44px;
+  padding: 0 14px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.1s ease;
+  font-family: inherit;
+}
+
+.reabastecimento-btn-modo-toggle:hover {
+  background: #1e293b;
+}
+
+.reabastecimento-btn-modo-toggle:active {
+  transform: scale(0.97);
+}
+
+.reabastecimento-btn-modo-toggle .toggle-rotulo {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ═══ RODAPÉ FIXO (FIXED FOOTER) ═══ */
+.reabastecimento-footer-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reabastecimento-footer-fixed .reabastecimento-chips-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  max-width: 1200px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.reabastecimento-chip-btn {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  padding: 4px 2px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.reabastecimento-chip-btn .chip-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.reabastecimento-chip-btn .chip-texto {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
 }
 
 .reabastecimento-chip-btn:hover {
@@ -129,19 +347,132 @@
   border-color: #0f172a;
 }
 
-.reabastecimento-busca-input {
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 8px 14px;
-  font-size: 13px;
-  min-width: 240px;
-  outline: none;
-  background: #ffffff;
+/* ═══ MODO LISTA COMPACTA ═══ */
+.reabastecimento-lista-tarefas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
 }
 
-.reabastecimento-busca-input:focus {
-  border-color: #f97316;
-  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+.reabastecimento-item-lista {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+}
+
+.reabastecimento-item-lista:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.reabastecimento-item-lista.concluida {
+  border-left: 4px solid #16a34a;
+  background: #f8fafc;
+  opacity: 0.85;
+}
+
+.reabastecimento-item-lista.falta-pulmao {
+  border-left: 4px solid #ea580c;
+  background: #fffbf7;
+}
+
+.reabastecimento-item-lista-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reabastecimento-item-lista-origem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reabastecimento-item-lista-prod {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.reabastecimento-item-lista-sub {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.reabastecimento-item-lista-rota {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f1f5f9;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.reabastecimento-item-lista-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+  padding-top: 4px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.reabastecimento-item-lista-meta-esq {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ═══ IMAGEM DO PRODUTO CENTRALIZADA NO CARD ═══ */
+.reabastecimento-card-imagem-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 120px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  cursor: pointer;
+  margin-bottom: 4px;
+  transition: border-color 0.15s ease;
+}
+
+.reabastecimento-card-imagem-wrapper:hover {
+  border-color: #cbd5e1;
+}
+
+.reabastecimento-card-imagem {
+  max-width: 100%;
+  max-height: 110px;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+.reabastecimento-card-imagem-wrapper:hover .reabastecimento-card-imagem {
+  transform: scale(1.04);
 }
 
 /* ═══ GRADE DE TAREFAS (CARDS) ═══ */
@@ -773,4 +1104,107 @@
   justify-content: flex-end;
   gap: 10px;
   margin-top: 8px;
+}
+
+
+/* ═══ RESPONSIVIDADE E OTIMIZAÇÃO MOBILE ANDROID (EMPILHADEIRA) ═══ */
+@media (max-width: 768px) {
+  .reabastecimento-container {
+    padding: 8px 12px 76px 12px;
+    gap: 10px;
+  }
+
+  .reabastecimento-header-sticky {
+    padding: 2px 0 8px 0;
+    gap: 8px;
+  }
+
+  .reabastecimento-kpis-row {
+    padding-bottom: 2px;
+    gap: 4px;
+  }
+
+  .reabastecimento-search-row {
+    gap: 8px;
+  }
+
+  .reabastecimento-search-input-wrapper .reabastecimento-busca-input {
+    height: 42px;
+    font-size: 13px;
+  }
+
+  .reabastecimento-btn-modo-toggle {
+    height: 42px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  /* Modo Cards com Snap Scroll Vertical: rola card completo mudando entre cards */
+  .reabastecimento-grid-tarefas.modo-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(100vh - 200px);
+    padding-bottom: 12px;
+  }
+
+  .reabastecimento-grid-tarefas.modo-cards .reabastecimento-card-tarefa.snap-item {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    min-height: calc(100vh - 220px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .reabastecimento-card-tarefa:active {
+    transform: scale(0.99);
+  }
+
+  /* Rota Origem ➔ Destino em linha adaptada */
+  .reabastecimento-rota-compacta {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  /* Botões de ação em toque amplo para o operador */
+  .reabastecimento-acoes-botoes {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .reabastecimento-btn-concluir,
+  .reabastecimento-btn-nao-encontrado,
+  .reabastecimento-btn-cancelar {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .reabastecimento-modal-box {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .reabastecimento-modal-footer {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+
+  .reabastecimento-modal-footer button {
+    width: 100%;
+    min-height: 44px;
+  }
 }

@@ -224,7 +224,8 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
 
     const sobraOk = !itemSobraReal || Boolean(sobrasAgendadas[k]);
     const faltaOk = dif >= 0 || itemFaltaIsolada;
-    const lotesOk = lotes <= 1;
+    const adotouErpLoteUnico = nAtivo === 'ERP';
+    const lotesOk = adotouErpLoteUnico || lotes <= 1;
     const cadastralOk = !(pL || pV || pF);
 
     return sobraOk && faltaOk && lotesOk && cadastralOk;
@@ -238,15 +239,11 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
   const todosResolvidos = itensResolvidos.length === totalItens;
   const percentualConcluido = Math.round((itensResolvidos.length / totalItens) * 100);
 
-  // Lista visível no Passo a Passo conforme o filtro minimalista selecionado
-  const itensAtuaisPasso =
-    filtroPasso === 'pendentes'
-      ? (itensPendentes.length > 0 ? itensPendentes : itensParaResolver)
-      : filtroPasso === 'resolvidos'
-      ? (itensResolvidos.length > 0 ? itensResolvidos : itensParaResolver)
-      : itensParaResolver;
+  // No Passo a Passo, mantemos a lista completa dos itens da nota nas bolinhas
+  // para que os números não sumam nem mudem de posição quando um item for resolvido
+  const itensAtuaisPasso = itensParaResolver;
 
-  // Índice protegido contra overflow ao alternar filtros
+  // Índice protegido contra overflow
   const safeIndex = Math.min(Math.max(0, indexAtual), Math.max(0, itensAtuaisPasso.length - 1));
   const itemAtual = itensAtuaisPasso[safeIndex] || itensParaResolver[0];
   const itemKeyAtual = `${itemAtual.nunota}-${itemAtual.codprod}-${itemAtual.sequencia}`;
@@ -479,21 +476,13 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
 
   // Abrir item específico a partir da tabela do Resumo
   const selecionarItemDoResumo = (it: ItemDivergenciaResumo) => {
-    const resolvido = verificarItemResolvido(it);
     const k = `${it.nunota}-${it.codprod}-${it.sequencia}`;
-    if (!resolvido) {
-      setFiltroPasso('pendentes');
-      const idx = itensPendentes.findIndex((x) => `${x.nunota}-${x.codprod}-${x.sequencia}` === k);
-      setIndexAtual(idx >= 0 ? idx : 0);
-    } else {
-      setFiltroPasso('resolvidos');
-      const idx = itensResolvidos.findIndex((x) => `${x.nunota}-${x.codprod}-${x.sequencia}` === k);
-      setIndexAtual(idx >= 0 ? idx : 0);
-    }
+    const idx = itensParaResolver.findIndex((x) => `${x.nunota}-${x.codprod}-${x.sequencia}` === k);
+    setIndexAtual(idx >= 0 ? idx : 0);
     setModoResumo(false);
   };
 
-  // Aplicação rápida de decisão fiscal e avanço automático suave
+  // Aplicação rápida de decisão fiscal (permanece no item para revisão manual)
   const handleDecisaoRapidaFiscal = (opcao: 'ERP' | 'BIP' | 'N2') => {
     // Exclusividade mútua: ao selecionar uma decisão fiscal, cancela o agendamento de N3
     if (itensRecontarN3.has(itemKeyAtual)) {
@@ -518,17 +507,9 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
     if (itemAtual.divergenciaFabricacao) {
       onDefinirDecisaoFiscal(grupo.id, itemKeyAtual, itemInfo, 'fabricacao', opcao);
     }
-    setTimeout(() => {
-      if (filtroPasso === 'pendentes' && totalPendentes <= 1) {
-        setModoResumo(true);
-        setAbaResumo('resolvidos');
-      } else {
-        irParaProximo();
-      }
-    }, 280);
   };
 
-  // Adoção rápida de nível de desempate (N3 vs N2 vs ERP)
+  // Adoção rápida de nível de desempate N3 vs N2 vs ERP (permanece no item para revisão manual)
   const handleAdotarNivelRapido = (nivel: 'N3' | 'N2' | 'ERP') => {
     // Exclusividade mútua: ao adotar um nível, cancela o agendamento de N3
     if (itensRecontarN3.has(itemKeyAtual)) {
@@ -545,14 +526,6 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
       sequencia: itemAtual.sequencia,
     };
     onSelecionarNivelItem(grupo.id, itemKeyAtual, itemInfo, nivel);
-    setTimeout(() => {
-      if (filtroPasso === 'pendentes' && totalPendentes <= 1) {
-        setModoResumo(true);
-        setAbaResumo('resolvidos');
-      } else {
-        irParaProximo();
-      }
-    }, 280);
   };
 
   const ocsItem = obterOcorrenciasDoItem(
@@ -705,8 +678,38 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                   <span>Visão Geral das Resoluções da Nota Fiscal</span>
                 ) : (
                   <span>
-                    {filtroPasso === 'pendentes' ? 'Pendência' : filtroPasso === 'resolvidos' ? 'Resolvido' : 'Item'}{' '}
-                    <strong>{safeIndex + 1}</strong> de <strong>{itensAtuaisPasso.length}</strong>
+                    Item <strong>{safeIndex + 1}</strong> de <strong>{totalItens}</strong>
+                    {isItemResolvido ? (
+                      <span
+                        style={{
+                          marginLeft: '8px',
+                          fontSize: '0.70rem',
+                          fontWeight: 700,
+                          background: '#f0fdf4',
+                          color: '#15803d',
+                          border: '1px solid #bbf7d0',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        ✓ Resolvido
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          marginLeft: '8px',
+                          fontSize: '0.70rem',
+                          fontWeight: 700,
+                          background: '#fffbeb',
+                          color: '#b45309',
+                          border: '1px solid #fde68a',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        ⚠️ Pendente
+                      </span>
+                    )}
                     {itensPulados.has(itemKeyAtual) && (
                       <span style={{ color: '#b45309', marginLeft: '6px', fontSize: '0.72rem' }}>
                         (↷ Marcado como pulado)
@@ -721,7 +724,11 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#e2e8f0', padding: '2px', borderRadius: '6px' }}>
                   <button
                     type="button"
-                    onClick={() => { setFiltroPasso('pendentes'); setIndexAtual(0); }}
+                    onClick={() => {
+                      setFiltroPasso('pendentes');
+                      const idx = itensParaResolver.findIndex((it) => !verificarItemResolvido(it));
+                      if (idx >= 0) setIndexAtual(idx);
+                    }}
                     style={{
                       padding: '2px 8px',
                       borderRadius: '4px',
@@ -737,14 +744,18 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                       gap: '4px',
                       transition: 'all 0.15s ease',
                     }}
-                    title="Focar apenas nos itens com pendência de resolução"
+                    title="Navegar para a próxima pendência de resolução"
                   >
                     <span>⚠️ Pendentes ({totalPendentes})</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => { setFiltroPasso('resolvidos'); setIndexAtual(0); }}
+                    onClick={() => {
+                      setFiltroPasso('resolvidos');
+                      const idx = itensParaResolver.findIndex((it) => verificarItemResolvido(it));
+                      if (idx >= 0) setIndexAtual(idx);
+                    }}
                     style={{
                       padding: '2px 8px',
                       borderRadius: '4px',
@@ -760,14 +771,14 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                       gap: '4px',
                       transition: 'all 0.15s ease',
                     }}
-                    title="Visualizar itens com ações já agendadas ou decididas"
+                    title="Navegar para itens com ações já agendadas ou decididas"
                   >
                     <span>✓ Já Resolvidos ({totalResolvidos})</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => { setFiltroPasso('todos'); setIndexAtual(0); }}
+                    onClick={() => setFiltroPasso('todos')}
                     style={{
                       padding: '2px 8px',
                       borderRadius: '4px',
@@ -827,15 +838,15 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
               minHeight: '36px',
             }}
           >
-            {itensAtuaisPasso.map((it, idx) => {
+            {itensParaResolver.map((it, idx) => {
               const k = `${it.nunota}-${it.codprod}-${it.sequencia}`;
               const resolvido = verificarItemResolvido(it);
               const isAtual = idx === safeIndex && !modoResumo;
               const pulado = itensPulados.has(k);
 
               let bgColor = '#ffffff';
-              let borderColor = '#e2e8f0';
-              let textColor = '#94a3b8';
+              let borderColor = '#cbd5e1';
+              let textColor = '#475569';
 
               if (isAtual) {
                 if (resolvido) {
@@ -854,7 +865,7 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
               } else if (pulado) {
                 bgColor = '#f8fafc';
                 borderColor = '#94a3b8';
-                textColor = '#475569';
+                textColor = '#64748b';
               }
 
               return (
@@ -1693,7 +1704,7 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                     {isSobraAgendadaItem && temDivergenciaFiscal && !temMultiplosLotes && (
                       <div style={{ marginTop: '6px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
                         <div style={{ fontSize: '0.80rem', color: '#334155', marginBottom: '8px' }}>
-                          A sobra física foi agendada. Agora selecione os dados cadastrais (Lote / Validade) para o saldo de <strong>{itemAtual.qtdEsperada} {itemAtual.codvol || 'UN'}</strong> restante na nota fiscal:
+                          A sobra física foi agendada. Agora selecione os dados cadastrais (Lote / Fabricação / Validade) para o saldo de <strong>{itemAtual.qtdEsperada} {itemAtual.codvol || 'UN'}</strong> restante na nota fiscal:
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
                           <button
@@ -1702,25 +1713,25 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                             style={{
                               padding: '10px 14px',
                               borderRadius: '8px',
-                              border: decisaoCadastralAtiva === 'BIP' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-                              background: decisaoCadastralAtiva === 'BIP' ? '#f0fdf4' : '#ffffff',
+                              border: decisaoCadastralAtiva === 'BIP' ? '2px solid #2563eb' : '1.5px solid #bfdbfe',
+                              background: decisaoCadastralAtiva === 'BIP' ? '#eff6ff' : '#ffffff',
                               textAlign: 'left',
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'BIP' ? '#15803d' : '#0f172a' }}>
+                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'BIP' ? '#1d4ed8' : '#0f172a' }}>
                                 📱 Coletor (Bipado)
                               </div>
                               {decisaoCadastralAtiva === 'BIP' && (
-                                <span style={{ fontSize: '0.64rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                <span style={{ fontSize: '0.64rem', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                                   ✓ SELECIONADO
                                 </span>
                               )}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: '#475569', marginTop: '3px' }}>
-                              Lote: <strong>{itemAtual.lote || '—'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validade) || '—'}</strong>
+                              Lote: <strong>{itemAtual.lote || '—'}</strong> • Fab: <strong>{formatarDataSimples(itemAtual.fabricacao) || '—'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validade) || '—'}</strong>
                             </div>
                           </button>
 
@@ -1730,25 +1741,25 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                             style={{
                               padding: '10px 14px',
                               borderRadius: '8px',
-                              border: decisaoCadastralAtiva === 'ERP' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-                              background: decisaoCadastralAtiva === 'ERP' ? '#f0fdf4' : '#ffffff',
+                              border: decisaoCadastralAtiva === 'ERP' ? '2px solid #f97316' : '1.5px solid #fed7aa',
+                              background: decisaoCadastralAtiva === 'ERP' ? '#fff7ed' : '#ffffff',
                               textAlign: 'left',
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'ERP' ? '#15803d' : '#0f172a' }}>
+                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'ERP' ? '#c2410c' : '#0f172a' }}>
                                 📄 Nota Fiscal (ERP)
                               </div>
                               {decisaoCadastralAtiva === 'ERP' && (
-                                <span style={{ fontSize: '0.64rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                <span style={{ fontSize: '0.64rem', background: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                                   ✓ SELECIONADO
                                 </span>
                               )}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: '#475569', marginTop: '3px' }}>
-                              Lote: <strong>{loteOriginal || 'Sem Lote'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validadeOriginal) || '—'}</strong>
+                              Lote: <strong>{loteOriginal || 'Sem Lote'}</strong> • Fab: <strong>{formatarDataSimples(itemAtual.fabricacaoOriginal) || '—'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validadeOriginal) || '—'}</strong>
                             </div>
                           </button>
                         </div>
@@ -2061,8 +2072,8 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                         style={{
                           padding: '10px 12px',
                           borderRadius: '8px',
-                          border: nivelAtivoItem === 'N3' ? '2px solid #16a34a' : '1px solid #e2e8f0',
-                          background: nivelAtivoItem === 'N3' ? '#f0fdf4' : '#ffffff',
+                          border: nivelAtivoItem === 'N3' ? '2px solid #2563eb' : '1.5px solid #bfdbfe',
+                          background: nivelAtivoItem === 'N3' ? '#eff6ff' : '#ffffff',
                           textAlign: 'left',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
@@ -2070,11 +2081,11 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: nivelAtivoItem === 'N3' ? '#15803d' : '#0f172a' }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: nivelAtivoItem === 'N3' ? '#1d4ed8' : '#0f172a' }}>
                             {nivelAtivoItem === 'N3' ? '✓ ' : ''}Reconferência (N3)
                           </div>
                           {nivelAtivoItem === 'N3' && (
-                            <span style={{ fontSize: '0.64rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                            <span style={{ fontSize: '0.64rem', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                               ✓ SELECIONADO
                             </span>
                           )}
@@ -2091,8 +2102,8 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                         style={{
                           padding: '10px 12px',
                           borderRadius: '8px',
-                          border: nivelAtivoItem === 'N2' ? '2px solid #16a34a' : '1px solid #e2e8f0',
-                          background: nivelAtivoItem === 'N2' ? '#f0fdf4' : '#ffffff',
+                          border: nivelAtivoItem === 'N2' ? '2px solid #2563eb' : '1.5px solid #bfdbfe',
+                          background: nivelAtivoItem === 'N2' ? '#eff6ff' : '#ffffff',
                           textAlign: 'left',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
@@ -2100,11 +2111,11 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: nivelAtivoItem === 'N2' ? '#15803d' : '#0f172a' }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: nivelAtivoItem === 'N2' ? '#1d4ed8' : '#0f172a' }}>
                             {nivelAtivoItem === 'N2' ? '✓ ' : ''}Coletor (N2)
                           </div>
                           {nivelAtivoItem === 'N2' && (
-                            <span style={{ fontSize: '0.64rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                            <span style={{ fontSize: '0.64rem', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                               ✓ SELECIONADO
                             </span>
                           )}
@@ -2121,8 +2132,8 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                         style={{
                           padding: '10px 12px',
                           borderRadius: '8px',
-                          border: nivelAtivoItem === 'ERP' ? '2px solid #16a34a' : '1px solid #e2e8f0',
-                          background: nivelAtivoItem === 'ERP' ? '#f0fdf4' : '#ffffff',
+                          border: nivelAtivoItem === 'ERP' ? '2px solid #f97316' : '1.5px solid #fed7aa',
+                          background: nivelAtivoItem === 'ERP' ? '#fff7ed' : '#ffffff',
                           textAlign: 'left',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
@@ -2130,11 +2141,11 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: nivelAtivoItem === 'ERP' ? '#15803d' : '#0f172a' }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: nivelAtivoItem === 'ERP' ? '#c2410c' : '#0f172a' }}>
                             {nivelAtivoItem === 'ERP' ? '✓ ' : ''}Nota Fiscal (ERP)
                           </div>
                           {nivelAtivoItem === 'ERP' && (
-                            <span style={{ fontSize: '0.64rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                            <span style={{ fontSize: '0.64rem', background: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                               ✓ SELECIONADO
                             </span>
                           )}
@@ -2147,7 +2158,7 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                   </div>
                 )}
 
-                {/* CENÁRIO 4: DIVERGÊNCIA CADASTRAL DE LOTE / VALIDADE (QUANTIDADE 100% OK, SEM SOBRA NEM FALTA) */}
+                {/* CENÁRIO 4: DIVERGÊNCIA CADASTRAL DE LOTE / FABRICAÇÃO / VALIDADE (QUANTIDADE 100% OK, SEM SOBRA NEM FALTA) */}
                 {!temSobra && !temFalta && !temMultiplosLotes && !temN3Item && temDivergenciaFiscal && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {isN3AgendadoItem ? (
@@ -2204,25 +2215,25 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                             style={{
                               padding: '10px 14px',
                               borderRadius: '8px',
-                              border: decisaoCadastralAtiva === 'BIP' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-                              background: decisaoCadastralAtiva === 'BIP' ? '#f0fdf4' : '#ffffff',
+                              border: decisaoCadastralAtiva === 'BIP' ? '2px solid #2563eb' : '1.5px solid #bfdbfe',
+                              background: decisaoCadastralAtiva === 'BIP' ? '#eff6ff' : '#ffffff',
                               textAlign: 'left',
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'BIP' ? '#15803d' : '#0f172a' }}>
+                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'BIP' ? '#1d4ed8' : '#0f172a' }}>
                                 📱 Coletor (Bipado)
                               </div>
                               {decisaoCadastralAtiva === 'BIP' && (
-                                <span style={{ fontSize: '0.64rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                <span style={{ fontSize: '0.64rem', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                                   ✓ SELECIONADO
                                 </span>
                               )}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: '#475569', marginTop: '3px' }}>
-                              Lote: <strong>{itemAtual.lote || '—'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validade) || '—'}</strong>
+                              Lote: <strong>{itemAtual.lote || '—'}</strong> • Fab: <strong>{formatarDataSimples(itemAtual.fabricacao) || '—'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validade) || '—'}</strong>
                             </div>
                           </button>
 
@@ -2232,25 +2243,25 @@ export const ModalAssistenteDivergencias: React.FC<ModalAssistenteDivergenciasPr
                             style={{
                               padding: '10px 14px',
                               borderRadius: '8px',
-                              border: decisaoCadastralAtiva === 'ERP' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-                              background: decisaoCadastralAtiva === 'ERP' ? '#f0fdf4' : '#ffffff',
+                              border: decisaoCadastralAtiva === 'ERP' ? '2px solid #f97316' : '1.5px solid #fed7aa',
+                              background: decisaoCadastralAtiva === 'ERP' ? '#fff7ed' : '#ffffff',
                               textAlign: 'left',
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'ERP' ? '#15803d' : '#0f172a' }}>
+                              <div style={{ fontWeight: 800, fontSize: '0.84rem', color: decisaoCadastralAtiva === 'ERP' ? '#c2410c' : '#0f172a' }}>
                                 📄 Nota Fiscal (ERP)
                               </div>
                               {decisaoCadastralAtiva === 'ERP' && (
-                                <span style={{ fontSize: '0.64rem', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                <span style={{ fontSize: '0.64rem', background: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
                                   ✓ SELECIONADO
                                 </span>
                               )}
                             </div>
                             <div style={{ fontSize: '0.74rem', color: '#475569', marginTop: '3px' }}>
-                              Lote: <strong>{loteOriginal || 'Sem Lote'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validadeOriginal) || '—'}</strong>
+                              Lote: <strong>{loteOriginal || 'Sem Lote'}</strong> • Fab: <strong>{formatarDataSimples(itemAtual.fabricacaoOriginal) || '—'}</strong> • Val: <strong>{formatarDataSimples(itemAtual.validadeOriginal) || '—'}</strong>
                             </div>
                           </button>
                         </div>

@@ -311,6 +311,37 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                             </span>
                           </span>
                         )}
+                        {conf.status === 'Conferido' && conf.aprovadoPor && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: '#ecfdf5',
+                              color: '#065f46',
+                              border: '1px solid #a7f3d0',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                            }}
+                            title={`Divergências liberadas por ${conf.aprovadoPor}${
+                              conf.aprovadoEm
+                                ? ` em ${new Date(conf.aprovadoEm).toLocaleDateString('pt-BR')} às ${new Date(conf.aprovadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                                : ''
+                            }`}
+                          >
+                            <span>✓</span>
+                            <span>
+                              Liberado por <strong>{conf.aprovadoPor}</strong>
+                              {conf.aprovadoEm && (
+                                <span style={{ opacity: 0.85, fontWeight: 400, marginLeft: '4px' }}>
+                                  ({new Date(conf.aprovadoEm).toLocaleDateString('pt-BR')} {new Date(conf.aprovadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})
+                                </span>
+                              )}
+                            </span>
+                          </span>
+                        )}
                         {conf.statusPorNota && Object.keys(conf.statusPorNota).length > 1 && (
                           <div className="gestao-notas-status-inline">
                             {Object.entries(conf.statusPorNota).map(([nunotaStr, st]) => {
@@ -618,8 +649,8 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                     {temN3Itens && <th>N3</th>}
                                     <th>Diferença</th>
                                     <th>Lote</th>
-                                    <th>Validade</th>
                                     <th>Fabricação</th>
+                                    <th>Validade</th>
                                     <th>Conferentes</th>
                                   </tr>
                                 </thead>
@@ -649,16 +680,26 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       );
                                       const isLotesAberto = Boolean(lotesExpandidos[itemKey]);
 
-                                      const diferenca =
-                                        item.diferenca !== undefined
-                                          ? item.diferenca
-                                          : ((item.qtdConferidaN3 || 0) > 0
-                                              ? item.qtdConferidaN3 || 0
-                                              : (item.qtdConferidaN2 || 0) > 0
-                                              ? item.qtdConferidaN2 || 0
-                                              : item.qtdConferidaN1 || 0) - (item.qtdneg || 0);
-                                      const classeDif =
-                                        diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+                                      const isFaltaIsolada = Boolean(
+                                        item.isFaltaIsolada ||
+                                        (item.controle && (
+                                          String(item.controle).trim() === String(item.numnota || '') ||
+                                          String(item.controle).trim() === String(conf.numnota || '') ||
+                                          String(item.controle).trim() === String(item.nunota || '')
+                                        ))
+                                      );
+                                      const diferenca = isFaltaIsolada
+                                        ? 0
+                                        : item.diferenca !== undefined
+                                        ? item.diferenca
+                                        : ((item.qtdConferidaN3 || 0) > 0
+                                            ? item.qtdConferidaN3 || 0
+                                            : (item.qtdConferidaN2 || 0) > 0
+                                            ? item.qtdConferidaN2 || 0
+                                            : item.qtdConferidaN1 || 0) - (item.qtdneg || 0);
+                                      const classeDif = isFaltaIsolada
+                                        ? 'ok'
+                                        : diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
 
                                       return (
                                         <React.Fragment key={`conf-frag-${itemKey}`}>
@@ -777,16 +818,58 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                               </td>
                                             )}
                                             <td>
-                                              <span className={`pill-contagem-status ${classeDif}`}>
-                                                {diferenca === 0
-                                                  ? '✓ OK'
-                                                  : diferenca < 0
-                                                  ? `⚠️ ${diferenca}`
-                                                  : `+${diferenca}`}
-                                              </span>
+                                              {isFaltaIsolada ? (
+                                                <span
+                                                  className="pill-contagem-status ok"
+                                                  style={{
+                                                    background: '#ecfdf5',
+                                                    color: '#047857',
+                                                    border: '1px solid #a7f3d0',
+                                                    display: 'inline-flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                    padding: '2px 8px',
+                                                    lineHeight: 1.2,
+                                                  }}
+                                                  title="Item desmembrado como Falta no ERP (contagem física 0)"
+                                                >
+                                                  <span>✓ OK</span>
+                                                  <span style={{ fontSize: '0.66rem', fontWeight: 600, opacity: 0.9 }}>
+                                                    Falta Isolada ERP
+                                                  </span>
+                                                </span>
+                                              ) : (
+                                                <span className={`pill-contagem-status ${classeDif}`}>
+                                                  {diferenca === 0
+                                                    ? '✓ OK'
+                                                    : diferenca < 0
+                                                    ? `⚠️ ${diferenca}`
+                                                    : `+${diferenca}`}
+                                                </span>
+                                              )}
                                             </td>
                                       <td>
-                                        {temMultiplosLotes ? (
+                                        {isFaltaIsolada ? (
+                                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                            <span className="gestao-lote-pill" style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1' }}>
+                                              📄 {item.controle || item.lote || conf.numnota || '—'}
+                                            </span>
+                                            <span
+                                              style={{
+                                                fontSize: '0.68rem',
+                                                padding: '1px 5px',
+                                                borderRadius: '4px',
+                                                background: '#fef2f2',
+                                                color: '#b91c1c',
+                                                border: '1px solid #fecaca',
+                                                fontWeight: 600,
+                                              }}
+                                              title="Item desmembrado como Falta no ERP"
+                                            >
+                                              Falta Isolada
+                                            </span>
+                                          </div>
+                                        ) : temMultiplosLotes ? (
                                           <button
                                             type="button"
                                             className={`chip-dropdown-lote ${isLotesAberto ? 'ativo' : ''}`}
@@ -821,17 +904,17 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                               fontWeight: 600,
                                             }}
                                             onClick={() => toggleLotesItem(itemKey)}
-                                            title="Clique para ver os lotes e validades linha a linha"
+                                            title="Clique para ver os lotes e fabricações linha a linha"
                                           >
                                             {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                           </span>
-                                        ) : item.lotesConferidos && item.lotesConferidos.length === 1 && item.lotesConferidos[0].validade ? (
+                                        ) : item.lotesConferidos && item.lotesConferidos.length === 1 && item.lotesConferidos[0].fabricacao ? (
                                           <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                            {formatarDataSimples(item.lotesConferidos[0].validade)}
+                                            {formatarDataSimples(item.lotesConferidos[0].fabricacao)}
                                           </span>
-                                        ) : item.validade ? (
+                                        ) : item.fabricacao ? (
                                           <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                            {formatarDataSimples(item.validade)}
+                                            {formatarDataSimples(item.fabricacao)}
                                           </span>
                                         ) : (
                                           <span style={{ color: 'var(--slate-400)' }}>—</span>
@@ -848,17 +931,17 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                               fontWeight: 600,
                                             }}
                                             onClick={() => toggleLotesItem(itemKey)}
-                                            title="Clique para ver os lotes e fabricações linha a linha"
+                                            title="Clique para ver os lotes e validades linha a linha"
                                           >
                                             {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                           </span>
-                                        ) : item.lotesConferidos && item.lotesConferidos.length === 1 && item.lotesConferidos[0].fabricacao ? (
+                                        ) : item.lotesConferidos && item.lotesConferidos.length === 1 && item.lotesConferidos[0].validade ? (
                                           <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                            {formatarDataSimples(item.lotesConferidos[0].fabricacao)}
+                                            {formatarDataSimples(item.lotesConferidos[0].validade)}
                                           </span>
-                                        ) : item.fabricacao ? (
+                                        ) : item.validade ? (
                                           <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                            {formatarDataSimples(item.fabricacao)}
+                                            {formatarDataSimples(item.validade)}
                                           </span>
                                         ) : (
                                           <span style={{ color: 'var(--slate-400)' }}>—</span>
@@ -891,8 +974,8 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                                 <tr>
                                                   <th>Lote</th>
                                                   <th style={{ textAlign: 'center' }}>Quantidade</th>
-                                                  <th>Data de Validade</th>
                                                   <th>Data de Fabricação</th>
+                                                  <th>Data de Validade</th>
                                                   <th>Conferente / Horário</th>
                                                 </tr>
                                               </thead>
@@ -907,11 +990,11 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                                     <td style={{ textAlign: 'center' }}>
                                                       <strong>{fracao.quantidade}</strong> {item.codvol || 'UN'}
                                                     </td>
-                                                    <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
-                                                      {formatarDataSimples(fracao.validade)}
-                                                    </td>
                                                     <td style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-600)' }}>
                                                       {formatarDataSimples(fracao.fabricacao)}
+                                                    </td>
+                                                    <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
+                                                      {formatarDataSimples(fracao.validade)}
                                                     </td>
                                                     <td style={{ fontSize: '0.74rem', color: 'var(--slate-500)' }}>
                                                       {fracao.conferente ? `👤 ${fracao.conferente}` : '—'}
@@ -960,16 +1043,26 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                             );
                             const isLotesAberto = Boolean(lotesExpandidos[itemKey]);
 
-                            const diferenca =
-                              item.diferenca !== undefined
-                                ? item.diferenca
-                                : ((item.qtdConferidaN3 || 0) > 0
-                                    ? item.qtdConferidaN3 || 0
-                                    : (item.qtdConferidaN2 || 0) > 0
-                                    ? item.qtdConferidaN2 || 0
-                                    : item.qtdConferidaN1 || 0) - (item.qtdneg || 0);
-                            const classeDif =
-                              diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
+                            const isFaltaIsolada = Boolean(
+                              item.isFaltaIsolada ||
+                              (item.controle && (
+                                String(item.controle).trim() === String(item.numnota || '') ||
+                                String(item.controle).trim() === String(conf.numnota || '') ||
+                                String(item.controle).trim() === String(item.nunota || '')
+                              ))
+                            );
+                            const diferenca = isFaltaIsolada
+                              ? 0
+                              : item.diferenca !== undefined
+                              ? item.diferenca
+                              : ((item.qtdConferidaN3 || 0) > 0
+                                  ? item.qtdConferidaN3 || 0
+                                  : (item.qtdConferidaN2 || 0) > 0
+                                  ? item.qtdConferidaN2 || 0
+                                  : item.qtdConferidaN1 || 0) - (item.qtdneg || 0);
+                            const classeDif = isFaltaIsolada
+                              ? 'ok'
+                              : diferenca < 0 ? 'falta' : diferenca > 0 ? 'sobra' : 'ok';
 
                             return (
                               <div
@@ -1027,13 +1120,35 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                       ) : null;
                                     })()}
                                   </div>
-                                  <span className={`pill-contagem-status ${classeDif}`}>
-                                    {diferenca === 0
-                                      ? '✓ OK'
-                                      : diferenca < 0
-                                      ? `⚠️ ${diferenca}`
-                                      : `+${diferenca}`}
-                                  </span>
+                                  {isFaltaIsolada ? (
+                                    <span
+                                      className="pill-contagem-status ok"
+                                      style={{
+                                        background: '#ecfdf5',
+                                        color: '#047857',
+                                        border: '1px solid #a7f3d0',
+                                        display: 'inline-flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        padding: '2px 6px',
+                                        lineHeight: 1.2,
+                                      }}
+                                      title="Item desmembrado como Falta no ERP (contagem física 0)"
+                                    >
+                                      <span>✓ OK</span>
+                                      <span style={{ fontSize: '0.64rem', fontWeight: 600, opacity: 0.9 }}>
+                                        Falta Isolada ERP
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className={`pill-contagem-status ${classeDif}`}>
+                                      {diferenca === 0
+                                        ? '✓ OK'
+                                        : diferenca < 0
+                                        ? `⚠️ ${diferenca}`
+                                        : `+${diferenca}`}
+                                    </span>
+                                  )}
                                 </div>
 
                                 <div className="gestao-item-mobile-grid">
@@ -1124,8 +1239,8 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                                 </span>
                                               </div>
                                               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
-                                                <span>Val: {formatarDataSimples(fracao.validade)}</span>
                                                 <span>Fab: {formatarDataSimples(fracao.fabricacao)}</span>
+                                                <span>Val: {formatarDataSimples(fracao.validade)}</span>
                                               </div>
                                               {fracao.conferente && (
                                                 <div style={{ fontSize: '0.68rem', color: 'var(--slate-400)', marginTop: '2px' }}>
@@ -1151,21 +1266,21 @@ export const AbaConferenciasView: React.FC<AbaConferenciasViewProps> = ({
                                         {item.lotesConferidos && item.lotesConferidos.length === 1 ? (
                                           <>
                                             Lote: <strong>{item.lotesConferidos[0].lote}</strong>
-                                            {item.lotesConferidos[0].validade
-                                              ? ` • Val: ${formatarDataSimples(item.lotesConferidos[0].validade)}`
-                                              : ''}
                                             {item.lotesConferidos[0].fabricacao
                                               ? ` • Fab: ${formatarDataSimples(item.lotesConferidos[0].fabricacao)}`
+                                              : ''}
+                                            {item.lotesConferidos[0].validade
+                                              ? ` • Val: ${formatarDataSimples(item.lotesConferidos[0].validade)}`
                                               : ''}
                                           </>
                                         ) : item.lote ? (
                                           <>
                                             Lote: <strong>{item.lote}</strong>
-                                            {item.validade
-                                              ? ` • Val: ${formatarDataSimples(item.validade)}`
-                                              : ''}
                                             {item.fabricacao
                                               ? ` • Fab: ${formatarDataSimples(item.fabricacao)}`
+                                              : ''}
+                                            {item.validade
+                                              ? ` • Val: ${formatarDataSimples(item.validade)}`
                                               : ''}
                                           </>
                                         ) : (

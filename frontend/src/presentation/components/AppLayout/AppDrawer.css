@@ -313,3 +313,153 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+
+.app-header-btn-consulta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--slate-100, #f1f5f9);
+  border: 1px solid var(--slate-300, #cbd5e1);
+  color: var(--slate-700, #334155);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.app-header-btn-consulta:hover {
+  background: var(--slate-200, #e2e8f0);
+}
+
+.app-header-btn-sair {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--slate-600, #475569);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.app-header-btn-sair:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ═══ EXPERIÊNCIA NATIVA ANDROID NO DRAWER / MENU ═══ */
+@media (max-width: 768px) {
+  .app-global-header {
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-bottom: 10px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .app-header-left {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .app-hamburger-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 10px;
+    padding: 0;
+  }
+
+  .app-hamburger-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .app-header-title {
+    font-size: 1.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+  }
+
+  .app-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+  }
+
+  .app-header-btn-consulta {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 15px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    flex-shrink: 0;
+  }
+
+  .app-header-btn-consulta-text {
+    display: none !important;
+  }
+
+  .app-global-header .user-info {
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #e0f2fe;
+    color: #0369a1;
+    border-radius: 8px;
+    max-width: 85px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid #bae6fd;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+
+  .app-header-btn-sair {
+    padding: 4px 8px;
+    font-size: 11.5px;
+    height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .app-drawer {
+    width: 280px;
+    max-width: 85vw;
+  }
+
+  .app-drawer-item {
+    min-height: 46px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    border-radius: 10px;
+    gap: 12px;
+  }
+
+  .app-drawer-item-icon {
+    font-size: 1.2rem;
+  }
+
+  .app-drawer-item:active {
+    transform: scale(0.98);
+    background: var(--slate-100);
+  }
+}

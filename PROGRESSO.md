@@ -1,5 +1,3496 @@
 # Registro de Progresso e Entregas - Conferência de Entrada & Gestão de Recebimento
 
+## Atualização: Fila de Cadastros em Lote (Carrinho) e Botões Compactos Anti-Transbordamento
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos incluir os itens na lista de cadastros e no final confirmar o cadastramento d alista, da uma olhada no botão concluir e fechar o texto está saindo da borda e pode deixar os botões menores"*
+- **Implementações Técnicas e Arquiteturais:**
+  1. **Fila Ágil de Cadastros (Acúmulo de Produtos):**
+     - Criado o estado `listaItensPendentes` no [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx).
+     - **Fase 2 (Adicionar Itens à Lista):**
+       - Validação prévia no ato do bip: bloqueia produtos já incluídos na lista atual (`jaNaLista`) ou já ativos no mesmo endereço.
+       - Tratamento de picking: produtos com picking ativo em outro endereço abrem o modal de confirmação e, se aceitos, são enfileirados com flag `confirmarSubstituicaoPicking: true`.
+       - Ao confirmar a inclusão (`+ Incluir na Lista` ou double-scan), o produto é adicionado à fila temporária, um feedback sonoro e visual suave é emitido, e o campo é limpo instantaneamente com foco mantido para o conferente bipar o próximo item em sequência ininterrupta.
+       - Banner superior suave na Fase 2 mostrando o total acumulado: `🛒 X produtos na lista` com atalho direto `[ Revisar Lista (X) ➔ ]`.
+  2. **Fase 3 (Revisão e Confirmação da Lista):**
+     - Apresenta o endereço de destino (`EnderecoChips`) e todos os itens enfileirados em cards compactos com miniatura de foto (`ProdutoImagem`), código, descrição, EAN, lote e botão de exclusão individual (`🗑️`).
+     - Botão de gravação em lote: `[ ⚡ Gravar Lista (X) ]` que processa todos os itens da fila no Sankhya via `enderecamentoApiService.cadastrar`, alimentando o feed auditável da sessão.
+     - Botão para continuar bipando: `[ + Adicionar Item ]`.
+  3. **Ajuste de Botões Compactos e Anti-Transbordamento:**
+     - No [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css), a altura dos botões foi reduzida de 50px/52px para **40px** (tanto no desktop quanto no mobile).
+     - Tipografia ajustada para `13px` com `font-weight: 700` e padding de `0 12px`/`0 14px`.
+     - Textos concisos e diretos (`+ Adicionar Item`, `Gravar Lista (X)`, `+ Nova Lista`, `Fechar`), com `white-space: nowrap; overflow: hidden; text-overflow: ellipsis;` e container flex com `flex-wrap: wrap; gap: 8px;` garantindo que os botões nunca estourem a borda em telas estreitas de smartphones e coletores Android.
+- **Compilação e Deploy do APK:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Sincronização: `npx cap sync android` atualizou os assets web nativos (**exit code 0**).
+  - APK Android: `gradlew.bat assembleDebug --rerun-tasks` finalizado com sucesso (**BUILD SUCCESSFUL in 1m 10s**).
+  - Arquivo final: [`frontend/android/app/build/outputs/apk/debug/app-debug.apk`](file:///c:/Users/inovace/Documents/Sankhya/frontend/android/app/build/outputs/apk/debug/app-debug.apk) (gerado em `19/11/2026 16:49:52`).
+
+---
+
+## Atualização: Redesign Minimalista e Suave do Bottom Sheet de Endereçamento (3 Fases: Endereço ➔ Produto ➔ Verificação)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos ajustar esse design/layout do popup de cadastrar precisa ficar mais minimalista e suave, sem perder a identidade visual/cores. Veja o exemplo, podemos criar as fases endereço, registrou... vamos para segunda fase produto, e a terceira e verificação do que foi cadastrado."*
+  - Imagem de referência fornecida pelo usuário: cards com cantos arredondados (18px), ícones em *squircle* com fundos coloridos suaves, tipografia limpa, drag handle no topo e fluxo por etapas sem rolagem vertical excessiva.
+- **Implementações Técnicas e Arquitetura do Redesign:**
+  1. **Barra de Progresso Superior (Stepper de 3 Segmentos):**
+     - Barra horizontal elegante com 3 segmentos indicadores no topo da gaveta:
+       - `1. Endereço` (ativo com preenchimento em azul `#2563eb`).
+       - `2. Produto` (ativo com preenchimento em laranja vibrante `#ea580c`).
+       - `3. Concluído` (ativo com preenchimento em verde sucesso `#16a34a`).
+  2. **Fase 1 (Posição Física / Endereço):**
+     - Card de entrada limpo com ícone em *squircle* azul (`📍`), campo de digitação/bipagem com leitor laser, botão de câmera (`📷`) e botão de ação rápida `OK`.
+     - Card de endereço validado com `EnderecoChips`, descrição e badge `✓ Posição Válida no WMS`.
+     - Toggle suave de trava de endereço (`🔒 Endereço Travado` vs `🔓 Troca a Cada Bip`), permitindo fixar a posição física para múltiplos produtos.
+     - Botão de avanço em destaque: `[ Avançar para o Produto ➔ ]`.
+  3. **Fase 2 (Identificação e Vínculo do Produto):**
+     - Banner superior contextual mostrando a posição selecionada ativa com botão discreto `[ ↺ Trocar ]` para retornar à Fase 1 a qualquer momento.
+     - Card de entrada com *squircle* laranja (`📦`), suporte a leitor de código de barras físico ou câmera (`📷`), e campo opcional de lote.
+     - Card de conferência visual (`👁️ Conferência Visual`) com foto ampla do produto (toque para zoom), dados cadastrais (EAN, Ref, Unidade, Lote), saldos disponíveis e situação no WMS (Picking atual e Pulmões ativos).
+     - Mecanismo de confirmação ágil e double-scan com botão primário `[ ⚡ Confirmar Vínculo (Enter) ]`.
+  4. **Fase 3 (Verificação do que foi Cadastrado):**
+     - Hero visual verde com círculo de sucesso (`✓`) confirmando a sincronização no Sankhya ERP.
+     - Card do último registro com miniatura da foto, código, descrição, EAN e endereço vinculado (`EnderecoChips`).
+     - Histórico resumido da sessão de trabalho em carrossel horizontal de chips.
+     - Botões de desfecho:
+       - `[ ➕ Cadastrar Próximo Produto ]`: se o endereço estiver travado, avança diretamente para a Fase 2 pronto para o próximo bip; se destravado, retorna à Fase 1.
+       - `[ ✓ Concluir e Fechar ]`: encerra a gaveta e volta para a tela de endereçamento.
+  5. **Estilização e Thumb-Zone Android:**
+     - Classes dedicadas com prefixo `.enderecamento-*` em [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css), preservando isolamento total e sem tocar em `global.css`.
+     - Drag handle visível (`#cbd5e1`), cantos arredondados de 24px no rodapé e botões com altura mínima de 52px para acionamento confortável com o polegar.
+- **Compilação e Deploy do APK:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Sincronização: `npx cap sync android` atualizou os assets web nativos (**exit code 0**).
+  - APK Android: `gradlew.bat assembleDebug --rerun-tasks` finalizado com sucesso (**BUILD SUCCESSFUL in 1m 37s**).
+  - Arquivo final: [`frontend/android/app/build/outputs/apk/debug/app-debug.apk`](file:///c:/Users/inovace/Documents/Sankhya/frontend/android/app/build/outputs/apk/debug/app-debug.apk) (gerado em `19/11/2026 16:24:28`).
+
+---
+
+## Atualização: Tela Cheia para Câmera Scanner (React Portal em `document.body`, Z-Index Máximo 2147483647 e Ocultação Temporária da Gaveta)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"quando clico na camera continua aparcendo por tras do poup de cadastro"*
+- **Solução Definitiva:**
+  1. **React Portal (`createPortal`):**
+     - O [`ModalCameraScanner.tsx`](./frontend/src/presentation/components/ModalCameraScanner/ModalCameraScanner.tsx) agora renderiza diretamente no `document.body` via `createPortal`, quebrando qualquer contexto de empilhamento (*stacking context*) ou limitações de container pai.
+  2. **Z-Index Máximo do Navegador (2147483647):**
+     - No [`ModalCameraScanner.css`](./frontend/src/presentation/components/ModalCameraScanner/ModalCameraScanner.css), a classe `.modal-camera-overlay` recebeu `z-index: 2147483647 !important;` e `width: 100vw; height: 100vh; position: fixed; inset: 0`, cobrindo 100% da viewport do Android.
+  3. **Ocultação Temporária da Gaveta (Preservando Estado):**
+     - No [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx), enquanto a câmera estiver ativa (`cameraAtiva !== null`), o Bottom Sheet de cadastro recebe `style={{ display: 'none' }}`. Todo o formulário, endereço travado e inputs permanecem intactos na memória React, e o Bottom Sheet reaparece instantaneamente assim que a câmera faz o bip ou é cancelada.
+- **Compilação e Deploy do APK:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Sincronização: `npx cap sync android` atualizou os assets web nativos.
+  - APK Android: `gradlew.bat assembleDebug --rerun-tasks` finalizado com sucesso (**BUILD SUCCESSFUL in 1m 10s**).
+  - Arquivo final: [`frontend/android/app/build/outputs/apk/debug/app-debug.apk`](file:///c:/Users/inovace/Documents/Sankhya/frontend/android/app/build/outputs/apk/debug/app-debug.apk) (gerado em `19/11/2026 15:33:02`).
+
+---
+
+## Atualização: Correção de Sobreposição da Câmera (Z-Index 99999) e Permissões Nativas de Câmera no Android (AndroidManifest + Runtime Prompt)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"a camera está abrindo por traz do menu, e não teria que solicitar autorização para usar a camera?"*
+- **Diagnóstico:**
+  1. O modal da câmera (`ModalCameraScanner.css`) possuía `z-index: 9999` e não definia `position: fixed; inset: 0`, disputando com a sobreposição do Bottom Sheet (`enderecamento-coletor-overlay`), fazendo a tela da câmera renderizar por trás do menu.
+  2. A permissão nativa `android.permission.CAMERA` e os recursos de hardware (`android.hardware.camera`) não estavam declarados no `AndroidManifest.xml`, e o `MainActivity.java` não solicitava a permissão de câmera em tempo de execução ao sistema operacional Android.
+- **Implementações Técnicas:**
+  1. [`ModalCameraScanner.css`](./frontend/src/presentation/components/ModalCameraScanner/ModalCameraScanner.css):
+     - Atualizada a classe `.modal-camera-overlay` com `position: fixed; inset: 0; z-index: 99999;` garantindo prioridade absoluta sobre qualquer modal, gaveta ou menu da aplicação.
+  2. [`AndroidManifest.xml`](./frontend/android/app/src/main/AndroidManifest.xml):
+     - Adicionada a permissão `<uses-permission android:name="android.permission.CAMERA" />`.
+     - Adicionados `<uses-feature android:name="android.hardware.camera" android:required="false" />` e autofocus.
+  3. [`MainActivity.java`](./frontend/android/app/src/main/java/com/sankhya/confercheck/MainActivity.java):
+     - No método `onStart()`, adicionada verificação e solicitação em tempo de execução de `Manifest.permission.CAMERA` e `RECORD_AUDIO`, disparando o diálogo nativo do Android ("Permitir que o app ConferCheck tire fotos e grave vídeos?").
+  4. [`ModalCameraScanner.tsx`](./frontend/src/presentation/components/ModalCameraScanner/ModalCameraScanner.tsx):
+     - Mensagens educativas amigáveis caso o usuário recuse a permissão no Android.
+- **Compilação e Deploy do APK:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Sincronização: `npx cap sync android` atualizou os assets web nativos.
+  - APK Android: `gradlew.bat assembleDebug --rerun-tasks` finalizado com sucesso (**BUILD SUCCESSFUL in 1m 20s**).
+  - Arquivo final: [`frontend/android/app/build/outputs/apk/debug/app-debug.apk`](file:///c:/Users/inovace/Documents/Sankhya/frontend/android/app/build/outputs/apk/debug/app-debug.apk) (gerado em `19/11/2026 15:23:08`).
+
+---
+
+## Atualização: Sincronização e Compilação do APK Android com o Bottom Sheet de Endereçamento WMS
+
+- **Demanda do Usuário:**
+  - *"faltou builda o app para ele receber as melhorias do botão flutuante de cadastro de endereço"*
+- **Ações Executadas & Validações:**
+  1. **Frontend:** Build de produção gerado com sucesso via `npm --prefix frontend run build` (**exit code 0**).
+  2. **Capacitor Sync:** Executado `npx cap sync android` dentro de `frontend/` sincronizando os novos assets, componentes e CSS para a pasta nativa `android/app/src/main/assets/public/` (**exit code 0**).
+  3. **Gradle APK Rebuild:** Executado `.\gradlew.bat assembleDebug --rerun-tasks` dentro de `frontend/android/`, forçando o reempacotamento completo de todas as 82 tarefas de compilação (**BUILD SUCCESSFUL in 1m 8s**).
+  4. **APK Atualizado:**
+     - Arquivo: [`app-debug.apk`](file:///c:/Users/inovace/Documents/Sankhya/frontend/android/app/build/outputs/apk/debug/app-debug.apk)
+     - Gerado em: `19/11/2026 15:13:04`
+     - Tamanho: 5.2 MB
+     - Conteúdo embutido: Novo Extended FAB `[ ⚡ Cadastrar ]`, Bottom Sheet Android (Material 3), Botões de Câmera `[ 📷 ]` nos inputs de Endereço e Produto, e ações diretas nos cards de endereço.
+
+---
+
+## Atualização: Build do Aplicativo Android (Vite + Capacitor + Gradle APK)
+
+- **Demanda do Usuário & Alinhamento:**
+  - *"roda o biuld do app android e instalado no dispositivo conectado"*
+- **Ações Executadas & Validações:**
+  1. **Frontend:** Build compilado via `npm --prefix frontend run build` com TypeScript e Vite gerando bundle em `frontend/dist/` (**exit code 0**).
+  2. **Backend (BFF):** Compilação validada via `npm --prefix backend run build` (**exit code 0**).
+  3. **Capacitor Android:** Assets web sincronizados com a pasta nativa Android via `npx cap sync android` (**exit code 0**).
+  4. **Gradle APK:** Build nativo executado via `.\gradlew assembleDebug --no-daemon` com sucesso (**exit code 0**), gerando o APK final atualizado:
+     - Caminho: `frontend/android/app/build/outputs/apk/debug/app-debug.apk`
+     - Tamanho: 5.9 MB
+  5. **Diagnóstico do Aparelho (ADB):**
+     - O Windows detecta o dispositivo conectado via USB: **Galaxy Tab A (8.0", 2019)** em modo de transferência de arquivos (WPD).
+     - Aguardando a habilitação da **Depuração USB** nas opções de desenvolvedor do tablet para envio e abertura automática do APK.
+
+---
+
+## Atualização: Módulo de Endereçamento WMS - Bottom Sheet Android para Cadastramento de Produtos no Endereço (Suporte Híbrido Câmera/Laser, Thumb-Zone e Ação Direta nos Cards)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"no modulo de endereçamento preciso disponibilizar um(popup) para iniciar o cadastramento endereço produtos, isso vai ser usado no android, então vamos trabalhar em um design foca na plataforma android"*
+  - Decisões consolidadas:
+    1. **Estrutura Visual Android (Material 3 Bottom Sheet):**
+       - Modal deslizante da base inferior (*slide-up*) cobrindo até ~92% da tela com cantos superiores arredondados (`24px`) e *drag handle* central.
+       - Ergonomia otimizada para operação com uma mão (área de toque *thumb-zone* com altura mínima de 48px nos botões e inputs).
+    2. **Captura Híbrida de Código de Barras:**
+       - **Coletores Industriais Android (Zebra, Honeywell):** Foco automático contínuo para leitura rápida a laser com suporte a Enter/teclado.
+       - **Smartphones Android:** Botões de câmera dedicados (`📷`) integrados ao componente nativo `ModalCameraScanner` ao lado dos inputs de Endereço e Produto.
+    3. **Fluxo Guiado em Duas Etapas:**
+       - **Etapa 1 (Endereço):** Validação física do endereço com suporte a botão de trava (`[🔒 Endereço Travado]`) para bipagem contínua de múltiplos produtos.
+       - **Etapa 2 (Produto):** Conferência visual com foto ampla (`120x120px` com toque para zoom), dados cadastrais, situação de Picking/Pulmão no WMS e saldo disponível, além de suporte a *double-scan* para confirmação sem tocar na tela.
+    4. **Pontos de Acesso Integrados:**
+       - **Extended FAB Flutuante Android:** Botão em pílula `[ ⚡ Cadastrar ]` fixado no canto inferior direito acima da barra de navegação móvel.
+       - **Ação Rápida nos Cards de Endereço:** Botão `[ ⚡ Cadastrar ]` em cada card da lista analítica, abrindo diretamente o Bottom Sheet com o endereço já pré-preenchido e travado.
+    5. **Feedback Sensorial & Regra de Picking:**
+       - Vibração háptica nativa no Android (`navigator.vibrate`) e bips de áudio sintetizados para confirmação de leitura e alerta de divergência.
+       - Modal assistido de confirmação para substituição de picking oficial com inativação automática do picking anterior no Sankhya ERP.
+    6. **Histórico da Sessão em Carrossel Horizontal:**
+       - Mini-feed horizontal deslizante exibindo os últimos produtos vinculados sem poluir ou empurrar os botões principais de ação.
+- **Implementações Técnicas:**
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Importação e integração do `ModalCameraScanner` para leitura de endereço e produtos via câmera móvel.
+    - Funções `handleAbrirCadastroNoEndereco` e `handleScanCamera`.
+    - Suporte a parâmetros opcionais de valor em `handleLocalizarProduto` e `handleSubmeterConfirmacao` para fluidez com a câmera.
+    - Adição de drag handle, botões de câmera `📷` nos inputs e ação `[ ⚡ Cadastrar ]` nos cards analíticos.
+    - Extended FAB Android com ícone e rótulo.
+  - [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css):
+    - Classes de estilo dedicadas: `.enderecamento-bottom-sheet-drag-handle`, `.enderecamento-coletor-btn-camera`, `.enderecamento-btn-acao-mini.cadastrar`, `.enderecamento-fab-icone`, `.enderecamento-fab-label`.
+    - Regras de mídia `@media (max-width: 900px)` transformando o container em Bottom Sheet com animação `enderecamentoSlideUpBottom` e carrossel horizontal de feed.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Controle Customizável de Tamanho de Fonte para Faixa Vertical de Nível (Letras e Número)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"coloca uma funação para que eu edite o tamanho da fonte antes de enviar o nivel para impressão"*
+  - Decisões consolidadas:
+    1. **Dois Controles Independentes com Steppers e Edição Direta:**
+       - **Fonte Letras (N-I-V-E-L)**: Padrão `70px`, variação de `5px` nos botões `[-]` e `[+]`, permitindo digitação direta de valores entre 20px e 130px.
+       - **Fonte Número**: Padrão `170px`, variação de `5px` nos botões `[-]` e `[+]`, permitindo digitação direta de valores entre 40px e 260px.
+    2. **Ação Rápida de Restauração:**
+       - Botão `↺ Restaurar` no cabeçalho do painel de ajustes para voltar instantaneamente aos padrões ideais (70px / 170px).
+    3. **Atualização em Tempo Real (WYSIWYG):**
+       - O preview na folha A4 no centro da tela escala proporcionalmente o texto das letras e o número à medida que o operador altera os valores.
+    4. **Injeção Dinâmica na Impressão:**
+       - A função `handleImprimir` injeta as variáveis `${tamanhoFonteLetrasFaixa}px` e `${tamanhoFonteNumeroFaixa}px` no CSS gerado para impressão física.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Estados `tamanhoFonteLetrasFaixa` (default 70) e `tamanhoFonteNumeroFaixa` (default 170).
+    - Painel `.montante-config-box` expandido com linhas de ajuste, steppers `-` / `+`, inputs numéricos com sufixo `px` e botão `↺ Restaurar`.
+    - Preview dinâmico com proporção relativa em tempo real.
+    - Injeção das fontes selecionadas na folha de estilo de impressão A4.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Classes de estilo dedicadas: `.btn-restaurar-fonte`, `.config-linha-ajuste`, `.config-linha-label`, `.stepper-wrap`, `.btn-stepper`, `.input-stepper-val-wrap`, `.input-stepper-val`, `.input-stepper-copias` e `.unidade-px`.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Otimização de Espaço da Faixa Vertical de Nível (Espaçamentos Mínimos, Letras em 70px e Número Colossal em 170px)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"Na impressão preciso que as letras e o numeros ocupenas todos o espaço para melhorar a visibilidade o numero ainda mais."*
+  - Decisões consolidadas via `ask_question`:
+    1. **Eliminação de Espaçamentos Desperdiçados**:
+       - Redução drástica das margens e paddings internos para o mínimo possível (`padding: 3mm 1mm`), deixando as letras e o número quase encostando na borda para aproveitamento de ~98% da folha A4.
+       - Remoção completa da linha divisória intermediária para permitir fluxo vertical 100% contínuo e amplitude máxima.
+    2. **Tipografia Colossal e Foco no Número**:
+       - Letras `N - I - V - E - L` ampliadas de 48px para **70px** em negrito forte (`font-weight: 900`), ocupando a porção superior da faixa.
+       - Número do nível ampliado de 85px para **170px** (número colossal, destaque absoluto e visibilidade cristalina em qualquer ponto do corredor logístico).
+       - Borda espessada para 3.5px sólida, mantendo a regra de paridade de cores (Azul para Par e Laranja para Ímpar).
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Configurações de `@page` com margem reduzida para `4mm` e grid A4 com gap de `3mm`.
+    - Classes `.faixa-nivel-card`, `.faixa-nivel-letras span` (70px) e `.faixa-nivel-numero span` (170px).
+    - Remoção da tag `.faixa-nivel-divisor` no HTML impresso e no JSX do preview.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Simulador A4 do modal atualizado com letras em 38px e número gigante em 90px com padding mínimo.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Novo Modelo "Faixa Vertical de Nível (Poste/Montante)" com Letras N-I-V-E-L Empilhadas, Número Gigante e Paridade de Cores
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"agora preciso imprimir os niveis em colunas para colocar"*
+  - Imagem de referência anexada pelo usuário (`media_1794943486471_6ae725a3.png`): letras `N - I - V - E - L` empilhadas verticalmente e o número do nível logo abaixo.
+  - Decisões consolidadas via `ask_question`:
+    1. **Novo Modelo Dedicado na Central de Impressão**: `🗼 Faixa Vertical de Nível (Poste/Montante)`.
+    2. **Divisão de Página A4 em 3 Faixas Verticais**: Cada folha A4 Retrato acomoda exatamente 3 faixas contínuas (~65mm de largura cada, formato montante de poste porta-paletes).
+    3. **Regra de Paridade de Cores Preservada**:
+       - **Nível Par (2, 4, 6...)**: Borda sólida 3px Azul (`#2563eb`), divisor e número gigante em Azul (`#2563eb`).
+       - **Nível Ímpar (1, 3, 5...)**: Borda sólida 3px Laranja (`#ea580c`), divisor e número gigante em Laranja (`#ea580c`).
+    4. **Extração Automática dos Níveis & Controle de Cópias**:
+       - Detecta automaticamente os níveis distintos presentes no filtro ou pré-seleção ativa.
+       - Controle de cópias de cada nível (stepper `-` / `+`, padrão: 1 cópia de cada).
+    5. **Tipografia Imponente**:
+       - Letras `N - I - V - E - L` distribuídas verticalmente com tamanho de **48px** em negrito forte.
+       - Número do nível gigante com **85px** em negrito forte na base da faixa.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Tipo `EstiloLayoutEtiqueta` ampliado com `'FAIXA_NIVEL_VERTICAL'`.
+    - Estados `copiasFaixaNivel`, cálculo `niveisDistintos`, `faixasNivelQueue` e paginação para 3 faixas por folha A4.
+    - Card de seleção no Estilo Visual e painel de ajuste de cópias com resumo analítico.
+    - Script de impressão isolado `layout-faixa-nivel` renderizando `.faixa-nivel-card` com letras e números gigantes.
+    - Pré-visualização em tela (`.preview-faixa-nivel-card`) com sincronização em tempo real das cópias e navegação de folhas.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Classes de estilo dedicadas: `.preview-folha-a4.layout-faixa-nivel`, `.preview-faixa-nivel-card`, `.preview-faixa-nivel-letras`, `.preview-faixa-nivel-divisor` e `.preview-faixa-nivel-numero`.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Destaque Verde Condicional na Posição (Exclusivo para Picking) e Estilo Padrão Azul/Branco para Pulmão
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"agora vamos deixar a cor verde na posição que for pick, pulmão vamos deixar a letra azul com o fundo branco assim como é rua e torre"*
+  - Decisões consolidadas via `ask_question`:
+    1. **Destaque Verde Condicional para Picking**:
+       - Quando o endereço for **`PICKING`**, a linha/bloco da **`POSIÇÃO`** recebe o destaque verde aprovado: fundo verde suave (`#f0fdf4`), borda verde (`#16a34a`) e rótulo textual verde (`#16a34a`).
+    2. **Padronização Visual para Pulmão**:
+       - Quando o endereço for **`PULMAO`**, a **`POSIÇÃO`** é renderizada exatamente como **`RUA`** e **`TORRE`**: fundo claro/branco (`#f8fafc` / `#ffffff`), borda padrão cinza suave (`#cbd5e1`), rótulo em azul (`#0284c7`) e número escuro (`#0f172a`), eliminando o falso destaque verde em áreas aéreas de estocagem.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Estilos de impressão atualizados para `.coord-linha-posicao-picking` e `.coord-chip.pos-picking` com borda e textos verdes.
+    - Renderização HTML e JSX condicionadas por `item.tipo?.toUpperCase() === 'PICKING'`: apenas itens de picking recebem as classes de destaque verde. Endereços de pulmão adotam a classe padrão `.coord-linha` / `.coord-chip`.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Atualização dos seletores de pré-visualização em tela (`.coord-linha-posicao-picking`, `.p-coord-linha.coord-linha-posicao-picking`, `.preview-coord-chip.pos-picking`).
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Bordas Sólidas Coloridas por Paridade de Nível (Azul / Laranja), Fundo do Nível Colorido e Coordenadas em 15px / 30px
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos colocar um borda no cards da impressão de endereçamento, par azul e impa laranja e vamos aumetar o tamanho dos letras e numeros do endereço rua, torre, nivel e posição"*
+  - Decisões consolidadas via `ask_question`:
+    1. **Critério de Paridade por Nível**:
+       - **Nível Par** (2, 4, 6...): Borda sólida grossa de 3px em Azul (`#2563eb`).
+       - **Nível Ímpar** (1, 3, 5...): Borda sólida grossa de 3px em Laranja (`#ea580c`).
+       - Aplicado a **todos os cards** de impressão e pré-visualização (Tira de Montante Multi-Nível, Clássico Horizontal e QR Lateral).
+    2. **Fundo do Nível na Cor Correspondente**:
+       - Nível Par: fundo do bloco Nível em Azul (`#2563eb`) com texto e números em branco.
+       - Nível Ímpar: fundo do bloco Nível em Laranja (`#ea580c`) com texto e números em branco.
+    3. **Tipografia Ampliada das Coordenadas**:
+       - Rótulos textuais (`RUA`, `TORRE`, `NÍVEL`, `POSIÇÃO`) aumentados de 9px para **15px**.
+       - Números das coordenadas aumentados para **30px** (com proporções adaptativas seguras para montantes com 5 e 6 níveis).
+       - Coluna de coordenadas expandida (`flex: 1.45`) em relação ao QR Code (`flex: 0.85`), garantindo respiração e visualização de longa distância no corredor.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Injeção das classes dinâmicas `nivel-par` e `nivel-impar` em todos os cards montante e etiquetas individuais.
+    - Estilização de impressão com bordas de 3px (`border: 3px solid #2563eb` e `#ea580c`) e fundos contrastantes para `.coord-linha-nivel-invertido` e `.coord-chip.nivel-chip`.
+    - Ajuste dos rótulos para 15px e valores para 30px nas coordenadas.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Regras para `.preview-etiqueta-card.nivel-par` e `.preview-etiqueta-card.nivel-impar`.
+    - Fundos azul e laranja aplicados aos seletores de Nível na simulação A4 em tela.
+    - Calibração de fontes e proporções do preview.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Seta Solta em Largura Total (100%) com Espessura Ampliada em +30% no Topo do Montante
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"essa seta criada, vamos aumetar a grossura uns 30% e vamos deixa ela largura total"*
+  - Decisões consolidadas via `ask_question`:
+    1. **Seta Solta em Largura Total (Sem Caixa)**: Remoção de qualquer borda pontilhada, caixa cinza ou container delimitador. A seta escura `#0f172a` agora fica solta e estica de ponta a ponta (`width: 100%`) em toda a largura do montante metálico (~60mm).
+    2. **Espessura Ampliada em +30% & Altura de Destaque (~28px)**: A haste (`shaft`) e a ponta da seta foram espessadas proporcionalmente em +30% (haste de 14 unidades verticais em viewBox de 28px de altura), gerando impacto visual e clareza instantânea para os operadores no corredor logístico.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Geometria do polígono SVG redefinida para viewBox `0 0 100 28`:
+      - Esquerda: `points="24,0 1,14 24,28 24,21 99,21 99,7 24,7"`.
+      - Direita: `points="76,0 99,14 76,28 76,21 1,21 1,7 76,7"`.
+    - Estilos de impressão (`.montante-topo-seta`): removidos `border`, `background` e `box-shadow`; definidos `width: 100%`, `height: 28px`, `padding: 0` e margem inferior calibrada (`1.5mm`).
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - `.preview-montante-topo-seta` e `.preview-montante-seta-svg` atualizados para ocupar `width: 100%` com altura de `22px` no simulador de tela, sem bordas nem fundo.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Seta Indicativa Direcional no Topo das Colunas de Montante com Regra de Paridade (Torre e Posição)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"agora vamos incluir uma seta no top de cada coluna baeada na seleção do usuário, torre impa posição impa -> seta para esquerda ou direta, isso fará com que o par seja o contrario"*
+  - Imagem de referência anexada pelo usuário (`media_1794932444426_807741c0.png`): 3 colunas de montante impressas na folha A4.
+  - Decisões consolidadas via `ask_question`:
+    1. **Regra de Paridade Direcional Completa**:
+       - O usuário seleciona a direção base para **Posição Ímpar** (`ESQUERDA` ou `DIREITA`).
+       - Se a **Torre for Ímpar**:
+         - Posição Ímpar $\rightarrow$ Direção selecionada.
+         - Posição Par $\rightarrow$ Direção oposta (inversão automática).
+       - Se a **Torre for Par**:
+         - Inverte todo o espelhamento da torre (Posição Ímpar fica oposta, Posição Par fica a direção base).
+       - Fórmula:
+         $$\text{dir} = \text{isPosImpar} ? \text{dirBase} : \text{oposta}(\text{dirBase})$$
+         $$\text{if (!isTorreImpar)} \implies \text{dir} = \text{oposta}(\text{dir})$$
+    2. **Estilo Visual da Seta**:
+       - Card dedicado no topo de cada coluna com design limpo e nítido: "Apenas uma seta grande" em vetor SVG poligonal (`polygon`), com bordas tracejadas elegantes (`border: 1.5px dashed #94a3b8`) idênticas aos cards de nível, sem textos redundantes, garantindo máximo contraste e legibilidade física no topo do montante metálico.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Estados `direcaoPosicaoImpar` (`'ESQUERDA' | 'DIREITA'`) e `mostrarSetaTopo` (`boolean`, ativo por padrão).
+    - Funções utilitárias: `calcularDirecaoSeta` e gerador de SVG poligonal `renderSetaSvgString` / `SetaMontantePreview`.
+    - Painel esquerdo de configurações: sub-bloco contextual `.montante-config-box` com botões de alternância `[ ⬅ Esquerda ]` e `[ Direita ➡ ]`, checkbox para ligar/desligar a seta e nota explicativa da paridade em tempo real.
+    - Resumo de quantidades enriquecido com o status da seta e direção configurada.
+    - Pré-visualização na folha A4 do modal (`.preview-montante-topo-seta`) exibindo a seta renderizada dinamicamente com base nas coordenadas de cada coluna.
+    - Script de impressão real gerando o container `.montante-topo-seta` no topo de cada coluna física da folha A4 com proporções e alturas milimétricas para não transbordar a página única.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Estilização completa das classes `.preview-montante-topo-seta`, `.preview-montante-seta-svg`, `.montante-config-box`, `.montante-config-header`, `.montante-direcao-grid`, `.btn-direcao-opcao` e `.montante-regra-nota`.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Compressão Horizontal em 35% da Tira de Montante (3 Colunas por Folha A4 • Largura ~60mm)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"ainda nessa layout da vertical, vamos diminuir em 35% na horizontal o card comprimindo o endereço"*
+  - Decisões consolidadas via `ask_question`:
+    1. **Adequação ao Montante Físico (~60mm)**: Redução da largura total da tira em 35%, convertendo o layout da folha A4 de 2 para **3 colunas verticais** contínuas (~60mm de largura útil por montante), ideal para aplicação direta na face metálica estreita dos postes porta-paletes do armazém.
+    2. **Organização Interna do Card**: Preservação da disposição horizontal compacta (QR Code à esquerda e Coordenadas à direita), com espaçamentos otimizados (gap de 4px) e tipografia ajustada (números em 20px/22px e rótulos em 9px) para encaixe milimétrico sem transbordo.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Grade da folha A4 de impressão atualizada para 3 colunas: `grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm;`.
+    - Paginação física e lógica do componente ajustadas para processar 3 tiras por página A4 (`Math.ceil(colunasMontante.length / 3)`).
+    - Redução proporcional de padding e paddings internos dos cards `.montante-nivel-card` (`padding: 3px 4px`).
+    - Ajuste dos números das coordenadas para 20px (22px no Nível invertido) com adaptações dinâmicas para 4 e 5 níveis.
+    - Textos de cabeçalho (`PULMAO`, `DEPÓSITO 01`, `CÓD: {codend}`) e rodapé calibrados para não sofrerem quebra de linha.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Simulador A4 do modal atualizado para `.preview-folha-a4.layout-montante` com `grid-template-columns: 1fr 1fr 1fr; gap: 8px;` e escala reduzida proporcional.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Ampliação de Rótulos e Números das Coordenadas no Modelo Montante Vertical
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"agora vamos aumentar o tamanho do texto e o numero nessa modelo da vertical"*
+  - Imagem de referência (`media_1794931434093_a0b8aa10.png`): card da Tira de Montante Vertical com área interna das coordenadas na coluna da direita.
+  - Decisões consolidadas via `ask_question`:
+    1. **Foco Exclusivo nas Coordenadas**: Aumento focado exclusivamente na coluna de coordenadas à direita (`RUA`, `TORRE`, `NÍVEL`, `POSIÇÃO` e seus números correspondentes), preservando cabeçalho (`PULMAO`/`DEPÓSITO 01`/`CÓD`) e rodapé.
+    2. **Escala Visual Ampliada**:
+       - Rótulos textuais (`RUA`, `TORRE`, `NÍVEL`, `POSIÇÃO`) aumentados de 8px para **11px** em negrito forte.
+       - Números das coordenadas aumentados de 15px para **26px** (com o **Nível** em **28px** em branco sobre o bloco escuro invertido `#0f172a`).
+       - Proporcionalidade automática preservada para colunas com 4 a 5 níveis para evitar quebras de página.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Reestruturação das classes `.montante-nivel-card .coord-linha-label` (11px) e `.montante-nivel-card .coord-linha-val` (26px / 28px no Nível invertido).
+    - Escala adaptativa por densidade de níveis: `col-niveis-2` (28px/30px), `col-niveis-3` (26px/28px), `col-niveis-4` (21px/23px) e `col-niveis-5` (18px/20px).
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Ampliação sincronizada dos tamanhos de fontes e rótulos no container de pré-visualização A4 `.preview-montante-nivel-card`.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Endereçamento WMS - Filtros Flexíveis de Coordenadas com Múltiplos Valores (Vírgulas e Intervalos)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"gostaria de conseguir filtrar colocando os numero dessa forma"*
+  - Imagem de referência (`media_1794928625804_ca9eedf4.png`): usuário informando múltiplos valores separados por vírgula no campo de coordenada (ex.: `POSIÇÃO = 1,2`).
+  - Decisões consolidadas via `ask_question`:
+    1. **Formatos Suportados**: Suporte completo tanto para listas separadas por vírgula (ex.: `1,2` ou `1, 3, 5`) quanto para intervalos com hífen (ex.: `1-5` ou `1 - 4`).
+    2. **Abrangência**: Aplicado a todos os 5 campos de coordenadas físicas da tela principal de Endereçamento (`DEP`, `RUA`, `TORRE`, `NÍVEL`, `POSIÇÃO`).
+- **Implementações Técnicas:**
+  - [`ListarEnderecosAnaliticoUseCase.ts`](./backend/src/application/use-cases/enderecamento/ListarEnderecosAnaliticoUseCase.ts):
+    - Nova função utilitária `parseFiltroNumericoFlexivel(raw)` que interpreta strings livres, dividindo por vírgulas e expandindo intervalos hifenizados para um `Set<number>` otimizado.
+    - Filtragem analítica aplicando verificação em tempo `O(1)` (`set.has(valor)`) para cada coordenada informada.
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Conversão dos 5 campos de entrada de `type="number"` para `type="text"`, permitindo digitação natural de vírgulas, hifens e espaços.
+    - Adicionado atributo `title="Informe o número, lista (1,2) ou intervalo (1-5)"` para orientação contextual ao usuário.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Endereçamento WMS & Central de Etiquetas - Inclusão de Depósito no Filtro Analítico e no Cabeçalho das Etiquetas
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"preciso que o filtro olhe para o deposito, e incluir o deposito na impressão"*
+  - Imagem de referência (`media_1794927668350_dd221ed2.png`): retângulo vermelho apontando para a área central do cabeçalho da etiqueta, entre o badge de tipo (`PULMAO`/`PICKING`) e o `CÓD: {codend}`.
+  - Decisões consolidadas via `ask_question`:
+    1. **Formato Visual no Card**: Exibição central no cabeçalho como `"DEPÓSITO 01"` (nome por extenso com 2 dígitos correspondentes ao segmento do armazém WMS, ex.: `01`, `02`).
+    2. **Filtro na Tela de Endereçamento**: Campo numérico `[ DEP ]` adicionado antes de Rua na linha de filtros analíticos: `[ DEP ] [ RUA ] [ TORRE ] [ NÍVEL ] [ POSIÇÃO ] [ ✕ ] [ Filtrar ]`.
+    3. **Opções do Modal de Impressão**: Adicionado checkbox `Depósito` nas opções visuais (marcado por padrão) e campo de filtro por Depósito no modo intervalo.
+- **Implementações Técnicas:**
+  - [`EnderecoChips.tsx`](./frontend/src/presentation/components/common/EnderecoChips.tsx):
+    - Extração do segmento de depósito (`partes[0]`) no `parseEndereco` e inclusão do campo `deposito: string` em `EnderecoDetalhado`.
+  - [`ListarEnderecosAnaliticoUseCase.ts`](./backend/src/application/use-cases/enderecamento/ListarEnderecosAnaliticoUseCase.ts):
+    - Parâmetro `deposito?: string` adicionado ao input e à função `parseEnderecoCoords`.
+    - Filtro analítico comparando valor numérico exato do depósito com fallback e integridade.
+  - [`EnderecamentoController.ts`](./backend/src/presentation/http/controllers/EnderecamentoController.ts):
+    - Repasse do parâmetro `deposito` de `req.query` para o caso de uso.
+  - [`EnderecamentoApiService.ts`](./frontend/src/infrastructure/api/EnderecamentoApiService.ts):
+    - Parâmetro `deposito?: string` repassado na chamada de listagem analítica.
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Estado `filtroDeposito` integrado à busca com botão de limpeza rápida `✕`.
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx) e [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Checkbox `mostrarDeposito` incluído na interface e no estado de informações da etiqueta.
+    - Renderização de `<span class="etiqueta-deposito-tag">DEPÓSITO {niv.deposito}</span>` no cabeçalho do cartão físico impresso e no painel de pré-visualização A4.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Correção de Paginação da Tira de Montante (Auto-Fit em Página Única A4 sem Quebra)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"na impressão ficou assim, precisamos ajutar para ficar em uma unica pagina"*
+  - Problema identificado na foto da impressão física (`media_1794927269148_c6811e6a.png`): na impressão da Tira de Montante Multi-Nível, o 3º card (`NÍVEL 1`) era cortado ao meio pela quebra de página, transbordando o QR Code e as coordenadas para a página 2.
+  - Alinhamento realizado via `ask_question`: **Ajuste proporcional automático**: compactar suavemente paddings, alturas e dimensões do QR Code (com `min-height: 0` e `break-inside: avoid`), garantindo que todos os níveis da coluna caibam perfeitamente em 1 única folha A4 sem cortes nem divisão entre páginas.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Configuração da página de impressão `@page { size: A4 portrait; margin: 6mm; }` para maximizar a área útil (285mm de altura vertical).
+    - Regras de quebra e contenção: `break-inside: avoid; page-break-inside: avoid;` adicionadas a `.montante-coluna-container` e `.montante-nivel-card`, eliminando cortes no meio de cartões.
+    - Suporte flexível total: `min-height: 0` aplicado a `.montante-nivel-card`, `.etiqueta-corpo-lateral`, `.etiqueta-lateral-qr-box`, `.etiqueta-qrcode-lateral` e `.coord-linha`, permitindo que os elementos encolham elasticamente conforme a quantidade de níveis.
+    - Proporcionalidade dinâmica: classes `.col-niveis-${col.niveis.length}` atribuídas a cada coluna com regras CSS de escala gradual de tipografia e espaçamentos (fontes maiores para 2 níveis, intermediárias para 3 níveis e compactas para 4+ níveis).
+    - Altura e transbordo protegidos: `.folha-a4` com `max-height: calc(297mm - 12mm); overflow: hidden;` evitando qualquer geração de folha fantasma ou extra.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Estilização espelhada no container de pré-visualização `.preview-montante-coluna-container` e `.preview-montante-nivel-card`, aplicando `overflow: hidden; min-height: 0` e escalonamento por classe de quantidade de níveis.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Refinamento da "Tira de Montante" (Cards Laterais com QR à Esquerda e Coordenadas à Direita por Nível)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"preciso que o layout da tira de montante siga esse design da coluna e no card, o exemplo é apenas visual"*
+  - *"vamos reverter a decisão anterior e colocar QRCode na esquerda e endereçamento da direita, e opção 1"*
+  - Decisões consolidadas via `/grill-me` com base na imagem do operador (`media_1794926449152_fbf6e916.png`):
+    1. **Fidelidade Visual ao Design "Coluna"**: Dentro da tira de montante vertical (2 colunas A4), cada nível é renderizado como um card completo individual com borda pontilhada arredondada (`.montante-nivel-card`).
+    2. **Disposição dos Elementos**:
+       - **Cabeçalho**: Badge do tipo (`PICKING` em verde ou `PULMÃO` em azul) no topo esquerdo e `CÓD: {codend}` no topo direito.
+       - **Corpo Lateral**: Box com QR Code amplo em destaque à esquerda (sem margens mortas) e código de endereço abaixo; e coluna com as 4 coordenadas empilhadas à direita (`RUA`, `TORRE`, `NÍVEL` em bloco escuro invertido `#0f172a`, `POSIÇÃO`).
+       - **Rodapé**: `WMS ConferCheck` e `Galpão Logístico` no rodapé de cada card.
+    3. **Impressão e Pré-visualização**: A folha A4 organiza os cards em 2 colunas verticais contínuas, distribuindo proporcionalmente a altura disponível entre os níveis de cada torre/posição.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - No `handleImprimir` (caso `isMontante`), substituição da estrutura anterior por cards individuais `.montante-nivel-card` contendo header, corpo lateral (`.etiqueta-corpo-lateral`, `.etiqueta-lateral-qr-box`, `.etiqueta-lateral-coords-col`) e footer completo.
+    - No painel direito de pré-visualização, renderização de `.preview-montante-coluna-container` e `.preview-montante-nivel-card` com estilos idênticos.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Classes de preview `.preview-montante-coluna-container`, `.preview-montante-nivel-card`, ajustes de proporção de fonte e canvas QR para escala correta na simulação da folha A4.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Endereçamento WMS - Filtro de Busca Quebrado em 4 Campos de Coordenadas (Rua, Torre, Nível, Posição)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos quebra os campos no filtro de endereçamento, pelo tipo (rua, torre, nivel, posição) podendo informar algumas dela vazio."*
+  - Decisões estruturadas via `/grill-me`:
+    1. **Local de Aplicação**: Tela principal de Endereçamento WMS (Aba 1 - Endereços).
+    2. **Busca Exclusiva por Coordenadas**: Removida a dependência do `CODEND`, focando exclusivamente nos 4 eixos de localização física do armazém.
+    3. **Layout dos Campos**: Linha única compacta contendo os 4 campos dedicados lado a lado (`[ RUA ] [ TORRE ] [ NÍVEL ] [ POSIÇÃO ]`), acompanhados do botão de ação `[ Filtrar ]` e botão `[ ✕ ]` de limpeza rápida.
+    4. **Permissividade de Campos Vazios**: Qualquer um dos 4 campos pode ser informado ou deixado em branco (ex.: informar apenas `RUA = 1` busca todas as torres, níveis e posições daquela rua; informar apenas `NÍVEL = 1` busca o piso térreo de todo o armazém).
+- **Implementações Técnicas:**
+  - [`ListarEnderecosAnaliticoUseCase.ts`](./backend/src/application/use-cases/enderecamento/ListarEnderecosAnaliticoUseCase.ts):
+    - Parâmetros `rua`, `torre`, `nivel` e `pos` adicionados à interface `ListarEnderecosAnaliticoInput`.
+    - Função utilitária `parseEnderecoCoords` adicionada para decompor máscaras em regex e fallbacks numéricos com precisão.
+    - Filtro exato em memória comparando valores numéricos inteiros para evitar qualquer falso positivo (ex.: Rua 1 não traz Rua 10 ou Torre 1).
+  - [`EnderecamentoController.ts`](./backend/src/presentation/http/controllers/EnderecamentoController.ts):
+    - Extração de `rua`, `torre`, `nivel` e `pos` de `req.query` e repasse ao caso de uso.
+  - [`EnderecamentoApiService.ts`](./frontend/src/infrastructure/api/EnderecamentoApiService.ts):
+    - Parâmetros `rua`, `torre`, `nivel` e `pos` adicionados à chamada `listarAnalitico`.
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx) e [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css):
+    - Estados `filtroRua`, `filtroTorre`, `filtroNivel` e `filtroPosicao`.
+    - Novo formulário `.enderecamento-coords-search-row` com 4 campos estilizados em linha única, rótulos compactos azuis superiores e foco em laranja institucional.
+    - Botão `✕` para limpar os 4 campos de uma só vez e botão `[ Filtrar ]` compacto ao lado.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Novo Layout "🪜 Tira de Montante Multi-Nível" (2 Colunas A4 com Níveis Empilhados por Posição)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos fazer mais um layout na impressão de etiquetas, para agruparmos nível por posição tipo TORRE 1 - NVEL 1 POSIÇÃO 1, TORRE 1 - NVEL 2 POSIÇÃO 1, TORRE 1 - NVEL 3 POSIÇÃO 1, e usarmos a seguinte logica, dividir a pagina 2 duas colunas, com endereço encima horizontal ou vertial e QRCODE embaixo."*
+  - Decisões estruturadas via `/grill-me`:
+    1. **Estrutura de Agrupamento**: Etiqueta de Montante Multi-Nível (Tira Vertical), dividindo a folha A4 em 2 colunas verticais (2 montantes/baías por folha).
+    2. **Disposição dos Elementos por Nível**: Cabeçalho individual compacto no topo do bloco (`TORRE X` • `NÍVEL X` em bloco escuro de destaque • `POS X`), seguido pelo QR Code amplo centralizado e o código de barras/endereço logo abaixo.
+    3. **Ordem Física de Elevação**: Os níveis dentro de cada coluna são empilhados em ordem decrescente (o nível mais alto no topo e o Nível 1 na base), espelhando fielmente a elevação física real do porta-paletes.
+    4. **Seletor de Estilo**: Integrado na seção **`3. Estilo Visual da Etiqueta`** como `🪜 Tira de Montante Multi-Nível (2 Colunas por Folha)`.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Novo tipo `MONTANTE_VERTICAL_2_COL` adicionado a `EstiloLayoutEtiqueta`.
+    - Agrupamento inteligente `colunasMontante`: agrupa os endereços selecionados/filtrados pela chave `rua_torre_pos` e ordena os níveis internamente de forma decrescente por `nivelNum` (`b.nivelNum - a.nivelNum`).
+    - Paginação proporcional de 2 colunas por folha A4 (`totalPaginas = Math.ceil(colunasMontante.length / 2)`).
+    - Motor de impressão dedicada no `handleImprimir` gerando HTML/CSS para `@page { size: A4 portrait; margin: 8mm; }`, com grid de 2 colunas (`.layout-montante`), blocos de níveis proporcionais (`.montante-nivel-bloco`) e QR Codes de alta densidade (`240px`).
+    - Painel de pré-visualização em tempo real exibindo a folha A4 em 2 colunas com todos os níveis empilhados para a página atual (`preview-montante-coluna-card`).
+    - Atualização do card de resumo e do botão de impressão para detalhar a quantidade de tiras de montante e níveis contidos.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Estilos de preview `.preview-folha-a4.layout-montante`, `.preview-montante-coluna-card`, `.preview-montante-nivel-bloco`, `.preview-montante-nivel-header`, `.p-montante-tag-coord`, `.p-montante-tag-nivel-destaque` e `.preview-montante-qr-area`.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Maximização do QR Code no Estilo "QR Lateral + Coordenadas Verticais"
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"será que da para aumentar o QRCODE?"*
+  - Com base na imagem com anotação em vermelho (`media_1794920475734_8171d845.png`), o usuário solicitou que o QR Code ocupasse quase todo o espaço disponível na caixa da esquerda.
+  - Alinhamento confirmado via `/grill-me`:
+    - Maximizar o QR Code para ocupar quase toda a caixa interna (conforme o retângulo vermelho da foto), mantendo o código numérico compacto embaixo.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Parâmetro `margin: 0` adicionado ao gerador de QR Code (`QRCode.toCanvas` e `QRCode.toDataURL`), removendo a zona morta (margem branca padrão) e expandindo a matriz útil do QR Code em até 20%.
+    - Resolução do QR Code aumentada substancialmente no motor de impressão (`qrSize = 320` para 2/folha, `240` para 4/folha e `150` para 8/folha).
+    - No preview, `size` do `QRCodeItem` ajustado para `260` (2/folha), `140` (4/folha) e `76` (8/folha) com `margin={0}`.
+    - Proporção da caixa esquerda ajustada para `flex: 1.05`, padding reduzido para `4px` e texto do endereço reduzido para `11px` compacto com entrelinha de `1.1`.
+    - No HTML de impressão, `.etiqueta-qrcode-lateral` agora utiliza `flex: 1; width: 100%; max-height: calc(100% - 18px); object-fit: contain` para expansão máxima com preenchimento quase total da caixa.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Ajustado `.preview-lateral-qr-box` com padding compacto de `4px` e `flex: 1.05`.
+    - Adicionado `.preview-lateral-qr-box .etiqueta-qrcode-canvas` com `flex: 1; max-width: 100%; max-height: calc(100% - 16px); width: auto; height: auto; aspect-ratio: 1/1; object-fit: contain` permitindo que o canvas escale até os limites da caixa.
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS - Novo Estilo "QR Lateral + Coordenadas Verticais" (Longarina com Nível Invertido e Remoção de Zeros à Esquerda)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"na central de impressão de etiquetas, vamos da opção de layout onde o endereço fique na vertical do lado direito, e o QR Code com destaque do lado direto. Veja exemplo na imagem, seria interessante retirar o zero no incio como está na imagem"*
+  - Alinhamento interativo de 3 decisões via `/grill-me`:
+    1. **Posicionamento**: QR Code amplo em destaque à esquerda e coordenadas verticais à direita (fiel à foto da longarina física).
+    2. **Configuração**: Disponibilizado como seletor de "Estilo Visual da Etiqueta" (`PADRAO_HORIZONTAL` vs `QR_LATERAL_VERTICAL`), totalmente compatível com os modelos de folha A4 (2, 4 e 8 por folha).
+    3. **Tipografia & Contraste**: Remoção automática de zeros à esquerda (ex: `04` ➔ `4`, `01` ➔ `1`) via helper `removerZerosEsquerda` e destaque em alto contraste com bloco escuro invertido (`background: #0f172a; color: #ffffff`) no Nível.
+- **Implementações Técnicas:**
+  - [`ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx):
+    - Exportação do tipo `EstiloLayoutEtiqueta = 'PADRAO_HORIZONTAL' | 'QR_LATERAL_VERTICAL'`.
+    - Helper utilitário `removerZerosEsquerda(val)` com tratamento robusto para zeros iniciais numéricos e alfanuméricos.
+    - Novo seletor no painel de configurações: **`3. Estilo Visual da Etiqueta`** (`🏷️ Clássico Horizontal` vs `🏁 QR Lateral + Vertical` com badge `Novo`), reordenando `4. Tipo de Código` e `5. Informações na Etiqueta`.
+    - Ao selecionar `QR_LATERAL_VERTICAL`, se o tipo de código estivesse em `BARRAS`, o sistema promove automaticamente para `QRCODE`.
+    - Geração em memória do QR Code otimizada para alta resolução (até 190px no layout 2 por folha, 140px no 4 por folha e 90px no 8 por folha).
+    - Renderização da folha de impressão HTML (`window.open`) e preview dinâmico no modal com classes `.estilo-lateral`, `.etiqueta-corpo-lateral`, `.etiqueta-lateral-qr-box`, `.etiqueta-lateral-coords-col`, `.coord-linha`, `.coord-linha-nivel-invertido` e `.coord-linha-posicao`.
+    - Adicionado indicador do Estilo Visual selecionado no card de resumo da impressão.
+  - [`ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css):
+    - Estilos do seletor `.grid-estilos-layout`, `.card-estilo-layout` e badge `.modelo-tag-novo`.
+    - Estilos responsivos do preview `.preview-corpo-lateral`, `.preview-lateral-qr-box`, `.preview-lateral-coords-col`, `.p-coord-linha`, `.p-coord-linha-nivel-invertido` (bloco preto e texto branco), `.p-coord-linha-posicao` para cada folha A4 (2, 4 e 8 por folha).
+- **Validações de Build:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Endereçamento WMS Mobile - Cards Minimalistas (Endereços, Produtos e Histórico em Cards)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos ajusta a lista dos produtos, e deixar a lista do endereçamento mais minimaslista e organizada. No historia vamos agrupar melhor esses dados no card minimalista."*
+  - Com base nas anotações em vermelho nas imagens do operador (`media_1794861549136_9ce3cf6e.png`, `media_1794861593911_f93c6674.png` e `media_1794861712677_736dbca6.png`):
+  - Implementação completa em [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx) e [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css):
+    1. **Aba 1 (Endereços) - Linha Analítica Minimalista em 2 Linhas**:
+       - Removido o layout alto e estufado que causava desperdício de espaço vertical.
+       - Estruturado em 2 linhas limpas e objetivas:
+         - **Linha 1 (Topo)**: `[ ] Checkbox` • Badge Tipo (`PICKING` / `PULMÃO`) • `EnderecoChips` compacto • Badge de Ocupação (`🟢 Livre` / `📦 X prods`).
+         - **Linha 2 (Base)**: `Cód: {codend} • {descrend}` à esquerda • Botão `[ 🖨️ ]` e botão `[ 👁️ Produtos ]` compactos alinhados à direita.
+    2. **Aba 2 (Produtos) - Contexto no Cabeçalho e Limpeza de Avisos Redundantes**:
+       - O banner estático de contexto do endereço (`.enderecamento-banner-contexto`) foi removido do corpo da lista e migrado para a barra de cabeçalho, posicionado ao lado de `Produtos (X)` com chip compacto de endereço e botão `[ ✕ ]` para desfiltrar.
+       - No card do produto, removido o aviso estático "Nenhum pulmão adicional vinculado a este produto" e o botão redundante "+ Vincular Novo Pulmão" quando o produto não possui pulmões, deixando o card limpo e focado no essencial (o vínculo é feito via FAB flutuante `(+)`).
+    3. **Aba 3 (Histórico) - Substituição de Tabela Desktop por Cards Minimalistas**:
+       - A tabela HTML tradicional (que exigia rolagem horizontal e quebrava no mobile) foi substituída por uma lista vertical fluida de cards minimalistas (`.enderecamento-historico-cards-list`):
+         - **Topo**: Badge de Ação (`DEFINIR_PICKING`, `MOVER`, `RETIRAR`) + Data/Hora + Operador `👤 {usuario}`.
+         - **Centro**: Código e descrição do produto + Lote (se houver).
+         - **Rota Visual**: Linha intuitiva `Origem: {chip} ➔ Destino: {chip}`.
+         - **Rodapé do Card**: Motivo / Observação do operador em itálico sutil.
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso (**exit code 0**).
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Endereçamento WMS Mobile - Abas no Rodapé com Ícones, Busca no Cabeçalho com Dropdowns e Botão Flutuante (+) para Cadastrar
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"agora vamos ajusta a pagina do endereçamento,joga os menus para o rodapé com icones. Leva o busca para o cabeçalho com opção de ocultar, os filtros em dropdown, botão filtrar menor ao lado o campo de busca. Botão cadastrar no endereço um botão flutuante redondo (+) no canto inferior direto para ambas as abas de (endereço, produtos e historico)"*
+  - Implementação completa em [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx) e [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css):
+    1. **Navegação de Abas no Rodapé com Ícones (`.enderecamento-bottom-nav`)**:
+       - O menu superior de abas foi completamente removido do topo e migrado para uma barra de navegação fixa no rodapé (`position: fixed; bottom: 0; left: 0; right: 0; z-index: 90`).
+       - 3 abas estruturadas verticalmente com ícone no topo e texto abaixo:
+         - `[ 📍 Endereços ]` (Aba 1)
+         - `[ 📦 Produtos ]` (Aba 2)
+         - `[ 🕒 Histórico ]` (Aba 3)
+       - Container principal ajustado com `padding-bottom: 84px` para evitar sobreposição de elementos na tela.
+    2. **Cabeçalho Sticky com Busca e Filtros Recolhíveis (`.enderecamento-header-sticky`)**:
+       - Fixado no topo (`position: sticky; top: 0; z-index: 80`).
+       - Cabeçalho com título, crachá de contagem de itens livres/ocupados, botão `[ 🖨️ Etiquetas ]` e alternador `[ ▲ Recolher / 🔍 Buscar ▾ ]` permitindo ao operador expandir ou ocultar a busca a qualquer momento para maximizar a área útil dos cards no celular.
+       - **Linha 1 da Busca**: Campo de texto com ícone e botão `✕` para limpar + botão `[ Filtrar ]` compacto posicionado lado a lado na mesma linha.
+       - **Linha 2 de Filtros**: Seletores dropdown (`<select>`) compactos para **Tipo** (`Todos`, `Picking`, `Pulmão`) e **Ocupação** (`Todos`, `🟢 Livres / Vazios`, `🔴 Ocupados`), eliminando o card gigante e os chips com rolagem lateral.
+       - Na aba de Produtos, o formulário de busca adapta-se para pesquisa direta por código de barras ou nome com botão `[ Buscar ]` em linha única.
+    3. **Botão Flutuante Redondo (+) para Cadastrar no Endereço (FAB)**:
+       - O banner largo estático anterior (`Cadastrar no Endereço F2`) foi substituído por um Floating Action Button (FAB) redondo moderno:
+         - `position: fixed; bottom: 70px; right: 18px; z-index: 95; width: 56px; height: 56px; border-radius: 50%; background: #f97316`.
+         - Acessível e visível em todas as 3 abas (`Endereço`, `Produto`, `Histórico`) para usuários com a permissão `podeCadastrar`.
+         - Ao clicar, abre imediatamente o modal coletor double-scan para vincular produtos aos endereços.
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso (**exit code 0**).
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: KPIs e Rodapé Sem Rolagem Lateral, Botão (i) com Solicitante à Esquerda e Foto Centralizada no Modo Card
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos colocar os icones dos kips acima, para eles ficarem menor, fazer isso também para os botões do rodapé, precisamos evitar a rolagem lateral para esses dois objetos no design. outro ponto colocar o (i) dos cards dos produtos no lado do solicitado(no modo lista não está aparecendo quem solicitou) do lado esquerdo no modo lista. No modo card vamos vamos incluir a imagem do produto centralizado acima do nome em destaque, ganhamos espaço no cards."*
+  - Implementação completa em [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx) e [`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css):
+    1. **KPIs Ultra-Compactos com Ícone no Topo (Zero Rolagem Lateral)**:
+       - Cada pílula (`.reabastecimento-kpi-pill`) configurada com layout vertical (`flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 2px`).
+       - Ícone no topo e bloco com número em negrito + rótulo compacto abaixo (`Total`, `Aguard.`, `S/ Pulm`, `Hoje`, `Faltas`).
+       - Distribuição uniforme ocupando 100% da largura da tela sem nenhuma rolagem horizontal.
+    2. **Rodapé Fixo Ultra-Compacto com Ícone no Topo (Zero Rolagem Lateral)**:
+       - Cada chip (`.reabastecimento-chip-btn`) estruturado verticalmente com ícone no topo e texto conciso + contagem abaixo (`Todas (X)`, `Aguard. (X)`, `S/ Pulm (X)`, `Hoje (X)`, `Faltas (X)`).
+       - Ocupam 100% da barra do rodapé, eliminando completamente a rolagem horizontal no mobile.
+    3. **Modo Lista: Botão `(i)` e Solicitante Posicionados à Esquerda**:
+       - O botão de informações `[ ℹ️ ]` foi movido para o lado esquerdo da linha inferior, posicionado imediatamente antes dos metadados da solicitação.
+       - Corrigida a renderização do operador solicitante no modo lista (`Solicitado: {data} • {solicitadoPor}`), que anteriormente não exibia o nome do usuário.
+       - A linha de botões de ação à direita agora fica desobstruída e perfeitamente legível sem compressão.
+    4. **Modo Card: Imagem do Produto Centralizada em Destaque**:
+       - Adicionado componente `<ProdutoImagem>` com altura otimizada (~110px a 120px) e `object-fit: contain` posicionado centralizado acima da descrição do produto.
+       - Ao clicar na foto, é aberto modal lightbox de zoom em tela cheia com overlay escuro.
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso (**exit code 0**).
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Reabastecimento Mobile - Cabeçalho Sticky com KPIs em Linha Única, Busca com Alternador de Modo (Cards/Lista), Rodapé Fixo e Snap Scroll Vertical
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"agora vamos para reabastecimento, fixa esses kips em uma unica linha, com o campo busca abaixo e vamos fixar eles no cabeçalho. Os filtros colocar no rodapé e vamos colocar o card para rolar completo na vertical, mudando entre cards e incluir um modo lista (botão ao lado do botão de busca, para mudar para o modo card ou lista)"*
+  - Implementação completa em [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx) e [`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css):
+    1. **Cabeçalho Fixo no Topo (`.reabastecimento-header-sticky`)**:
+       - `position: sticky; top: 0; z-index: 80`: fixado no topo da tela com background consistente e borda inferior.
+       - **Linha 1**: `AppHeader` contendo título, menu drawer, crachá do usuário e atalhos.
+       - **Linha 2**: **KPIs em Linha Única** (`.reabastecimento-kpis-row`): pílulas compactas com rolagem horizontal contendo `[🚜 {total} Total]`, `[⏳ {pendentes} Aguardando]`, `[⚠️ {semPulmao} Sem Pulmão]`, `[✓ {hoje} Hoje]` e `[⚠️ {faltas} Faltas]`. Tocar em qualquer pílula também ativa o filtro correspondente.
+       - **Linha 3**: **Busca + Botão Alternador de Modo** (`.reabastecimento-search-row`): campo de texto com ícone e botão `✕` para limpar busca + botão `[ 📋 Lista ]` / `[ 🗂️ Cards ]` alternando visualmente a listagem.
+    2. **Rodapé Fixo com Filtros de Status (`.reabastecimento-footer-fixed`)**:
+       - Fixado na parte inferior da tela (`position: fixed; bottom: 0; left: 0; right: 0; z-index: 90`) com efeito glassmorphism suave.
+       - Botões em chips deslizantes horizontalmente: `Todas ({total})`, `⏳ Aguardando ({pendentes})`, `⚠️ Sem Pulmão ({semPulmao})`, `✓ Concluídas ({hoje})` e `⚠️ Faltas ({faltas})`.
+       - Container com `padding-bottom: 84px` prevenindo sobreposição de conteúdo.
+    3. **Modo Cards com Snap Scroll Vertical (`.modo-cards` e `.snap-item`)**:
+       - No mobile, utiliza `scroll-snap-type: y mandatory; overflow-y: auto;` e `scroll-snap-align: start; scroll-snap-stop: always;`.
+       - Cada card ocupa a área visível entre o topo e o rodapé fixos, rolando completo na vertical e mudando com precisão de card em card (feed/carrossel vertical).
+    4. **Modo Lista Compacta (`.reabastecimento-lista-tarefas`)**:
+       - Visualização condensada e rápida para o operador da empilhadeira:
+         - Topo com Carga #, Empresa, badges de status e quantidade em destaque.
+         - Linha do produto com código, descrição, referência e código de barras.
+         - Rota rápida `📦 {pulmão} ➔ 📍 {picking}` e saldo disponível em estoque.
+         - Ações operacionais compactas (`[ 🚜 Abastecer ]`, `[ ✂️ Corte ]`, `[ ⚠️ Falta ]`, `[ ✕ Recusar ]` e `[ ℹ️ ]` observações).
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso (**exit code 0**).
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Cabeçalho Sticky/Fixo no Topo, Ocultação da Lupa e Remoção do Card Redundante da Carga
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos remover o que está marcado com o X e mover a descrição, e fixa o cabeçalho."*
+  - Análise da imagem (`media_1794856284780_8989216c.png`):
+    1. **Remoção da Lupa `🔍` (Consultar Produto)**:
+       - Omitido `onAbrirConsultaProduto` em `AppHeader` na tela de separação (`SeparacaoPage.tsx`), eliminando o botão `🔍` do topo conforme solicitado com o X.
+    2. **Remoção do Card Superior e Realocação da Carga**:
+       - O card `🚚 Separação de Cargas (Vendas)` (marcado com X) foi completamente ocultado no mobile durante a conferência ativa (`.separacao-page-header.sessao-ativa { display: none !important }`).
+       - As informações essenciais da carga (`🚚 #41205 • Emp 2`) foram transferidas para a linha de progresso (`.separacao-mobile-stats-row`), ocupando o espaço central vazio entre a porcentagem e os itens concluídos.
+    3. **Cabeçalho Fixo no Topo (`position: sticky`)**:
+       - O bloco superior completo (`AppHeader` + linha de progresso com número da carga + abas de visão `[🧭 Rota Guiada] [📦 Consolidado] [📄 Por Pedido] [⚠️ Faltas]` + barra fina) foi envelopado em `.separacao-header-sticky-wrapper.sessao-ativa`.
+       - Permanece 100% fixo no topo da tela do celular/coletor enquanto os produtos rolam livremente abaixo, entre o topo fixo e o leitor fixado no rodapé.
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso.
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Alinhamento Horizontal no Topo (Linha Única), Reorganização da Tela Principal e Ordenador de Cargas
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"coloca consultar produtos e o usuário logado e o botão sair alinhado com o nome separação de carga e ai libera o espaço. Na tela principal organiza os campos e vamos colocar ordenador dos cards das cargas."*
+  - Análise das imagens (`media_1794855221808_441eb3e0.png` e `media_1794855263382_c4679799.png`):
+    1. **Cabeçalho Global do Topo (`AppHeader.tsx` e `AppDrawer.css`)**:
+       - No celular, os botões `[ Consultar Produto ]`, `[ SUPERVISOR ]` e `[ Sair ]` quebravam para uma segunda linha inteira, ocupando espaço vertical precioso.
+       - Solução aprovada: alinhamento na mesma linha horizontal única (`flex-wrap: nowrap`), com o botão de consulta reduzido para ícone `🔍` compacto, crachá pill do usuário e botão `Sair` compacto, eliminando 100% da segunda linha.
+    2. **Card "Separação de Cargas (Vendas)" (`SeparacaoPage.tsx` e `SeparacaoPage.css`)**:
+       - O botão `[ 🔄 Atualizar Cargas ]` foi movido para a direita do título na mesma linha horizontal, liberando a linha inteira que ocupava abaixo.
+    3. **Card de Busca de Cargas**:
+       - O campo de número de carga e o botão `[ Iniciar Separação ]` foram colocados lado a lado em linha horizontal única (`flex-direction: row; gap: 8px`).
+    4. **Ordenador dos Cards de Cargas**:
+       - Adicionado um campo seletor dropdown (`<select>`) compacto alinhado à direita do título "Ordens de Carga Pendentes":
+         - `⚡ Prioridade (Reabastecidas / Em Andamento)` (default inteligente WMS)
+         - `🔢 Carga # (Mais recente - decrescente)`
+         - `🔢 Carga # (Menor número - crescente)`
+         - `📦 Volume Total (Maior primeiro)`
+         - `📦 Volume Total (Menor primeiro)`
+         - `🏷️ Mais Itens Distintos`
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso.
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Gaveta Retrátil de Ações (Bottom Sheet com Ícone ^), Remoção de Barra na Lista de Cargas e Enquadramento Mobile
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"você colocou o menu na tela de lista de carga, deixa ela visivel apenas quando abri a separação."*
+  - *"vamos colocar os botões que estão dentro do card separação de cargas(Vendas), ocultor encima do codigo de barras, e ao clicar no icone ^ ai eles aparecem sobrepondo a tela. E ai o card fica no dentro da tela do Android."*
+  - Alinhamento `/grill-me`:
+    1. **Tela 1 (Seleção / Lista de Ordens de Carga)**:
+       - O campo de busca de carga volta a ser um card no fluxo normal (`.separacao-busca-carga-card`), no topo da lista.
+       - A barra fixa do rodapé NÃO é mais renderizada na lista de cargas (visível estritamente quando a separação estiver aberta / sessão ativa).
+    2. **Aba / Alça Retrátil com Ícone `^` (Acima do Leitor)**:
+       - Uma aba centralizada discreta com o ícone `▲ Ações da Carga` foi posicionada logo acima do campo de código de barras no rodapé.
+    3. **Gaveta de Ações Sobrepondo a Tela (Bottom Sheet Retrátil)**:
+       - Ao clicar no ícone `^`, uma gaveta retrátil suave sobe com fundo escurecido semitransparente (backdrop com blur).
+       - Apresenta os 5 botões de ação em formato de lista touch-friendly (altura 48-50px): `[🚜 Solicitar Reabastecimento]`, `[🔄 Sincronizar ERP]`, `[📋 Histórico de Bipagens]`, `[✓ Concluir Carga]` e `[← Voltar às Cargas]`.
+       - Fecha com toque fora no backdrop ou no botão `✕`.
+    4. **Enquadramento Perfeito do Card no Android**:
+       - Com os 5 botões grandes removidos do cabeçalho superior no mobile (`.separacao-header-actions-sessao { display: none !important }`) e o título ultra-compacto, o card central do produto e rota subiu cerca de 160px, encaixando-se perfeitamente no viewport da tela do coletor/celular Android sem necessidade de rolagem vertical.
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso (**BUILD SUCCESSFUL in 34s**).
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Otimização Mobile da Separação de Cargas (Eliminação de Rolagem Vertical e Barra Fixa Inferior)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"No modulo separação de cargas no android, ficou um rolamento muito vertical o que podemos fazer para esse design fica mais mobile?"*
+  - Análise da tela no Android:
+    1. A barra de bipagem ficava empilhada verticalmente (código, quantidade, lote, conferir), ocupando grande altura de tela.
+    2. Os cards de progresso e métricas (Concluído %, Itens, Volumes, Faltas) formavam blocos verticais extensos antes do conteúdo principal.
+    3. O usuário solicitou explicitamente manter a estrutura do card central (`separacao-rota-card`) 100% inalterada ("não modifique esse card") e ocultar o campo de Lote no mobile ("opção 1, vamos ocultar o lote.").
+- **Implementações Realizadas:**
+  - **1. Rodapé Fixo / Bottom Docked Scanner Bar ([`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+    - Em telas mobile (`max-width: 768px`), o card de bipagem foi convertido em uma barra fixa no rodapé da tela (`position: fixed; bottom: 0; left: 0; right: 0; z-index: 999;`).
+    - Design compacto com cantos arredondados superiores (`border-radius: 20px 20px 0 0`), sombra superior suave e respeito à área de segurança (`padding-bottom: calc(10px + env(safe-area-inset-bottom))`).
+    - Layout horizontal em linha única: `[ Código de Barras ]` (`flex: 1`), `[ Qtd ]` (compacto `64px`, número em negrito centralizado) e `[ Conferir ]` (`border-radius: 10px`, altura `44px`).
+    - O campo de `Lote` é ocultado no mobile via CSS (`display: none !important`), conforme diretriz aprovada.
+    - O container da página recebeu espaçamento inferior (`padding-bottom: 96px`) para que o conteúdo não fique escondido sob a barra fixa.
+  - **2. Topo Compacto & Navegação Deslizante ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) e [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+    - Criada a linha resumida mobile `.separacao-mobile-stats-row`: exibe progresso percentual, totalizador de unidades e contagem de itens em linha única com barra de progresso fina (6px).
+    - As estatísticas desktop em caixas grandes foram encapsuladas em `.separacao-desktop-stats` e ocultadas no mobile (`display: none`).
+    - As abas de navegação (`[🧭 Rota Guiada] [📦 Consolidado] [📄 Por Pedido] [⚠️ Faltas]`) foram adaptadas para deslizamento horizontal suave (`overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none;`).
+  - **3. Integridade do Card Central:**
+    - O card central de rota e produto (`.separacao-rota-card`), com seu banner de endereço, foto, dados de lote/validade, indicador de quantidade (`0 / 24 UN`) e botões (`Reabastecer`, `Falta`), permaneceu estritamente preservado.
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso (**BUILD SUCCESSFUL in 31s**).
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Adaptação das Novas Telas para Design Nativo Android Mobile e Recompilação do APK
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"foram encremetados algumas telas novas para adaptar o desing para APP android e recopilar no aparelho"*
+  - Alinhamento `/grill-me`:
+    1. **Sensação Nativa de App Mobile (Eliminar Web Smells)**:
+       - Adicionado `user-scalable=no, viewport-fit=cover` na viewport do `index.html` para evitar zoom acidental de duplo toque.
+       - Remoção de seleção acidental de texto (`user-select: none`), remoção do highlight de clique azul do navegador (`-webkit-tap-highlight-color: transparent`) e física de rolagem inercial mobile com scrollbars limpas/invisíveis.
+       - Micro-feedback tátil visual ao pressionar botões e cards (`:active { transform: scale(0.98); }`).
+       - Respeito às safe areas do Android (notch e barra inferior de navegação).
+    2. **Hub Inicial de Módulos ([`HubPage.css`](./frontend/src/presentation/pages/Hub/HubPage.css))**:
+       - Grid adaptado para 2 colunas simétricas em celulares (`repeat(2, 1fr)`) com cards compactos e ícones amplos para toque de polegar.
+    3. **Reabastecimento de Pulmão ([`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css))**:
+       - Grade de métricas do topo reorganizada em 2 colunas no celular.
+       - Barra de filtros com rolagem horizontal suave em chips deslizantes.
+       - Botões de ação rápida (`Abastecer`, `Não Encontrado`) com altura mínima de 44px e largura total no card para operação confortável com uma mão/luvas.
+    4. **Endereçamento WMS ([`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css))**:
+       - Abas superiores deslizantes estilo pílulas horizontais nativas (`overflow-x: auto`).
+       - Linhas analíticas de endereços transformadas em **Cards Verticais Mobile** com visual limpo de dados, status e botões de ação touch-friendly.
+       - Formulário de busca e scanner com altura de 48px e botões em largura total.
+    5. **Menu Lateral Drawer ([`AppDrawer.css`](./frontend/src/presentation/components/AppLayout/AppDrawer.css))**:
+       - Altura de toque de 46-48px por item e micro-animação de pressão ao tocar.
+- **Validações & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Capacitor: Sincronização via `npx cap sync android`.
+  - Android APK: `gradlew assembleDebug` compilado com sucesso (**BUILD SUCCESSFUL in 41s**).
+  - Deploy via ADB: Instalado e iniciado com sucesso no aparelho conectado (`R9XN701XGAE`).
+
+---
+
+## Atualização: Desmascaramento da Quantidade da Nota Fiscal na Tela de Gestão de Recebimento (`origem='gestao'`)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"pq na tela do supervisor não aparece a quantidade nota?"*
+  - Análise das Imagens (`media_1794851674176_aa15f0f7.png` e `media_1794851703650_9b2ad1df.png`):
+    - Usuário `ANTONY` (Administrador): visualizava os números faturados da nota (ex: `40`, `70`, `20`).
+    - Usuário `SUPERVISOR`: visualizava traços (`—`) na coluna `Nota`.
+  - Diagnóstico da Causa Raiz:
+    1. O usuário `SUPERVISOR` possuía `"ver_campos_sensiveis": false` cadastrado na tabela `usuarios_acessos` do banco de dados local.
+    2. No backend (`ObterItensConferenciaEntradaUseCase.ts`), o método `deveOcultarCampo('conferencia_entrada', 'qtdNota', usuario)` era executado cegamente para mascarar `qtdneg: null`, mesmo quando a requisição vinha da tela de **Gestão de Recebimento** (`input.origem === 'gestao'`).
+    3. A tela de Gestão de Recebimento é um módulo gerencial de conciliação fiscal e envio ao ERP, onde a quantidade faturada da nota nunca deve ser mascarada como contagem cega.
+    4. Adicionalmente, duas chamadas de detalhamento em `GestaoRecebimento.tsx` omitiam o parâmetro `'gestao'`.
+- **Implementações Realizadas:**
+  - **1. Backend ([`backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+    - Quando a requisição for proveniente da Gestão de Recebimento (`input.origem === 'gestao'`), os campos fiscais e gerenciais (`qtdNota`, `status`, `referencia`, `codBarra`) são liberados diretamente (`ocultarQtdNota = false`), garantindo que o supervisor e qualquer usuário com acesso ao módulo de gestão visualizem os valores faturados da nota (`rawQtd`).
+    - A conferência cega permanece 100% restrita e protegida na tela operacional do conferente no coletor de dados (`origem !== 'gestao'`).
+  - **2. Frontend ([`frontend/src/presentation/pages/GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+    - Padronização de todas as chamadas de `obterItensConferencia` para enviar explicitamente o parâmetro de origem `'gestao'`.
+- **Validação de Builds Obrigatória:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+## Atualização: Pré-Verificação de Idempotência na TGFITE (Prevenção de Duplicidades e Recuperação de Timeouts no Desmembramento)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"o desmembrar está seguindo que fluxo de requisição ao ERP? Percebi que em alguns momento ele envia a requisição de desmembrar mas o retorno demora ai o sistema está informando que demorou, ai o usuário vai e aperta em concluir novamente novo desmembrar é enviado. Deveriamos verificar se já houve o demembrar para aquele item agendado, evitando incosistencias nesses casos de erro ou sempre ao tentar executar o desmembrar. A verificação usaria o lote, quantidade, fabricação e validade para validar que já foi criado o item."*
+  - Diagnóstico e Causa Raiz:
+    1. O serviço `CACSP.desmembrarItem` no Sankhya pode levar de 20 a 40 segundos devido ao recálculo síncrono de impostos, PIS/COFINS e validações comerciais no Oracle.
+    2. Quando ocorria timeout no transporte HTTP, a requisição era dada como falha no frontend, mas no banco Oracle ela prosseguia e criava as frações em background.
+    3. Ao clicar novamente em "Concluir", uma nova requisição `CACSP.desmembrarItem` era enviada, podendo duplicar itens ou gerar falha por tentar desmembrar sequências já inexistentes ou alteradas.
+- **Implementações Realizadas:**
+  - **1. Pré-Verificação de Idempotência Exata na TGFITE ([`backend/src/application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.ts`](./backend/src/application/use-cases/recebimento/ExecutarDesmembramentoItemUseCase.ts)):**
+    - Antes de invocar o serviço `CACSP.desmembrarItem`, o caso de uso consulta a tabela `TGFITE` para a nota e produto:
+      ```sql
+      SELECT ITE.SEQUENCIA, ITE.CODPROD, NVL(ITE.QTDNEG, 0) AS QTDNEG,
+             ITE.CONTROLE, ITE.DTVAL, ITE.DTFABRICACAO
+      FROM TGFITE ITE
+      WHERE ITE.NUNOTA = :nunota AND ITE.CODPROD = :codprod
+      ORDER BY ITE.SEQUENCIA
+      ```
+    - **Validação Exata dos 4 Campos:**
+      Para cada fração solicitada em `input.lotes`, verifica uma linha exclusiva correspondente na `TGFITE` com:
+      1. **Lote:** `it.controle.trim().toUpperCase() === fracao.lote.trim().toUpperCase()`
+      2. **Quantidade:** `Math.abs(it.qtdneg - qtdSankhyaEsperada) < 0.0001` (com conversão de fator `TGFVOA`)
+      3. **Data de Validade:** Comparação de data normalizada em `DD/MM/YYYY`
+      4. **Data de Fabricação:** Comparação de data normalizada em `DD/MM/YYYY`
+    - **Ação em Caso Positivo (`jaDesmembradoNoSankhya === true`):**
+      - Pula completamente a chamada do serviço `CACSP.desmembrarItem`.
+      - Executa imediatamente o pós-processamento: reatribuição de sequências de bipagens locais no SQLite (`reatribuirSequenciasBipagens`), atualização de `CODLOCALORIG`, sincronização de ocorrências pendentes (Avaria, Vencidos) e recálculo das divergências.
+      - Retorna sucesso de imediato informando que o desmembramento já existia no ERP e foi validado com sucesso.
+    - **Ação em Caso Negativo (`jaDesmembradoNoSankhya === false`):**
+      - Segue o fluxo normal de envio do `CACSP.desmembrarItem`. Caso ocorra timeout, o erro é acusado e, na próxima tentativa do usuário, a checagem prévia encontrará as frações já salvas e concluirá imediatamente com sucesso.
+- **Validação de Builds Obrigatória:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+## Atualização: Tratamento Inteligente de Sequências Desmembradas por Falta no ERP (Falta Isolada)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"Veja essa linha dessa conferencia de entrada, ela foi um desmebramento por falta, o numero do lote foi informando o numero da nota, o item quando for demenbrado por falta deveria ignorar os contagem e ficar com a tag (OK) Falta Isalada ERP. Eu percebi que não estamos linkando os dados contados com e a falta desmebrados com o lote e validade informado."*
+  - Diagnóstico:
+    1. Quando uma linha é desmembrada no ERP para registrar falta (ex: Sequência 7 da NF 35802 com 8 UN), o Sankhya cadastra o lote (`CONTROLE`) com o número da Nota Fiscal (`NUMNOTA` / `NUNOTA`).
+    2. O backend realizava um rebalanceamento FIFO agrupando todas as sequências do mesmo produto (`CODPROD`) e distribuía cegamente as bipagens físicas em todas as sequências, injetando contagens físicas de N2 (22 UN) na sequência da falta e gerando falso alerta de sobra `+14` com sobrescrita indevida do lote da linha pelo lote bipado (`010/26A`).
+    3. Na reatribuição de bipagens locais (`LibsqlConferenciaEntradaRepository.ts`), o algoritmo alocava bipagens na sequência da falta por encontrar saldo faturado livre.
+- **Implementações Realizadas:**
+  - **1. Backend - Identificação e Isolamento da Falta Isolada:**
+    - [`backend/src/domain/entities/ConferenciaEntrada.ts`](./backend/src/domain/entities/ConferenciaEntrada.ts): Adicionado `isFaltaIsolada?: boolean` na interface `ItemNotaEntrada`.
+    - [`backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts):
+      - Detecção de sequências de Falta Isolada (`controleOriginal === numnota || controleOriginal === nunota`).
+      - Exclusão absoluta das sequências de falta do loop de rateio FIFO das bipagens físicas (`N1 = 0, N2 = 0, N3 = 0`).
+      - Preservação estrita dos dados cadastrados no ERP (`lote = controleOriginal`, `validade = dtvalOriginal`, `fabricacao = dtfabricacaoOriginal`).
+      - Tratamento da diferença como resolvida (`diferenca = 0, divergente = false, conferidoCompleto = true, isFaltaIsolada = true`).
+    - [`backend/src/infrastructure/repositories/LibsqlConferenciaEntradaRepository.ts`](./backend/src/infrastructure/repositories/LibsqlConferenciaEntradaRepository.ts):
+      - Em `reatribuirSequenciasBipagens`: Sequências de falta isolada têm `saldoRestante = 0` e são excluídas da busca de candidatos, garantindo que o banco de dados NUNCA atribua bipagens físicas a sequências de falta.
+    - [`backend/src/application/use-cases/recebimento/ListarDivergenciasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarDivergenciasEntradaUseCase.ts):
+      - Adicionado `isFaltaIsolada?: boolean` em `ItemDivergenciaResumo`.
+      - Itens identificados como Falta Isolada no ERP são desconsiderados de divergências fiscais, pendências e sobras falsas.
+  - **2. Frontend - Apresentação Visual e Tag `(OK) Falta Isolada ERP`:**
+    - [`frontend/src/domain/models/ConferenciaEntrada.ts`](./frontend/src/domain/models/ConferenciaEntrada.ts): Campo `isFaltaIsolada?: boolean` em `ItemNotaEntrada` e `ItemDivergenciaResumo`.
+    - [`frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx`](./frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx):
+      - Na grade principal (desktop) e nos cards mobile: exibição da pill `✓ OK` com subtítulo `Falta Isolada ERP` em verde suave neutro (`#047857`, fundo `#ecfdf5`).
+      - Coluna Lote exibe o lote original da nota com tag `Falta Isolada`.
+    - [`frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx):
+      - Coluna Diferença exibe a pill estilizada `✓ OK` / `Falta Isolada ERP`.
+      - Coluna Lote exibe o lote do ERP (`35802`) com a tag `Falta Isolada`.
+    - [`frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx):
+      - Sequências de Falta Isolada não pontuam como divergências pendentes no topo e renderizam com a tag `✓ OK (Falta Isolada ERP)`.
+- **Validação de Builds Obrigatória:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+## Atualização: Inversão Global da Posição das Colunas (Fabricação antes de Validade) em Todas as Grades da Gestão de Recebimento
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos inverter a posição das colunas de validade e fabricação na tela de gestão de recebimento, para todas as grades nela presente."* (Imagens: `media_1794846543907_42f12267.png`, `media_1794846559670_114466cd.png`, `media_1794846571137_bcb9ea25.png` destacando as colunas nas Abas 1, 2 e 3).
+  - Alinhamento de Design acordado:
+    1. **Ordem Cronológica Intuitiva:** Colocar **Fabricação** (data mais antiga/passada) antes de **Validade** (data futura/vencimento) em todas as tabelas e grades da tela de Gestão de Recebimento.
+    2. **Abrangência Completa:**
+       - **Aba 1 (Conferências):** Colunas `Fabricação` | `Validade` na grade principal e `Data de Fabricação` | `Data de Validade` na gaveta analítica de lotes.
+       - **Aba 2 (Divergências):** Colunas `FABRICAÇÃO` | `VALIDADE` na grade comparativa principal e `Data de Fabricação` | `Data de Validade` na gaveta analítica.
+       - **Aba 3 (Envio ao Sankhya):** Colunas `Fabricação` | `Validade` na grade principal e `Data de Fabricação` | `Data de Validade` na gaveta de frações de lote.
+       - **Modais:** Grade de frações em [`ModalDesmembrarItem.tsx`](./frontend/src/presentation/components/Recebimento/ModalDesmembrarItem.tsx), histórico de itens em [`ModalRestaurarBackup.tsx`](./frontend/src/presentation/components/Recebimento/ModalRestaurarBackup.tsx) e prévia em [`ModalImportarLotesExcel.tsx`](./frontend/src/presentation/components/Recebimento/ModalImportarLotesExcel.tsx).
+       - **Assistente de Divergências:** Exibição comparativa com `Fab: ...` antes de `Val: ...` nos cards de decisão e seletores rápidos de [`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx).
+       - **Mobile / Cards Compactos:** Exibição padronizada com `Fab:` antes de `Val:`.
+- **Implementações Realizadas:**
+  - [`frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx): Inversão das colunas de cabeçalho, células `<td>`, gaveta de lotes e cards mobile.
+  - [`frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx): Inversão das colunas de cabeçalho `FABRICAÇÃO` / `VALIDADE`, células `<td>` comparativas empilhadas, gaveta de lotes e blocos de decisão mobile.
+  - [`frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx`](./frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx): Inversão das colunas de cabeçalho, células `<td>`, gaveta de lotes e visualizações mobile.
+  - [`frontend/src/presentation/components/Recebimento/ModalDesmembrarItem.tsx`](./frontend/src/presentation/components/Recebimento/ModalDesmembrarItem.tsx): Inversão das colunas `Fabricação` e `Validade` na tabela de edição de frações.
+  - [`frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx): Ordenação de `Fab` antes de `Val` nos cards comparativos do assistente.
+  - [`frontend/src/presentation/components/Recebimento/ModalRestaurarBackup.tsx`](./frontend/src/presentation/components/Recebimento/ModalRestaurarBackup.tsx) e [`frontend/src/presentation/components/Recebimento/ModalImportarLotesExcel.tsx`](./frontend/src/presentation/components/Recebimento/ModalImportarLotesExcel.tsx): Inversão nas colunas e células de visualização.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+## Atualização: Alinhamento dos Dados do Endereço à Esquerda com o Checkbox na Lista Analítica
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"vamos colocar ele alinhado a esqueda com o checkbox"*
+  - Diagnóstico da Imagem (`media_1794846414265_05ba9c6b.png`): Havia um espaçamento vazio excessivo entre o checkbox isolado na ponta esquerda e o badge `[ PICKING ]` + chips de endereço devido à regra `justify-content: space-between` com três filhos diretos.
+  - Alinhamento de Design acordado:
+    1. **Estrutura Agrupada à Esquerda (`.enderecamento-analitico-lado-esq`):** O checkbox de largura compacta (24px) e a coluna de endereço (`.enderecamento-analitico-col-end` com badge `[ PICKING / PULMÃO ]`, chips `[ RUA 01 ] ...` e descrição do código) foram unificados em um container flex alinhado à esquerda com gap natural de 14px.
+    2. **Eliminação do Espaço Vazio:** O badge e os chips ficam imediatamente após o checkbox, perfeitamente alinhados verticalmente com a toolbar de *"Selecionar Todos"* do topo.
+    3. **Preservação das Ações na Direita:** O status de ocupação (`[ 📦 X produtos ]` / `[ 🟢 Livre ]`), o botão `🖨️` e o botão `👁️ Ver Produtos` permanecem fixos na extremidade direita do card.
+- **Implementações Realizadas:**
+  - [`frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx): Criação do wrapper `.enderecamento-analitico-lado-esq` contendo o checkbox e a coluna de endereço.
+  - [`frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css): Estilos `.enderecamento-analitico-lado-esq` e `.enderecamento-item-checkbox-wrapper`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Destaque Ampliado de Endereçamento com Nome "POSIÇÃO" por Extenso e Escala Dinâmica
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"faz esse ajuste no tamanho, e vamos colocar o nome posição. O nome e o numero do endereçamento precisa ter destaque/maior para visualmente ser enxergado, pois pode ficar em local alto ou distante."*
+  - Contexto da Imagem (`media_1794842788747_a1899dad.png`): No modelo de 2 por folha com apenas Posição selecionada, o card e o número apareciam tímidos e pequenos em relação à área útil da folha.
+  - Alinhamento de Design acordado:
+    1. **Nome "POSIÇÃO" por Extenso:** Substituição do termo abreviado `POS` por `POSIÇÃO` tanto nos chips da etiqueta quanto nos checkboxes de configuração, garantindo clareza total.
+    2. **Escala Dinâmica Responsiva:** A área de coordenadas se expande automaticamente de acordo com o número de campos marcados (`campos-1`, `campos-2`, `campos-3`, `campos-4`):
+       - **1 Campo Marcado (ex: apenas POSIÇÃO):** O número é renderizado em tamanho gigante (até 100px no layout de 2 por folha e 76px no de 4 por folha) e o rótulo com 26px em negrito 900, permitindo leitura visual nítida por empilhadeiristas a longa distância ou em posições aéreas elevadas.
+       - **2 Campos Marcados (ex: RUA + POSIÇÃO):** Número com 74px (layout 2) e 54px (layout 4).
+       - **3 ou 4 Campos Marcados:** Proporção harmoniosa otimizada (50px / 38px).
+    3. **Sincronização Total:** O dimensionamento ultra-legível reflete em tempo real na pré-visualização da folha A4 e no documento impresso gerado via `window.print()`.
+- **Implementações Realizadas:**
+  - [`frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx): Adição da propriedade `totalCamposCoords` com classes dinâmicas `campos-${totalCamposCoords}`, troca do texto para `POSIÇÃO` e regras CSS inline dinâmicas no HTML de impressão.
+  - [`frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css): Novas classes `.preview-coords-grid.campos-*` ajustando altura mínima, padding, tamanho de fonte de rótulos e números.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Central de Impressão de Etiquetas WMS para Longarinas e Prateleiras (Folha A4, Code 128 / QR Code e Seleção Flexível)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"agora precisamos imprimir esse endereços para gerar as identificações dentro do galpão logistico."*
+  - Alinhamento de Requisitos acordado via `/grill-me`:
+    1. **Papel e Destino:** Folha A4 comum / sulfite para identificação de gôndola/longarina.
+    2. **3 Modelos de Layout A4 Selecionáveis:**
+       - **4 por folha (A4 Paisagem ~14x10cm):** Formato padrão para longarinas médias com alta visibilidade.
+       - **2 por folha (A4 Retrato ~20x14cm):** Meia folha grande para visualização aérea/empilhadeiras.
+       - **8 por folha (A4 Retrato ~9x7cm):** Grade compacta 2x4 para prateleiras e gaveteiros.
+    3. **Tipos de Códigos Disponíveis:** Código de Barras linear (Code 128), QR Code ou ambos simultâneos.
+    4. **Campos Visuais Flexíveis:** Checkboxes para habilitar/desabilitar Rua, Torre, Nível, Pos (destaque verde/azul), Tipo (Picking/Pulmão), CODEND e Descrição, com botão "Marcar/Desmarcar Todos".
+    5. **Seleção de Endereços:**
+       - Checkboxes individuais em cada linha da lista analítica.
+       - Barra de ações em lote no topo com "Selecionar Todos ({N})".
+       - Botão individual rápido `🖨️` por linha.
+       - Aba "Intervalo / Filtro" no modal para filtrar por Rua De/Até, Torre De/Até, Nível De/Até e Tipo.
+    6. **Pré-visualização e Impressão:** Painel com simulação real da folha A4 e botão `[ 🖨️ Imprimir ]` que abre janela de impressão isolada com CSS `@page` sob medida.
+- **Implementações Realizadas:**
+  - [`frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.tsx): Componente completo com renderização vetorial de Code 128 (`jsbarcode`) e QR Code (`qrcode`), paginação de preview e gerador de folha de impressão HTML/CSS.
+  - [`frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css`](./frontend/src/presentation/components/enderecamento/ModalImpressaoEtiquetas.css): Estilos do modal, painel de controles, preview em escala A4 e regras de quebra de página.
+  - [`frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx): Botão no cabeçalho `🖨️ Central de Etiquetas`, toolbar de seleção em lote, checkboxes por linha e botão `🖨️` rápido.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Ajuste Ergonômico de Layout Vertical no Popup de Mudança de Picking (DE ➔ PARA)
+
+- **Demanda do Usuário & Alinhamento via `/grill-me`:**
+  - *"precisamos ajustar a para caber no popup"*
+  - Diagnóstico da Imagem (`media_1794841027536_6c2129c5.png`): O card `NOVO PICKING (PARA)` à direita estava cortando o último chip de endereço (`[ POS 01 ]`) devido ao layout horizontal em 2 colunas estreitas.
+  - Alinhamento de Design acordado:
+    1. **Empilhamento Vertical (DE em cima ⬇️ PARA embaixo):** Ambos os cards passam a ocupar 100% da largura útil interna (~450px), permitindo que os 4 chips (`[ RUA 01 ]` `[ TORRE 01 ]` `[ NÍVEL 01 ]` `[ POS 01 ]`) fiquem perfeitamente acomodados em linha única e centralizados.
+    2. **Cabeçalho em Linha com Tags de Status:**
+       - Card DE: Título `📍 PICKING ANTERIOR (DE)` à esquerda e badge estilizado `(Será Inativado)` à direita.
+       - Card PARA: Título `🎯 NOVO PICKING (PARA)` à esquerda e badge de sucesso `(✓ Novo Picking Oficial)` à direita.
+    3. **Conector Central Elegante:** Divisor suave com botão circular centralizado `⬇️`.
+- **Implementações Realizadas:**
+  - [`frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx): Reestruturação do container comparativo DE ➔ PARA com `tamanho="normal"`.
+  - [`frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css): Estilos `.enderecamento-depara-box-header`, `.enderecamento-depara-status-tag`, `.enderecamento-depara-chips-wrap` e `.enderecamento-depara-conector`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Padronização Visual Universal de Endereços WMS em Chips/Pílulas (RUA, TORRE, NÍVEL, POS) em Todas as Telas e Modais
+
+- **Demanda do Usuário & Alinhamento de Design (`/grill-me`):**
+  - *"vamos adotar esse design para os endereços em todas as telas de endereçamentos"*
+  - Contexto da Imagem (`media_1794839849753_a0689d84.png`): 4 blocos/chips visuais elegantes separados: `[ RUA 01 ]` `[ TORRE 01 ]` `[ NÍVEL 01 ]` `[ POS 01 ]` com a `POS` em destaque (fundo suave `#f0fdf4` e borda azul `#3b82f6`).
+  - Alinhamento de UX acordado via `/grill-me`:
+    1. **Omissão da Máscara Numérica Crua:** Exibição exclusiva dos chips coordenados limpos, sem poluir a interface com a sequência crua `01.01.01.01.01`.
+    2. **Chip Sem Endereço Padronizado:** Caso o item ou picking não possua endereço ativo cadastrado, renderiza o chip tracejado elegante: `[ ⚠️ Sem Endereço Cadastrado ]`.
+    3. **Escopo Global de Aplicação:** Aplicado uniformemente em todas as visões do módulo de Endereçamento WMS:
+       - **Aba 1 (`📍 Por Endereço`):** Lista analítica de endereços e ocupação.
+       - **Aba 2 (`📦 Por Produto`):** Banner de contexto do endereço selecionado, linhas de Picking oficial e linhas de Pulmões ativos.
+       - **Aba 3 (`🕒 Histórico`):** Colunas de endereço de Origem e Destino na tabela de auditoria.
+       - **Modal do Coletor (`⚡ Cadastrar no Endereço`):** Bloco 1 (Endereço Resolvido Ativo), Card de Prévia Visual (Picking Oficial e Pulmões Ativos), Feed da Sessão de Itens Cadastrados e Instrução do 2º Bip.
+       - **Modal Popup Centralizado DE ➔ PARA:** Quadros comparativos de Picking Anterior (DE) e Novo Picking (PARA).
+       - **Modais Operacionais:** Origem e Destino nos modais de Mover e Retirar/Desendereçar.
+- **Implementações Realizadas:**
+  - [`frontend/src/presentation/components/common/EnderecoChips.tsx`](./frontend/src/presentation/components/common/EnderecoChips.tsx): Componente comum desacoplado, com parser automático de formato máscara (`01.01.01.01.01`) e textual (`R 01 T 01 N 01 P 01`), suportando tamanhos `normal`, `destaque` e `compacto`.
+  - [`frontend/src/presentation/components/common/EnderecoChips.css`](./frontend/src/presentation/components/common/EnderecoChips.css): Estilização fiel aprovada pelo usuário com rótulos `RUA`, `TORRE`, `NÍVEL`, `POS`, valores em negrito monoespaçado e chip `⚠️ Sem Endereço Cadastrado`.
+  - [`frontend/src/presentation/pages/separacao/EnderecoChips.tsx`](./frontend/src/presentation/pages/separacao/EnderecoChips.tsx): Reexportação do componente comum para reaproveitamento total sem duplicação no módulo de Separação.
+  - [`frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx): Substituição integral das strings brutas de endereço pelos componentes `<EnderecoChips />`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Modal Popup Centralizado de Mudança de Picking (DE ➔ PARA) no 1º Bip do Coletor
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"no caso do produto já está cadastrado em um outro endereço(picking) vamos lançar um popup perguntando se ele quer mudar para o atual."*
+  - Contexto da Imagem (`media_1794838861663_55bca48d.png`): O usuário cadastrou um item e quando o produto já tem picking, a confirmação precisa ser evidente e imediata.
+  - Alinhamento de UX via `/grill-me`:
+    1. **Disparo Imediato no 1º Bip:** Ao localizar o produto, se o endereço de destino for de Picking e o item já possuir outro Picking ativo no ERP Sankhya, o sistema abre imediatamente o popup de mudança.
+    2. **Modal Centralizado com Quadro DE ➔ PARA:** Exibe foto do produto, endereço anterior (DE - que será inativado) e novo endereço (PARA - novo picking oficial), com botões `[ ⚡ Sim, Mudar para o Atual (Enter) ]` e `[ ✕ Manter no Anterior (Esc) ]`.
+    3. **Diferenciação do Mesmo Endereço:** Se o produto já estiver cadastrado no MESMO endereço atual (ex: `01.01.01.01.01`), não abre popup de mudança; apenas emite aviso suave *"⚠️ Produto já cadastrado e ativo neste endereço"*, mantendo o foco no próximo bip.
+    4. **Inativação e Ativação Automática:** Ao confirmar, inativa o picking anterior (`ATIVO = 'N'`, `DTFIM = hoje`) e ativa o novo vínculo (`ATIVO = 'S'`) via `DatasetSP.save` na entidade `ProdutoEndereco` (`TGWEXP`), registrando auditoria local `DEFINIR_PICKING`.
+- **Implementações Realizadas:**
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Detecção no `handleLocalizarProduto` de picking anterior em outro endereço versus mesmo endereço.
+    - Modal popup centralizado `.enderecamento-modal-picking-overlay` e `.enderecamento-modal-picking-card` com atalhos de teclado `Enter` (confirmar mudança) e `Escape` (cancelar/manter anterior).
+  - [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css):
+    - Estilos `.enderecamento-modal-picking-*` com layout DE ➔ PARA em destaque.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+## Atualização: Exibição da Foto do Produto com Banner Amplo (120x120px) e Lightbox na Pré-visualização do Coletor
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"a foto do produto não apareceu"*
+  - Diagnóstico: O card de pré-visualização no coletor e os cards de produtos na aba de Endereçamento WMS não estavam utilizando o componente padrão `ProdutoImagem`, exibindo apenas um placeholder de emoji estático.
+  - Alinhamento de UX via `/grill-me`:
+    1. **Banner Visual Amplo (120x120px):** Imagem nítida e ampla posicionada em destaque no topo do card de pré-visualização do coletor para conferência imediata da embalagem.
+    2. **Lightbox de Foto Ampliada:** Clique na foto abre modal em tela cheia com alta resolução (fechando com `Escape` ou clique fora).
+    3. **Miniaturas na Aba Geral de Produtos:** Miniaturas de 64x64px com cantos arredondados e suporte a zoom incorporadas na listagem da aba `📦 Por Produto`.
+- **Implementações Realizadas:**
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Importação de `ProdutoImagem` conectada à rota nativa `/api/crud/produto/:codprod/imagem`.
+    - Inclusão do container de foto ampla de 120x120px com dica visual *"🔍 Toque na foto para ampliar"*.
+    - Inclusão de `ProdutoImagem` na lista analítica de produtos (`📦 Por Produto`).
+    - Lightbox modal `imagemAmpliada` com fechamento automático no `Escape`.
+  - [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css):
+    - Estilos `.enderecamento-coletor-previa-foto-container`, `.enderecamento-coletor-previa-foto-ampla`, `.enderecamento-produto-thumb` e `.enderecamento-modal-foto-*`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+## Atualização: Pré-visualização do Produto antes do Cadastro com Double-Scan e Situação WMS
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"na rotina de cadastrar no endereço, ao ler o codigo de barra do produto ou o codigo do produto vamos mostrar o produto antes de cadastrar efetivamente no endereço."*
+  - Alinhamento de UX e segurança operacional via `/grill-me`:
+    1. **Double-Scan de Confirmação:** O 1º bip do código de barras ou CODPROD localiza e exibe o produto na tela; o 2º bip (do mesmo código de barras ou tecla Enter) confirma e grava o cadastro no endereço.
+    2. **Card Completo com Situação WMS Atual:** Exibe foto/ícone, código, descrição, referência, código de barras EAN, unidade (`CODVOL`), lote (se preenchido), e o panorama atual no armazém (Picking oficial atual, Pulmões ativos e Saldo disponível em estoque).
+    3. **Bloqueio de Divergência no 2º Bip:** Se o operador estiver com um produto em tela e bipar um código de barras diferente, emite alerta sonoro de erro (`tocarSom('erro')`) e exibe mensagem de advertência em destaque vermelho, sem substituir o produto acidentalmente e exigindo o cancelamento explícito via botão `[ ✕ Trocar Produto ]` ou tecla `Escape`.
+- **Implementações Realizadas:**
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Estados `produtoPrevia`, `codigoBipadoPrimeiro`, `coletorDivergenciaMsg` e ref `coletorConfirmarRef`.
+    - `handleLocalizarProduto`: Executado no 1º bip, consulta o item no Sankhya via `buscarPorProduto(termo, 1)` e abre a pré-visualização.
+    - `handleSubmeterConfirmacao`: Executado no 2º bip ou Enter, valida se o código confere com o produto selecionado antes de chamar a API de gravação.
+    - Atalho `Escape`: Cancela o produto em exibição e volta o foco para o 1º bip.
+  - [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css):
+    - Estilos `.enderecamento-coletor-previa-*`: card azul destacado, metadados, situação WMS, banner instrucional e alerta de divergência animado (`shake`).
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+## Atualização: Rotina de Cadastro Rápido de Produtos no Endereço (Modo Coletor WMS)
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"vamos da continuidade ao endereçamento, precisamos criar a rotina para cadastrar os produtos no endereço, qual o melhor mecanica para essa rotina?"*
+  - Alinhamento de mecânica operacional e UX via `/grill-me`:
+    1. **Mecânica Híbrida e Flexível:** Modal de alta velocidade no coletor (`F2`), com suporte a fixar a posição física com toggle `[ 🔒 Travar Endereço ]` para bipar múltiplos produtos em série sem rebipar a rua/nível, ou alternar livremente.
+    2. **Cadastro Puramente Locacional:** Vinculação física SKU x Endereço em `TGWEXP` (sem exigir digitação de quantidade física, com campo de lote/controle opcional).
+    3. **Regra de Ouro do Picking Único:** Se o endereço for de Picking e o produto já possuir outro picking ativo no Sankhya ERP, exibe confirmação rápida com o picking anterior e inativa o antigo automaticamente via `DatasetSP.save` ao confirmar.
+    4. **Bipagem Repetida no Mesmo Endereço:** Emite alerta suave e feed visual sem travar o operador ou interromper o ritmo de bipagem.
+    5. **Feed da Sessão Atual:** Rodapé em tempo real exibindo os últimos itens cadastrados na sessão com hora, código, descrição e endereço.
+    6. **Permissão Dedicada:** Criada a permissão `enderecamento_cadastrar` gerenciável na Gestão de Acessos para liberar o coletor aos operadores autorizados.
+- **Implementações Realizadas:**
+  - **Permissões de Acesso:**
+    - [`PermissaoUsuario.ts`](./backend/src/domain/entities/PermissaoUsuario.ts) & [`Auth.ts`](./frontend/src/domain/models/Auth.ts): Adicionado `enderecamento_cadastrar`.
+    - [`GestaoAcessos.tsx`](./frontend/src/presentation/pages/GestaoAcessos.tsx): Adicionado subtoggle *"⚡ Cadastrar no Endereço (Modo Coletor)"* e integração com perfis.
+  - **Backend (Regra de Negócio & API):**
+    - [`CadastrarProdutoEnderecoUseCase.ts`](./backend/src/application/use-cases/enderecamento/CadastrarProdutoEnderecoUseCase.ts): Validação de endereço em `TGWEND`, resolução de produto por `CODPROD` ou `CODBARRA` em `TGFBAR`, checagem de duplicidade ativa, substituição automática de picking anterior e gravação em `DatasetSP.save` (`ProdutoEndereco`) e auditoria em `historico_enderecamento`.
+    - [`EnderecamentoController.ts`](./backend/src/presentation/http/controllers/EnderecamentoController.ts) & [`enderecamentoRoutes.ts`](./backend/src/presentation/http/routes/enderecamentoRoutes.ts): Rota `POST /api/enderecamento/cadastrar` com middleware de permissão `enderecamento_cadastrar`.
+    - [`container.ts`](./backend/src/container.ts): Registro da injeção de dependência no Composition Root.
+  - **Frontend (Interface do Coletor):**
+    - [`EnderecamentoApiService.ts`](./frontend/src/infrastructure/api/EnderecamentoApiService.ts): Método `cadastrar` tipado.
+    - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx): Botão de destaque no topo `[ ⚡ Cadastrar no Endereço ]` com atalho `F2`, modal de alta velocidade com auto-foco, trava de endereço, confirmação de substituição de picking e feed em tempo real da sessão.
+    - [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css): Estilos dedicados com animações, feedback sonoro e layout otimizado para coletores HoneyWell/Zebra e telas touch.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+## Atualização: Ordenação Vertical e Apresentação Comparativa Empilhada (NF -> N1 -> N2 -> N3) em LOTE, VALIDADE e FABRICAÇÃO
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"vamos ordenar os dados lote/validade e fabricação, para NF, N1(se existir), N2(Se existir) e N3(se existir)"* (Imagem: `media_1794600653992_3147d860.png` mostrando células de Lote, Validade e Fabricação com N2 em cima e NF embaixo).
+  - Alinhamento de design via `/grill-me`:
+    1. Lista empilhada completa na exata ordem cronológica/fiscal: 1ª linha **NF**, 2ª linha **N1** (se existir), 3ª linha **N2** (se existir) e 4ª linha **N3** (se existir).
+    2. Identificação com tags compactas coloridas (cinza para `NF`, azul para `N1`/`N2`, roxo para `N3`).
+    3. Destaque no nível adotado/ativo: exibe `✓` verde e texto em negrito no nível selecionado (ERP, N1, N2 ou N3).
+    4. Múltiplos lotes no nível: botão compacto `2 Lotes ▼` mantido na respectiva linha para expandir a gaveta analítica.
+    5. Apenas exibição comparativa estática (decisão de nível continua pelas colunas de quantidade e pelo assistente).
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Isolamento de Dados por Nível:**
+     - Extração rigorosa e segura de dados faturados (`controleOriginal`, `validadeOriginal`, `fabricacaoOriginal`) e conferidos em cada etapa (`loteN1`/`valN1`/`fabN1`, `loteN2`/`valN2`/`fabN2`, `loteN3`/`valN3`/`fabN3`).
+  2. **Estrutura Empilhada Padronizada:**
+     - Aplicada simultaneamente nas 3 colunas de conferência: **`LOTE`**, **`VALIDADE`** e **`FABRICAÇÃO`**.
+     - Cada linha exibe sua tag colorida e o valor correspondente formatado.
+     - Preservado o container com borda vermelha (`border: 1.5px solid #ef4444; background: #fef2f2`) enquanto houver pendência e borda verde (`border: 1px solid #bbf7d0; background: #f0fdf4`) após a resolução.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+## Atualização: Remoção de Lote NF sob Ref e Destaque com Borda Vermelha em Divergências de Lote, Validade e Fabricação
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"esse lote NF embaixo de ref vamos remover, e caso tenha divergencia de lote/validade/fabricação vamos colocar uma borda vermelha, para o destacar que existe a divergencia."* (Imagem: `media_1794600056662_7abf9dd3.png` destacando a linha `• Lote NF:` na coluna Produto e os retângulos nas células de Lote, Validade e Fabricação).
+  - Alinhamento de design via `/grill-me`:
+    1. Borda vermelha ativa apenas enquanto a divergência daquela propriedade estiver pendente (fica com borda verde discreta/resolvida após a decisão).
+    2. Estilo visual: Box/Card arredondado (`border: 1.5px solid #ef4444`, `background: #fef2f2`, `border-radius: 6px`, `padding: 3px 6px`).
+    3. Aplicado tanto na tabela desktop com N3 quanto na visualização mobile/sem N3.
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Remoção de `• Lote NF:` da Coluna Produto:**
+     - Eliminada a linha de texto redundante `• Lote NF: {item.controleOriginal}` localizada abaixo da referência do produto em todas as visualizações (desktop e mobile).
+  2. **Destaque Visual com Borda Vermelha nas Células de Divergência:**
+     - Criada a função de estilização `getEstiloBoxDivergencia(isPendente, isDecidido)`:
+       - **Pendente:** Container arredondado com borda vermelha vibrante (`#ef4444`), fundo suave avermelhado (`#fef2f2`) e texto do valor da conferência e da NF em vermelho escuro legível (`#b91c1c`).
+       - **Decidido / Resolvido:** Container arredondado com borda verde suave (`#bbf7d0`), fundo esmeralda claro (`#f0fdf4`) e texto verde (`#047857`) com prefixo `✓`.
+       - **Sem Divergência:** Container limpo sem borda.
+     - Aplicado individualmente nas 3 colunas comparativas:
+       - **LOTE:** Destaca quando `isPendenteLote` estiver ativo.
+       - **VALIDADE:** Destaca quando `isPendenteValidade` estiver ativo.
+       - **FABRICAÇÃO:** Destaca quando `isPendenteFabricacao` estiver ativo.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+## Atualização: Trava de Segurança Definitiva para Aprovação de Divergências e Prevenção de Status CONFERIDO Prematuro
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"Veja o motivo pq essa nota está conferido e ainda está ativo o desmembranemto, não foi feito no assitente? E se não foi feito, pq feoi para status conferido."*
+  - Resposta do usuário: *"Sim, e vamos colocar um checagem para as divergencias antes de liberar para o status CONFERIDO."*
+  - **Diagnóstico da Causa Raiz:**
+    1. **Botão de Aprovação Prematuro no Frontend ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):** A condição `podeResolverDivergencia` avaliava apenas `totalFiscaisPendentes === 0`. Quando um item possuía múltiplos lotes (ex: 36 UN faturadas bipadas em 2 frações de 18 UN), não havia diferença de quantidade (`diferenca === 0`), permitindo que o supervisor clicasse em `✓ Resolver Divergência` e a conferência fosse aprovada para o status `Conferido` sem que o desmembramento fosse realizado.
+    2. **Ausência de Validação Impeditiva no Backend ([`ResolverDivergenciaUseCase.ts`](./backend/src/application/use-cases/recebimento/ResolverDivergenciaUseCase.ts)):** O backend atualizava diretamente o status da conferência para `'Conferido'` sem auditar se ainda persistiam desmembramentos pendentes, sobras físicas sem ocorrência gerada ou faltas não justificadas.
+    3. **Bloqueio Posterior na Aba 3 (Envio ao Sankhya):** Ao chegar na Aba 3 com status `Conferido`, a tela bloqueava o envio exibindo `⚠️ 1 produto(s) requerem desmembramento Sankhya` e o botão `✂️ Desmembrar`, gerando a inconsistência de uma nota já finalizada com desmembramento ativo.
+- **Implementações Realizadas:**
+  1. **Backend - Validação Prévia Obrigatória no Use Case ([`ResolverDivergenciaUseCase.ts`](./backend/src/application/use-cases/recebimento/ResolverDivergenciaUseCase.ts)):**
+     - Injeção de `ListarDivergenciasEntradaUseCase` no serviço.
+     - Antes de alterar o status para `Conferido`, executa varredura profunda dos itens da conferência:
+       - **Múltiplos Lotes:** Impede aprovação se houver itens com `lotesConferidos.length > 1` e `statusSankhya === 'PENDENTE'`.
+       - **Sobras Físicas Reais:** Impede aprovação se houver quantidade física maior que a faturada sem ocorrência resolvida.
+       - **Faltas Físicas:** Impede aprovação se houver falta de mercadoria não isolada ou não justificada.
+       - **Divergências Cadastrais:** Impede aprovação se houver discordâncias de lote, validade ou fabricação sem decisão de nível ou fiscal.
+       - Caso haja pendências, lança exceção impeditiva `AppError(400, "Não é possível concluir a conferência como 'Conferido'. Existem X pendência(s)...")`.
+  2. **Frontend - Trava Visual no Botão de Resolução ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - O botão `✓ Resolver Divergência` agora exige estritamente:
+       `totalPendentesAssistente === 0 && totalFiscaisPendentes === 0 && !estaAguardandoOuEmN3`.
+     - Enquanto houver itens com múltiplos lotes pendentes de desmembramento ou qualquer pendência no assistente, o botão permanece desabilitado com tooltip orientativo.
+  3. **Assistente de Divergências ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - A função `verificarItemResolvido` agora valida itens com múltiplos lotes: se o item possui mais de 1 lote físico e não adotou ERP, exige que a configuração de desmembramento seja realizada antes de marcar o item como resolvido `(✓)`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+## Atualização: Desduplicação de Badge de Liberação no Cabeçalho do Card (Aba Envio ao Sankhya)
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"veja que está duplicado, vamos deixar o que está com data e hora"* (Imagem: `media_1794598607977_e5f32679.png` mostrando badge repetido na barra de status da direita ao lado de CONFERIDO).
+  - **Diagnóstico Técnico:** O card da conferência na Aba 3 (Envio ao Sankhya) exibia o badge de liberação em dois locais: no bloco da NF à esquerda (`✓ Liberado por supervisor (13/11/2026 15:56)`) e à direita na barra de chips ao lado do status `CONFERIDO` (`✓ Liberado por supervisor`).
+- **Implementação Realizada ([`AbaEnvioSankhyaView.tsx`](./frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx)):**
+  - Remoção do chip duplicado da direita ao lado de `CONFERIDO`.
+  - Preservado com destaque o badge oficial à esquerda abaixo do número da nota contendo o responsável e a data/hora completas da aprovação (`✓ Liberado por {conf.aprovadoPor} ({data/hora})`).
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"vamos analisar o by stop do assitente de divergencia, ele não está atualizando os numeros das pendentes, da uma checada... e vamos colocar borda laranja nas opçoes ERP e azul nas opções da bipagem... e ao selecionar não vamos passar automaticamente, para a proxima divergencia dentro do pop up deixa o usuário avançar manualmente."*
+  - **Diagnóstico Técnico:**
+    1. **Instabilidade do Stepper ("by stop" / step by step):** Quando o usuário selecionava uma opção, o item era considerado resolvido e sumia de `itensPendentes`. Isso recalculava o array de steps, reindexando e encolhendo as bolinhas subitamente, gerando a percepção de que a contagem e os números das pendências não atualizavam de forma estável.
+    2. **Avanço Automático Prematuro:** As funções `handleDecisaoRapidaFiscal` e `handleAdotarNivelRapido` possuíam um `setTimeout(..., 280)` que saltava para a próxima pendência automaticamente, impedindo que o operador revisasse visualmente a opção escolhida.
+    3. **Identidade Visual das Opções:** Necessidade de diferenciar claramente as opções fiscais do ERP (laranja) e as apuradas na bipagem física do coletor (azul).
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  - **Stepper Fixo com Status em Tempo Real:** As bolinhas (steps) agora mantêm todos os itens da nota com numeração fixa (1, 2, 3...), transformando o número em `✓` verde com fundo suave imediatamente ao ser resolvido, sem encolher a lista nem sumir da tela.
+  - **Remoção do Avanço Automático:** O usuário permanece no item após selecionar a decisão, podendo verificar o estado selecionado com calma e avançar no seu ritmo pelo botão "Próximo Item →".
+  - **Bordas Padronizadas por Origem:**
+    - **Opções ERP (Nota Fiscal):** Borda suave `#fed7aa` em repouso e borda laranja `#f97316` com fundo `#fff7ed` e badge `#ffedd5` / `#c2410c` quando selecionado.
+    - **Opções da Bipagem (Coletor / N2 / N3):** Borda suave `#bfdbfe` em repouso e borda azul `#2563eb` com fundo `#eff6ff` e badge `#dbeafe` / `#1d4ed8` quando selecionado.
+  - **Contador e Status no Cabeçalho:** Exibe `Item X de Y` acompanhado de badge dinâmico `✓ Resolvido` ou `⚠️ Pendente`, com atualização em tempo real dos contadores nas pílulas superiores.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"veja que essa nota chegou na ultima fase e contua aparecendo que existe demembramento de lotes, sendo que ele já foi liberado pelo supervisor.(essa nota não está mais nesses estado ele foi reiniciado). Precisamos incluir a informação no cabeçalho quem liberou as divergencias."*
+  - **Diagnóstico Técnico:**
+    1. **Falso Desmembramento por Mescla N2/N3:** Na Aba 3 (Envio ao Sankhya), a função `obterLotesItem` filtrava o array global de `bipagens` sem restringir pelo nível adotado (`b.nivel`). Quando uma conferência passava por N2 e depois N3, bipagens de ambos os níveis eram agrupadas, gerando múltiplos lotes artificiais e disparando a trava `⚠️ X produto(s) requerem desmembramento Sankhya` e o botão `✂️ Desmembrar`, mesmo com o supervisor tendo liberado a conferência com nível único ou ERP.
+    2. **Desconexão com `lotesConferidos` do Backend:** O backend já sanitiza e isola as frações de lote estritamente do nível adotado em `item.lotesConferidos`, porém `obterLotesItem` tentava agrupar o array bruto de bipagens antes de consultar `item.lotesConferidos`.
+    3. **Identificação do Supervisor no Cabeçalho:** O cabeçalho dos cards da conferência não exibia de forma explícita o usuário e data/hora em que as divergências foram liberadas (`aprovadoPor` / `aprovadoEm`), apenas exibindo esses dados se a nota já estivesse integrada ao Sankhya (`jaEnviado`).
+- **Implementações Realizadas:**
+  - [`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx):
+    - Refatoração de `obterLotesItem`:
+      - Detecção de decisão de ERP (`adotouErp`): retorna diretamente o lote da Nota Fiscal (`item.controle || item.lote`), sem criar desmembramentos.
+      - Prioridade absoluta para `item.lotesConferidos` saneado pelo backend (que já respeita a decisão do supervisor e o isolamento N2 vs N3).
+      - Filtragem estrita de bipagens pelo nível adotado (`b.nivel === nivelAdotado`), eliminando em definitivo a junção acidental de bipagens de N2 e N3.
+  - [`AbaEnvioSankhyaView.tsx`](./frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx):
+    - Cabeçalho das Notas Fiscais: inclusão de badge verde `✓ Liberado por {conf.aprovadoPor} ({data/hora})` visível imediatamente ao aprovar as divergências, antes mesmo da sincronização final no Sankhya.
+    - Barra de Status do Card: chip discreto `✓ Liberado por {conf.aprovadoPor}` renderizado junto aos badges de conferência ao lado do status `CONFERIDO`.
+  - [`AbaConferenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaConferenciasView.tsx):
+    - Inclusão do badge `✓ Liberado por {conf.aprovadoPor} ({data/hora})` para conferências com status `Conferido` na lista geral.
+  - [`ListarTodasConferenciasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarTodasConferenciasEntradaUseCase.ts), [`ConferenciaEntrada.ts`](./backend/src/domain/entities/ConferenciaEntrada.ts) e [`ConferenciaEntrada.ts`](./frontend/src/domain/models/ConferenciaEntrada.ts):
+    - Adicionado campo `aprovadoEm` na entidade e resumo da conferência, garantindo a rastreabilidade completa com carimbo de data e hora da aprovação no frontend.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"pq o produto 79 esta na lista desse endereço, se não há vinculo"*
+  - **Diagnóstico Técnico Exato:**
+    1. O endereço selecionado possui vinculados no Sankhya os produtos **`1`** (`MINI ADULT 1KG`) e **`240`** (`WET CANINE/FELINE RECOVERY`).
+    2. O frontend anteriormente iterava chamando a busca textual aberta `buscarPorProduto("1", limite: 1)`.
+    3. A query continha `(PRO.CODPROD = 1 OR PRO.REFERENCIA LIKE '%1%') AND ROWNUM <= 1`.
+    4. No Oracle, a cláusula `ROWNUM <= 1` é avaliada antes da ordenação final; como a referência do **Produto 79** (`SHIH TZU`) é `7896181212362` (contém o dígito `1`), o Oracle retornou arbitrariamente o Produto 79 como sendo a correspondência do termo "1", causando o falso positivo visual.
+- **Implementações Realizadas:**
+  - [`BuscarEnderecosProdutoUseCase.ts`](./backend/src/application/use-cases/enderecamento/BuscarEnderecosProdutoUseCase.ts):
+    - Suporte nativo a lista explícita `codprods: number[]` com query estrita `WHERE PRO.CODPROD IN (...)`.
+    - Quando o termo de pesquisa for numérico, a query restringe estritamente a `PRO.CODPROD = {termo} OR BAR.CODBARRA = '{termo}'`, eliminando varreduras de substring (`LIKE '%N%'`) em referências.
+  - [`EnderecamentoController.ts`](./backend/src/presentation/http/controllers/EnderecamentoController.ts):
+    - Aceita o parâmetro `query.codprods` para consultas em lote exatas por código de produto.
+  - [`EnderecamentoApiService.ts`](./frontend/src/infrastructure/api/EnderecamentoApiService.ts) & [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Transição de endereço agora utiliza `buscarPorCodprods(cods)` em lote, obtendo de uma só vez estritamente os produtos alocados no endereço (Produto 1 e Produto 240), com picking oficial `01.01.01.01.01` devidamente associado.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Correção de Campo Inexistente na TGFPRO (ORA-00904: "PRO"."TIPCONREST")
+
+- **Demanda do Usuário & Diagnóstico:**
+  - *"[Sankhya DbExplorerSP.executeQuery] ORA-00904: 'PRO'.'TIPCONREST': identificador inválido"*
+  - **Diagnóstico:** A coluna `TIPCONREST` não existe na tabela `TGFPRO` no Sankhya ERP. O controle de lote e rastreabilidade no WMS do Sankhya é registrado na coluna `CONTROLE` da tabela `TGWEXP`.
+- **Implementações Realizadas:**
+  - [`BuscarEnderecosProdutoUseCase.ts`](./backend/src/application/use-cases/enderecamento/BuscarEnderecosProdutoUseCase.ts):
+    - Remoção do campo `PRO.TIPCONREST` da query SQL de produtos, garantindo compatibilidade nativa com o Oracle e dicionário Sankhya.
+  - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+    - Campo de lote tornado flexível como `Lote / Controle (Opcional)` no modal de vinculação de endereços, permitindo amarrar o lote desejado sem dependência de flags restritivas de catálogo.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Correção de Consulta Oracle no Sankhya ERP (ORA-00904: "PRO"."CODBARRA")
+
+- **Demanda do Usuário & Diagnóstico:**
+  - *"[Sankhya DbExplorerSP.executeQuery] ORA-00904: 'PRO'.'CODBARRA': identificador inválido quando clico em ver produtos"*
+  - **Diagnóstico:** No dicionário de dados nativo do Sankhya ERP (banco de dados Oracle), a tabela de produtos `TGFPRO` não possui a coluna `CODBARRA` diretamente; o código de barras é armazenado na tabela satélite `TGFBAR` vinculada por `TGFBAR.CODPROD = TGFPRO.CODPROD`.
+- **Implementações Realizadas:**
+  - [`BuscarEnderecosProdutoUseCase.ts`](./backend/src/application/use-cases/enderecamento/BuscarEnderecosProdutoUseCase.ts):
+    - Substituição da seleção de `PRO.CODBARRA` pela subconsulta `(SELECT MAX(BAR.CODBARRA) FROM TGFBAR BAR WHERE BAR.CODPROD = PRO.CODPROD) AS CODBARRA`.
+    - Ajuste no filtro por número para utilizar `EXISTS (SELECT 1 FROM TGFBAR BAR WHERE BAR.CODPROD = PRO.CODPROD AND BAR.CODBARRA = '{termo}')`.
+  - [`BuscarProdutosPorEnderecoUseCase.ts`](./backend/src/application/use-cases/enderecamento/BuscarProdutosPorEnderecoUseCase.ts):
+    - Substituição de `PRO.CODBARRA` pela subconsulta `(SELECT MAX(BAR.CODBARRA) FROM TGFBAR BAR WHERE BAR.CODPROD = PRO.CODPROD) AS CODBARRA`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Lista Analítica de Endereços com Filtros Rápidos, Transição de Produtos e Inversão de Abas
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"No endereçamento WMS seria interessante mostrar a lista dos endereços(analitico), e ao clicar no endereço ir para aba produtos, mostrar os produtos que estão no endereço. E inverter a posição das abas endereço e produto."*
+  - **Decisões Alinhadas:**
+    1. **Inversão da Ordem das Abas:**
+       - 1ª Aba: `📍 Por Endereço` (aba padrão inicial).
+       - 2ª Aba: `📦 Por Produto`.
+       - 3ª Aba: `🕒 Histórico de Movimentações`.
+    2. **Lista Analítica de Endereços:**
+       - Exibição em lista analítica dos endereços cadastrados em `TGWEND` com contagem dinâmica de produtos vinculados em `TGWEXP`.
+       - Filtros rápidos por chips: Tipo (`Todos`, `Picking`, `Pulmão`) e Ocupação (`Todos`, `🟢 Livres/Vazios`, `🔴 Ocupados`).
+       - Contador de métricas no topo com total de endereços, ocupados e livres.
+       - Ação rápida ao clicar no endereço da lista ou no botão `👁️ Ver Produtos`: navega para a aba `📦 Por Produto` e filtra automaticamente os itens daquela posição física.
+    3. **Banner de Contexto Ativo na Aba Produto:**
+       - Ao transicionar de um endereço, exibe banner informativo: `📍 Exibindo produtos do endereço {ENDERECO} (N produtos)` com botão `✕ Limpar Filtro de Endereço`.
+- **Implementações Realizadas:**
+  - **Backend:**
+    - [`ListarEnderecosAnaliticoUseCase.ts`](./backend/src/application/use-cases/enderecamento/ListarEnderecosAnaliticoUseCase.ts): Caso de uso para consulta analítica de posições WMS com contagem de SKUs ativos.
+    - [`EnderecamentoController.ts`](./backend/src/presentation/http/controllers/EnderecamentoController.ts) & [`enderecamentoRoutes.ts`](./backend/src/presentation/http/routes/enderecamentoRoutes.ts): Adicionado endpoint `GET /api/enderecamento/analitico`.
+    - [`container.ts`](./backend/src/container.ts): Registro e injeção do caso de uso analítico.
+  - **Frontend:**
+    - [`EnderecamentoApiService.ts`](./frontend/src/infrastructure/api/EnderecamentoApiService.ts): Método `listarAnalitico` com tipagem `EnderecoAnaliticoItem`.
+    - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx):
+      - Ordem invertida das abas com `ENDERECO` como aba padrão.
+      - Grid analítico com chips de filtro rápido e transição contextual para a aba `PRODUTO`.
+      - Banner de contexto integrado e botão de limpeza de filtro.
+    - [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css): Estilos dos chips de filtro, linhas analíticas interativas e banner de contexto.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Implementação do Módulo de Endereçamento WMS (Produto x Endereço & Movimentações)
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"agora precisa de um modulo que gerencie os endereçamentos, e faça a gestão produto x endereços para que o pessoal consigo manipular os itens, retirando movimentando os produtos entre os endereços. Pesquisa as boas praticas desse contexto de armazenamento para usarmos a melhores praticas e a rotinas necessarias."*
+  - **Diretrizes Aprovadas:**
+    1. **Fase 1 (Cadastral & Operacional Ágil):** Gestão completa de amarrações no ERP Sankhya (`TGWEXP` / `ProdutoEndereco` e validação em `TGWEND`), com suporte a transferências internas, retiradas e novos vínculos.
+    2. **Regra de Negócio de Endereçamento:** 1 Picking único por produto (ao vincular novo picking, o anterior é inativado automaticamente no Sankhya) + Múltiplos Pulmões simultâneos com suporte a controle por lote.
+    3. **Navegação Híbrida em 3 Abas:**
+       - Aba 1: **Por Produto** (busca por código, descrição ou EAN; visualização clara de picking, pulmões e saldo total no estoque; botões de ação rápida `[ ↔️ Mover ]`, `[ 🗑️ Retirar ]`, `[ 📍 Tornar Picking ]`, `[ ➕ Novo Pulmão ]`).
+       - Aba 2: **Por Endereço** (busca ou bipagem do endereço físico; exibição de ocupação com todos os produtos alocados e status da posição).
+       - Aba 3: **Histórico de Movimentações** (auditoria com rastreabilidade completa de quem movimentou, quando, de onde para onde e motivo).
+    4. **Permissões Granulares no Hub de Acessos:** `enderecamento_visualizar` (consulta) e `enderecamento_manipular` (movimentar/retirar/vincular).
+- **Implementações Realizadas:**
+  - **Backend:**
+    - [`schema.ts`](./backend/src/infrastructure/database/schema.ts): Criação da tabela `historico_enderecamento` com índices para rastreabilidade de ações.
+    - [`Enderecamento.ts`](./backend/src/domain/entities/Enderecamento.ts) & [`IEnderecamentoRepository.ts`](./backend/src/domain/ports/IEnderecamentoRepository.ts): Modelagem de entidades e contratos.
+    - [`LibsqlEnderecamentoRepository.ts`](./backend/src/infrastructure/repositories/LibsqlEnderecamentoRepository.ts): Persistência e consulta do histórico de auditoria local.
+    - Casos de Uso:
+      - [`BuscarEnderecosProdutoUseCase.ts`](./backend/src/application/use-cases/enderecamento/BuscarEnderecosProdutoUseCase.ts): Busca em `TGFPRO`, `TGWEXP`, `TGWEND` e saldo disponível em `TGFEST`.
+      - [`BuscarProdutosPorEnderecoUseCase.ts`](./backend/src/application/use-cases/enderecamento/BuscarProdutosPorEnderecoUseCase.ts): Consulta ocupação do endereço em `TGWEND` e produtos em `TGWEXP`.
+      - [`VincularEnderecoProdutoUseCase.ts`](./backend/src/application/use-cases/enderecamento/VincularEnderecoProdutoUseCase.ts): Vinculação via `DatasetSP.save` no Sankhya com regra de picking único e auditoria.
+      - [`MovimentarEnderecoProdutoUseCase.ts`](./backend/src/application/use-cases/enderecamento/MovimentarEnderecoProdutoUseCase.ts): Transferência com inativação da origem e ativação do destino no ERP com auditoria.
+      - [`DesenderecarProdutoUseCase.ts`](./backend/src/application/use-cases/enderecamento/DesenderecarProdutoUseCase.ts): Liberação física e inativação no Sankhya com auditoria.
+      - [`ListarHistoricoEnderecamentoUseCase.ts`](./backend/src/application/use-cases/enderecamento/ListarHistoricoEnderecamentoUseCase.ts): Consulta do log de movimentações.
+    - [`EnderecamentoController.ts`](./backend/src/presentation/http/controllers/EnderecamentoController.ts) & [`enderecamentoRoutes.ts`](./backend/src/presentation/http/routes/enderecamentoRoutes.ts): Rotas protegidas por permissões.
+    - [`container.ts`](./backend/src/container.ts): Registro da injeção de dependências no Composition Root.
+  - **Frontend:**
+    - [`EnderecamentoApiService.ts`](./frontend/src/infrastructure/api/EnderecamentoApiService.ts): Cliente HTTP para comunicação com o backend.
+    - [`EnderecamentoPage.tsx`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.tsx): Interface completa com as 3 abas, barra de bipagem rápida para coletor móvel, cards de produto/endereço, feedback sonoro e modais de confirmação.
+    - [`EnderecamentoPage.css`](./frontend/src/presentation/pages/enderecamento/EnderecamentoPage.css): Estilos dedicados e isolados com prefixo exclusivo `.enderecamento-*`.
+    - [`AppRoutes.tsx`](./frontend/src/presentation/routes/AppRoutes.tsx): Rota protegida `/enderecamento`.
+    - [`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx): Item `📍 Endereçamento WMS` no menu lateral.
+    - [`HubPage.tsx`](./frontend/src/presentation/pages/Hub/HubPage.tsx): Card `📍 Endereçamento WMS` no Hub inicial de módulos.
+    - [`GestaoAcessos.tsx`](./frontend/src/presentation/pages/GestaoAcessos.tsx): Gestão de permissões no Hub de Acessos com permissão mestre e subtoggles para visualização e manipulação.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Modal de Abastecimento Minimalista (Botão [ℹ️] Flutuante e Remoção de Observações)
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"vamos usar o i para o texto o produto havia sido marcado... remove o observações operacionais"*
+  - **Diagnóstico:** O modal de confirmação de abastecimento continha uma caixa azul estática com aviso de correção de falta e um campo de texto secundário de observações operacionais que ocupavam espaço vertical excessivo e poluíam visualmente a ação rápida do operador.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Tooltip Flutuante Informativo [ℹ️] no Título:** Quando a tarefa for uma correção de falta (`status === 'FALTA_PULMAO'`), o título `Confirmar Abastecimento no Picking` exibe o botão discreto `ℹ️`. Ao passar o mouse ou clicar, exibe tooltip flutuante explicando: *"O produto havia sido marcado como não encontrado. Ao abastecer agora, a ocorrência de falta será encerrada e a separação da carga será liberada!"*.
+  2. **Remoção da Caixa Azul Estática:** Eliminado o bloco estático de aviso que empurrava os campos do modal.
+  3. **Remoção do Campo de Observações Operacionais:** Retirado o input `obsInput` e o rótulo de observações, mantendo o modal focado estritamente na confirmação da quantidade física abastecida.
+- **Implementações Realizadas:**
+  - [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx):
+    - Cabeçalho do modal ajustado com flexbox contendo o botão `ℹ️` e tooltip flutuante integrado com suporte a hover e clique.
+    - Excluída a caixa azul de aviso.
+    - Removido o campo `Observações Operacionais (Opcional)` e limpos os estados sem uso.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Padronização da Rota em 2 Colunas com Rótulo e Endereço [Pulmão ➔ Picking]
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"quando não tiver endereço picking -> Pincking (e em baixo) sem endereço / quando não tiver endereço pulmão -> Pulmão (e em baixo) sem endereço"*
+  - **Diagnóstico:** O formato horizontal anterior mesclava título e status na mesma linha com tamanhos e alinhamentos variáveis.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Estrutura Simétrica em 2 Colunas:** A caixa de rota foi dividida em duas colunas alinhadas separadas pela seta central `➔`:
+     - **Origem (Pulmão):** Rótulo `📦 Pulmão` na linha superior (cinza discreto); endereço real ou `Sem endereço` (em vermelho) na linha inferior.
+     - **Destino (Picking):** Rótulo `📍 Picking` na linha superior (cinza discreto); endereço real ou `Sem endereço` (em vermelho) na linha inferior.
+  2. **Harmonia Visual:** Rótulos em `font-size: 11px`, endereços reais em negrito escuro `13px` e indicação `Sem endereço` em `12px` vermelho suave.
+- **Implementações Realizadas:**
+  - [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx):
+    - Reestruturação do container `.reabastecimento-rota-compacta` com `.rota-coluna.origem` e `.rota-coluna.destino`.
+    - Renderização padronizada de rótulos e fallback para `Sem endereço`.
+  - [`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css):
+    - Layout flex em duas colunas (`justify-content: space-between`), alinhamento à esquerda para origem e à direita para destino.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"aqui vamos colocar o estoque flutante igual a rotina anterior, ao clicar mas vamos clicar em saldo da empresa(troca esse nome para Saldo Estoque)"*
+  - **Diagnóstico:** A lista expandida de locais/lotes ocupava espaço vertical empurrando todo o card e seus botões para baixo quando aberta.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Nomenclatura Atualizada:** Alterado de `Saldo na empresa:` para **`Saldo Estoque:`**.
+  2. **Popover Escuro Flutuante:** O detalhamento de estoque por local e lote agora é exibido em um balão escuro sobreposto ao card (`position: absolute; z-index: 250;`), sem empurrar o layout.
+  3. **Acionamento Intuitivo e Híbrido:** O clique ou hover diretamente no texto/trigger `📦 Saldo Estoque: {QTD} UN` abre e fecha o popover de locais.
+- **Implementações Realizadas:**
+  - [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx):
+    - Remoção do bloco estático expandido `.reabastecimento-saldo-detalhes`.
+    - Criação de trigger interativo `.reabastecimento-saldo-trigger` com badge discreto `locais (N) ▾`.
+    - Popover escuro `.reabastecimento-saldo-popover` exibindo locais, lotes e quantidades em verde esmeralda (`#4ade80`).
+    - Suporte a hover no desktop e toque/clique no mobile.
+  - [`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css):
+    - Estilização do popover escuro flutuante com sombra elevada, seta indicadora e animação sutil `fadeInPopover`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"esse texto solicitado pela separação... pode colocar em um botão i e o usuario colocar o mouse encima apresneta o texto fluante"*
+  - **Diagnóstico:** A caixa amarela fixa de observações ocupava espaço vertical expressivo no card de reabastecimento.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Remoção da Caixa Fixa:** Eliminado o bloco amarelo estático de todos os cards de reabastecimento.
+  2. **Botão Informativo [ ℹ️ ] no Rodapé:** Adicionado botão discreto circular `[ ℹ️ ]` imediatamente ao lado das informações de solicitação (`Solicitado: 12/11, 22:25 • SUPERVISOR ℹ️`).
+  3. **Comportamento Híbrido (Desktop & Mobile):**
+     - **Desktop:** Ao passar o mouse (`hover`), exibe popover/tooltip flutuante com sombra suave e seta direcional.
+     - **Mobile / Touch:** Ao tocar no botão `ℹ️`, alterna a exibição do balão de texto flutuante sem quebrar o layout.
+- **Implementações Realizadas:**
+  - [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx):
+    - Remoção do container estático de texto de observações.
+    - Criação de `reabastecimento-tooltip-wrapper` com botão `ℹ️` e caixa `reabastecimento-tooltip-box`.
+    - Estados `tooltipHoverId` e `tooltipAberto` para controle de hover e toque.
+  - [`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css):
+    - Estilos minimalistas para `.reabastecimento-btn-info`, `.reabastecimento-tooltip-box` e setinha direcional com `z-index: 200`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"a falta pode ser encontrada, ele pode corrigir o erro e colocar o produto no picking, mas não colocamos a opção confirmar(inclusive vamos trocar para abastecer)"*
+  - **Diagnóstico:** No card de `Falta de Pulmão`, apenas o botão `✂️ Confirmar Corte Definitivo` era exibido. Se o empilhadeirista ou supervisor localizasse o produto posteriormente no armazém e corrigisse a falha física, não havia como confirmar o abastecimento direto pela tarefa em falta. Além disso, o botão anteriormente rotulado como `✓ Confirmar` precisava ser padronizado para `🚜 Abastecer`.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Ação Dupla no Card de Falta:** O card de tarefa com falta de pulmão agora oferece duas saídas operacionais claras lado a lado:
+     - `[ 🚜 Abastecer ]`: Para quem possui `reabastecimento_confirmar`, permitindo registrar a entrada física do produto no picking mesmo após uma falta prévia.
+     - `[ ✂️ Confirmar Corte Definitivo ]`: Para quem possui `reabastecimento_finalizar_falta`, confirmando o corte definitivo do saldo.
+  2. **Padronização de Nomenclatura:**
+     - Botão dos cards (pendentes e faltas): alterado para **`🚜 Abastecer`**.
+     - Botão interno do modal de quantidade/observações: mantido como **`✓ Confirmar Abastecimento`**.
+  3. **Rastreabilidade no Backend:** Ao abastecer uma tarefa que estava em `FALTA_PULMAO`, o caso de uso [`ConcluirTarefaReabastecimentoUseCase.ts`](./backend/src/application/use-cases/reabastecimento/ConcluirTarefaReabastecimentoUseCase.ts) anexa automaticamente ao log da observação: `✓ Produto localizado e abastecido no picking por {usuario} em {hora}`, mantendo histórico auditável de resolução.
+- **Implementações Realizadas:**
+  - [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx):
+    - No bloco de ações de `isFaltaPulmao`, renderização de `[🚜 Abastecer]` e `[✂️ Confirmar Corte Definitivo]` em container flex horizontal.
+    - Troca de `✓ Confirmar` por `🚜 Abastecer` nos cards de tarefas pendentes.
+    - Alerta explicativo em azul no modal de abastecimento quando acionado a partir de uma falta.
+  - [`ConcluirTarefaReabastecimentoUseCase.ts`](./backend/src/application/use-cases/reabastecimento/ConcluirTarefaReabastecimentoUseCase.ts):
+    - Conclusão com sucesso de tarefas em status `FALTA_PULMAO` com auditoria na observação.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"em reabastecimento, vamos incluir um botão(Não encontrado) caso exista estoque e o usuário não encontre ele no estoque fisico, criando uma ocorrencia de falta no modulo pois estamos falando de pulmão. Lá na falta, vamos possibilitar finalizar. Ao tentar finalizar(Reabastecer) em ambos os casos(pulmão ou Falta), vamos precisar deixar a carga pendente aguardando esse abastecimento/confirmação de falta. Para liberar a separação, como podemos fazer essa integração, lembrando que a separação de saida está aguardando esses produtos."*
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Botão "Não Encontrado" no Reabastecimento:** Quando o operador de empilhadeira buscar um produto e não o encontrar fisicamente no pulmão/endereço, aciona o botão `⚠️ Não Encontrado` para gerar uma ocorrência de falta (`status = 'FALTA_PULMAO'`).
+  2. **Aba/Filtro Dedicado de Faltas no Pulmão:** Tarefas com falta de pulmão são agrupadas na aba `⚠️ Faltas de Pulmão ({total})` e ganham card com borda e badge âmbar de destaque.
+  3. **Permissão de Finalização de Falta:** Criada a permissão granular `reabastecimento_finalizar_falta` (configurável no painel de Acessos). Apenas usuários autorizados podem finalizar a falta e confirmar o corte definitivo no pedido (`status = 'FALTA_CONFIRMADA'`).
+  4. **Carga em Espera (`AGUARDANDO_REABASTECIMENTO`):** Quando a separação solicita o pulmão, a carga recebe status `AGUARDANDO_REABASTECIMENTO` e exibe o badge `⏳ Aguardando Reabastecimento`, travando a conclusão precipitada.
+  5. **Prioridade Máxima para Cargas Reabastecidas (`REABASTECIDO`):** Quando o empilhadeirista confirma o reabastecimento (`ConcluirTarefaReabastecimentoUseCase`), a carga vai para `status = 'REABASTECIDO'` com badge `⚡ Pick Reabastecido` e passa a ocupar o topo absoluto da fila de cargas. Na rota guiada, o item reabastecido ganha badge `⚡ Pick Reabastecido` e prioridade máxima para bipagem.
+  6. **Desbloqueio com Corte Definitivo:** Caso a falta seja confirmada (`FinalizarFaltaPulmaoUseCase`), os itens da carga são marcados como `CORTADO_DEFINITIVO` e a carga é liberada para conclusão pelo separador.
+- **Implementações Realizadas:**
+  1. **Entidades & Permissões:**
+     - [`backend/src/domain/entities/Reabastecimento.ts`](./backend/src/domain/entities/Reabastecimento.ts) & [`frontend/src/domain/models/Reabastecimento.ts`](./frontend/src/domain/models/Reabastecimento.ts): adicionados status `'FALTA_PULMAO' | 'FALTA_CONFIRMADA'`.
+     - [`backend/src/domain/entities/Separacao.ts`](./backend/src/domain/entities/Separacao.ts) & [`frontend/src/domain/models/Separacao.ts`](./frontend/src/domain/models/Separacao.ts): adicionados status de carga `'AGUARDANDO_REABASTECIMENTO' | 'REABASTECIDO'` e item `'REABASTECIDO'`.
+     - [`PermissaoUsuario.ts`](./backend/src/domain/entities/PermissaoUsuario.ts) & [`Auth.ts`](./frontend/src/domain/models/Auth.ts): adicionada permissão `reabastecimento_finalizar_falta`.
+  2. **Casos de Uso no Backend:**
+     - [`SolicitarReabastecimentoSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SolicitarReabastecimentoSeparacaoUseCase.ts): cria tarefas de pulmão agrupadas por produto e coloca a separação em `AGUARDANDO_REABASTECIMENTO`.
+     - [`RegistrarFaltaPulmaoUseCase.ts`](./backend/src/application/use-cases/reabastecimento/RegistrarFaltaPulmaoUseCase.ts): registra produto não encontrado no estoque físico (`FALTA_PULMAO`).
+     - [`FinalizarFaltaPulmaoUseCase.ts`](./backend/src/application/use-cases/reabastecimento/FinalizarFaltaPulmaoUseCase.ts): confirma corte definitivo (`FALTA_CONFIRMADA`), atualiza itens na separação para `CORTADO_DEFINITIVO` e libera a carga.
+     - [`ConcluirTarefaReabastecimentoUseCase.ts`](./backend/src/application/use-cases/reabastecimento/ConcluirTarefaReabastecimentoUseCase.ts): atualiza itens da separação para `REABASTECIDO` e move status da carga para `REABASTECIDO`.
+     - [`ListarCargasPendentesUseCase.ts`](./backend/src/application/use-cases/separacao/ListarCargasPendentesUseCase.ts) & [`ObterSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/ObterSeparacaoUseCase.ts): ordenam cargas com `REABASTECIDO` no topo absoluto da fila e itens reabastecidos no início da rota guiada.
+  3. **Controllers, Rotas & Container:**
+     - [`SeparacaoController.ts`](./backend/src/presentation/http/controllers/SeparacaoController.ts) & [`separacaoRoutes.ts`](./backend/src/presentation/http/routes/separacaoRoutes.ts): rota `POST /:id/solicitar-reabastecimento`.
+     - [`ReabastecimentoController.ts`](./backend/src/presentation/http/controllers/ReabastecimentoController.ts) & [`reabastecimentoRoutes.ts`](./backend/src/presentation/http/routes/reabastecimentoRoutes.ts): rotas `POST /:id/falta` e `POST /:id/finalizar-falta` (guardada por `reabastecimento_finalizar_falta`).
+     - [`backend/src/container.ts`](./backend/src/container.ts): injeção de dependências completa.
+  4. **Frontend & Interfaces:**
+     - [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx): métrica e chip de filtro `⚠️ Faltas de Pulmão`, botão `⚠️ Não Encontrado` nos cards pendentes, modal de confirmação de falta, e botão/modal `✂️ Confirmar Corte Definitivo` para supervisores autorizados.
+     - [`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx): botão `🚜 Solicitar Reabastecimento` no cabeçalho e no modal de conclusão da carga, badges `⚡ Pick Reabastecido` e `⏳ Aguardando Reabastecimento` na listagem e na rota guiada.
+     - [`GestaoAcessos.tsx`](./frontend/src/presentation/pages/GestaoAcessos.tsx): toggle `⚠️ Finalizar Falta / Corte Definitivo` no painel de permissões de Reabastecimento.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"vamos organizar os campos deixar mais minimalista e remover informações duplicadas"*
+  - **Diagnóstico:** O card de reabastecimento de picking apresentava duplicidade de informação com o badge `⚠️ Sem Pulmão (Geral)` no cabeçalho competindo com o texto `Sem Pulmão Mapeado` na origem da rota. Além disso, a rota ocupava um bloco tracejado vertical alto, a consulta de estoque disponível ficava dentro de uma caixa cinza pesada e o badge de quantidade ficava com cor vermelha no rodapé parecendo falso erro.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Remoção de Duplicidade:** Eliminado o badge `⚠️ Sem Pulmão (Geral)` do cabeçalho direito.
+  2. **Quantidade no Topo:** A quantidade a abastecer foi movida para o topo direito em badge elegante e limpo (`1 UN a Abastecer` ou `✓ Abastecido`).
+  3. **Rota Compacta em Linha Única:** Bloco de movimentação Origem ➔ Destino unificado em linha horizontal enxuta (`[ 📦 Sem Pulmão Mapeado ] ➔ [ 📍 Picking Padrão ]`).
+  4. **Estoque na Empresa Integrado:** Removida a caixa cinza grossa; o saldo disponível agora aparece como linha sutil abaixo da rota com link expansível para detalhar locais e lotes.
+  5. **Rodapé e Ações Otimizados:** Dados da solicitação (`Solicitado: 12/11, 14:52 • SUPERVISOR`) à esquerda e botões `[ ✕ Recusar ]` e `[ ✓ Confirmar ]` com alturas e espaçamentos compactos à direita.
+- **Implementações Realizadas:**
+  1. **Estrutura do Card ([`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx)):**
+     - Cabeçalho reformulado: `reabastecimento-header-origem` com carga e empresa à esquerda; badge `reabastecimento-header-qtd-badge` à direita.
+     - Nova rota compacta: container `reabastecimento-rota-compacta` com `rota-origem`, `rota-seta` e `rota-destino`.
+     - Novo saldo integrado: `reabastecimento-saldo-linha` com botão sutil de expansão de locais/lotes.
+     - Rodapé enxuto: `reabastecimento-meta-info` e grupo de botões `reabastecimento-acoes-botoes`.
+  2. **Estilização Dedicada ([`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css)):**
+     - Removidas classes obsoletas (`.reabastecimento-rota-box`, `.reabastecimento-qtd-badge`).
+     - Adicionados estilos minimalistas para rota compacta, linha de saldo e botões compactos.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Correção de Loop no Login de Supervisor e Criação do Hub Inicial de Módulos
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"Estou tentando fazer o login com o usuário supervisor e ele volta para a tela inicial."*
+  - **Diagnóstico:** O usuário `SUPERVISOR` possui acesso à `gestao_recebimento`, `separacao` e `reabastecimento`, porém tem `conferencia_saida: false` e `conferencia_entrada: false`. No login anterior, o [`LoginPage.tsx`](./frontend/src/presentation/pages/Login.tsx) fazia fallback para `/recebimento` (que exige `conferencia_entrada`). Como o usuário não possuía essa permissão, o [`PrivateRoute.tsx`](./frontend/src/presentation/routes/PrivateRoute.tsx) não encontrava rotas de escape válidas e expulsava o usuário deslogando-o de volta para `/login`.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Hub Inicial de Boas-Vindas (`/hub` / `/`):** Tela inicial moderna com grade de cards compactos estilo aplicativo (ícone, título e badge), ideal para coletores e mobile.
+  2. **Regra de Direcionamento Inteligente:** Se o usuário tiver acesso a apenas 1 módulo, o sistema entra direto nele sem cliques adicionais. Se tiver múltiplos módulos (como o `SUPERVISOR`), exibe o Hub Inicial para escolha.
+  3. **Segurança de Rota Privada:** [`PrivateRoute.tsx`](./frontend/src/presentation/routes/PrivateRoute.tsx) redireciona usuários autenticados sem permissão para a raiz (`/` ➔ Hub) em vez de expulsá-los para `/login`.
+  4. **Atalho no Menu:** Adicionado link `🏠 Início / Módulos` no topo do menu lateral ([`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx)).
+- **Implementações Realizadas:**
+  1. **Criação do Hub ([`HubPage.tsx`](./frontend/src/presentation/pages/Hub/HubPage.tsx) & [`HubPage.css`](./frontend/src/presentation/pages/Hub/HubPage.css)):**
+     - Banner com saudação personalizada (`Olá, {nome}!`) e `CODUSU`.
+     - Grade responsiva de cards compactos (Saída, Separação, Reabastecimento, Entrada, Gestão de Recebimento, Consulta de Produtos, Gestão de Acessos e Banco de Dados) exibindo apenas os módulos autorizados para aquele usuário.
+  2. **Roteamento & Resolução de Acesso ([`AppRoutes.tsx`](./frontend/src/presentation/routes/AppRoutes.tsx)):**
+     - Criada rota `/hub` protegida.
+     - `RotaInicialRedirect` conta os módulos liberados do usuário: redireciona direto se for 1 único, ou renderiza `<HubPage />` se forem 2 ou mais.
+  3. **Ajuste no Fluxo de Login ([`Login.tsx`](./frontend/src/presentation/pages/Login.tsx)):**
+     - Login com sucesso agora navega diretamente para `/`, permitindo que o roteador decida entre acesso direto ou Hub.
+     - Detecção de sessão ativa redireciona direto para o Hub.
+  4. **Correção de Redirecionamento ([`PrivateRoute.tsx`](./frontend/src/presentation/routes/PrivateRoute.tsx)):**
+     - Bloqueio de rota sem permissão agora envia para `/` (Hub), eliminando o loop de logout do Supervisor.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Expansão da Gestão de Acessos para Telas e Rotinas (Separação e Reabastecimento)
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"o sistema está crescendo precisamos adaptar ele para conseguir gerir os acessos as telas e as rotinas dela."*
+  - Requisitos específicos do usuário:
+    - Adicionar gerenciamento granular para **Separação de Cargas** (iniciar separação de carga, bipar itens, confirmar separação, registrar corte/falta).
+    - Adicionar gerenciamento granular para **Reabastecimento de Pulmão (Empilhadeira)** (visualizar fila de tarefas, confirmar movimentação pulmão->picking, cancelar/recusar tarefa).
+    - Regra estrita: *"Cuidado para não desfazer a gestão de acesso que já existe, vamos apenas adicionar essas a mais."*
+    - Modelo: Permissões diretas por usuário (como hoje, mas expandido), dupla proteção (Frontend + Backend), sub-painéis expansíveis no drawer e botão de perfil rápido `🚜 Empilhadeirista`. Política de bloqueio seguro para novas rotinas em operadores.
+- **Implementações Realizadas:**
+  1. **Modelo de Permissões & Entidades ([`PermissaoUsuario.ts`](./backend/src/domain/entities/PermissaoUsuario.ts) & [`Auth.ts`](./frontend/src/domain/models/Auth.ts)):**
+     - Adicionadas as novas chaves em `ModulosUsuario`:
+       - `separacao_iniciar`, `separacao_bipar`, `separacao_finalizar`, `separacao_cortar`.
+       - `reabastecimento`, `reabastecimento_confirmar`, `reabastecimento_cancelar`.
+     - Atualizadas as constantes `PERMISSOES_ADMINISTRADOR` (todas `true`) e `PERMISSOES_PADRAO_OPERADOR` (bloqueio seguro com padrão `false`).
+     - Atualizado [`AuthContext.tsx`](./frontend/src/application/contexts/AuthContext.tsx) garantindo acesso total a admins/gestores e respeito às flags diretas.
+  2. **Proteção de Rotinas no Backend (BFF) ([`separacaoRoutes.ts`](./backend/src/presentation/http/routes/separacaoRoutes.ts), [`reabastecimentoRoutes.ts`](./backend/src/presentation/http/routes/reabastecimentoRoutes.ts) & [`index.ts`](./backend/src/presentation/http/routes/index.ts)):**
+     - Rota base `/api/reabastecimento` protegida com `reabastecimento`.
+     - Rotas de Separação protegidas granularmente via `createPermissionMiddleware`:
+       - `POST /iniciar` ➔ `separacao_iniciar`
+       - `POST /:id/bipar`, `POST /:id/endereco`, `POST /bipagem/:bipId/anular` ➔ `separacao_bipar`
+       - `POST /:id/falta`, `POST /:id/resolver-falta` ➔ `separacao_cortar`
+       - `POST /:id/finalizar` ➔ `separacao_finalizar`
+     - Rotas de Reabastecimento protegidas granularmente:
+       - `POST /:id/concluir` ➔ `reabastecimento_confirmar`
+       - `POST /:id/cancelar` ➔ `reabastecimento_cancelar`
+     - Criado caso de uso [`CancelarTarefaReabastecimentoUseCase.ts`](./backend/src/application/use-cases/reabastecimento/CancelarTarefaReabastecimentoUseCase.ts) e método `cancelar` no [`ReabastecimentoController.ts`](./backend/src/presentation/http/controllers/ReabastecimentoController.ts).
+  3. **Rotas e Navegação Frontend ([`AppRoutes.tsx`](./frontend/src/presentation/routes/AppRoutes.tsx) & [`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx)):**
+     - Rotas `/reabastecimento` e `/reabastecimento/*` protegidas estritamente com `<PrivateRoute modulo="reabastecimento">`.
+     - Redirecionamento inicial inteligente inclui `/reabastecimento` quando o usuário tiver a permissão.
+     - Item de menu "Reabastecimento" no drawer lateral agora exige `temPermissao('reabastecimento')`.
+  4. **Proteção Operacional nas Telas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) & [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx)):**
+     - **Separação:** Botão de iniciar desativado se `!podeIniciar`; campo de bipagem e botão desativados se `!podeBipar`; botões de falta e corte ocultos/bloqueados se `!podeCortar`; botão de concluir desativado se `!podeFinalizar`.
+     - **Reabastecimento:** Botão de confirmar reabastecimento condicionado a `podeConfirmar`; adicionado botão "✕ Recusar" e modal de justificativa condicionado a `podeCancelar` integrando com `reabastecimentoApiService.cancelar`.
+  5. **Interface de Gestão de Acessos ([`GestaoAcessos.tsx`](./frontend/src/presentation/pages/GestaoAcessos.tsx) & [`GestaoAcessos.css`](./frontend/src/presentation/pages/GestaoAcessos.css)):**
+     - Adicionado botão de perfil rápido `🚜 Empilhadeirista` no topo da gaveta do usuário.
+     - Implementados **sub-painéis expansíveis** para Separação de Cargas e Reabastecimento de Pulmão (idênticos ao padrão visual da Gestão de Recebimento).
+     - Atualizado `renderBadgesUsuario` com badges temáticos `🚚 Separação` e `🚜 Pulmão`.
+     - Preservada 100% da integridade de todas as telas, campos sensíveis e parâmetros existentes.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Empresa na Ordem de Carga e Consulta de Estoque Disponível em Reabastecimento
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"vamos trazer para a ordem de carga a empresa que está cadastrado no sankhya. Pois vamos usar ele para puxar o estoque(estoque-reservado) do produto enviado para reabastecimento."*
+  - **Diagnóstico:** A Ordem de Carga não carregava o código e nome da empresa (`CODEMP` da `TSIEMP`), impedindo que as tarefas de reabastecimento de picking soubessem em qual filial/empresa consultar o saldo disponível (`ESTOQUE - RESERVADO`) na tabela `TGFEST` do Sankhya.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Exibição da Empresa:** Exibir `Empresa: {codemp} - {nomeEmpresa}` no card da Ordem de Carga, no topo da sessão de Separação e nas tarefas de Reabastecimento.
+  2. **Exibição do Saldo Disponível:** Exibir o total disponível no card de Reabastecimento (`📦 Disponível na Empresa: X UN`), com botão expansível para visualizar o detalhamento por local e lote caso o empilhadeirista precise saber onde o produto está localizado no armazém.
+  3. **Consulta em Tempo Real:** Consulta em tempo real na tabela `TGFEST` do Sankhya ao carregar a fila de reabastecimento, filtrando por `CODPROD` e `CODEMP` das cargas.
+- **Implementações Realizadas:**
+  1. **Evolução de Schema e Repositórios ([`schema.ts`](./backend/src/infrastructure/database/schema.ts)):**
+     - Adicionadas colunas `codemp` e `nome_empresa` nas tabelas `separacoes` e `tarefas_reabastecimento` com migração automática via `garantirColuna`.
+     - Atualizados repositórios [`LibsqlSeparacaoRepository.ts`](./backend/src/infrastructure/repositories/LibsqlSeparacaoRepository.ts) e [`LibsqlReabastecimentoRepository.ts`](./backend/src/infrastructure/repositories/LibsqlReabastecimentoRepository.ts).
+  2. **Vínculo da Empresa na Separação ([`ListarCargasPendentesUseCase.ts`](./backend/src/application/use-cases/separacao/ListarCargasPendentesUseCase.ts) & [`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts)):**
+     - Integrado `LEFT JOIN TSIEMP EMP ON EMP.CODEMP = CAB.CODEMP` trazendo `CODEMP` e `NOME_EMPRESA` na listagem de cargas e na criação da sessão.
+     - Persistência da empresa nas tarefas de reabastecimento geradas em [`FinalizarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/FinalizarSeparacaoUseCase.ts).
+  3. **Consulta de Estoque em Tempo Real ([`ListarTarefasReabastecimentoUseCase.ts`](./backend/src/application/use-cases/reabastecimento/ListarTarefasReabastecimentoUseCase.ts)):**
+     - Consulta integrada via `DbExplorerSP.executeQuery` na `TGFEST` calculando `DISPONIVEL = (EST.ESTOQUE - NVL(EST.RESERVADO, 0))` para o `CODPROD` e `CODEMP` de cada carga.
+     - Retorno de `saldoDisponivel` e lista estruturada `detalhesEstoque` (local, lote, saldo).
+  4. **Interface Visual ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) & [`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx)):**
+     - Card de Ordem de Carga exibe linha de `Empresa: 2 - INOVACE PE`.
+     - Topo da Separação exibe `Ordem de Carga: #41032 — Empresa: 2 - INOVACE PE`.
+     - Card de Reabastecimento exibe badge `🏢 2 - INOVACE PE` no cabeçalho.
+     - Card de Reabastecimento exibe seção `📦 Disponível na Empresa: X UN` com link expansível `▼ Ver locais/lotes` detalhando os endereços físicos com saldo.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Alinhamento de Status 'Aguardando' na Separação e 'Aguardando Separação' na Conferência de Saída
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"aqui seria o status aguardando, na ordem de carga. E o pedido está com o status em separação, mas a separação não foi iniciada ainda. Vamos sincronizar."*
+  - **Diagnóstico:**
+    1. Na tela de **Separação de Cargas**, a ordem não iniciada exibia o texto `'ABERTA NO ERP'`. O usuário alinhou para exibir `'Aguardando'`.
+    2. Na tela de **Conferências de Saída**, o Pedido 1141 exibia o badge `⏳ Em Separação` mesmo sem haver sessão em andamento no aplicativo, porque a entidade `TGFORD.AD_STATUSSEP` no Sankhya ainda continha o valor `'E'` (gravação de teste prévio), e a query considerava `erpStatusSep === 'E'` como `EM_ANDAMENTO`.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Badge na Separação de Cargas:** Substituído `'ABERTA NO ERP'` por `'Aguardando'`.
+  2. **Priorização da Sessão Ativa Local:** Na conferência de saída, o status `EM_ANDAMENTO` agora depende estritamente de haver uma sessão de separação ativa no sistema (`localStatus === 'EM_ANDAMENTO'`). Se a carga ainda não iniciou, o status passa a ser `PENDENTE`.
+  3. **Badge 'Aguardando Separação' no Pedido:** No card de Conferências de Saída, pedidos com ordem de carga pendente de início agora exibem o badge `⏳ Aguardando Separação`.
+  4. **Redefinição no Sankhya ERP:** Atualizado o campo `AD_STATUSSEP` da Carga `#41032` no Sankhya para `'P'` (Pendente).
+- **Implementações Realizadas:**
+  1. **Separação de Cargas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Alterado o texto do badge de estado não iniciado para `'Aguardando'`.
+  2. **Lógica de Status de Separação ([`GetConferenciaSaidaUseCase.ts`](./backend/src/application/use-cases/conferencias/consulta/GetConferenciaSaidaUseCase.ts)):**
+     - O status `statusSeparacao = 'EM_ANDAMENTO'` agora exige `localStatus === 'EM_ANDAMENTO'`. Se não iniciado, retorna `'PENDENTE'`.
+  3. **Badge na Conferência de Saída ([`ListaConferencias.tsx`](./frontend/src/presentation/pages/ListaConferencias.tsx)):**
+     - Adicionado badge discreto `⏳ Aguardando Separação` para pedidos com carga pendente de separação.
+  4. **Atualização no Sankhya:**
+     - `TGFORD.AD_STATUSSEP` da Carga 41032 redefinido para `'P'` via API nativa do Sankhya (`CRUDServiceProvider.saveRecord`).
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Limpeza de Dados Legados, Ocultação de Itens Removidos e Notificação de Novos Itens/Pedidos
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"precisamos revitar as consultas de pedidos, para todo o modulo de reabastecimento, pois está com divergencias, inclusive na notificação de itens inseridos após inicio da separação."*
+  - **Diagnóstico:** Ao entrar na separação da Carga #41032, a tela exibia 32 itens (com itens mostrando `0 / 0 UN CONCLUÍDO`), enquanto o card externo mostrava 10 itens (1 pedido). Isso decorria de a sessão anterior ter sido gravada no SQLite local antes do alinhamento das queries com a Conferência de Saída. Além disso:
+    1. Itens cortados/removidos do ERP (`REMOVIDO_ERP`) com 0 UN esperadas e 0 UN separadas continuavam sendo renderizados na Rota Lógica (como o Item 1 fantasma `0 / 0 UN`).
+    2. Itens inseridos em novos pedidos vinculados à carga após o início da separação eram descartados silenciosamente pelo verificador `pedidosSessao.has`.
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Limpeza Completa das Tabelas Locais:** Executada limpeza das tabelas `separacoes`, `separacoes_itens`, `separacoes_bipagens` e `tarefas_reabastecimento` no SQLite local para zerar sessões em andamento legadas e desatualizadas.
+  2. **Notificação e Incorporação de Novos Itens e Pedidos:** Qualquer item retornado pela query elegível do ERP que não exista na sessão ativa é incorporado automaticamente à separação (seja novo item de pedido existente ou novo pedido adicionado à carga), alertando o operador com som e banner detalhado.
+  3. **Ocultação de Produtos Fantasmas da Rota Lógica:** Produtos com `qtdEsperadaTotal === 0` e `qtdSeparadaTotal === 0` são removidos da rota consolidada, impedindo a exibição de cards `0 / 0 UN`.
+- **Implementações Realizadas:**
+  1. **Expurgo de Dados Locais:** Script executado com sucesso zerando todas as tabelas operacionais locais no `confercheck.db`.
+  2. **Consulta e Notificação Robusta ([`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts)):**
+     - Remoção do bloqueio que ignorava pedidos novos adicionados à carga durante a separação.
+     - Notificação explícita diferenciando novos itens em pedidos existentes e novos pedidos completos agregados à carga no ERP.
+     - Atualização atômica de `totalPedidos`, `totalItens`, `totalUnidades` e `dadosCargaJson` na entidade `separacoes`.
+  3. **Rota Lógica Limpa ([`ObterSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/ObterSeparacaoUseCase.ts)):**
+     - Filtro nos consolidados (`qtdEsperadaTotal > 0 || qtdSeparadaTotal > 0`) para não renderizar produtos com zero unidade.
+  4. **Frontend Sincronizado ao Retomar Sessão ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Ao retomar uma carga existente (`res.recuperada === true`), executa checagem imediata de sincronização com o Sankhya, alertando com som e banner qualquer alteração ocorrida enquanto a carga estava em pausa.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Alinhamento de Filtros e Regras SQL de Ordens de Carga com Conferência de Saída
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - *"as ordem de cargas não estão batendo com os pedidos pendentes da conferencia de saida, vamos analisar esse contexto. Olha a quantidade de ordem de carga, vamos alinhar para que a ordem de carga fique com os mesmos filtros de pedidos da conferencia de saida."*
+  - **Diagnóstico:** A tela de Separação de Cargas listava 13 ordens de carga acumuladas porque a query SQL buscava apenas `TIPMOV = 'P'`, `STATUSNOTA = 'L'` e `ORDEMCARGA > 0`, sem checar se os pedidos da carga já haviam sido faturados, se a TOP possuía conferência, ou se a conferência já havia sido concluída. Em contrapartida, a Conferência de Saída aplica filtros rigorosos (`NOT EXISTS TGFVAR`, `TOP.NUCCO > 0`, `CODVEND NOT IN (43)`, `PENDENTE = 'S'`, e `CON.STATUS IN ('A','R','S')`).
+- **Decisões Alinhadas no `/grill-me`:**
+  1. **Alinhamento 100% das regras SQL de pedidos:** A Separação agora aplica exatamente as mesmas regras de pedidos da Conferência de Saída.
+  2. **Status de Conferência (TGFCON2):** Considerar apenas pedidos com conferência pendente/em andamento (`NVL(CON.STATUS, 'S') IN ('A','R','S')`), descartando pedidos cuja conferência já foi concluída (`'F'`).
+  3. **Ocultação de Finalizadas na Grade Principal:** Cargas cuja separação já foi finalizada (`AD_STATUSSEP = 'F'` no ERP ou `FINALIZADA` no sistema local) são omitidas da listagem principal de pendentes (permanecendo acessíveis via busca específica por número de carga).
+  4. **Escopo Focado:** Alinhamento estrito das regras SQL no backend nos casos de uso do fluxo de separação.
+- **Implementações Realizadas:**
+  1. **Listagem de Cargas ([`ListarCargasPendentesUseCase.ts`](./backend/src/application/use-cases/separacao/ListarCargasPendentesUseCase.ts)):**
+     - Integrados joins com `TGFTOP`, `TGFCON2` e `TGFORD`.
+     - Aplicadas restrições: `NOT EXISTS TGFVAR`, `NVL(TOP.NUCCO, 0) > 0`, `CAB.CODVEND NOT IN (43)`, `CAB.PENDENTE = 'S'` e `NVL(CON.STATUS, 'S') IN ('A','R','S')`.
+     - Ocultação de cargas com `AD_STATUSSEP = 'F'` no Sankhya ou `statusLocal === 'FINALIZADA'` na visualização geral.
+  2. **Início de Separação ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts)):**
+     - Query dos itens da carga agora filtra exclusivamente os pedidos elegíveis ativos da conferência, impedindo inclusão de pedidos faturados ou de TOPs desconsideradas.
+  3. **Sincronização de Itens ERP ([`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts)):**
+     - Alinhada com os mesmos filtros rigorosos na sincronização de alterações durante a separação.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Correção de Roteamento e Navegação do Módulo de Reabastecimento
+
+- **Demanda do Usuário & Diagnóstico:**
+  - *"estou clicando em reabastecimento e está indo para a tela de conferencia de saida"*
+  - *"Continua abrindo na conferencia de saida. Quando clico em reabastecimento ele está selecionando o conferencia de saida na menu lateral."*
+  - **Causa Raiz:** O roteamento de fallback (`*` em [`AppRoutes.tsx`](./frontend/src/presentation/routes/AppRoutes.tsx)) redirecionava automaticamente para `/conferencias` se houvesse qualquer dessincronia no carregamento da árvore SPA do React Router. Além disso, cliques no drawer com fechamento simultâneo (`onClick={onClose}`) podiam interromper a navegação em memória do `<Link>`.
+- **Ações Realizadas:**
+  1. **Roteamento Explicito e Resiliente ([`AppRoutes.tsx`](./frontend/src/presentation/routes/AppRoutes.tsx)):**
+     - Registradas rotas explícitas para `/reabastecimento` e `/reabastecimento/*` renderizando diretamente [`ReabastecimentoPage`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx).
+     - Rota raiz `/` mapeada explicitamente para `RotaInicialRedirect`.
+     - Tratamento defensivo em `RotaInicialRedirect`: caso a URL contenha `/reabastecimento`, renderiza a tela de reabastecimento imediatamente em vez de redirecionar para `/conferencias`.
+  2. **Navegação Programática Robusta no Menu Lateral ([`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx)):**
+     - Criada função `handleNavegar(rota)` que fecha o drawer e aciona `navigate(rota)` programaticamente de forma atômica e confiável.
+  3. **Purga de Cache do Service Worker ([`sw.js`](./frontend/public/sw.js)):**
+     - Incrementada versão do cache para `conferencia-v2` com purga automática de versões legadas de cache em `activate`.
+  4. **Servidor Vite Reiniciado e Validado:**
+     - Servidor de desenvolvimento Vite reiniciado limpo na porta 5173.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Fluxo de Pós-Separação e Fila de Reabastecimento de Picking (Equipe de Empilhadeira)
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"quando finalizarmos uma ordem com falta, criamos qual fluxo para pós? retirar do pumão? verificar estoque do produto? uma sub aba da separação para tratar essas pendencias?"*
+  - Validações via `ask_question`:
+    1. **Onde e por quem:** Criação de um fluxo dedicado para o supervisor e a equipe de empilhadeira buscar do pulmão e alimentar o picking.
+    2. **Integração Sankhya:** Gerenciado internamente pelo nosso sistema (fila operacional ágil para empilhadeirista via app), sem gerar notas fiscais desnecessárias no Sankhya.
+    3. **Geração Automática:** Ao finalizar a carga com falta, o sistema gera automaticamente as tarefas de reabastecimento para todos os itens faltantes.
+    4. **Produtos sem Pulmão:** Itens sem pulmão mapeado recebem o status `VERIFICAR_ESTOQUE` (*"Verificar Estoque Geral / Outros Endereços"*).
+    5. **Efeito da Conclusão:** O empilhadeirista confirma o abastecimento físico no picking, sinalizando a conclusão para a conferência/separação.
+    6. **Interface:** Página dedicada no menu lateral: **`🚜 Reabastecimento de Picking`** (`/reabastecimento`).
+- **Implementações Realizadas:**
+  1. **Tabela e Persistência Local ([`schema.ts`](./backend/src/infrastructure/database/schema.ts) & [`LibsqlReabastecimentoRepository.ts`](./backend/src/infrastructure/repositories/LibsqlReabastecimentoRepository.ts)):**
+     - Criada a tabela `tarefas_reabastecimento` com índices em `status`, `ordem_carga` e `codprod`.
+     - Entidade de domínio `TarefaReabastecimento` e interface `IReabastecimentoRepository`.
+  2. **Gatilho Automático na Finalização ([`FinalizarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/FinalizarSeparacaoUseCase.ts)):**
+     - Ao concluir a separação com itens pendentes, agrupa as faltas por produto e gera automaticamente tarefas de reabastecimento.
+     - Se o produto possuir pulmão, define status como `PENDENTE`; caso contrário, define como `VERIFICAR_ESTOQUE`.
+  3. **Backend API ([`ReabastecimentoController.ts`](./backend/src/presentation/http/controllers/ReabastecimentoController.ts) & [`reabastecimentoRoutes.ts`](./backend/src/presentation/http/routes/reabastecimentoRoutes.ts)):**
+     - Endpoint `GET /api/reabastecimento` com filtros por status, carga e produto + métricas de resumo.
+     - Endpoint `POST /api/reabastecimento/:id/concluir` para confirmação do reabastecimento pelo empilhadeirista.
+  4. **Frontend - Tela Dedicada de Reabastecimento ([`ReabastecimentoPage.tsx`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.tsx) & [`ReabastecimentoPage.css`](./frontend/src/presentation/pages/reabastecimento/ReabastecimentoPage.css)):**
+     - Cards de métricas no topo: Total, Aguardando Pulmão, Sem Pulmão (Geral) e Abastecidas Hoje.
+     - Filtros rápidos por chips de status e campo de busca inteligente.
+     - Cards responsivos com rotas visuais claras: **Origem (Pulmão)** ➜ **Destino (Picking)**, quantidade a abastecer e dados da carga.
+     - Modal ágil para o empilhadeirista confirmar o reabastecimento físico no picking com 1 clique.
+  5. **Navegação e Rota ([`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx) & [`AppRoutes.tsx`](./frontend/src/presentation/routes/AppRoutes.tsx)):**
+     - Adicionado item `🚜 Reabastecimento` no menu lateral com badge `Pulmão`.
+     - Rota `/reabastecimento` protegida e integrada ao fluxo do sistema.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Finalização Ágil de Carga com Faltas e Integração Visual do Status "Separado" na Conferência de Saída
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"não vamos solicitar uma justificativa ao finalizar em caso de carga parcial ou com faltas pendentes, pois os itens já possuem a justificativa. E vamos integrar o status de separação do pedido a conferencia de saida, no momento apenas visual(Status separado na cor verde)."*
+  - Validações via `ask_question`:
+    1. **Identificação de "Separado":** Considerar quando a Ordem de Carga vinculada ao pedido estiver finalizada (`TGFORD.AD_STATUSSEP = 'F'` no ERP ou carga `'FINALIZADA'` no banco local).
+    2. **Exibição Visual:** Exibir o badge verde `✓ Separado` tanto no card da lista de conferências (`ListaConferencias`) quanto no cabeçalho da conferência aberta (`ConferenciaProdutos`). Exibir `⏳ Em Separação` se a carga estiver em andamento.
+    3. **Finalização com Faltas:** No modal de finalização (`SeparacaoPage`), exibir o aviso informativo de itens pendentes/com falta (com justificativas previamente registradas) e liberar o botão `Confirmar Finalização` diretamente com 1 clique (sem campo de texto obrigatório).
+- **Implementações Realizadas:**
+  1. **Finalização Descomplicada de Cargas com Faltas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Removido o campo obrigatório `<textarea>` de justificativa do modal de finalização.
+     - O botão `Confirmar Finalização` permanece ativo de imediato (`disabled={carregando}`), enviando `permitirParcial: true` quando houver faltas.
+     - O texto informativo esclarece que os motivos de falta ou corte já estão devidamente auditados nos itens.
+  2. **Consulta Cruzada de Separação no Backend ([`GetConferenciaSaidaUseCase.ts`](./backend/src/application/use-cases/conferencias/consulta/GetConferenciaSaidaUseCase.ts) & [`IniciarConferenciaUseCase.ts`](./backend/src/application/use-cases/conferencias/ciclo-vida/IniciarConferenciaUseCase.ts)):**
+     - Consulta `TGFORD.AD_STATUSSEP` diretamente na query principal via `LEFT JOIN TGFORD ORD ON ORD.ORDEMCARGA = CAB.ORDEMCARGA AND ORD.CODEMP = CAB.CODEMP`.
+     - Integração com `ISeparacaoRepository` no container para validação cruzada com o banco de dados local.
+     - Retorno de `statusSeparacao` padronizado (`'SEPARADO' | 'EM_ANDAMENTO' | 'PENDENTE' | null`).
+  3. **Badges Visuais na Conferência de Saída ([`ListaConferencias.tsx`](./frontend/src/presentation/pages/ListaConferencias.tsx) & [`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx)):**
+     - **Cards da Lista (`ListaConferencias`):** Renderiza badge verde `✓ Separado` quando a separação da carga estiver concluída, e badge âmbar `⏳ Em Separação` quando estiver em andamento.
+     - **Cabeçalho da Conferência (`ConferenciaProdutos`):** Exibe o badge verde `✓ Separado` logo ao lado dos dados do Pedido e Parceiro.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Otimização das Tabelas (Consolidado e Por Pedido), Fusão de Endereço na Célula de Produto e Dropdown Flutuante de Códigos de Barras
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"vamos melhorar essa tabela, removendo a coluna endereço e aumentando do produto. Inserir os dados do endereço ao lado do codigo de barras, e a expansão do codigo de barras coloca para sobrepor na tabela. Aplica o mesmo layout para a aba POR Pedido."*
+  - Validação via `ask_question`: **(Recomendado) Chips compactos na mesma linha do código de barras (com LADO, RUA, TORRE, NÍVEL, POS e Pulmão se houver)**.
+- **Implementações Realizadas:**
+  1. **Remoção da Coluna "Endereço Picking" ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Excluída a coluna separada `<th>Endereço Picking</th>` tanto na tabela da aba **Consolidado** quanto na tabela da aba **Por Pedido**.
+     - A coluna de produto agora ocupa todo o espaço horizontal livre com maior legibilidade para descrições longas.
+  2. **Fusão dos Dados de Endereço ao Lado do Código de Barras ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Na célula do produto, logo abaixo da descrição, foi criado um container flex horizontal contendo o botão do código de barras e os chips de endereço físico (`EnderecoChips` em modo compacto).
+     - Se o produto tiver pulmão cadastrado, a indicação `📦 Pulmão` é exibida inline ao lado.
+     - Se o produto não tiver endereço, exibe o botão discreto `📍 + Vincular` no Consolidado ou `📍 Sem endereço` no Por Pedido.
+  3. **Expansão de Códigos de Barras em Camada Sobreposta (Floating Overlay) ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) & [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+     - O painel expandido de códigos de barras (`.separacao-barras-painel-expandido`) agora utiliza `position: absolute; top: calc(100% + 5px); left: 0; z-index: 100;` com sombra profunda (`box-shadow`) e borda destacada.
+     - Ao clicar para expandir os códigos disponíveis, o dropdown flutua **sobre** a tabela sem empurrar as linhas para baixo nem deformar a altura da grade.
+     - Adicionado listener de clique fora (`handleClickOutside`) e fechamento automático ao selecionar qualquer código/referência.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Diagnóstico e Resolução de Divergência entre Progresso (100%) e Itens Pendentes (Rebalanceamento Automático e Métricas Consolidadas)
+
+- **Dúvida / Diagnóstico do Usuário:**
+  - *"qual o motivo ainda existem 17 produtos pendentes? sendo que o progresso está 100%?"*
+- **Causa Raiz Identificada:**
+  1. **Contagem por Linha de Pedido vs Produtos Consolidados:** Na carga 40795 existem **28 produtos distintos** (208 UN no total), distribuídos em **55 linhas de pedidos** (`itens`). O contador do cabeçalho estava somando linhas individuais de pedidos (`itensPendentes`) em vez de produtos consolidados da rota guiada (`itensConsolidados`).
+  2. **Acúmulo no Primeiro Pedido:** Pela regra antiga de bipagem (já corrigida), produtos presentes em mais de um pedido tinham toda a contagem somada na linha do primeiro pedido. Exemplo: um item de 12 UN esperadas (6 do pedido A + 6 do pedido B) ficava com 12/6 no pedido A (`SEPARADO`) e 0/6 no pedido B (`PENDENTE`). O total de unidades atingia 208/208 (100%), mas exatamente 17 linhas de pedidos permaneciam marcadas como `PENDENTE`.
+- **Implementações Realizadas ([`ObterSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/ObterSeparacaoUseCase.ts)):**
+  1. **Rebalanceamento Automático (Self-Healing):** Ao carregar a separação, o backend detecta se algum produto possui pedidos com contagem excedente e redistribui o saldo automaticamente para os pedidos pendentes da mesma carga, atualizando o banco de dados. Todas as 17 linhas foram regularizadas para `SEPARADO`.
+  2. **Métricas Consistentes com a Rota:** Os contadores de progresso (`itensSeparados` e `itensPendentes`) foram alinhados aos produtos da Rota Lógica (Consolidados). Com isso, para 208/208 UN (100%), o cabeçalho agora reflete:
+     - **Itens Separados:** `28 concluídos` (100% dos 28 produtos da carga).
+     - **Itens Pendentes:** `0 pendentes`.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Bloqueio Rigoroso de Quantidade Excedente, Estorno de Bipagens por Produto e Interceptação de Avanço Incompleto com Falta
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"não pode separa a quantidade maior, e vamos permitir excluir o que foi separado. E caso tenta avançar incompleto já chame a função finalizar produto com falta."*
+  - Validações via `ask_question`:
+    1. **Estorno de Bipagens:** Botão `🗑️ Estornar Bipagem` diretamente no card do produto, abrindo modal com listagem dos bipes deste item para excluir individualmente ou pelo atalho `↺ Desfazer Último Bipe`.
+    2. **Interceptação de Avanço Incompleto:** Ao tentar avançar (`Próximo →`, `⏭️ Pular Pendente` ou arraste lateral para esquerda no mobile) com o item incompleto, abrir automaticamente o modal de falta para selecionar o motivo e confirmar (ao confirmar, registra a falta e avança automaticamente).
+- **Implementações Realizadas:**
+  1. **Bloqueio de Quantidade Excedente e Distribuição Correta ([`RegistrarBipagemSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/RegistrarBipagemSeparacaoUseCase.ts)):**
+     - Corrigido o cálculo de saldo pendente total do produto na carga:
+       `saldoPendenteTotal = Math.max(0, qtdEsperadaTotal - qtdSeparadaTotalAtual)`.
+     - Se `qtdEfetiva > saldoPendenteTotal`, a operação é imediatamente bloqueada com erro descritivo.
+     - A quantidade bipada é distribuída estritamente respeitando o teto de cada pedido da carga (`Math.min(saldoItem, qtdRestanteParaDistribuir)`), impedindo que qualquer item ou consolidado ultrapasse 100% da quantidade esperada (`qtdSeparada > qtdEsperada`).
+  2. **Estorno e Exclusão de Bipagens por Produto ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) & [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+     - Adicionado o botão `🗑️ Estornar Bipagem` no placar do card sempre que `itemAtualRota.qtdSeparadaTotal > 0`.
+     - Modal dedicado `modalEstornoProduto`:
+       - Exibe o resumo do produto e a contagem atual.
+       - Botão de ação rápida `↺ Desfazer Último Bipe (+X UN)`.
+       - Tabela com histórico dos bipes deste produto (horário, quantidade, código lido e pedido).
+       - Botão individual `🗑️ Excluir` em cada bipagem, acionando o estorno via `separacaoApiService.anularBipagem`.
+       - Ao estornar, recalcula a contagem em tempo real e fecha o modal automaticamente se não houver mais bipes ativos.
+  3. **Interceptação de Avanço Incompleto ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Função `tentarAvancarItem` intercepta tentativas de avanço (`Próximo →`, `⏭️ Pular Pendente` e swipe para esquerda no mobile).
+     - Se o item atual estiver incompleto (`qtdSeparadaTotal < qtdEsperadaTotal` e sem falta registrada):
+       - O avanço é pausado e o modal de falta (`modalFalta`) é aberto automaticamente com o motivo padrão pré-selecionado.
+       - Ao clicar em `Confirmar Falta ➔`, o sistema registra a falta no backend e avança imediatamente para o próximo item planejado.
+       - Se o operador cancelar o modal, a visualização permanece no item incompleto sem avançar.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Remoção da Barra Horizontal de Chips/Trilha de Produtos
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - Print com a barra horizontal de chips destacada em vermelho e solicitação: *"remove isso aqui"*.
+  - Validação via `ask_question`: **(Recomendado) Sim, remover totalmente a barra horizontal de chips e deixar a navegação exclusivamente pelo swipe lateral no card e pelos botões Anterior/Próximo**.
+- **Implementações Realizadas:**
+  1. **Remoção da Trilha Horizontal ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Removido o bloco JSX `.separacao-rota-trilha-itens`, a referência `trilhaRef` e o efeito de auto-scroll.
+     - A interface da Rota Guiada mantém o layout limpo e minimalista diretamente com o card principal.
+  2. **Limpeza de Estilos CSS ([`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+     - Excluídas as classes `.separacao-rota-trilha-itens` e `.separacao-rota-trilha-chip` (e seus estados `ativo`, `concluido`, `parcial`).
+  3. **Navegação Mantida:**
+     - Arraste lateral no mobile (swipe touch horizontal no próprio card).
+     - Botões manuais `← Anterior`, `Próximo →` e `⏭️ Pular Pendente` no cabeçalho do card.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Remoção do Salto Automático ao Bipar, Gestos de Toque Lateral (Swipe) e Trilha de Seleção Rápida de Produtos na Rota Guiada
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"ao bipar um item do produto 87 ele já pulou para o produto 228, vamos remover essa passagem automatica, possibilitar clicar ou mover o card lateralmente(isso para o mobile)"*
+  - Validação via `ask_question`: **(Recomendado) Remover salto automático + habilitar gesto de arraste lateral (swipe touch) no card + manter botões Anterior/Próximo acessíveis**.
+- **Implementações Realizadas:**
+  1. **Remoção do Salto Automático Pós-Bipagem ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Em `handleConferirBipagem`, foi removida a chamada automática que buscava `proxIdx` e pulava de produto ao atingir a quantidade esperada (`res.concluidoProduto`).
+     - O card permanece estritamente fixado no produto recém-concluído, permitindo que o separador veja o feedback visual (`✓ CONCLUÍDO` em verde) e decida quando e para onde navegar.
+  2. **Gesto de Arraste Lateral / Swipe Touch no Mobile ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Criados manipuladores de toque `handleCardTouchStart`, `handleCardTouchMove` e `handleCardTouchEnd` com detecção de deslocamento predominantemente horizontal (> 45px e `touchAction: 'pan-y'`).
+     - Deslizar o card para a **esquerda** (swipe left) ➔ avança para o **Próximo Item**.
+     - Deslizar o card para a **direita** (swipe right) ➔ retorna para o **Item Anterior**.
+     - Feedback elástico suave durante o arraste (`transform: translateX(${touchDeltaX}px)` limitado a 60px com transição suave ao soltar).
+  3. **Trilha Rápida de Seleção por Clique de Produtos ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) & [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+     - Criada a barra horizontal de navegação rápida com chips compactos (`.separacao-rota-trilha-itens`) logo acima do card.
+     - Cada chip exibe a ordem (`#1`), o código do produto (`Cód 87`) e o status da contagem (`✓` em verde se concluído, ou `X/Y` pendente).
+     - Clicar em qualquer chip posiciona imediatamente a rota naquele produto, com auto-scroll horizontal suave centralizando o chip ativo.
+  4. **Estilização e Dica Mobile ([`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+     - Indicador `.separacao-rota-swipe-hint` ("↔️ Deslize o card para mudar") ativado em telas mobile (<= 768px).
+     - Botões `← Anterior`, `Próximo →` e `⏭️ Pular Pendente` preservados para controle manual adicional.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Ocultação do Botão "Finalizar com Falta" em Itens Totalmente Concluídos
+
+- **Problema Diagnosticado:**
+  - *"pq o botão finalizar com falta ainda está ativo?"*
+  - Em produtos com contagem 100% atingida (`24 / 24 UN ✓ CONCLUÍDO`), o botão `⚠️ Finalizar com Falta` continuava sendo renderizado na barra de ações da rota guiada, permitindo o acionamento indevido de falta com 0 UN restantes.
+- **Implementações Realizadas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+  - Adicionada condição de guarda para renderizar o botão `⚠️ Finalizar com Falta` exclusivamente enquanto o item tiver unidades pendentes (`qtdSeparadaTotal < qtdEsperadaTotal`) e não possuir falta já registrada (`statusConsolidado !== 'FALTA'`).
+  - Ao atingir 100% da quantidade (`CONCLUÍDO`), o botão de falta desaparece automaticamente, mantendo o placar limpo e evitando registros inconsistentes.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Bloqueio da Ordem de Carga no Sankhya ERP (`AD_STATUSSEP`), Regra de Sincronização por Nível e Resolução de Falso Positivo
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - *"nesse contexto existem duas atualizações do pedido(inclusão/exclusão do item, aumento ou diminuição de qtd) e a propria ordem de carga que pode receber um no pedido, acho que deveriamos incluir um campo no cadastro da ordem de carga(ERP) para informando que a conferencia está em adamento e o ERP bloquear a inserção de pedidos nela. E os pedidos tem possuir ordem de carga e statusnota = 'L'"*
+  - Decisões consolidadas via `/grill-me`:
+    1. **Bloqueio da Carga no ERP via Campo Customizado**: Utilizar `AD_STATUSSEP` na tabela `TGFORD` ('P' - Pendente, 'E' - Em Separação, 'F' - Finalizada) atualizado nativamente pelo aplicativo via `CRUDServiceProvider.saveRecord`.
+    2. **Isolamento de Novos Pedidos na Carga**: Novos pedidos anexados à carga durante a separação ativa não invadem nem poluem a sessão atual; a separação atual foca nos pedidos iniciais e, ao finalizar, a carga retorna para a fila com prioridade para rodada complementar.
+    3. **Atualizações a Nível de Item**: Alterações nos pedidos existentes da sessão (novo item no pedido, corte/exclusão de item ou aumento/redução de quantidade) continuam sendo detectadas e alertadas em tempo real.
+    4. **Filtro Oficial**: Apenas pedidos com `CAB.STATUSNOTA = 'L'` e `CAB.ORDEMCARGA = :ordemCarga` entram na separação.
+    5. **Reset do Snapshot 40795**: Sessão de teste da carga `40795` foi limpa no banco local para carregar limpa na próxima abertura.
+- **Implementações Realizadas:**
+  1. **Atualização Automática de `AD_STATUSSEP` em `TGFORD` ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts) & [`FinalizarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/FinalizarSeparacaoUseCase.ts)):**
+     - Ao iniciar a separação: backend atualiza `TGFORD.AD_STATUSSEP = 'E'` (com `CODEMP` e `ORDEMCARGA`).
+     - Ao finalizar a separação: backend atualiza `TGFORD.AD_STATUSSEP = 'F'`.
+  2. **Filtro de Sessão na Sincronização ([`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts)):**
+     - Sincronizador restringe detecção de novos itens exclusivamente aos pedidos que já pertencem à sessão ativa (`pedidosSessao.has(itemErp.nunota)`), eliminando falsos positivos de pedidos recém-inseridos na carga.
+  3. **Retorno Automático de Cargas à Fila ([`ListarCargasPendentesUseCase.ts`](./backend/src/application/use-cases/separacao/ListarCargasPendentesUseCase.ts)):**
+     - Se uma carga foi finalizada anteriormente mas o Sankhya possui mais pedidos ou unidades pendentes (`qtdPedidosErp > sepLocal.totalPedidos`), ela retorna à fila como `SEM_INICIAR` para separação da rodada complementar.
+  4. **Reset da Carga 40795**:
+     - Registros anteriores da carga 40795 removidos do banco local para abertura limpa e oficial.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Organização do Endereçamento de Picking para Mobile em Duas Linhas com Grid de 4 Colunas
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "vamos organizar esse endereçamento para o mobile, veja que ele está passando" (com print mostrando os chips de endereço estourando a lateral direita do card no mobile).
+  - Alinhamento `/grill-me`:
+    1. **Estrutura em 2 Linhas**:
+       - **Linha 1 (Topo)**: `📍 PICKING:` + badge de lado (`[⬅️ ESQUERDA]` ou `[DIREITA ➡️]`) alinhados à esquerda e botão `📍 Alterar Endereço` alinhado à direita.
+       - **Linha 2 (Coordenadas)**: Grid de 4 colunas proporcionais (`repeat(4, 1fr)`) distribuindo simetricamente `RUA`, `TORRE`, `NÍVEL` e `POS` com 100% de aproveitamento da largura do card sem nenhum overflow lateral.
+       - **Linha 3 (Rodapé)**: Subtítulo orientativo e endereço de pulmão quando existente.
+- **Implementações Realizadas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) & [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+  1. **Refatoração do Banner de Endereçamento**:
+     - Cabeçalho flex com `justify-content: space-between` e `flex-wrap: wrap` contendo `📍 PICKING:`, badge de lado e botão de alteração de endereço.
+     - Grid de coordenadas `.separacao-rota-coords-grid` (`grid-template-columns: repeat(4, 1fr)`) com cards individuais `.separacao-coord-card` (destaque verde suave na posição física `POS`).
+     - Tratamento para endereços não decompostos (fallback) e endereços não mapeados.
+  2. **Validações & Deploy**:
+     - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+     - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+     - Android: `gradlew assembleDebug` compilado com sucesso (**BUILD SUCCESSFUL in 33s**).
+     - Deploy realizado via ADB no dispositivo conectado (`ZF523R6Q5Q`) e iniciado.
+
+---
+
+## Atualização: Compilação e Deploy do Módulo de Separação de Cargas no App Android
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "o menu separação já está copilado no app android?"
+  - Verificação técnica: O módulo de Separação de Cargas (`/separacao`, `SeparacaoPage.tsx`, `AppDrawer.tsx` com `🚚 Separação`) já estava implementado no código-fonte, porém o APK anterior (gerado em 09/11) ainda não continha os assets atualizados.
+  - Alinhamento `/grill-me`: Compilar o bundle de produção, sincronizar via Capacitor, gerar novo APK Android e instalar diretamente no tablet/celular conectado.
+- **Implementações & Deploy Realizados:**
+  1. **Builds:**
+     - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+     - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  2. **Sincronização & Compilação Android:**
+     - Capacitor: `npx cap sync android` executado com cópia de todos os novos módulos e rotas de separação para `android/app/src/main/assets/public`.
+     - Gradle: `gradlew assembleDebug` compilado com sucesso (**BUILD SUCCESSFUL in 31s**).
+  3. **Deploy no Dispositivo:**
+     - APK atualizado instalado via ADB no dispositivo conectado (`ZF523R6Q5Q`) e iniciado.
+     - O menu lateral (Drawer) agora exibe a opção **`🚚 Separação (Cargas)`** para usuários com a permissão habilitada (`separacao`).
+
+---
+
+## Atualização: Remoção do Código Numérico e Redução de Escala dos Chips de Endereçamento
+
+- **Solicitação do Usuário:**
+  - *"remove o codigo, e diminui o tamanho em 70% os chips"*
+  - Opção validada: Redução de escala para ~70% do tamanho atual (~30% menor) com remoção completa do código numérico `(01.01.01.01.01)` para exibir os chips alinhados em uma linha única e elegante.
+- **Implementações Realizadas:**
+  1. **Remoção do Código Numérico ([`EnderecoChips.tsx`](./frontend/src/presentation/pages/separacao/EnderecoChips.tsx)):**
+     - O código hierárquico `(01.01.01.01.01)` foi totalmente removido da exibição visual padrão (`mostrarMascara = false`), permanecendo acessível apenas via tooltip (`title`) ao passar o mouse.
+  2. **Redução Proporcional da Escala ([`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+     - Reduzidos os paddings, tamanhos de fonte e espaçamentos (gap reduzido para `5px`).
+     - Inclusão de `flex-wrap: nowrap` e `flex-shrink: 0` nos chips e no container do banner de picking em [`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx), garantindo que `[⬅️ ESQUERDA] [RUA 01] [TORRE 01] [NÍVEL 01] [POS 01]` fiquem dispostos em uma linha contínua e sem quebras de linha indesejadas.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Endereçamento WMS Modular e Minimalista em Pílulas (Chips: Rua, Torre, Nível, Pos e Lado Esquerdo/Direito)
+
+- **Solicitação do Usuário:**
+  - *"vamos deixar esse endereçamento mais legivel e minimalista, com os nomes rua, torre, nivel e pos sempre que for impa é do lado esquerdo, me apresenta algumas modelos de design para validação"*
+  - Usuário escolheu a **Opção A: Pílulas Modulares em Chips**.
+  - Confirmação de regra de negócio: *"no cadastro do endereçamento tem o lado"* (coluna `PAR` da tabela `TGWEND`, onde `'N'` = Ímpar = Lado Esquerdo ⬅️, e `'S'` = Par = Lado Direito ➡️).
+- **Implementações Realizadas:**
+  1. **Componente Modular [`EnderecoChips.tsx`](./frontend/src/presentation/pages/separacao/EnderecoChips.tsx):**
+     - Parser inteligente (`parseEndereco`): decompõe tanto o `DESCREND` (`R 01  T 01  N 01  P 01`) quanto a máscara numérica `ENDERECO` (`01.01.01.01.01`).
+     - Identificação de Lado: avalia a coluna cadastral `PAR` (`TGWEND.PAR`) com fallback automático para paridade da posição física (`numPos % 2 !== 0`).
+     - Renderização de chips modulares:
+       - Badge direcional: `[⬅️ ESQUERDA]` (destaque azul) para ímpares ou `[DIREITA ➡️]` (destaque âmbar) para pares.
+       - Pílulas coordenadas: `[Rua XX]`, `[Torre XX]`, `[Nível XX]`, `[Pos XX]` (com destaque na posição).
+       - Máscara hierárquica sutil em sublinha: `(01.01.01.01.01)`.
+  2. **Estilização Dedicada ([`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+     - Prefixada sob `.separacao-endereco-chips-container` e `.separacao-chip-*`.
+     - Suporte a variações visuais: `destaque` (Banner do Item da Vez na rota), `normal` (Tabelas de Picking e Pulmão) e `compacto` (Cards Mobile).
+  3. **Integração nas Telas de Separação ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Banner de Rota Guiada (Item da Vez) com chips em tamanho destaque.
+     - Tabela do Modo Consolidado (coluna Endereço de Picking e tag de Pulmão).
+     - Cards Mobile do Modo Consolidado.
+     - Tabela e Cards Mobile do Modo Pedido.
+     - Modal de Re-separação do Pulmão.
+  4. **Persistência e Suporte no Backend ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts), [`schema.ts`](./backend/src/infrastructure/database/schema.ts)):**
+     - Inclusão do campo `END.PAR AS LADO` e `PULM.PAR AS LADO_PULMAO` nas consultas SQL do WMS.
+     - Adição das colunas `lado` e `lado_pulmao` em `separacoes_itens` e mapeamento nos repositórios Libsql.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Inativação Automática do Endereço Anterior ao Alterar Posição WMS (`TGWEXP`)
+
+- **Problema Diagnosticado:**
+  - *"alterei o endereço e produto 77 do 01.01.01.01.01 para 01.01.01.01.02 e o mesmo se manteve no 01.01.01.01.01"*
+  - Ao alterar o endereço de picking de um produto, o Sankhya criava o novo registro (`CODEND = 6`), mas mantinha o registro anterior (`CODEND = 5`) também ativo (`ATIVO = 'S'`) com a mesma data de início (`11/11/2026`).
+  - Como a consulta de ordenação e sincronização não possuía critério de desempate além de `DTINICIO DESC`, o Oracle selecionava o `CODEND = 5` arbitrariamente, revertendo o endereço na tela.
+- **Implementações Realizadas:**
+  1. **Inativação do Endereço Anterior no Sankhya ([`AtualizarEnderecoProdutoUseCase.ts`](./backend/src/application/use-cases/separacao/AtualizarEnderecoProdutoUseCase.ts)):**
+     - Ao alterar o endereço físico de um produto, o sistema localiza os endereços anteriores ativos do mesmo tipo (Picking ou Pulmão) em `TGWEXP` e envia `DatasetSP.save` definindo `ATIVO = 'N'` e `DTFIM = dd/MM/yyyy`.
+     - Em seguida, grava/ativa o novo endereço com `ATIVO = 'S'`, `DTINICIO = dd/MM/yyyy` e `DTFIM = ''`.
+     - Inativação já executada e confirmada no Sankhya para o produto `77` (posição `01.01.01.01.01` inativada e posição `01.01.01.01.02` ativa).
+  2. **Critério de Desempate Ordenado ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts)):**
+     - Adicionado `EXP.CODEND DESC` no `ROW_NUMBER() OVER (... ORDER BY EXP.DTINICIO DESC, EXP.CODEND DESC)` das subconsultas `PICK` e `PULM`, garantindo que o endereço mais recente sempre tenha precedência absoluta caso compartilhem a mesma data.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Correção: Persistência de Endereço Físico no WMS Sankhya (`DatasetSP.save` na Entidade `ProdutoEndereco` / `TGWEXP`)
+
+- **Problema Diagnosticado:**
+  - *"estou lançando um endereço para esse item e ele não está inserindo no local"*
+  - Ao vincular o endereço físico de picking para um produto (ex: `01.01.01.01.01` para o produto `77`), a mensagem de sucesso era exibida, mas o endereço não era gravado no Sankhya ERP e continuava como não mapeado na tela ou era revertido pela sincronização periódica de 30 segundos.
+  - **Causa Raiz Técnica:**
+    1. No arquivo [`AtualizarEnderecoProdutoUseCase.ts`](./backend/src/application/use-cases/separacao/AtualizarEnderecoProdutoUseCase.ts), o backend tentava executar um comando `MERGE INTO TGWEXP` utilizando o serviço `DbExplorerSP.executeQuery`. O serviço `DbExplorerSP` do Sankhya é **estritamente somente-leitura** e rejeita comandos de DML com o erro `Permitido apenas a execução de consultas, a instrução possui 'UPDATE', 'DELETE' ou 'INSERT'`.
+    2. Como o bloco estava envolvido em um `try/catch` que apenas registrava `console.warn`, a falha não era propagada e o endereço nunca era inserido na tabela `TGWEXP` do Sankhya.
+    3. Quando o sincronizador em segundo plano executava o polling periódico de 30 segundos contra o Sankhya, ele encontrava o produto sem endereço no ERP (`TGWEXP` vazio) e revertia o snapshot local.
+    4. Adicionalmente, quando o produto recebia o endereço no frontend, a ordenação da rota reposicionava o item no início da fila, fazendo o índice da rota exibir outro produto não mapeado.
+- **Correções Realizadas:**
+  1. **Gravação via Serviço Oficial Nativo (`DatasetSP.save`):**
+     - Substituído o comando `DbExplorerSP` pelo serviço nativo do Sankhya: `DatasetSP.save` na entidade de dicionário `ProdutoEndereco` (tabela física `TGWEXP`).
+     - Passagem correta dos campos de chave primária (`CODEND`, `CODPROD`, `CONTROLE`) e campos de dados (`ATIVO = 'S'`, `DTINICIO = dd/MM/yyyy`, `CODVOL` oficial do produto obtido da `TGFPRO`).
+     - Testado e validado diretamente no Oracle do Sankhya: o produto `77` com endereço `5` (`01.01.01.01.01`) e unidade `PC` foi gravado com sucesso com retorno de status `1`.
+  2. **Tratamento Rigoroso de Erros:**
+     - Eliminado o `try/catch` silencioso; se o Sankhya rejeitar a gravação, um erro explícito é retornado para a interface.
+  3. **Manutenção de Foco na Rota Guiada ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+     - Ao salvar o endereço, o frontend recalcula o índice da rota para manter a visualização focada no produto recém-endereçado, exibindo seu novo banner de endereço vinculado.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (**exit code 0**).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Correção e Otimização: Timeout de 30s na Consulta de Cargas Pendentes (`/api/separacao/cargas`)
+
+- **Problema Diagnosticado:**
+  - A requisição `GET /api/separacao/cargas` estourou o limite de tempo no frontend (`timeout of 30000ms exceeded`).
+  - Causa raiz: A consulta SQL no Sankhya (`ListarCargasPendentesUseCase.ts`) consultava `TGFCAB` agrupando com `TGFITE` sem o filtro de pedidos pendentes (`CAB.PENDENTE = 'S'`). Com isso, o Oracle do ERP tentava agregar e calcular totais sobre o histórico de pedidos e cargas de anos inteiros da empresa, gerando full scan e ultrapassando 30 segundos.
+  - Além disso, para cada linha retornada era disparada uma consulta individual no repositório local SQLite dentro de um loop (`buscarPorOrdemCarga`).
+- **Correções Realizadas ([`ListarCargasPendentesUseCase.ts`](./backend/src/application/use-cases/separacao/ListarCargasPendentesUseCase.ts)):**
+  - Adicionado o filtro mandatória `AND CAB.PENDENTE = 'S'` quando não houver busca por uma ordem de carga específica (`filtroOrdemCarga`).
+  - Resultado no Sankhya Oracle: tempo de resposta da consulta caiu de **> 30.000ms (timeout)** para apenas **2.577ms**, retornando pontualmente as cargas pendentes ativas.
+  - Otimizada a verificação local: pré-carregadas as sessões ativas do SQLite com `listarAtivas()` e mapeamento em `Map`, eliminando N consultas síncronas no loop.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (exit code 0).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (exit code 0).
+
+---
+
+## Correção: Ordem de Execução de Migração DDL e Índice em `separacoes_itens` (`codend`)
+
+- **Problema Diagnosticado:**
+  - Ao iniciar o backend (`node dist/main.js` ou `ts-node src/main.ts`), o banco de dados libSQL/SQLite local falhava com o erro:
+    `LibsqlError: SQLITE_ERROR: no such column: codend` na função `initDatabaseSchema` (`schema.ts`).
+  - Causa raiz: A criação do índice `CREATE INDEX IF NOT EXISTS idx_sep_itens_end ON separacoes_itens(codend);` havia sido inserida no bloco estático inicial de `statements` (executado antes da evolução idempotente de colunas). Como tabelas existentes criadas anteriormente ainda não possuíam a coluna `codend` (que é inserida via `garantirColuna` mais abaixo), o SQLite impedia a inicialização do sistema.
+- **Correções Realizadas ([`schema.ts`](./backend/src/infrastructure/database/schema.ts)):**
+  - Removida a declaração prematura do índice `idx_sep_itens_end` do array de `statements` estáticos.
+  - A criação do índice já é executada de forma segura logo após a execução de `garantirColuna(client, 'separacoes_itens', 'codend', 'INTEGER')`, garantindo que a coluna exista antes de criar o índice.
+- **Validação de Builds:**
+  - Backend: `npm --prefix backend run build` compilou com sucesso (exit code 0).
+  - Frontend: `npm --prefix frontend run build` compilou com sucesso (exit code 0).
+  - Banco de dados inicializa com sucesso.
+
+---
+
+## Atualização: Rota Lógica de Separação (Picking / Pulmão TGWEXP + TGWEND) e Gestão de Faltas & Avarias
+
+- **Demanda do Usuário:**
+  - *"estamos trabalhando a separação de itens dentro de um galpão logistico, então ele vai seguir uma logica(endereçamento), que vai precisar iniciar a contagem do item, não encontrou finaliza e gera uma falta, caso não encontre a quantidade total. Pensando nisso, seria interessante algo fosse liberando o item da lista e guiar o usuário no processo. Outro ponto é o endereçamento, vamos criar algo para inserir e atualizar o endereçamento durante a separação, minha ideia é ler um codigo de barras fisico com essa logica da imagem."*
+  - *"nesse plano está levando em consideração o lote(controle) para inserir o endereço, mas temos um desafio que é diferenciar picking e pulmão com o mesmo controle onde vamos fazer essa persistencia? Acredito que não podemos usar a tgfest para isso."*
+  - *"vamos executar o planejado"*
+- **Implementações Realizadas:**
+  1. **Persistência de Endereçamento em WMS Sankhya (`TGWEXP` + `TGWEND`):**
+     - O sistema agora consome diretamente a hierarquia de endereçamento de armazém do Sankhya: `TGWEND` (`CODEND`, `ENDERECO`, `DESCREND`, `PICKING = 'S' | 'N'`).
+     - A persistência física de endereços de produto/lote durante a operação é gravada na tabela `TGWEXP` via `MERGE INTO TGWEXP` no Sankhya Oracle, sem poluir ou limitar a `TGFEST`.
+     - Diferenciação precisa de **Picking** (`PICKING = 'S'`) para direcionar a fila/rota de separação e **Pulmão** (`PICKING = 'N'`) como localização de reserva.
+  2. **Ordenação Lógica da Rota de Separação:**
+     - A lista de separação é automaticamente ordenada por `TGWEND.ENDERECO ASC` (Rua ➔ Torre ➔ Nível ➔ Posição), otimizando o deslocamento físico do operador pelo armazém.
+  3. **Modo `ROTA_GUIADA` (Item da Vez):**
+     - Interface passo a passo orientando o conferente item por item (`Passo X de Y`).
+     - Banner em destaque com a posição de picking formatada (`📍 PICKING: R 01 T 01 N 01 P 01 (01.01.01.01.01)`).
+     - Indicação clara da posição de reserva/pulmão (`📦 Pulmão: R 02 T 03 N 04 (02.03.04.01)`).
+     - Botão `📍 Alterar / Vincular Endereço` abrindo leitor para escanear a etiqueta física da gôndola e registrar no Sankhya na hora.
+     - Botão `⚠️ Finalizar com Falta` que encaminha o saldo não encontrado para a supervisão e avança a rota.
+     - Ao concluir 100% das unidades do produto, o sistema avança automaticamente para o próximo item pendente da rota.
+  4. **Aba Dedicada `⚠️ Faltas & Avarias`:**
+     - Painel centralizando todos os produtos com falta física registrada.
+     - Exibe a localização de Pulmão cadastrada no Sankhya para reposição imediata.
+     - Botão `🔄 Re-separar do Pulmão`: permite ao operador de apoio/corredor buscar as unidades do pulmão, informar a quantidade reposta e o lote, restabelecendo a separação.
+     - Botão `✂️ Confirmar Corte`: permite à supervisão confirmar o corte definitivo da quantidade faltante (`CORTADO_DEFINITIVO`), liberando o fechamento da carga no sistema sem travar o faturamento.
+  5. **Endpoints e Casos de Uso Criados no Backend:**
+     - `AtualizarEnderecoProdutoUseCase.ts` (`POST /api/separacao/:id/endereco`).
+     - `RegistrarFaltaItemUseCase.ts` (`POST /api/separacao/:id/falta`).
+     - `ResolverFaltaSeparacaoUseCase.ts` (`POST /api/separacao/:id/resolver-falta`).
+     - Atualização no `FinalizarSeparacaoUseCase.ts` para permitir conclusão da carga com cortes definitivos autorizados.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Regra absoluta: Nenhum `git commit` ou `git push` executado.
+
+---
+
+## Atualização: Campo Expansível com Dropdown para Códigos de Barras na Separação
+
+- **Demanda do Usuário:**
+  - *"Vamos juntar os codigo de barras em um campo e ao clicar expandir a lista"*
+- **Implementações Realizadas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx), [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+  1. **Componente `CampoBarrasExpansivel`:**
+     - Criado componente dedicado para encapsular os códigos de barras de cada produto em um único botão/campo interativo:
+       - Estado recolhido: Exibe `🏷️ N códigos de barras ▾` de forma extremamente compacta (ocupando apenas 1 linha).
+       - Estado expandido: Abre um painel animado com sombra e borda delicada (`.separacao-barras-painel-expandido`) listando a Referência e todos os códigos de barras com seus multiplicadores (`📦 FD x20`, `📦 CX x5`, `(PC x1)`).
+     - Quando o produto possui apenas 1 código único (e sem referência distinta), o chip é exibido diretamente de forma limpa.
+  2. **Interação com 1 Toque para Bipar:**
+     - Cada chip dentro da lista expandida continua com interação por toque/clique direto, preenchendo o leitor imediatamente no desktop e no coletor Android.
+  3. **Otimização de Espaço em Telas Móveis / Android:**
+     - Redução drástica da altura dos cards verticais no Android, eliminando o empilhamento vertical excessivo de chips quando o produto possui múltiplos códigos alternativos.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Exibição Explícita de Multiplicadores em Todos os Códigos de Barras e Unificação TGFBAR + TGFVOA
+
+- **Demanda do Usuário:**
+  - *"Vamos incluir os mutiplicadores ao lado dos codigos de barra"*
+  - *"pq estou usando codigo de barras do fardo e ele não está multiplcando?"*
+- **Diagnóstico no Banco do Sankhya:**
+  1. Identificado que na tabela `TGFBAR` os códigos de barras de caixas/fardos (como `17908248300992` CX e `17897190284323` FD) se vinculavam às regras da `TGFVOA` pelo par `(CODPROD, CODVOL)` e não apenas por `CODBARRA` idêntico.
+  2. Identificado que o produto `9170` possui no Sankhya apenas o código `7898586935839` cadastrado na `TGFBAR` com unidade `PC` (fator 1), enquanto o `FD` (fator 20) estava sem código de barras (`CODBARRA = NULL`) na `TGFVOA`.
+- **Implementações Realizadas ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts), [`RegistrarBipagemSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/RegistrarBipagemSeparacaoUseCase.ts), [`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx)):**
+  1. **Junção Inteligente `TGFBAR` + `TGFVOA`:** A consulta de códigos agora une `TGFBAR` com `TGFVOA` via `CODPROD` e `CODVOL`, herdando automaticamente os fatores multiplicadores para códigos cadastrados tanto na `TGFBAR` quanto na `TGFVOA`.
+  2. **Exibição Obrigatória do Multiplicador em Cada Chip:**
+     - Todos os códigos de barras passam a exibir seu multiplicador e unidade ao lado.
+     - Unidades múltiplas: `📦 CX x5`, `📦 FD x20`, `📦 CX x10` em badge destacada âmbar.
+     - Unidades singulares: `(PC x1)`, `(UN x1)` em badge neutra.
+  3. **Auto-atualização do Snapshot:** Itens com códigos alterados ou enriquecidos no ERP são atualizados automaticamente na sincronização.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Regra de Multiplicação de Unidade Alternativa (TGFVOA) na Separação
+
+- **Demanda do Usuário:**
+  - *"os codigo de barras estão com a regra de multiplicação da unidade alternativa?"*
+- **Implementações Realizadas ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts), [`RegistrarBipagemSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/RegistrarBipagemSeparacaoUseCase.ts), [`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx), [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+  1. **Extração de Fator e Regra de Conversão da `TGFVOA`:**
+     - Ao carregar ou sincronizar a separação, a consulta agora extrai da `TGFVOA` as colunas `CODVOL`, `QUANTIDADE` e `DIVIDEMULTIPLICA` ('M' para multiplicação ou 'D' para divisão).
+     - Quando `QUANTIDADE > 1`, armazena o metadado no formato padronizado (ex: `7891234567890 (CX x12)` ou `(FD /2)`).
+  2. **Aplicação do Fator na Bipagem (`RegistrarBipagemSeparacaoUseCase`):**
+     - O caso de uso avalia o código lido contra o metadado local e/ou via consulta em tempo real à `TGFVOA`.
+     - Calcula o fator: `fator = divideMultiplica === 'D' ? (1 / quantidadeVoa) : quantidadeVoa`.
+     - Multiplica a quantidade informada pelo operador: `qtdEfetiva = quantidadeBipada * fator`.
+     - Salva a quantidade efetiva nas unidades base do pedido e bloqueia se a soma ultrapassar o saldo pendente da carga.
+     - Mensagem de sucesso informa claramente o fator aplicado: `Bipagem registrada: +12 UN via 1 CX x12`.
+  3. **Identificação Visual de Embalagens nos Chips e Preenchimento com 1 Clique:**
+     - No frontend, os códigos com embalagem alternativa ganham badge destacada `📦 CX x12`.
+     - Clicar em qualquer chip de código ou referência preenche automaticamente o campo do leitor no desktop e no Android.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Inclusão de Fotos de Produtos e Modal de Zoom na Separação
+
+- **Demanda do Usuário:**
+  - "Foto do produto vamos incluir"
+- **Implementações Realizadas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx), [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+  1. **Miniaturas de Produtos (`ProdutoImagem`):**
+     - Integrado o componente nativo [`ProdutoImagem`](./frontend/src/presentation/components/common/ProdutoImagem.tsx) com cache de Blob URL, evitando requisições repetidas e contornando bloqueios de Mixed Content no WebView Android.
+     - Miniaturas inseridas na tabela do desktop (`.separacao-produto-thumb`, 48x48px) e nos cards móveis do Android (52x52px).
+  2. **Modal de Zoom / Foto Ampliada:**
+     - Ao clicar na foto do produto, abre-se uma visualização ampliada centralizada sobreposta (`.separacao-img-modal-overlay`), permitindo ao operador inspecionar detalhes do produto/embalagem.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Exibição e Reconhecimento de Múltiplos Códigos de Barras por Produto na Separação
+
+- **Demanda do Usuário:**
+  - "Na lista vamos apresentar os codigo de barras disponivel para os produtos"
+- **Implementações Realizadas ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts), [`RegistrarBipagemSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/RegistrarBipagemSeparacaoUseCase.ts), [`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx), [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+  1. **Consulta Completa de Códigos de Barras no Sankhya:**
+     - Ao abrir ou sincronizar a carga, o sistema consulta todos os códigos de barras cadastrados para os produtos em `TGFBAR` e `TGFVOA` (unidades/embalagens alternativas ativas).
+     - Agrupa os códigos por produto e armazena na linha do snapshot.
+  2. **Bipagem Inteligente de Qualquer Código do Produto:**
+     - O validador do leitor de código de barras reconhece instantaneamente a leitura de **qualquer um** dos códigos de barras vinculados ao produto.
+  3. **Apresentação Visual na Lista (Desktop e Android):**
+     - Criado o componente de chips [`renderBarrasChips`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx) com estilos em `.separacao-barcode-chip`.
+     - Todos os códigos de barras disponíveis são exibidos em tags monoespaçadas destacadas (`🏷️ 789...`) junto com a referência comercial do produto, tanto na tabela desktop quanto nos cards verticais do coletor Android.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Ajuste de Filtro de Pedidos de Venda na Separação (STATUSNOTA = 'L')
+
+- **Demanda do Usuário:**
+  - "altera statusnota = 'L'"
+- **Implementações Realizadas ([`ListarCargasPendentesUseCase.ts`](./backend/src/application/use-cases/separacao/ListarCargasPendentesUseCase.ts), [`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts)):**
+  - Atualizada a cláusula SQL em todas as rotas de separação para filtrar expressamente pedidos liberados/confirmados no Sankhya:
+    ```sql
+    WHERE CAB.TIPMOV = 'P'
+      AND CAB.STATUSNOTA = 'L'
+      AND NVL(CAB.ORDEMCARGA, 0) > 0
+    ```
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção de Consulta Oracle (Eliminação de PRO.CODBARRA inexistente em TGFPRO)
+
+- **Problema Relatado:**
+  - `ORA-00904: "PRO"."CODBARRA": identificador inválido` ao iniciar ou sincronizar a separação.
+- **Causa Raiz & Inspeção no Código de Conferência:**
+  - Verificado em [`ListarItensPedidoUseCase.ts`](./backend/src/application/use-cases/conferencias/consulta/ListarItensPedidoUseCase.ts) (Conferência de Saída): na tabela de produtos do Sankhya (`TGFPRO`), não existe a coluna `CODBARRA`. Os códigos de barras residem exclusivamente na tabela associada `TGFBAR`.
+- **Solução Aplicada ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts)):**
+  - Removido o fallback inválido `PRO.CODBARRA`, mantendo a apuração direta via `TGFBAR`:
+    ```sql
+    NVL(BAR.CODBARRA, '') AS CODBARRA,
+    ```
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção de Consulta Oracle no Sankhya (Eliminação de BAR.PADRAO inexistente em TGFBAR)
+
+- **Problema Relatado:**
+  - `ORA-00904: "BAR"."PADRAO": identificador inválido` ao consultar itens no Sankhya.
+- **Causa Raiz:**
+  - Na tabela nativa do Sankhya `TGFBAR` (códigos de barras alternativos), não existe a coluna `PADRAO`.
+- **Solução Aplicada ([`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts), [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts)):**
+  - Substituído `LEFT JOIN TGFBAR BAR ON BAR.CODPROD = ITE.CODPROD AND BAR.PADRAO = 'S'` pela subquery padrão do sistema:
+    ```sql
+    LEFT JOIN (
+        SELECT CODPROD, MIN(CODBARRA) AS CODBARRA
+        FROM TGFBAR
+        GROUP BY CODPROD
+    ) BAR ON BAR.CODPROD = ITE.CODPROD
+    ```
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Alinhamento de Layout da Separação ao Padrão do Sistema (1024px) e Otimização para Android
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "o layout da tela separação está no padrão das outras? Ajusta apenas as posição e largura, lembrando que essa rotina vai para o APP ANDROID"
+  - Acordado via `/grill-me`:
+    1. Adotar a largura padrão do sistema (`max-width: 1024px`, `.page-container`) integrada ao `AppLayout`.
+    2. Manter o card interno de cabeçalho (`🚚 Separação de Cargas (Vendas)`) perfeitamente alinhado em largura 100%.
+    3. No Android (`<= 768px`), empilhar inputs e botões verticalmente em 100% de largura para facilitar o toque e evitar quebra visual.
+    4. Apresentar a lista de produtos em cards compactos verticais no Android (com código, descrição, contagem X/Y e status destacados) e tabela completa no desktop.
+- **Implementações Realizadas ([`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx), [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css)):**
+  1. **Largura Padrão e Layout Centralizado:**
+     - Envolvida a página no componente global [`AppLayout`](./frontend/src/presentation/components/AppLayout/AppLayout.tsx) com a classe padrão `.page-container` (`max-width: 1024px; margin: 0 auto; padding: 24px 20px`).
+     - Alinhada a largura do card extra interno e da barra de busca de carga para preencher harmonicamente os 1024px.
+  2. **Responsividade Especializada para Android (Coletores e Celulares <= 768px):**
+     - O formulário de scanner e o seletor de carga se adaptam para `flex-direction: column` com inputs e botões em 100% de largura e altura tátil confortável (`min-height: 48px`).
+     - Ações do cabeçalho se expandem em 100% com distribuição flexível no mobile.
+  3. **Visualização Dupla (Tabela Desktop vs Cards Android):**
+     - Criados os cards verticais `.separacao-mobile-cards` exibidos automaticamente em telas móveis (`display: block` em `<= 768px` e `display: none` em desktop).
+     - Cards exibem código, descrição, código de barras/lote e contagem `X / Y UN` em fonte grande de fácil leitura no armazém.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Nova Fase — Módulo de Separação de Cargas por ORDEMCARGA com Snapshot e Detecção de Alterações no ERP
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "cria uma conferencia Separação (vamos chamar de separação, onde vamos buscar as itens das notas de vendas que estão pendente, por ORDEMCARGA(tgfcab), vamos ter que criar uma tabela com manter a estrutura de produtos por nunota/pedido para que se caso um item seja removido ou inserido durante a separação consigamos sinalizar dentro do sistema e agir."
+- **Implementações Realizadas:**
+  1. **Modelagem de Banco de Dados (`schema.ts` - LibSQL / Turso / SQLite):**
+     - Criada a tabela `separacoes`: gerencia as sessões de separação por `ordem_carga`, `status` ('EM_ANDAMENTO', 'FINALIZADA', 'CANCELADA'), `usuario`, métricas de pedidos, itens e unidades.
+     - Criada a tabela `separacoes_itens`: snapshot estrutural de produtos por pedido (`nunota`, `sequencia`, `codprod`, `controle`, `qtd_esperada`, `qtd_separada`, `status_item`, `qtd_erp_atual`, `observacao_alteracao`).
+     - Criada a tabela `separacoes_bipagens`: rastreabilidade de bipagens individuais de separação com suporte a estorno.
+     - Adicionado parâmetro operacional em `configuracoes_sistema`: `separacao_exigir_lote` (`'false'`).
+     - Atualizado o dicionário de dados vivo `SCHEMA_DOCUMENTATION`.
+  2. **Camada de Domínio e Casos de Uso (`application/use-cases/separacao`):**
+     - [`ListarCargasPendentesUseCase.ts`](./backend/src/application/use-cases/separacao/ListarCargasPendentesUseCase.ts): busca no Sankhya via `DbExplorerSP.executeQuery` todas as ordens de carga (`TGFCAB.ORDEMCARGA`) com pedidos de venda pendentes (`TIPMOV = 'P'`, `STATUSNOTA <> 'L'`).
+     - [`IniciarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/IniciarSeparacaoUseCase.ts): cria a sessão e o snapshot inicial completo dos itens dos pedidos da carga (`TGFITE`).
+     - [`ObterSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/ObterSeparacaoUseCase.ts): agrupa e consolida a contagem por produto na carga inteira, detalhando o desmembramento por pedido.
+     - [`SincronizarItensSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/SincronizarItensSeparacaoUseCase.ts): monitoramento inteligente que compara os itens do snapshot com a `TGFITE` no Sankhya em tempo real, detectando e sinalizando:
+       - **Item Removido/Cortado no ERP:** sinaliza corte e exige devolução física caso já houvesse bipagem.
+       - **Quantidade Alterada no ERP:** reajusta saldos e alerta se a quantidade bipada excedeu o novo valor.
+       - **Novo Item Inserido no ERP:** adiciona a nova linha ao snapshot dinamicamente com badge `NOVO_ERP`.
+     - [`RegistrarBipagemSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/RegistrarBipagemSeparacaoUseCase.ts): valida código de barras/referência/código, lote reservado (se exigido por configuração), incrementa quantidade e impede excedente além da carga.
+     - [`AnularBipagemSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/AnularBipagemSeparacaoUseCase.ts): estorno seguro de leituras no coletor/leitor com reajuste de saldos.
+     - [`FinalizarSeparacaoUseCase.ts`](./backend/src/application/use-cases/separacao/FinalizarSeparacaoUseCase.ts): validação obrigatória com o Sankhya antes de finalizar e suporte a justificativa operacional em caso de divergência.
+  3. **Controladores e Rotas REST (`backend`):**
+     - Criado [`SeparacaoController.ts`](./backend/src/presentation/http/controllers/SeparacaoController.ts) e [`separacaoRoutes.ts`](./backend/src/presentation/http/routes/separacaoRoutes.ts) registrados em `/api/separacao/*`.
+     - Protegido por middleware de autenticação e permissão `separacao`.
+  4. **Interface e Telas Operacionais (`frontend`):**
+     - [`SeparacaoPage.tsx`](./frontend/src/presentation/pages/separacao/SeparacaoPage.tsx):
+       - **Tela 1 (Seleção de Cargas):** leitor rápido para bipar o número da carga ou cards com métricas dos pedidos/clientes para iniciar com 1 clique.
+       - **Tela 2 (Painel Operacional):** barra de bipagem com campo de código de barras em destaque, quantidade compacta, campo de lote, feedback sonoro nativo (`Web Audio API`) e tátil (`vibrate`).
+       - **Alternância de Visão:** botão instantâneo para alternar entre **"Consolidado por Produto"** (soma de toda a carga) e **"Por Pedido de Venda"** (navegação pedido a pedido).
+       - **Polling Automático de Sincronização:** checagem automática a cada 30 segundos no Sankhya + botão para verificação manual imediata.
+       - **Banner de Alerta Visual e Sonoro:** banner vibrante no topo destacando quaisquer alterações de cortes ou adições ocorridas no ERP durante o trabalho do operador.
+       - **Histórico e Estorno:** modal para visualizar bipagens recentes e efetuar estornos imediatos.
+       - **Modal de Conclusão:** confirmação e registro de justificativa caso haja saldo pendente autorizado.
+     - Estilos 100% isolados em [`SeparacaoPage.css`](./frontend/src/presentation/pages/separacao/SeparacaoPage.css) com prefixo `.separacao-*`.
+     - Integração no menu lateral [`AppDrawer.tsx`](./frontend/src/presentation/components/AppLayout/AppDrawer.tsx) (`🚚 Separação de Cargas`) e na matriz de permissões de [`GestaoAcessos.tsx`](./frontend/src/presentation/pages/GestaoAcessos.tsx).
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Unificação Geral de Todas as Legendas para o Tamanho Padrão (0.70rem)
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "Vamos ajustar o tamanho da fonte de todas as legendas para o tamanho padrão, o mesmo tamanho atribuido ao lote"
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx), [`GestaoRecebimento.css`](./frontend/src/presentation/pages/GestaoRecebimento.css), [`recebimentoHelpers.tsx`](./frontend/src/presentation/components/Recebimento/recebimentoHelpers.tsx)):**
+  1. **Pílula de Contagem de Diferença (`.pill-contagem-status`):** Reduzida de `0.78rem` para `0.70rem` com padding compacto de `2px 6px;` e cantos arredondados de `4px`.
+  2. **Badges de Decisão e Status Fiscal (`.badge-pendente-aviso`, `.badge-decidido-ok`, `.badge-falta-isolada-erp`):** Alinhados uniformemente para `0.70rem`.
+  3. **Badge de Reconferência N3 (`.badge-n3-solicitado`):** Reduzido de `0.72rem` para `0.70rem`.
+  4. **Badges de Ocorrências Físicas (`renderBadgesOcorrenciasItem`):** Padronizados para `0.70rem` para Sobra Física, Avaria, Vencido e Falta.
+  5. **Subtexto do Produto (`Cód: ... • Seq: ... • Ref: ...`):** Reduzido de `0.72rem` para `0.70rem`.
+  6. **Botão de Local (`CODLOCALORIG`):** Reduzido de `0.80rem` para `0.70rem`.
+  7. **Coluna Conferentes:** Reduzida de `0.75rem` para `0.70rem`.
+  8. **Harmonia Completa no Mobile:** Todos os elementos correspondentes no card mobile foram alinhados para `0.70rem`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Redução Tipográfica para Micro-Legendas (0.58rem) e Botão Horizontal de Lotes
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "diminui o tamanho da fonte das legendas, qual o tamanho atual?"
+  - Acordo via `/grill-me`: Opção 2 — Diminuição mais compacta (micro-legenda), com Subtexto NF reduzido para `0.58rem` (~9.2px) e dado conferido/botão para `0.70rem` (~11.2px).
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Micro-Legendas da Nota Fiscal (`NF: ...`):** Reduzidas de `0.70rem` para `0.58rem` com margem compacta (`1px`), conferindo aspecto sutil e discreto sem poluir a célula.
+  2. **Dados Conferidos Principais (`Lote`, `Validade`, `Fabricação`):** Reduzidos harmoniosamente de `0.80rem` para `0.70rem`, com a tag do nível (ex: `N2`) reduzida para `0.60rem`.
+  3. **Botão de Lotes Horizontal (`2 Lotes ▼`):** Inserido `whiteSpace: 'nowrap'` e tamanho `0.70rem` para eliminar quebras de linha indesejadas, mantendo o botão em uma única linha enxuta.
+  4. **Padronização em Fabricação:** Removido o sufixo `(N2)` que persistia na coluna Fabricação, deixando apenas `Múltiplas` idêntico à Validade.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Desduplicação da Legenda de Lotes, Remoção da Palavra 'Múltiplos' e Limpeza da Coluna Local
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "Da para melhorar ainda legenda 2 lotes esta triplicado(remove da diferenca, e do produto e coloca ele na coluan lote), o local ainda está com os icones do lapis e point, e quero que a legenta MULTIPLOS da coluna lote seja removida."
+  - Imagem enviada mostrando a triplicação do chip de lotes (no produto, na diferença e no lote), os ícones desnecessários `📍` e `✏️` na coluna Local e a palavra `Múltiplos (2)` no lote.
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Desduplicação e Centralização na Coluna LOTE:**
+     - Removido o chip/botão de lotes da coluna **Produto** (deixando a identificação do código, sequência e referência limpa).
+     - Removido o chip/botão de lotes da coluna **Diferença** (mantendo exclusivamente a pílula de contagem: `✓ OK`, `⚠️ -X (Falta)` ou `+X (Sobra)`).
+     - Concentrado o controle exclusivamente na **coluna LOTE**: removida a palavra `Múltiplos` e o número redundante entre parênteses `(2)`. Exibe diretamente o botão ultra enxuto `2 Lotes ▼` (ou `2 Lotes ▲` quando aberto), sem emojis e sem tag de nível.
+  2. **Limpeza da Coluna LOCAL:**
+     - Removidos os ícones de pin (`📍`) e lápis (`✏️`).
+     - A célula agora renderiza apenas o número do local em um botão clean com borda suave (`211` ou `Sem Local`), que destaca suavemente ao hover para indicar que é clicável para edição, sem ruído visual.
+  3. **Visualização Mobile Sincronizada:**
+     - Removida a contagem duplicada de lotes na pílula de contagem mobile.
+     - Removidos os ícones de pin e lápis no botão de local mobile.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Visualização Minimalista da Tabela de Divergências e Gaveta de Lotes Sob Demanda
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "vamos melhorar a visão dessa lista de divergentes, vamos remover essa frade de frações de lote e deixa a lista de lotes menos(minimalista) sem retira as colunas e oculta com a opção de expandir, e vamos tratar a legendas para deixar a linha dos produtos minimalistas mas sem remover as colunas."
+  - Imagens de referência enviadas destacando o excesso visual: banner longo de frações de lote com texto gigante em caixa alta, gaveta aberta permanentemente empurrando a tabela, badges empilhados na coluna Produto e repetição vertical pesada de "Nota: ..." e "Conf: ... (N2)" nas colunas LOTE, VALIDADE e FABRICAÇÃO.
+- **Decisões de Design Alinhadas via `/grill-me`:**
+  1. **Legendas de Lote, Validade e Fabricação:** Destaque no valor conferido com tag sutil do nível adotado (ex: `123456 (N2)`) e valor da Nota Fiscal em subtexto cinza discreto abaixo (`NF: Sem Lote`), reduzindo expressivamente a altura das linhas sem remover nenhuma coluna.
+  2. **Gaveta de Frações de Lote Sob Demanda:** Oculta por padrão; acionada via botão de seta discreto `📦 2 Lotes ▼ / ▲` ao lado do Cód / Seq na coluna Produto e pelo chip interativo na coluna Diferença.
+  3. **Remoção do Banner Longo:** Eliminado o texto gigante `📦 FRAÇÕES DE LOTE CONFERIDAS NO COLETOR... TOTAL CONFERIDO...`. A gaveta abre diretamente a mini-tabela com as 5 colunas completas (`LOTE`, `QUANTIDADE`, `DATA DE VALIDADE`, `DATA DE FABRICAÇÃO`, `CONFERENTE`) em estilo clean e slim.
+  4. **Coluna Produto Minimalista:** Removido o badge grandão `⚠️ Aguardando Desmembramento` que inflava a primeira coluna, concentrando a sinalização de múltiplos lotes de forma horizontal no botão de expansão e na coluna Diferença.
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  - Inserido botão expansor compacto `📦 {lotesConferidos.length} Lotes ▼` logo após o Cód/Seq do produto.
+  - Transformado o chip de contagem de lotes na coluna Diferença em botão interativo de expansão/recolhimento com alternância `▲ / ▼`.
+  - Redesenhadas as células de LOTE, VALIDADE e FABRICAÇÃO com destaque tipográfico limpo no dado apurado e linha sutil `NF: ...` em cinza claro.
+  - Sub-linha gaveta condicionada estritamente a `temMultiplosLotes && isLotesAberto` (fechada por padrão).
+  - Removido o container de cabeçalho extenso da gaveta; renderização direta da tabela de frações com borda suave e padding compacto.
+  - Tratamento idêntico aplicado na visualização mobile (`isLotesAberto` fechada por padrão e remoção de badges empilhados).
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção de Lotes e Bloqueio de Desmembramento Indevido na Aba Envio Sankhya (Falta Isolada)
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "verifica pq após liberara das divergencias ainda continua mostrando os lotes e o botão desmebrar na aba envio para o sankhya"
+  - Imagem de referência enviada mostrando que na Aba 3 - Envio ao Sankhya, para a nota já aprovada como `CONFERIDO`, a Seq 5 (fração de falta de 15 UN com contagem física 0) exibia `2 Lotes ▲`, o botão `✂️ Desmembrar` e uma gaveta expandida com lotes herdados de outras sequências (`543216` com 45 un e `123456` com 60 un, totalizando 105 UN!).
+- **Diagnóstico e Causa Raiz:**
+  1. **Herança Cega de Lotes no Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):** Ao agrupar dados por produto e distribuir entre sequências, quando uma sequência recebia alocação 0 (como a Seq 5, falta isolada), o código verificava se `lotesMapN2` estava vazio e copiava o mapa completo de lotes do produto de outras sequências.
+  2. **Fallback Indevido de Bipagens no Frontend ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):** Na função `obterLotesItem`, caso a sequência não tivesse bipagens próprias, realizava fallback para todas as bipagens do produto, associando frações de outras sequências à Seq 5.
+  3. **Gaveta e Botão Desmembrar na Aba Envio Sankhya ([`AbaEnvioSankhyaView.tsx`](./frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx)):** Por receber frações de terceiros, a Seq 5 ativava `temMultiplosLotes`, renderizava a gaveta e exibia o botão `✂️ Desmembrar`.
+- **Implementações Realizadas:**
+  1. **Isolamento Estrito por Sequência e Busca do Lote da NF no Backend ([`ObterItensConferenciaEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ObterItensConferenciaEntradaUseCase.ts)):**
+     - O SQL de itens agora busca `ITE.CONTROLE`, `EST.DTVAL` e `EST.DTFABRICACAO` da nota fiscal no Sankhya ERP.
+     - As variáveis `lotesMapN1`, `lotesMapN2`, `lotesMapN3` e `dadosPorNivel` só são copiadas para uma sequência se houver alocação física nela (`alocN > 0`).
+     - Se o item tem contagem física zero (`contagemFinal === 0`), `lotesConferidos = []`, e os dados de lote, validade e fabricação assumem os valores originais faturados na TGFITE (`controleOriginal`, `dtvalOriginal`, `dtfabricacaoOriginal`).
+  2. **Tratamento Rigoroso de Falta Isolada em `obterLotesItem` ([`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+     - Se a contagem física do item for 0 (`qtdFisica === 0`), a função retorna imediatamente `[]`.
+     - Itens com sequência definida filtram suas bipagens estritamente por sequência, sem fallback para outras sequências do mesmo `codprod`.
+  3. **Visualização Limpa de Falta Isolada na Aba Envio ao Sankhya ([`AbaEnvioSankhyaView.tsx`](./frontend/src/presentation/components/Recebimento/AbaEnvioSankhyaView.tsx)):**
+     - Tanto no Desktop quanto no Mobile, itens com contagem física zero e quantidade esperada > 0 são categorizados como `isFaltaIsolada`.
+     - O botão `✂️ Desmembrar`, o chip de gaveta e o dropdown de múltiplos lotes são completamente desativados para faltas isoladas.
+     - Na coluna Lote, exibe o ícone `📄`, o lote original faturado da nota fiscal (`item.controle || item.lote`) e uma tag vermelha discreta `Falta Isolada`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Visibilidade Total de Todos os Itens e Desmembramentos no Assistente e Sincronização de Pendências
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "pq no resumo tem apenas as correções do item 10541 e não aparece a do item 10544, que foi o demembramento? Estamos estamos registrando essas correções em alguma tabela? para que elimine essas divergencias de informações."
+- **Diagnóstico e Causa Raiz:**
+  1. **Filtro Restritivo no Assistente:** O assistente carregava exclusivamente a lista `grupo.itensDivergentes` (que continha apenas as 3 sequências do Kit Otolog 10541). O produto Micodine Shampoo 10544, por já ter sido desmembrado no Sankhya (50 un na Seq 2 e 40 un na Seq 3) e batido 100% sem divergências, estava em `grupo.todosItens` (5 sequências), mas não em `itensDivergentes`. Por isso, o desmembramento do 10544 não aparecia no resumo do assistente.
+  2. **Contador Estático no Botão da Tela Principal:** O botão da tela principal exibia hardcoded `grupo.itensDivergentes.length` (`3 pendentes`), mesmo quando os itens já estavam 100% resolvidos ou isolados no ERP.
+  3. **Persistência de Dados e Ciclo de Vida:**
+     - Desmembramentos são gravados diretamente na tabela **`TGFITE`** do Sankhya ERP.
+     - Ocorrências físicas de sobra são gravadas na tabela local **`ocorrencias_conferencia_entrada`**.
+     - Bipagens reatribuídas FIFO são gravadas na tabela **`bipagens_conferencia_entrada`**.
+     - Ao clicar em `✓ Executar Decisões e Concluir Nota`, o backend grava na tabela **`conferencias_entrada`** (`status = 'Conferido'`, `decisoes_fiscais_json`), removendo em definitivo a nota da fila de divergências.
+- **Implementações Realizadas:**
+  1. **Base Total de Itens no Assistente ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - O assistente agora carrega `baseTodosItens` (todas as 5 sequências da nota).
+     - O desmembramento do item 10544 agora aparece no resumo na aba `Já Resolvidos` e na aba `Todos (5 itens)`, eliminando divergências de informação entre a tela principal e o assistente.
+  2. **Contador Dinâmico de Pendências Reais ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - O botão `Iniciar Assistente` agora calcula com precisão matemática os itens que ainda possuem ação pendente.
+     - Quando tudo já estiver resolvido, exibe: `🧙 Assistente (Pronto p/ Concluir)`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Separação de Pendentes vs Já Resolvidos no Assistente e Decisão de Lote com Sobra Física
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "pq após resolver continuou aqui pendente de decisão?" (Imagem enviada da tabela de divergências mostrando produto com sobra resolvida, quantidade batendo 90/90, mas com tag `⚠️ Pendente de Decisão` devido a lote/validade divergente do saldo restante sem decisão cadastral).
+  - "deu certo, agora vamos seprar na tela do assitente, o que está pendente do que já foi feito... para fica mais claro para o usuário." (Acordado via `/grill-me`: Opção 1, design minimalista com pílulas e abas compactas tanto no Resumo quanto no Passo a Passo).
+- **Implementações Realizadas:**
+  1. **Decisão Cadastral Integrada no Saldo com Sobra Física ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Quando um item possui sobra física agendada e os dados fiscais do saldo restante (Lote/Validade/Fabricação) divergem da nota fiscal (ex: Micodine Shampoo com 90 UN restantes no lote bipado `123356` vs lote da NF `2605001.032/26`), o assistente exibe imediatamente abaixo da sobra agendada o seletor para adotar `📱 Coletor (Bipado)` ou `📄 Nota Fiscal (ERP)`.
+     - O validador `verificarItemResolvido` exige tanto a regularização física da sobra quanto a decisão cadastral do saldo restante para considerar o item 100% resolvido, eliminando falsas pendências ao retornar à tela principal.
+  2. **Abas Minimalistas na Tela de Resumo ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Adicionadas abas compactas no topo da tabela de visão geral: `⚠️ Pendentes (X)`, `✓ Já Resolvidos (Y)` e `Todos (Z)`.
+     - Por padrão, se houver pendências, abre na aba `Pendentes`; caso contrário, foca em `Já Resolvidos`.
+     - Se todos os pendentes forem concluídos, renderiza um banner minimalista de sucesso convidando o usuário a revisar na aba de resolvidos ou clicar em `Executar Decisões e Concluir Nota`.
+     - Ações por linha customizadas: itens pendentes exibem botão `Resolver →` (fundo escuro `#0f172a`), enquanto itens resolvidos exibem `Revisar ✎` (fundo suave `#f1f5f9`).
+  3. **Pílulas Minimalistas no Passo a Passo ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Inseridas pílulas minimalistas integradas ao cabeçalho/stepper: `⚠️ Pendentes (X)` e `✓ Já Resolvidos (Y)`.
+     - O stepper e a navegação "Anterior" / "Próximo" focam diretamente na lista filtrada, permitindo que o gestor resolva sequencialmente apenas os itens pendentes sem precisar passar pelos já resolvidos.
+     - Ao resolver a última pendência, o assistente abre automaticamente a Tela de Resumo com foco na aba `Já Resolvidos` para revisão final e execução no Sankhya.
+     - Botão `← Voltar ao Passo a Passo` adicionado no rodapé da tela de resumo para fácil alternância.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Marcação de Sobra Agendada Resolvida e Preservação de Locais na Revalidação
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "Registrei ocorrencia de sobra e não marcou V no numero 1, e ao clicar em revalidar demembramento os locais informados foram removidos tive que informar novamente. E eu não consigo finalizar no assistente."
+- **Diagnóstico dos Bugs Identificados:**
+  1. **Trava no Status de Sobra Agendada:** A função `verificarItemResolvido` não possuía a condição `if (sobrasAgendadas[k]) return true;` (ao contrário de `desmembramentosAgendados` e `itensRecontarN3`). Se o item com sobra agendada possuía lote divergente, o validador exigia decisão cadastral e retornava `false`, impedindo o check verde `(✓)`, mantendo `Status: —` no resumo e bloqueando o botão de conclusão final da nota.
+  2. **Perda de Locais e Frações na Revalidação:** O `ModalDesmembrarItem` e o `ModalOcorrenciaSobra` reinicializavam seus estados sempre a partir do zero ou do item bruto, sem receber os dados já salvos em `desmembramentosAgendados` ou `sobrasAgendadas`. Com isso, ao clicar em "Revalidar", os locais de estoque analíticos (`codlocal`) escolhidos pelo gestor eram apagados.
+- **Implementações Realizadas:**
+  1. **Marcação Imediata de Item Resolvido com Sobra ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Adicionada a checagem imediata `if (sobrasAgendadas[k]) return true;` em `verificarItemResolvido`.
+     - O item 1 agora exibe o check verde `(✓)` no stepper imediatamente após agendar a sobra, exibe `✓ Resolvido` na tabela de resumo e desbloqueia o botão `✓ Executar Decisões e Concluir Nota`.
+  2. **Preservação de Dados Prévios no Desmembramento ([`ModalDesmembrarItem.tsx`](./frontend/src/presentation/components/Recebimento/ModalDesmembrarItem.tsx)):**
+     - Adicionada a prop `dadosPrevios`.
+     - Ao clicar em `Revalidar Desmembramento`, o modal restaura exatamente as frações, quantidades, lotes e **especialmente os locais de estoque (`codlocal`)** previamente definidos, eliminando a necessidade de redigitação.
+  3. **Preservação de Dados Prévios na Ocorrência de Sobra ([`ModalOcorrenciaSobra.tsx`](./frontend/src/presentation/components/Recebimento/ModalOcorrenciaSobra.tsx)):**
+     - Adicionada a prop `dadosPrevios`.
+     - Ao clicar em `Revalidar Sobra`, o modal restaura a quantidade da sobra, lote, datas, motivo e o local de estoque de destino (`codlocalDestino`) configurados anteriormente.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Reatribuição Inteligente FIFO de Sequências com Limite de Saldo (`QTDNEG`)
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "acho que não ficou correto, consegue acompanhar a execução novamente desse pedido para entender o erro e ajustarmos está muito confuso o resultado, não foi o que executamos?"
+- **Diagnóstico do Bug de Amontoamento de Bipagens:**
+  - O produto **Micodine Shampoo (10544)** desmembrou com sucesso (Seq 2 com 10 un, Seq 4 com 70 un e Seq 5 com 10 un de falta isolada).
+  - Porém, no **Kit Otolog (10541)**, a rotina anterior de `reatribuirSequenciasBipagens` usava um `.find()` simples sem verificar o teto (`QTDNEG`) de cada sequência da TGFITE.
+  - Com isso, todas as bipagens do lote `654321` (45 un + 60 un = 105 un) foram amontoadas na Seq 1 (que só faturou 45 un), gerando um falso alerta de sobra de +60 un, enquanto a Seq 3 ficava com falta de 45 un e a Seq 6 ficava zerada com falta de 15 un, apesar do volume total do produto bater perfeitamente em 120 un.
+- **Implementações Realizadas:**
+  1. **Algoritmo FIFO com Limite de Saldo ([`LibsqlConferenciaEntradaRepository.ts`](./backend/src/infrastructure/repositories/LibsqlConferenciaEntradaRepository.ts)):**
+     - O método `reatribuirSequenciasBipagens` agora mantém o mapa de `saldoRestante` por sequência respeitando rigorosamente a quantidade faturada (`QTDNEG`) de cada uma.
+     - Prioriza o casamento por lote faturado com saldo disponível; quando o teto da sequência é atingido, o saldo restante é alocado nas sequências subsequentes do mesmo `codprod`.
+     - Suporte nativo a split de bipagem: se uma bipagem exceder o saldo da sequência, aloca a fatia exata que cabe nela e cria uma nova fração de bipagem para alocação na próxima sequência com saldo.
+     - Resultado verificado: Kit Otolog perfeitamente equilibrado em **Seq 1: 45 / 45**, **Seq 3: 60 / 60** e **Seq 6: 15 / 15** (Diferença 0 em todas!).
+  2. **Sincronização Defensiva Automática ([`ListarDivergenciasEntradaUseCase.ts`](./backend/src/application/use-cases/recebimento/ListarDivergenciasEntradaUseCase.ts)):**
+     - Ao listar divergências de conferências com itens desmembrados (múltiplas sequências para o mesmo produto na TGFITE), o use case reatribui preventivamente as bipagens locais com a nova regra FIFO, garantindo que a tabela e o assistente nunca exibam resquícios de sequências desbalanceadas.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Compensação de Saldo Multi-Item e Reconhecimento de Falta Isolada no ERP
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "Vamos analisar o que ocorre aqui na tela de assistente após finalizar os ajuste e entra nela novamente para reconferencia."
+  - Alinhamento aprovado: 1) Compensar o saldo de produtos multi-item (eliminando falso positivo de sobra quando o total do produto bate na nota); 2) Considerar 'Falta Isolada no ERP' como 100% resolvida no assistente e no resumo; 3) Corrigir visibilidade do botão de ocorrência de sobra.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Compensação Inteligente de Saldo Multi-Item:**
+     - Criado o mapa consolidado `saldoConsolidadoPorProd` que totaliza a quantidade esperada e conferida de todas as sequências do mesmo `codprod` na nota fiscal.
+     - Um item multi-item só é tratado como **Sobra Física Real** se o saldo global do produto na nota for estritamente positivo (`saldoGlobal > 0 && diferenca > 0`).
+     - Se o total do produto na nota bater (`saldoGlobal <= 0`), a linha individual não gera falso alerta de sobra física; em vez disso, é reconhecida como **`📑 Produto Multi-Item Compensado na NF`**, regularizando as sequências complementares sem induzir à geração incorreta de ocorrência de sobra.
+  2. **Persistência e Reconhecimento de 'Falta Isolada no ERP':**
+     - Itens com falta física que já foram desmembrados no Sankhya e isolados com o lote da Nota Fiscal (`loteOriginal === numnotaStr || loteOriginal === nunotaStr`) são imediatamente reconhecidos como resolvidos na função `verificarItemResolvido`.
+     - No passo a passo, exibe o card verde informativo: `✓ Falta Isolada no ERP ({qtd} UN) - Esta falta já foi desmembrada no Sankhya e isolada com o lote da Nota Fiscal ({loteOriginal}). O item está 100% resolvido.`
+     - Na tabela do Resumo, as colunas "Saldo / Lotes", "Decisão Adotada" e "Status" exibem as badges e status de conclusão verdes correspondentes (`✓ Falta Isolada no ERP` e `✓ Resolvido`).
+  3. **Correção Visual no Botão de Ocorrência de Sobra:**
+     - Envolvido o texto com tag `<span>` estilizada com `color: #ffffff` e `font-weight: 700`, garantindo legibilidade absoluta sobre o fundo `#0f172a`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Diagnóstico Duplo (Múltiplos Lotes + Falta) e Remoção de Ação Alternativa Redundante
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "veja que não tela inicial não está motrando que o desmembrar vai resolver a falta também. Vamos incluir essa informação."
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Diagnóstico Duplo de Múltiplos Lotes com Falta:**
+     - Quando o produto possui simultaneamente múltiplos lotes e saldo faltante (`temMultiplosLotes && temFalta`), o texto da ação recomendada agora explicita claramente ambas as resoluções:
+       `O produto possui X lotes conferidos e saldo faltante de Y UN. Configure o desmembramento das frações e o isolamento da falta no Sankhya:`
+     - Ao agendar o desmembramento, o badge e cabeçalho indicam expressamente:
+       `✓ Desmembramento Agendado: X frações (incluindo isolamento da falta)`.
+  2. **Eliminação de Redundância Visual:**
+     - Ocultado o botão secundário `Ações alternativas: 🔍 Recontar em N3` quando o item já possui o botão principal `🔍 Solicitar Reconferência N3` no grid de ações recomendadas de falta.
+     - A barra de ações alternativas é renderizada somente quando houver ações secundárias de fato disponíveis.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Ordenação Sequencial de Divergências e Limpeza Minimalista da Tela Principal
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "vamos analisar o assitente e finalizar as trativas das divergencias por completo e sequencial. Qual o fluxo estamos enviando para divergencia?"
+- **Fluxo de Envio para Divergência Esclarecido:**
+  - O sistema envia notas para Divergência quando há:
+    1. Quantidade N1 ≠ N2 (`FinalizarNivelEntradaUseCase.ts`).
+    2. Falta Física (`diferenca < 0`) ou Sobra Física (`diferenca > 0`) em relação ao faturado.
+    3. Divergências Cadastrais em Lote, Validade ou Fabricação (`ListarDivergenciasEntradaUseCase.ts`).
+- **Implementações Realizadas:**
+  1. **Ordenação por Severidade Sequencial no Assistente ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Ordem estrita de resolução por gravidade operacional:
+       * **Nível 1 (Crítico):** Sobra Física (`dif > 0`, bloqueante para qualquer desmembramento no Sankhya).
+       * **Nível 2 (Grave):** Falta Física (`dif < 0`, opções de Reconferência N3 ou Desmembramento/Isolamento de Falta).
+       * **Nível 3 (Operacional):** Múltiplos Lotes (`lotes > 1`).
+       * **Nível 4 (Desempate):** Desempate N3 Apurado (`temN3Item`).
+       * **Nível 5 (Cadastral):** Divergências puras de Lote / Validade / Fabricação.
+       * **Desempate secundário:** Por número de `sequencia`.
+  2. **Tratamento de Falta Física Equilibrado no Assistente ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Diagnóstico claro de falta e renderização em grid das duas ações manuais de mesmo peso:
+       * `🔍 Solicitar Reconferência N3`
+       * `✂️ Desmembrar no ERP (Isolar Falta)`
+  3. **Limpeza Minimalista da Tela Principal ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - Removidos todos os botões operacionais dispersos nas linhas das tabelas Desktop e Mobile (`✂️ Desmembrar`, `📦 Gerar Ocorrência de Sobra`, `Decidir Divergência`, `⚖️ Revisar Desempate`).
+     - Tabela principal convertida em painel de consulta visual limpo com pills e badges minimalistas (`+{diferenca} (Sobra)`, `⚠️ {diferenca} (Falta)`, `✓ OK`, `📦 X Lotes`, `✓ Falta Isolada no ERP`).
+     - Ações operacionais centralizadas no fluxo guiado do assistente (`🧙 Iniciar Assistente`) e nas ações globais de rodapé.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Bloqueio do Botão Concluir sem Decisões e Correção de Status no Resumo
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "O botão do assitente para executar decisões está ficando ativo, sem ter efetivamente decidido. Apenas apertei no botão ver resumo."
+- **Diagnóstico do Bug Identificado:**
+  1. **Botão Ativo Prematuramente:** No rodapé do modo Resumo (`ModalAssistenteDivergencias.tsx`), o botão `✓ Executar Decisões e Concluir Nota` verificava apenas se o lote já estava em execução (`disabled={executandoLoteFinal}`), ignorando completamente se todos os itens haviam sido resolvidos (`todosResolvidos`). Com isso, ao abrir o resumo com 0% resolvido, o botão já ficava com estilo escuro ativo e clicável.
+  2. **Decisão Adotada Incorreta na Tabela do Resumo:** Quando um produto apresentava divergência fiscal cadastral (Lote/Validade/Fabricação) e ainda não havia decisão tomada, o fluxo caía no `else` exibindo `✓ Conforme Nota` em verde, mesmo com o status da linha indicando pendência (`—`).
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Trava no Botão de Execução Final:**
+     - Adicionada a condição `disabled={executandoLoteFinal || !todosResolvidos}`.
+     - Quando houver itens pendentes (`!todosResolvidos`), o botão é renderizado desabilitado com fundo cinza (`#94a3b8`), opacidade reduzida, cursor `not-allowed` e tooltip explicativo indicando quantos itens faltam resolver.
+     - Validação defensiva em `handleExecutarTudoEFinalizar` impedindo a submissão para o Sankhya caso existam itens pendentes.
+  2. **Correção da Coluna "Decisão Adotada":**
+     - Adicionadas verificações explícitas para `dif < 0` (`⚠️ Falta Pendente`) e `(pL || pV || pF)` (`⚠️ Decisão Pendente` em tom âmbar `#b45309`).
+     - A indicação `✓ Conforme Nota` só é exibida quando o produto de fato não possui pendência cadastral.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Unificação do Destaque de Multi-Item na Tag "Seq: X" do Produto
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "vamos remover esse mult-item e colocar o destaque que está nela na informação Seq dos itens."
+  - Alinhamento `/grill-me`: Destacar 'Seq: X' como tag visual em todos os produtos, usando a cor azul de destaque para os que forem Multi-Item (`contagemSeqsPorCodprod > 1`).
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Remoção da Linha Separada `📑 Multi-Item na NF`:**
+     - A tag redundante que ocupava uma linha inteira abaixo da descrição foi removida das visualizações Desktop e Mobile.
+  2. **Tag Visual Unificada `Seq: X`:**
+     - Todas as sequências agora são renderizadas como tags visuais compactas na linha de identificação do produto.
+     - **Itens Multi-Item (`contagemSeqsPorCodprod > 1`):** Tag em destaque com ícone `📑 Seq: X`, fundo azul suave (`#eff6ff`), borda azul (`#bfdbfe`), texto azul escuro (`#1d4ed8`) em negrito e tooltip detalhado `Item com múltiplas sequências na nota fiscal (Linha de Sequência X de Y)`.
+     - **Itens de Sequência Única:** Tag neutra `Seq: X`, fundo cinza suave (`#f1f5f9`), borda (`#e2e8f0`) e texto (`#334155`).
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Ocultação do Botão "✂️ Desmembrar" para Produtos em Reconferência N3
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "está em N3 e o demembrar está habilitado."
+  - Decisão alinhada: Ocultar o botão `✂️ Desmembrar` enquanto o item estiver em N3, pois a contagem física ainda está sendo apurada no coletor.
+- **Implementações Realizadas ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Coluna Diferença (Desktop e Mobile):**
+     - Nas situações de falta física (`diferenca < 0`) e múltiplos lotes (`temMultiplosLotes`), adicionada a trava `!estaEmN3` na renderização do botão `✂️ Desmembrar`.
+     - Enquanto o produto estiver aguardando contagem ou em andamento no coletor (`estaEmN3`), a linha exibe exclusivamente a contagem apurada até o momento e o badge `🔍 Aguardando N3` na coluna do produto, sem permitir desmembramento prematuro no Sankhya ERP.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Bloqueio e Sinalização de Ação Executada para Notas Enviadas a N3 no Assistente
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "o assistente mandou para n3 porém ficou em divergente."
+  - "a questão é que ao enviar para reconferencia o botão de assitencia continua habilitado, como se não tivesse atuado."
+  - "Manter o contador de divergentes ativo para sinalizar que o item originalmente divergiu entre N1/N2 e ERP."
+- **Diagnóstico do Problema:**
+  - Após o assistente disparar a Reconferência N3 (`acao: 'RECONFERIR_N3'`), a conferência atualizava com sucesso para o status `Aguardando N3` no banco.
+  - Contudo, na tela de Divergências (`AbaDivergenciasView.tsx`), os botões de ação continuavam habilitados como se o gestor ainda não tivesse atuado:
+    1. O botão `🧙 Iniciar Assistente` no topo e no rodapé do card continuava ativo em preto com indicação de pendências (`1 pendentes`).
+    2. O botão `⚠️ Resolver Divergência` continuava exibindo pendência fiscal, pois `totalFiscaisPendentes` não desconsiderava itens que foram enviados para recontagem N3.
+    3. Na tabela expandida de itens, o botão `Decidir Divergência` continuava visível ao lado do badge `🔍 Aguardando N3`.
+    4. A dica gerencial inteligente exibia texto desatualizado sugerindo "Solicitar Reconferência N3" para uma nota que já estava aguardando o coletor.
+    5. A função `verificarItemEmN3` retornava `false` quando a conferência inteira estava em N3 sem array de `itensRecontagem`.
+- **Implementações Realizadas:**
+  1. **Ajuste em [`recebimentoHelpers.tsx`](./frontend/src/presentation/components/Recebimento/recebimentoHelpers.tsx):**
+     - Em `verificarItemEmN3`: caso o status da conferência seja N3 e `itensRecontagem` seja vazio/indefinido (envio da nota integral para N3), todos os itens da nota são considerados em N3 (`return true`).
+  2. **Card e Botões em [`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx):**
+     - Identificação unificada de status em N3: `estaAguardandoOuEmN3`.
+     - `totalFiscaisPendentes`: itens sob recontagem N3 (`verificarItemEmN3`) não são cobrados como pendência de decisão fiscal no momento da conferência.
+     - `podeResolverDivergencia`: bloqueado enquanto `estaAguardandoOuEmN3` for verdadeiro.
+     - **Botão `Iniciar Assistente` (topo e rodapé):** Quando a nota está em N3, exibe estado desabilitado: `⏳ Enviado para N3 (Aguardando Coletor)` / `⏳ Aguardando Coletor N3` com tooltip explicativo e estilo neutro cinza, sinalizando com clareza que o gestor já agiu.
+     - **Botão `Resolver Divergência`:** Desabilitado durante o N3 com label `⏳ Aguardando N3`.
+     - **Botão `Reconferir (N3)`:** Desabilitado com label `✓ Em N3 (Coletor)`.
+     - **Tabela de Itens (Desktop e Mobile):** Remoção do botão `Decidir Divergência` para produtos sob recontagem N3 (`!estaEmN3`), exibindo exclusivamente o badge `🔍 Aguardando N3`.
+     - **Dica Gerencial (Decision Assist):** Quando a nota está em N3, exibe banner informativo neutro: `Reconferência N3 em Andamento no Coletor: Esta conferência foi enviada para reconferência cega (Nível 3). Aguarde os conferentes realizarem a bipagem no coletor para avaliar o desempate ou aprovar.`
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção do Status Resolvido ("✓") e Barra 100% para Itens com Desmembramento Agendado
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "qual o motivo para não ficar 100% na barra e os itens 1,2 e 3 não estarem com o V?"
+  - "opção 1, porém precisamos criar um fluxo para tratar as divergências com inteligência"
+- **Diagnóstico do Bug Identificado:**
+  - Na função de apuração `verificarItemResolvido`, os itens com desmembramento agendado continuavam sendo travados pela verificação `cadastralOk = !(pL || pV || pF)`.
+  - Como os produtos em falta/desmembramento possuíam lote faturado diferente do bipado, o sistema cobrava a decisão de Lote/Validade antes do desmembramento ocorrer. Além disso, a tabela de resumo recalculava `resolvido` com uma fórmula inline antiga em vez de usar a função unificada.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Resolução Imediata por Desmembramento Agendado:**
+     - Em `verificarItemResolvido`, adicionada a regra expressa: `if (desmembramentosAgendados[k]) return true;`.
+     - Ao agendar o desmembramento (definindo lotes, quantidades e locais de destino na 1ª fase), o item é considerado 100% resolvido na etapa atual do assistente.
+  2. **Unificação da Tabela do Resumo:**
+     - A tabela do resumo agora consome diretamente `const resolvido = verificarItemResolvido(it);`, eliminando divergências entre o stepper, a barra de progresso e as linhas da tabela.
+  3. **Resultado:**
+     - Os itens 1, 2 e 3 ganham `✓` em verde esmeralda no stepper e na coluna *Status* do Resumo.
+     - A barra de progresso atinge 100% (`7 de 7 resolvidos`).
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Fluxo de Falta Física com Desmembramento/Locais de Estoque e Ocultação de Decisão Cadastral Prematura
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "aqui temos uma situação de falta, primeira fase ou recontagem ou demembrar o item. Ai posteriormente pode gerar outra divergencia após o demembramento(Divergencia de lote/fabricação/validade). Se marcar desmembrar vamos abrir o modal abaixo para informar os dados do local no demembramento e persistir antes de desmenbrar no sankhya."
+  - Alinhamento `/grill-me`:
+    1. **Ocultação da Decisão Cadastral na Falta**: Enquanto persistir saldo faltante (`diferenca < 0`), a decisão cadastral de Lote/Validade ("A quantidade confere com a nota...") é omitida, pois a quantidade ainda não foi sanada e eventuais divergências cadastrais só serão apuradas após o desmembramento das sequências no ERP.
+    2. **Foco Operacional na Falta**: O card exibe exclusivamente as ações válidas para a 1ª fase: `✂️ Configurar Desmembramento no Sankhya ERP` (com indicação do saldo faltante) e `🔍 Recontar em N3`.
+    3. **Preenchimento e Persistência do Local de Estoque**: Ao acionar o desmembramento, o modal `ModalDesmembrarItem` permite preencher e validar os locais de estoque analíticos da `TGFLOC` para cada fração de lote antes de persistir o agendamento no assistente.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Ajuste nas Condições de Renderização:**
+     - Cenário 4 (Decisão Cadastral): Adicionada trava `!temFalta`, impedindo exibição quando houver saldo em aberto.
+     - Cenário 5 (Tudo OK): Adicionada trava `!temFalta`.
+     - Cenário 2 (Falta/Desmembramento): Suporte a feedback quando agendado para N3 (`Item Agendado para Reconferência N3`), evitando duplicação de decisões.
+  2. **Apuração Unificada de Resolução (`verificarItemResolvido`):**
+     - Adicionada regra `faltaOk = dif >= 0 || Boolean(desmembramentosAgendados[k])`. Um item com saldo faltante só é considerado resolvido se for configurado o desmembramento ou enviado para N3.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Remoção de Informação Redundante Central e Correção do Stepper no Assistente de Divergências
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "vamos remover essa informação central, e veja que o circulo está sendo cortado."
+  - Imagem enviada destacando:
+    1. Retângulo superior: os círculos numéricos do stepper de itens `(1) (2) (3)` tinham a borda cortada verticalmente por overflow.
+    2. Retângulo inferior: o card intermediário prolixo "Divergência Cadastral de Lote / Validade" ocupava espaço desnecessário entre o resumo de quantidades e as ações recomendadas.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Remoção da Informação Central:**
+     - Removido o bloco intermediário de texto redundante ("Card de Diagnóstico Inteligente").
+     - O layout agora conecta diretamente os dados faturados/conferidos do produto ao card objetivo "⚡ AÇÃO RECOMENDADA PARA ESTE ITEM", tornando a navegação ágil, objetiva e sem rolagem desnecessária.
+  2. **Correção do Corte nos Círculos do Stepper:**
+     - Adicionado espaçamento vertical confortável (`padding: 6px 4px`, `minHeight: 36px`, `gap: 8px`) no container flex com `overflowX: auto`.
+     - Substituído o efeito de `scale(1.12)` por dimensões dimensionadas confortavelmente (`width: isAtual ? 26px : 24px`, `height: isAtual ? 26px : 24px`), eliminando qualquer corte no topo ou na base do círculo e de sua sombra.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Execução Correta de N3 sem Fechamento Prematuro da Nota Fiscal no Assistente de Divergências
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "no assitente de divergencia quando marco para agendar recontagem, o botão executar decisão na tela de resumo vai enviar o item para recontagem? Percebi que ele marcar a nota com concluida e liberar para integrar a sankhya. Lembro ter planejado que ele enviaria para recontagem, assim como executar caso haja desmembramento e geração de ocorrencia. Revisita o processo da ocorrencia."
+  - Alinhamento `/grill-me`:
+    1. Se houver itens para N3: executa as sobras agendadas, executa os desmembramentos agendados, envia diretamente os itens para Reconferência N3 (via API) e fecha o assistente deixando a nota aberta em N3 (**SEM aprovar/concluir a nota nem liberá-la prematuramente para o Sankhya**).
+    2. O botão de execução no Resumo ajusta seu rótulo dinamicamente: `✓ Executar Ações e Enviar p/ Reconferência N3`.
+    3. Revisão do ciclo de vida de ocorrências de sobra: confirmada a dedução física via `conferenciaRepo.abaterSobraBipagens(...)` e criação formal com `conferenciaId`, garantindo conformidade fiscal absoluta.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx), [`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) & [`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+  1. **Envio Direto à API de N3 (`handleExecutarEnvioN3Api`):**
+     - Criada função assíncrona dedicada em `GestaoRecebimento.tsx` que invoca `recebimentoService.resolverDivergencia(conferenciaId, { acao: 'RECONFERIR_N3', itens })` e recarrega silenciosamente os dados, repassando-a via prop `onExecutarN3Api` até o assistente.
+  2. **Bloqueio de Conclusão Indevida da Nota:**
+     - Em `handleExecutarTudoEFinalizar`, quando `temItensN3 === true`:
+       - Executa as ocorrências de sobras agendadas (`onExecutarSobraApi`).
+       - Executa os desmembramentos agendados no ERP (`onExecutarDesmembramentoApi`).
+       - Dispara a reconferência N3 na API (`onExecutarN3Api`).
+       - **Fecha o modal sem chamar `onFinalizarResolucao`**, garantindo que a conferência permaneça com status de Reconferência N3 e aberta para nova contagem dos conferentes no coletor.
+     - Apenas quando `temItensN3 === false` (todas as divergências resolvidas definitivamente) o assistente chama `onFinalizarResolucao` para concluir e liberar a nota para o Sankhya.
+  3. **Identidade Visual e Rótulo Dinâmico:**
+     - Botão do rodapé no modo Resumo:
+       - Se houver N3: `✓ Executar Ações e Enviar p/ Reconferência N3`.
+       - Se não houver N3: `✓ Executar Decisões e Concluir Nota`.
+     - Banner superior do Resumo explica claramente que a conferência permanecerá aberta para nova contagem.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Busca em Tempo Real, Mover Item Ativo ao Topo e Destaque Borda Verde no App Android
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "no app android quando eu digito um codigo de barras, é feito a pesquisa se ele está presente na lista de de itens? Seria possivel marcar o item da lista com a borda verde, facilitando para o usuário visualizar o item que ele está bipando?"
+  - Alinhamento `/grill-me`:
+    1. **Pesquisa em Tempo Real**: Conforme digita ou bipa, localiza instantaneamente o produto por `codbarra`, `codigosAlternativos`, `codprod`, `referencia` ou `refforn`.
+    2. **Mover ao Topo da Lista**: O item localizado é reordenado dinamicamente para o topo da lista (1ª posição) para visibilidade instantânea.
+    3. **Destaque Visual Borda Verde**:
+       - Enquanto o produto estiver ativo/digitado no leitor: borda verde viva (2.5px solid `#16a34a`), fundo esverdeado sutil (`#f0fdf4`) e etiqueta `🎯 Bipando...`.
+       - Ao confirmar o registro do bip: transita para efeito pulso verde (`pulsoCardVerde`) com etiqueta `✓ Conferido agora` por 3.5 segundos antes de retornar ao estado normal.
+    4. **Alternância Automática de Abas (Modo Supervisor)**: Se o produto digitado já tiver sido 100% conferido (aba "Itens Conferidos"), a interface transita automaticamente para essa aba para mostrar o card destacado no topo. No Modo Cego, a aba única imutável é estritamente preservada.
+- **Implementações Realizadas ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx) & [`ConferenciaEntradaPage.css`](./frontend/src/presentation/pages/ConferenciaEntradaPage.css)):**
+  1. **Memoização de Item Ativo & Estado de Recém-Bipado:**
+     - `itemAtivoCodigo`: detecta em tempo real a correspondência com a lista de itens da conferência.
+     - `codprodRecenteBipado` com timer de 3.5s ativado no sucesso de `handleBipar`.
+  2. **Reordenação Dinâmica:**
+     - Priorização no topo de `itensOrdenados` e `itensConferidosVisiveis`: Item Ativo (`itemAtivoCodigo`) > Recém-bipado (`codprodRecenteBipado`) > Lote Repetido > Ordem padrão/selecionada.
+  3. **Estilos e Badges CSS:**
+     - Classes `.item-card-ativo-bipando`, `.item-card-recente-bipado`, `tr.row-ativo-bipando`, `tr.row-recente-bipado`.
+     - Animação `@keyframes pulsoCardVerde` e `@keyframes pulsoLinhaVerde`.
+     - Badges `.badge-ativo-bipando-card` (`🎯 Bipando...`) e `.badge-recente-bipado-card` (`✓ Conferido agora`).
+- **Validação de Builds & Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Android: `gradlew assembleDebug` compilado com sucesso (**BUILD SUCCESSFUL in 53s**).
+  - Deploy via ADB no dispositivo conectado (`ZF523R6Q5Q`) com inicialização da aplicação.
+
+---
+
+## Atualização: Exclusividade Mútua entre Recontagem N3 e Decisão Fiscal + Correção da Bolinha do Stepper no Assistente
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "pq no assitente ao selecionar recontagem N3, não está marcando que tomei a decisão, e não deveria poder selecionar a decisão e recontagem."
+  - Alinhamento `/grill-me`:
+    1. Aplicar exclusividade mútua entre Recontagem N3 e Tomar Decisão Fiscal (não permitir selecionar ambas simultaneamente).
+    2. Ao agendar para N3, limpar qualquer decisão fiscal cadastrada anteriormente para o item e marcar `✓` de resolvido na bolinha do stepper.
+    3. Remover o botão `Modal Decisão Fiscal N2` da linha de ações alternativas.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx) & [`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Exclusividade Mútua:**
+     - Ao clicar em `🔍 Recontar em N3`, limpa qualquer decisão fiscal já cadastrada para o item (`onLimparDecisaoItem`), evitando estado concorrente ambíguo.
+     - O bloco de decisão cadastral é substituído por um card verde informativo: `✓ Item Agendado para Reconferência N3 (Este item aguardará a nova contagem cega N3 ao concluir)` com botão `✕ Cancelar N3`.
+     - Caso o usuário tome uma decisão fiscal (Coletor, ERP ou nível N2/N3), o agendamento de N3 é cancelado automaticamente.
+  2. **Unificação do Cálculo de Resolução (`verificarItemResolvido`):**
+     - O cálculo de resolvido das bolinhas do stepper agora considera `itensRecontarN3.has(k)` e ações agendadas em lote.
+     - Quando o item é agendado para N3, a bolinha do stepper muda imediatamente para `✓` em verde, e o item atual resolvido ganha fundo verde sólido com `✓` branco.
+  3. **Remoção do Botão Redundante:**
+     - Removido o botão `⚖️ Modal Decisão Fiscal N2` da barra de ações alternativas do assistente, mantendo o visual limpo e focado no fluxo direto.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Agendamento e Execução em Lote no Assistente de Divergências (Sobras, Desmembramento e N3) com Revalidação
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - "Quando eu clicar em recontar, demembrar, ocorrencia no assitente de divergencia, vamos executar essa decisão para o final ao clicar em concluir. Vamos incluir o botão para o usuário revalidar no caso de demembrar e ocorrencia."
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx) & [`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+  1. **Configuração sem Bloqueio e Agendamento em Memória:**
+     - As ações de **Ocorrência de Sobra** e **Desmembramento** são configuradas nos submodais correspondentes (`ModalOcorrenciaSobra` e `ModalDesmembrarItem`) diretamente integrados ao assistente, sem chamar a API do Sankhya de imediato nem forçar o fechamento do modal.
+     - As configurações são salvas em memória nos estados `sobrasAgendadas`, `desmembramentosAgendados` e `itensRecontarN3`.
+  2. **Destaque Verde e Botão de Revalidação / Alteração:**
+     - **Cenário 1 (Sobra):** Se já configurada, o botão principal ganha destaque em verde esmeralda (`✓ Sobra Agendada: +X UN [Lote]`) e exibe o botão **`🔄 Revalidar Sobra`** para abrir o modal com os dados atuais e permitir ajustes finos antes do disparo final, além de botão `✕ Limpar` para desfazer.
+     - **Cenário 2 (Desmembramento):** Se já configurado, o botão exibe **`✓ Desmembramento Agendado: X lotes definidos`** com destaque verde e o botão **`🔄 Revalidar Desmembramento`**, além de botão `✕ Limpar`.
+     - **Ações Alternativas (Recontar N3):** Botão toggle **`🔍 Recontar em N3`** / **`✓ Agendado p/ N3 (Remover)`** com destaque verde sem execução prematura.
+  3. **Resumo Geral e Execução Sequencial em Lote:**
+     - A tela de resumo exibe card com o balanço de todas as ações agendadas (`📦 X Sobra(s)`, `✂️ Y Desmembramento(s)`, `🔍 Z Item(ns) N3`).
+     - A tabela de resumo exibe tags dedicadas: `📦 Sobra (+X)`, `✂️ Desmembramento (X lotes)`, `🔍 N3 Agendado`.
+     - Ao clicar em **`✓ Executar Decisões e Concluir Nota`**, a função `handleExecutarTudoEFinalizar` orquestra a sequência fiscal mandatória:
+       1. Sobras físicas primeiro (abate de excedentes);
+       2. Desmembramentos de itens no Sankhya ERP;
+       3. Envio para recontagem N3;
+       4. Aplicação das decisões fiscais restantes e conclusão da conferência.
+     - Exibe barra de progresso em tempo real com descrição detalhada de cada etapa executada.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Inversão da Ordem dos Campos Fabricação e Validade no App Android
+
+- **Demanda do Usuário:**
+  - Inverter a posição dos campos `Validade` e `Fabricação` na barra de bipagem da Conferência de Entrada para a sequência natural: `Lote` -> `Fabricação` -> `Validade`.
+- **Implementações Realizadas:**
+  1. **Layout e DOM ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):**
+     - O campo `Fabricação *` foi posicionado antes de `Validade *`, resultando na ordem visual: `Lote *` | `Fabricação *` | `Validade *`.
+     - Ajustado o fluxo de foco e ditado por voz (`handleConfirmarDitadoCampo`): após confirmação do `Lote`, o foco/voz avança para `Fabricação`, e após `Fabricação` avança para `Validade`, finalizando no botão `Conferir`.
+     - Atualizada a ordem de preenchimento automático após leitura de código de barras.
+  2. **Modal de Ocorrências ([`ModalRegistrarOcorrencia.tsx`](./frontend/src/presentation/components/Recebimento/ModalRegistrarOcorrencia.tsx)):**
+     - Alinhada a ordem dos inputs de data para `Fabricação *` antes de `Validade` mantendo total coerência com o fluxo operacional do conferente.
+  3. **Builds e Deploy:**
+     - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+     - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+     - Android: Sincronização via Capacitor (`npx cap sync android`) e compilação do APK de depuração (`gradlew assembleDebug` - BUILD SUCCESSFUL).
+     - Deploy realizado via ADB no dispositivo conectado (`ZF523R6Q5Q`) com inicialização da aplicação.
+
+---
+
+## Atualização: Limpeza Visual no Resumo do Assistente (Remoção de "Adotado/Mantido" e Status com "✓")
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário enviou print da tela de resumo do assistente solicitando:
+    - Remover os prefixos redundantes "ADOTADO" e "MANTIDO" na coluna *Decisão Adotada*.
+    - Na coluna *Status*, remover o texto "Resolvido", deixando estritamente o símbolo `✓` em verde.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Coluna Decisão Adotada Simplificada:**
+     - Exibição limpa e direta: `📱 Coletor`, `📄 ERP`, `⚖️ N3` e `⚖️ N2`.
+     - Botões de seleção no passo a passo também simplificados: `📱 Coletor (Bipado)`, `📄 Nota Fiscal (ERP)`, `Reconferência (N3)`, `Coletor (N2)` e `Nota Fiscal (ERP)`.
+  2. **Coluna Status Minimalista:**
+     - Substituído o badge anterior com texto por apenas `✓` em verde esmeralda (`#15803d`) para itens concluídos, e `—` neutro para pendentes.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Destaque Verde de Decisões e Coluna no Resumo do Assistente
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário solicitou que, caso volte a um item já avaliado, o assistente destaque em verde a opção que foi selecionada para rápida conferência visual.
+  - Solicitou também que a tela de resumo liste claramente a decisão adotada para cada item da nota fiscal.
+- **Implementações Realizadas ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+  1. **Destaque Verde na Opção Selecionada:**
+     - Quando o supervisor revisita um item (pelo botão anterior ou bolinha do stepper), a opção escolhida ganha:
+       - Contorno em verde esmeralda: `border: 2px solid #16a34a`.
+       - Fundo verde sutil e elegante: `background: #f0fdf4`.
+       - Título em verde: `color: #15803d`.
+       - Badge em destaque no canto superior: `✓ SELECIONADO` (`background: #dcfce7, color: #15803d`).
+     - Aplicado tanto nos desempates N3 (`Adotar N3`, `Adotar N2`, `Manter ERP`) quanto nas divergências cadastrais (`Adotar Coletor (Bipado)` vs `Manter Nota Fiscal (ERP)`).
+  2. **Coluna "Decisão Adotada" no Resumo Final:**
+     - Adicionada coluna dedicada no balanço final da conferência antes de salvar:
+       - Reconferência N3: `⚖️ Adotado N3`, `⚖️ Adotado N2` ou `📄 Mantido ERP`.
+       - Divergência Cadastral: `📱 Adotado Coletor` ou `📄 Mantido ERP`.
+       - Sobras: `📦 Sobra Deduzida (+X)` ou `📦 Sobra Pendente`.
+       - Múltiplos Lotes: `✂️ Desmembrado` ou `✂️ Desmembramento Pendente`.
+       - Conformes: `✓ Conforme Nota`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Correção de Exibição das Fotos dos Produtos no App Android (Mixed Content & Blob URL)
+
+- **Demanda do Usuário:**
+  - O operador reportou que no App Android a foto dos produtos não estava aparecendo na lista de produtos.
+- **Diagnóstico com Chrome DevTools Remoto no Celular (`ZF523R6Q5Q`):**
+  - Conectamos diretamente ao WebView do app Android via DevTools (`@webview_devtools_remote` na porta 9222).
+  - O log do Blink/Chromium revelou o bloqueio exato:
+    `[EVENT] Network.loadingFailed: {"blockedReason": "mixed-content"}`
+  - **Causa Raiz:** O app mobile é carregado pelo Capacitor sob a origem segura `https://localhost`, enquanto o backend local roda em HTTP (`http://192.168.0.x:3001`). O motor Blink do WebView bloqueava ativamente as tags `<img>` convencionais apontando para HTTP, disparando `onError` e ocultando a imagem (`display: none`).
+  - Em contrapartida, chamadas `fetch()` via JavaScript com CORS não eram bloqueadas pelo Mixed Content.
+- **Solução Arquitetural Implementada:**
+  1. **Configuração Nativa no Android ([`MainActivity.java`](./frontend/android/app/src/main/java/com/sankhya/confercheck/MainActivity.java)):**
+     - Habilitado `settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW)` no `onCreate()` e no `onStart()`.
+     - Habilitados `domStorageEnabled`, `databaseEnabled` e acessos de conteúdo local.
+  2. **Componente Reativo com Cache e Blob URL ([`ProdutoImagem.tsx`](./frontend/src/presentation/components/common/ProdutoImagem.tsx)):**
+     - Criado componente inteligente `ProdutoImagem` que busca os bytes da imagem via `fetch()` autenticado e gera um `Blob URL` seguro em memória (`blob:https://localhost/...`).
+     - URLs blob originadas no app são 100% livres de restrições de Mixed Content.
+     - Cache em memória (`blobUrlCache`) implementado por código de produto, evitando requisições duplicadas quando o produto aparece em múltiplos locais (tabela, cards, feedback popup, ocorrências).
+     - Se o produto não tiver foto no Sankhya (404), oculta-se silenciosamente sem quebrar o layout.
+  3. **Adoção nas Telas de Entrada e Saída:**
+     - [`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx): Tabela desktop, cards mobile, conferidos e popup de feedback.
+     - [`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx): Pendentes, conferidos e popup de feedback com preservação integral do CSS isolado da Saída.
+     - [`ModalRegistrarOcorrencia.tsx`](./frontend/src/presentation/components/Recebimento/ModalRegistrarOcorrencia.tsx): Pré-visualização do produto na ocorrência.
+  4. **Build e Instalação no Dispositivo:**
+     - Compilação do frontend (`npm run build`) e sincronização Capacitor (`npx cap sync android`).
+     - Compilação Gradle (`assembleDebug`) com sucesso.
+     - Instalação remota (`adb install -r`) efetuada com sucesso no celular conectado (`ZF523R6Q5Q`).
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Redesign Slate Corporativo e Mapeamento de Regras do Assistente
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário solicitou esclarecimento sobre o funcionamento das regras de resolução e o ciclo de persistência do Assistente de Divergências.
+  - Apontou que a interface continha excesso de cores primárias saturadas ("parece um arco-íris") e escolheu a **Paleta Slate Corporativa** (tons neutros, elegantes e profissionais).
+- **Mapeamento de Regras & Persistência do Assistente:**
+  1. **Precedência Fiscal Sankhya:**
+     - `1º Sobras Físicas (+X)`: Ocorrência gerada imediatamente via API com dedução do saldo excedente. Bloqueia o desmembramento até a regularização da sobra para não travar o Sankhya.
+     - `2º Múltiplos Lotes / Faltas`: Executa o desmembramento da `TGFITE` diretamente no ERP Sankhya.
+     - `3º Desempates N3 (Reconferência)`: Adoção em bloco de 1 clique do pacote integral do nível (`N3`, `N2` ou `ERP`) sem misturar frações de conferências concorrentes.
+     - `4º Divergências Cadastrais (Lote/Validade)`: Escolha rápida (`📱 Coletor` vs `📄 ERP`).
+  2. **Persistência das Decisões:**
+     - Ações físicas (sobra e desmembramento) gravam em tempo real no banco do Sankhya.
+     - Decisões fiscais (lote/validade/nível) são armazenadas no estado da conferência e persistem definitivamente com protocolo e justificativa gerencial ao clicar em `✓ Salvar e Concluir Decisões da Nota` (ou `Resolver Divergência`).
+- **Implementações Visuais (Paleta Slate Corporativa):**
+  1. **Remoção de Fundos Saturados ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Substituição dos blocos coloridos (amarelos, azuis e vermelhos) por cards limpos em branco e cinza suave (`#ffffff`, `#f8fafc`, `#e2e8f0`).
+     - Tipografia sóbria em ardósia escuro (`#0f172a`) e cinza médio (`#475569`, `#64748b`).
+  2. **Stepper Monocromático Elegante:**
+     - Bolinhas dos passos simplificadas: `#0f172a` para o item atual, `#f8fafc` com contorno suave e check discreto `#15803d` para itens resolvidos, e `#ffffff` com borda cinza para pendentes.
+     - Barra de progresso discreta em ardósia escuro sobre trilho `#e2e8f0`.
+  3. **Botões de Ação Padronizados:**
+     - Botões principais no tom escuro corporativo (`#0f172a`), botões secundários neutros com borda sutil `#cbd5e1`.
+     - Botão `🧙 Iniciar Assistente` na [`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx) alinhado ao padrão escuro corporativo.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Identificação Visual de Multi-Sequências e Desmembramentos em Divergências
+
+- **Demanda do Usuário & Diagnóstico (`/grill-me`):**
+  - O supervisor relatou que na Nota Fiscal `22130` o produto `10541` apareceu duas vezes na lista de divergências e suspeitou de um bug de duplicação.
+  - O diagnóstico no banco de dados Sankhya (`TGFITE`) comprovou que a nota continha 2 sequências faturadas distintas para o mesmo código de produto:
+    - `Sequência 1`: 60 UN com Lote `231564897`
+    - `Sequência 3`: 60 UN com Lote `123456`
+  - A impressão de bug ocorria porque a coluna de produto não exibia a sequência faturada (`TGFITE.SEQUENCIA`) nem o lote de origem, gerando duas linhas visualmente idênticas para o usuário.
+- **Implementações Realizadas:**
+  1. **Tabela Desktop e Cards Mobile ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - Exibição explícita da sequência (`Seq: X`) e do lote faturado na nota fiscal (`• Lote NF: ...`).
+     - Badge inteligente em destaque: `📑 Multi-Item na NF (Seq. X)` renderizado automaticamente quando o mesmo produto possuir mais de uma sequência faturada na nota.
+  2. **Assistente Passo a Passo ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - Cabeçalho do produto exibe o badge `📑 Multi-Item na NF (Seq. X)`, sequência e lote original faturado.
+     - Bloco de faturado explicita a sequência sendo analisada (`Faturado (Seq. X)`).
+     - Card de diagnóstico inteligente adiciona aviso educativo esclarecendo que o produto possui múltiplas sequências na nota fiscal (ex: frações de lote faturados pelo fornecedor ou desmembramentos) e qual sequência e lote estão sendo decididos.
+     - Tabela do resumo final também identifica a sequência e sinaliza `(Multi-Item)`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Resolução Dinâmica de Fotos de Produtos no Aplicativo Mobile (Capacitor)
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário relatou que na lista de produtos do aplicativo mobile (.APK) as fotos dos produtos não estavam aparecendo, enquanto na versão web desktop eram exibidas normalmente.
+  - Alinhado com o usuário:
+    - Aplicar a correção em todas as telas operacionais (Conferência de Entrada, Conferência de Saída, Feedback de Bipagem e Ocorrências).
+    - Preservar o fallback de ocultar a foto (`onError -> display: none`) quando o produto não tiver imagem cadastrada no ERP Sankhya.
+- **Diagnóstico:**
+  - O aplicativo mobile roda dentro de um WebView do Capacitor com origem local (`https://localhost`).
+  - As tags `<img src="/api/crud/produto/${codProd}/imagem" />` usavam caminhos relativos ao host atual. No navegador desktop, o Vite realizava o proxy transparente para o backend na porta 3001; já no aplicativo mobile, o WebView tentava buscar o arquivo no pacote local do app (`https://localhost/api/...`), resultando em erro 404 e acionando o `onError` que ocultava a imagem.
+- **Implementações Realizadas:**
+  1. **Helper Universal de URL de Imagem ([`httpClient.ts`](./frontend/src/infrastructure/api/httpClient.ts)):**
+     - Criada a função `getProdutoImagemUrl(codProd)` que anexa automaticamente a URL dinâmica do backend (`getServerBaseUrl()`, ex: `http://192.168.0.94:3001`) quando executado no app mobile, ou mantém caminho relativo quando no navegador desktop sem URL customizada.
+  2. **Atualização nas Telas Operacionais:**
+     - **Conferência de Saída ([`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx)):** Tabela desktop, cards mobile, tabs pendentes/conferidos, feedback visual de bipagem e modal de zoom.
+     - **Conferência de Entrada ([`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)):** Tabela desktop, cards mobile, itens conferidos, feedback visual e modal de zoom.
+     - **Registro de Ocorrências ([`ModalRegistrarOcorrencia.tsx`](./frontend/src/presentation/components/Recebimento/ModalRegistrarOcorrencia.tsx)):** Miniaturas de itens e popup de catálogo.
+- **Validação de Builds e Deploy:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - APK: Gerado com sucesso via Gradle (`BUILD SUCCESSFUL in 44s`) e instalado no celular conectado (`ZF523R6Q5Q`).
+
+---
+
+## Atualização: Assistente Passo a Passo (Wizard) de Resolução de Divergências
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O supervisor relatou alta sobrecarga cognitiva ao analisar divergências em tabelas extensas (com 12 colunas e múltiplos problemas misturados: sobras, faltas, múltiplos lotes, divergências cadastrais e desempates N3).
+  - Foi alinhada a criação de um **Assistente Passo a Passo (Wizard)** focado e intuitivo para resolver divergências item a item.
+- **Implementações Realizadas:**
+  1. **Componente do Assistente ([`ModalAssistenteDivergencias.tsx`](./frontend/src/presentation/components/Recebimento/ModalAssistenteDivergencias.tsx)):**
+     - **Priorização inteligente dos itens**: Sobras físicas (`diferenca > 0`) aparecem primeiro (precedência obrigatória para não travar o Sankhya), seguidas de múltiplos lotes/faltas, desempates N3 e divergências cadastrais (lote/validade).
+     - **Diagnóstico automático em destaque**: Card explicativo do que gerou a divergência em linguagem operacional clara.
+     - **Ação recomendada em destaque**:
+       - *Sobra Física*: Botão direto `📦 Gerar Ocorrência de Sobra` com bloqueio educativo do desmembramento até abater o excedente.
+       - *Múltiplos Lotes / Faltas*: Botão direto `✂️ Desmembrar Item no Sankhya`.
+       - *Desempate N3*: 3 blocos comparativos de 1 clique (`Adotar Reconferência N3`, `Adotar Coletor N2`, `Manter Nota Fiscal ERP`).
+       - *Divergência Cadastral*: Botões rápidos (`📱 Adotar Coletor` vs `📄 Manter Nota ERP`) com avanço automático.
+     - **Navegação e Flexibilidade**:
+       - Stepper com bolinhas coloridas numeradas e barra de progresso em tempo real.
+       - Botão `↷ Pular Item (Revisar depois)` e navegação `← Anterior` / `Próximo →`.
+       - Tela de **Resumo Final** com checklist de todos os itens e botão de conclusão da conferência.
+  2. **Integração na Tela de Gestão ([`AbaDivergenciasView.tsx`](./frontend/src/presentation/components/Recebimento/AbaDivergenciasView.tsx)):**
+     - Botão `🧙 Iniciar Assistente` adicionado no topo da barra de itens de cada nota fiscal divergente e também na barra inferior de ações.
+     - Submodais existentes (`ModalOcorrenciaSobra`, `ModalDesmembrarItem`, etc.) abrem suavemente sobre o assistente sem conflito de `z-index`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Restrição do Botão de Configuração de Servidor Exclusivamente para Android
+
+- **Demanda do Usuário:**
+  - O botão de engrenagem para configuração de URL do backend deve aparecer estritamente no aplicativo Android (Capacitor), ficando oculto no navegador web desktop.
+- **Implementações Realizadas:**
+  1. **Restrição por Plataforma Nativa ([`Login.tsx`](./frontend/src/presentation/pages/Login.tsx)):**
+     - Integrado `Capacitor.isNativePlatform()` de `@capacitor/core`.
+     - O botão de engrenagem e o modal de configuração agora só são renderizados quando `isNative` for verdadeiro.
+     - No navegador web desktop convencional, a interface permanece 100% limpa, sem o ícone da engrenagem.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
+---
+
+## Atualização: Novo Ícone do Conferente e Nova Splash Screen do Aplicativo Android
+
+- **Demanda do Usuário:**
+  - Substituição do ícone padrão do Capacitor (azul) na tela inicial do dispositivo e no splash screen pela ilustração oficial de conferência (conferente com prancheta e carrinho com caixas).
+- **Implementações Realizadas:**
+  1. **Geração de Ícones Adaptativos e Padrão (Android `mipmap-*`):**
+     - Atualizado `ic_launcher_background.xml` para a cor de fundo oficial `#0f172a` (azul ardósia da marca ConferCheck).
+     - Gerados os ícones de primeiro plano adaptativos (`ic_launcher_foreground.png`) com a ilustração centralizada e dimensionada na *safe zone* circular (sem cortes de borda).
+     - Gerados ícones legados quadrados (`ic_launcher.png`) e redondos com antialiasing (`ic_launcher_round.png`) em todas as densidades:
+       - `mdpi` (48x48 / 108x108)
+       - `hdpi` (72x72 / 162x162)
+       - `xhdpi` (96x96 / 216x216)
+       - `xxhdpi` (144x144 / 324x324)
+       - `xxxhdpi` (192x192 / 432x432)
+  2. **Geração da Nova Splash Screen (Android `drawable-*`):**
+     - Substituído o splash screen padrão do Capacitor em todas as orientações e densidades (`drawable`, `drawable-port-*`, `drawable-land-*` de `mdpi` a `xxxhdpi`) com fundo `#0f172a` e a ilustração oficial centralizada.
+  3. **Otimização de Build Gradle & Deploy Multi-Dispositivo:**
+     - Ajustado `org.gradle.jvmargs=-Xmx1024m -XX:+UseG1GC` para estabilidade de memória física no ambiente Windows.
+     - Compilação via Gradle (`assembleDebug` - BUILD SUCCESSFUL in 28s).
+     - Instalação e deploy direto tanto no smartphone (`ZF523R6Q5Q`) quanto no tablet (`R9XN701XGAE`).
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - APK: Instalado e executado com sucesso no tablet (`R9XN701XGAE`) e no smartphone (`ZF523R6Q5Q`).
+
+---
+
+## Atualização: Limpeza do Modal de Configuração de Servidor e Deploy Final
+
+- **Demanda do Usuário:**
+  - Remoção dos botões de atalho temporários ("Backend Direto" e "Vite HTTPS") do modal de configuração de servidor, mantendo a interface limpa e o placeholder indicativo da porta 3001.
+- **Implementações Realizadas:**
+  1. **Interface Limpa no Modal ([`Login.tsx`](./frontend/src/presentation/pages/Login.tsx)):**
+     - Removidos os botões temporários de seleção.
+     - Campo de texto mantido com placeholder ilustrativo `http://192.168.0.94:3001`.
+  2. **Build e Deploy:**
+     - Sincronização dos assets via `mobile:build`.
+     - Compilação via Gradle e instalação da versão final atualizada no celular conectado (`ZF523R6Q5Q`).
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - APK: Instalado com sucesso no celular.
+
+---
+
+## Atualização: Diagnóstico Visual de Rede, Atalhos de Conexão Rápida e Suporte a Backend Direto HTTP/HTTPS no App Mobile
+
+- **Demanda do Usuário:**
+  - O aplicativo no celular continuava informando "Servidor indisponível" na tentativa de login.
+- **Diagnóstico:**
+  - Quando a URL de servidor não era salva ou falhava na camada de rede (ex: tentar porta incorreta ou certificado SSL não sincronizado no domínio exato), a mensagem de erro genérica não informava qual URL nem o código de erro retornado.
+  - O proxy do Vite (`vite.config.ts`) não incluía a rota `/health`, causando respostas inconsistentes nos testes de conexão pela porta 5173.
+  - Para ambientes móveis em rede Wi-Fi local, a comunicação direta com o backend Node.js (`http://192.168.0.94:3001`) é mais estável e rápida por não depender de túneis HTTPS nem Vite dev server.
+- **Implementações Realizadas:**
+  1. **Diagnóstico Técnico de Erro na Tela ([`httpClient.ts`](./frontend/src/infrastructure/api/httpClient.ts) e [`erros.ts`](./frontend/src/domain/erros.ts)):**
+     - O interceptor agora anexa o código de erro exato (`ERR_CONNECTION_REFUSED`, `ERR_CERT_AUTHORITY_INVALID`, etc.) e a URL de destino tentada na mensagem de erro.
+     - Logs completos adicionados no console com prefixo `[httpClient] [REQ]`, `[RES]` e `[ERR]`.
+  2. **Atalhos Rápidos de Conexão no Modal ([`Login.tsx`](./frontend/src/presentation/pages/Login.tsx)):**
+     - Adicionados botões de 1 clique no modal de configuração de servidor:
+       - `⚡ Backend Direto (3001)`: aponta para `http://192.168.0.94:3001`.
+       - `🔒 Vite HTTPS (5173)`: aponta para `https://192.168.0.94:5173`.
+  3. **Configuração de Domínios e Debug Overrides no Android ([`network_security_config.xml`](./frontend/android/app/src/main/res/xml/network_security_config.xml)):**
+     - Incluídos `<domain-config>` e `<debug-overrides>` mapeando explicitamente os IPs da rede (`192.168.0.94`, `192.168.0.92`, `localhost`) com `@raw/rootca` e `cleartextTrafficPermitted="true"`.
+  4. **Suporte a `/health` no Vite Proxy ([`vite.config.ts`](./frontend/vite.config.ts)):**
+     - Rota `/health` mapeada para o backend Express na porta 3001.
+  5. **Depuração e Logs de Console do WebView no Logcat ([`MainActivity.java`](./frontend/android/app/src/main/java/com/sankhya/confercheck/MainActivity.java)):**
+     - Ativado `setWebContentsDebuggingEnabled(true)` e interceptor de mensagens JavaScript com `onConsoleMessage -> ConferCheckJS`.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - APK: Compilado via Gradle (`BUILD SUCCESSFUL in 28s`), instalado e iniciado no celular `ZF523R6Q5Q`.
+
+---
+
+## Atualização: Certificado Raiz Local Integrado no APK e Instalação no Celular Android
+
+- **Demanda do Usuário:**
+  - Ao tentar efetuar login no aplicativo no celular conectado, o sistema informava "servidor indisponível" mesmo após o teste de conexão.
+- **Diagnóstico:**
+  - O celular não possuía a autoridade certificadora raiz interna (`mkcert`) instalada na lista de credenciais do usuário Android (diferente do tablet).
+  - Como as chamadas XHR/fetch do Chromium WebView utilizam sockets BoringSSL diretos no Android, ocorria `net_error -202 (CertPathValidatorException: Trust anchor for certification path not found)`.
+  - Além disso, o interceptor de requisições do Axios no frontend possuía condicional que mantinha a URL padrão se `config.baseURL` já existisse.
+- **Implementações Realizadas:**
+  1. **Certificado CA Embutido no App ([`network_security_config.xml`](./frontend/android/app/src/main/res/xml/network_security_config.xml) e [`rootca.crt`](./frontend/android/app/src/main/res/raw/rootca.crt)):**
+     - O certificado raiz da autoridade de desenvolvimento local foi exportado e copiado diretamente para `frontend/android/app/src/main/res/raw/rootca.crt`.
+     - O arquivo `network_security_config.xml` foi configurado com `<certificates src="@raw/rootca" />`, fazendo com que qualquer dispositivo Android (celular, tablet ou coletor) confie nativamente nas conexões HTTPS internas do servidor, sem necessidade de intervenção manual do usuário no Android.
+  2. **Garantia de URL Dinâmica no Axios ([`httpClient.ts`](./frontend/src/infrastructure/api/httpClient.ts)):**
+     - Ajustado o interceptor de requisição para garantir que qualquer chamada utilize dinamicamente o servidor configurado pelo usuário na engrenagem da tela de login.
+  3. **Build e Deploy no Celular:**
+     - Sincronização dos assets web (`npm run mobile:build`).
+     - Compilação do APK nativo via Gradle (`assembleDebug` - BUILD SUCCESSFUL).
+     - Instalação e execução com sucesso no celular conectado (`ZF523R6Q5Q`) via ADB.
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - APK: Instalado e iniciado com sucesso no dispositivo `ZF523R6Q5Q`.
+
+---
+
+## Atualização: Correção de Tela em Branco no Android, Suporte HTTPS e Ativação do Microfone/Ditado de Lote por Voz
+
+- **Demanda do Usuário:**
+  - O aplicativo abriu com tela em branco no tablet.
+  - O usuário relatou que a conexão do ambiente é HTTPS, o backend estava no ar, mas o app apresentava "Servidor indisponível".
+  - A função de falar lote, validade e fabricação (reconhecimento e síntese de voz) não estava funcionando.
+
+- **Diagnóstico:**
+  1. **Tela em Branco:** Exceção não tratada capturada via `adb logcat`: `SyntaxError: "undefined" is not valid JSON` no `AuthContext.tsx` devido a valores residuais `"undefined"` salvos como string no `localStorage`.
+  2. **Servidor Indisponível em HTTPS:** O WebView do Android bloqueia certificados autoassinados da rede local (`mkcert`) e o backend BFF Express tinha CORS restrito apenas para `http://localhost:5173`, rejeitando o `Origin: https://localhost` do app Capacitor.
+  3. **Microfone e Ditado por Voz Bloqueados:** Logcat apontava `bind to recognition service failed` e `not-allowed`. No Android 11+, apps precisam declarar explicitamente a visibilidade de pacotes (`<queries>` para `android.speech.RecognitionService`) e o WebView precisa de `WebChromeClient.onPermissionRequest` para conceder a captura de áudio da Web Speech API.
+
+- **Implementações Realizadas:**
+  1. **Blindagem contra `JSON.parse` Corrompido ([`AuthContext.tsx`](./frontend/src/application/contexts/AuthContext.tsx), [`AuthApiService.ts`](./frontend/src/infrastructure/api/AuthApiService.ts), [`ListaConferencias.tsx`](./frontend/src/presentation/pages/ListaConferencias.tsx), [`useConferenciaAtiva.ts`](./frontend/src/application/hooks/useConferenciaAtiva.ts), [`GestaoRecebimento.tsx`](./frontend/src/presentation/pages/GestaoRecebimento.tsx)):**
+     - Todas as leituras de `localStorage` e `sessionStorage` agora validam valores nulos, `"undefined"` e `"null"` com blocos `try/catch`, impedindo que exceções quebrem a montagem inicial do React.
+  2. **Conexão HTTPS Local Desimpedida ([`MainActivity.java`](./frontend/android/app/src/main/java/com/sankhya/confercheck/MainActivity.java) e [`network_security_config.xml`](./frontend/android/app/src/main/res/xml/network_security_config.xml)):**
+     - Implementado `BridgeWebViewClient` com `onReceivedSslError -> handler.proceed()` para aceitar certificados locais `mkcert`.
+     - Criado `network_security_config.xml` com `<certificates src="user" />` e `cleartextTrafficPermitted="true"`.
+  3. **CORS Aberto para Dispositivos Móveis ([`server.ts`](./backend/src/presentation/server.ts)):**
+     - Express CORS atualizado para `app.use(cors({ origin: true, credentials: true }))`.
+  4. **Ativação Completa de Microfone, Ditado e Síntese de Voz ([`AndroidManifest.xml`](./frontend/android/app/src/main/AndroidManifest.xml), [`MainActivity.java`](./frontend/android/app/src/main/java/com/sankhya/confercheck/MainActivity.java) e [`alertas.ts`](./frontend/src/infrastructure/audio/alertas.ts)):**
+     - Inseridas permissões `android.permission.RECORD_AUDIO` e `android.permission.MODIFY_AUDIO_SETTINGS` no manifesto.
+     - Adicionada cláusula `<queries>` no manifesto declarando visibilidade para `android.speech.RecognitionService` e pacote do Google App (`com.google.android.googlequicksearchbox`), eliminando a falha `bind to recognition service failed`.
+     - Implementado `BridgeWebChromeClient` com `onPermissionRequest -> request.grant(request.getResources())` em `MainActivity.java` para que o Chromium WebView conceda o microfone à Web Speech API.
+     - `MainActivity.java` configurado para solicitar permissão em tempo de execução no Android (`RECORD_AUDIO: granted=true`).
+     - Adicionado `sintese.resume()` em `alertas.ts` para evitar que a síntese de voz trave no Android WebView.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+  - APK: Compilado (`BUILD SUCCESSFUL`) e instalado com sucesso via ADB tanto no tablet (`R9XN701XGAE`) quanto no smartphone (`ZF523R6Q5Q`), com permissões ativas.
+
+---
+
+## Atualização: Transformação Mobile Nativa (Android/APK via Capacitor), Laser-First e Ergonomia para Coletores
+
+- **Demanda do Usuário & Alinhamento (`/grill-me`):**
+  - O usuário relatou que a usabilidade em celulares e tablets estava prejudicada com layout desktop tradicional e questionou como transformar o sistema em algo mobile dedicado.
+  - Através do processo de alinhamento `/grill-me`, definimos:
+    - **Público e Telas:** Foco prioritário nos conferentes em chão de fábrica/doca ([`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx) e [`ConferenciaEntradaPage.tsx`](./frontend/src/presentation/pages/ConferenciaEntradaPage.tsx)).
+    - **Dispositivos:** Coletores de dados industriais (Zebra/Honeywell com leitor laser) e tablets/smartphones touch.
+    - **Formato:** Aplicativo nativo Android (.APK instalado) gerado via **Capacitor**.
+    - **Ergonomia & Bipagem:** Prioridade 100% no leitor laser físico (câmera desativada/oculta no fluxo mobile), supressão inteligente do teclado virtual do Android para não cobrir a tela, barra de bipagem fixa inferior (*thumb-zone*), sons distintos de confirmação/erro e vibração háptica.
+    - **Resiliência:** Buffer offline de bipagens para tolerância a áreas de sombra de Wi-Fi no depósito.
+    - **Flexibilidade de Rede:** Configuração interativa do IP/porta do servidor backend diretamente pela tela de login do app.
+
+- **Implementações Realizadas:**
+  1. **Configuração Dinâmica de Servidor Backend ([`httpClient.ts`](./frontend/src/infrastructure/api/httpClient.ts) e [`Login.tsx`](./frontend/src/presentation/pages/Login.tsx)):**
+     - Adicionado suporte a `getServerBaseUrl()` e `setServerBaseUrl()`, permitindo definir e persistir dinamicamente a URL do backend no app instalado via `localStorage.getItem('CONFERCHECK_SERVER_URL')`.
+     - Inserido botão de engrenagem na tela de login que abre modal amigável para configurar o IP do servidor (ex: `http://192.168.1.50:3000`) com botão "Testar Conexão" que consulta o endpoint `/health` e salva a configuração.
+  2. **Buffer Offline para Tolerância a Quedas de Wi-Fi ([`offlineQueue.ts`](./frontend/src/infrastructure/offline/offlineQueue.ts)):**
+     - Criado serviço de fila local em `localStorage` com detecção de conectividade (`navigator.onLine`, eventos `online`/`offline`).
+     - Badge visual compacto (`📶 X bips offline`) inserido nos cabeçalhos de conferência para tranquilizar o conferente durante oscilações de sinal.
+  3. **Ergonomia Laser-First & Supressão do Teclado Virtual no Coletor ([`ConferenciaProdutos.tsx`](./frontend/src/presentation/pages/ConferenciaProdutos.tsx)):**
+     - Integrado estado `isDispositivoMovel` e `tecladoVirtualAtivo` com `inputMode={isDispositivoMovel ? (tecladoVirtualAtivo ? 'text' : 'none') : undefined}`.
+     - Quando o operador bipar com o leitor laser do coletor, o teclado virtual do Android não sobe cobrindo os itens da tela.
+     - Botão ergonômico com ícone de teclado (`⌨️`) inserido na barra de bipagem para alternar para modo digitação manual quando necessário.
+  4. **Barra de Bipagem Inferior (*Thumb-Zone*) na Saída ([`ConferenciaProdutos.css`](./frontend/src/presentation/pages/ConferenciaProdutos.css)):**
+     - Em telas móveis (`@media (max-width: 768px)`), a barra `.scanner-saida-card` é fixada no rodapé da viewport, ao alcance direto dos polegares, com compensação de padding no container principal (`padding-bottom: 95px`) para não sobrepor o último item da lista.
+     - Mantido 100% o isolamento CSS com prefixo `.scanner-saida-*` sem alterar regras da entrada ou globais.
+  5. **Setup do Projeto Android Nativo com Capacitor:**
+     - Instalado `@capacitor/android@^6.1.0`.
+     - Plataforma Android inicializada (`npx cap add android`) gerando a pasta nativa [`frontend/android`](./frontend/android).
+     - Configurado [`AndroidManifest.xml`](./frontend/android/app/src/main/AndroidManifest.xml) com `android:usesCleartextTraffic="true"` (essencial para comunicação HTTP com o servidor local da rede), permissão `android.permission.VIBRATE` para feedback háptico e `android:windowSoftInputMode="adjustResize"`.
+     - Sincronização e empacotamento validados via script `npm run mobile:build`.
+
+- **Validação de Builds Obrigatória:**
+  - Frontend: `npm run build` compilado com sucesso (**exit code 0**).
+  - Backend: `npm run build` compilado com sucesso (**exit code 0**).
+
 ## Atualização: Prevenção de Múltiplos Desmembramentos, Trava de Concorrência e Stepper Visual
 
 - **Demanda do Usuário & Alinhamento (`/grill-me`):**

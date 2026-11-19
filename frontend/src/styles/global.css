@@ -2552,3 +2552,64 @@ body {
   }
 }
 
+
+
+/* ══════════════════════════════════════════════════════════════════
+   EXPERIÊNCIA NATIVA ANDROID MOBILE / CAPACITOR
+   Elimina sensações de site web e padroniza toque nativo
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Eliminar highlight azul de clique padrão do navegador em todo o app */
+* {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Evitar seleção acidental de texto ao arrastar ou tocar no app */
+body, button, a, .hub-app-card, .app-drawer-item, .reabastecimento-metrica-card, .enderecamento-tab-btn {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Permitir seleção estritamente em inputs e textareas */
+input, textarea, [contenteditable="true"] {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Rolagem fluida com física inercial mobile */
+body, html {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Scrollbar limpa e discreta estilo mobile */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Safe areas para notch e barra de gestos do Android */
+.app-header {
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+
+.page-container, .hub-container, .enderecamento-container, .reabastecimento-container {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+/* Micro-feedback visual ao pressionar botões e cards (:active) */
+button:active:not(:disabled),
+.hub-app-card:active,
+.app-drawer-item:active,
+.reabastecimento-chip-btn:active,
+.enderecamento-chip:active {
+  transform: scale(0.98);
+  transition: transform 0.08s ease;
+}

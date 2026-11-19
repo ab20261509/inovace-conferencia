@@ -138,7 +138,43 @@ export function GestaoRecebimentoPage() {
     const custom = lotesCustomizadosPorConferencia[conferenciaId]?.[item.codprod];
     if (custom && custom.length > 0) return custom;
 
-    // Se o item possui sequência definida, filtra estritamente por sequência para evitar vazamento entre frações
+    // Se o supervisor adotou a informação da Nota Fiscal (ERP), respeita estritamente o lote ERP (sem desmembramento)
+    const adotouErp =
+      item.nivelEscolhido === 0 ||
+      item.decisaoFiscal?.nivelEscolhido === 0 ||
+      item.decisaoFiscal?.lote === 'ERP';
+
+    if (adotouErp) {
+      const loteErp = (item.controle || item.lote || '').trim();
+      return loteErp
+        ? [
+            {
+              lote: loteErp,
+              qtd: qtdFisica > 0 ? qtdFisica : item.qtdneg || 0,
+              validade: item.validade,
+              fabricacao: item.fabricacao,
+            },
+          ]
+        : [];
+    }
+
+    // Se o item já possui lotesConferidos apurados pelo backend (que já respeita a decisão do supervisor e isolamento N2/N3)
+    if (item.lotesConferidos && item.lotesConferidos.length > 0) {
+      return item.lotesConferidos.map((lc: any) => ({
+        lote: (lc.lote || '').trim(),
+        qtd: lc.quantidade ?? lc.qtd ?? item.qtdneg ?? 0,
+        validade: lc.validade || item.validade,
+        fabricacao: lc.fabricacao || item.fabricacao,
+      }));
+    }
+
+    // Determinar o nível adotado do item
+    const nivelAdotado =
+      item.nivelEscolhido ||
+      item.decisaoFiscal?.nivelEscolhido ||
+      ((item.qtdConferidaN3 || 0) > 0 ? 3 : (item.qtdConferidaN2 || 0) > 0 ? 2 : 1);
+
+    // Se o item possui sequência definida, filtra estritamente por sequência e nível adotado (evita mescla N2 vs N3)
     const bipagensSeq = bipagens.filter(
       (b) =>
         b.codprod === item.codprod &&
@@ -146,14 +182,19 @@ export function GestaoRecebimentoPage() {
         Boolean(item.sequencia) &&
         Number(b.sequencia) === Number(item.sequencia) &&
         !b.anulado &&
-        b.lote
+        b.lote &&
+        (b.nivel === undefined || Number(b.nivel) === Number(nivelAdotado))
     );
 
     const bipagensProd =
       item.sequencia
         ? bipagensSeq
         : bipagens.filter(
-            (b) => b.codprod === item.codprod && !b.anulado && b.lote
+            (b) =>
+              b.codprod === item.codprod &&
+              !b.anulado &&
+              b.lote &&
+              (b.nivel === undefined || Number(b.nivel) === Number(nivelAdotado))
           );
 
     if (bipagensProd.length > 0) {
@@ -171,15 +212,6 @@ export function GestaoRecebimentoPage() {
         mapa.get(key)!.qtd += b.qtdConferida || 0;
       }
       return Array.from(mapa.values());
-    }
-
-    if (item.lotesConferidos && item.lotesConferidos.length > 0) {
-      return item.lotesConferidos.map((lc: any) => ({
-        lote: lc.lote,
-        qtd: lc.quantidade ?? lc.qtd ?? item.qtdneg ?? 0,
-        validade: lc.validade || item.validade,
-        fabricacao: lc.fabricacao || item.fabricacao,
-      }));
     }
 
     if (item.lote) {
@@ -401,7 +433,7 @@ export function GestaoRecebimentoPage() {
         let detalhes = detalhesConferencias[grp.conferenciaId];
         if (!detalhes || !detalhes.itens || detalhes.itens.length === 0) {
           try {
-            detalhes = await recebimentoService.obterItensConferencia(grp.conferenciaId, grp.nunotas);
+            detalhes = await recebimentoService.obterItensConferencia(grp.conferenciaId, grp.nunotas, 'gestao');
             setDetalhesConferencias((prev) => ({ ...prev, [grp.conferenciaId]: detalhes }));
           } catch (e) {
             // prossegue
@@ -465,7 +497,8 @@ export function GestaoRecebimentoPage() {
     if (!detalhes || !detalhes.itens || detalhes.itens.length === 0) {
       detalhes = await recebimentoService.obterItensConferencia(
         nota.conferenciaId,
-        nunotasEnvio || []
+        nunotasEnvio || [],
+        'gestao'
       );
       setDetalhesConferencias((prev) => ({ ...prev, [nota.conferenciaId]: detalhes }));
     }

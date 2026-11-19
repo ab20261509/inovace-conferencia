@@ -267,6 +267,38 @@ export function SeparacaoPage() {
   // Estados de navegação e dados
   const [cargas, setCargas] = useState<CargaPendente[]>([]);
   const [filtroOrdemCarga, setFiltroOrdemCarga] = useState('');
+  const [tipoOrdenacao, setTipoOrdenacao] = useState<'PRIORIDADE' | 'CARGA_DESC' | 'CARGA_ASC' | 'VOLUME_DESC' | 'VOLUME_ASC' | 'ITENS_DESC'>('PRIORIDADE');
+
+  const cargasOrdenadas = useMemo(() => {
+    const lista = [...cargas];
+    switch (tipoOrdenacao) {
+      case 'PRIORIDADE':
+        return lista.sort((a, b) => {
+          const getPeso = (st?: string) => {
+            if (st === 'REABASTECIDO') return 1;
+            if (st === 'EM_ANDAMENTO') return 2;
+            if (st === 'AGUARDANDO_REABASTECIMENTO') return 3;
+            if (st === 'FINALIZADA') return 5;
+            return 4; // Aguardando
+          };
+          const pesoDiff = getPeso(a.statusLocal) - getPeso(b.statusLocal);
+          if (pesoDiff !== 0) return pesoDiff;
+          return b.ordemCarga - a.ordemCarga;
+        });
+      case 'CARGA_DESC':
+        return lista.sort((a, b) => b.ordemCarga - a.ordemCarga);
+      case 'CARGA_ASC':
+        return lista.sort((a, b) => a.ordemCarga - b.ordemCarga);
+      case 'VOLUME_DESC':
+        return lista.sort((a, b) => (b.qtdUnidades || 0) - (a.qtdUnidades || 0));
+      case 'VOLUME_ASC':
+        return lista.sort((a, b) => (a.qtdUnidades || 0) - (b.qtdUnidades || 0));
+      case 'ITENS_DESC':
+        return lista.sort((a, b) => (b.qtdItens || 0) - (a.qtdItens || 0));
+      default:
+        return lista;
+    }
+  }, [cargas, tipoOrdenacao]);
   const [sessaoAtiva, setSessaoAtiva] = useState<Separacao | null>(null);
   const [itens, setItens] = useState<SeparacaoItem[]>([]);
   const [itensConsolidados, setItensConsolidados] = useState<SeparacaoItemConsolidado[]>([]);
@@ -302,6 +334,7 @@ export function SeparacaoPage() {
   const [justificativa, setJustificativa] = useState('');
   const [imagemAmpliada, setImagemAmpliada] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [painelAcoesAberto, setPainelAcoesAberto] = useState(false);
 
   // Modais de Endereçamento, Falta e Re-separação
   const [modalEndereco, setModalEndereco] = useState<{ aberto: boolean; item?: SeparacaoItemConsolidado }>({ aberto: false });
@@ -882,17 +915,119 @@ export function SeparacaoPage() {
 
   return (
     <AppLayout>
-      {({ openDrawer, abrirConsultaProduto }) => (
-        <div className="page-container">
-          <AppHeader
-            titulo="Separação de Cargas"
-            onOpenDrawer={openDrawer}
-            onAbrirConsultaProduto={abrirConsultaProduto}
-          />
+      {({ openDrawer }) => (
+        <div className="page-container separacao-page-container">
+          {/* Header Fixo no Topo no Mobile (AppHeader + Métricas e Abas) */}
+          <div className={`separacao-header-sticky-wrapper ${sessaoAtiva ? 'sessao-ativa' : ''}`}>
+            <AppHeader
+              titulo="Separação de Cargas"
+              onOpenDrawer={openDrawer}
+            />
+
+            {sessaoAtiva && (
+              <div className="separacao-metrics-card separacao-metrics-sticky">
+                {/* Resumo Mobile (Linha Única com Carga no Centro) */}
+                <div className="separacao-mobile-stats-row">
+                  <span className="separacao-mobile-stats-main">
+                    Progresso: <strong>{progresso.percentual}%</strong> ({progresso.totalSeparado}/{progresso.totalEsperado} UN)
+                  </span>
+                  <span
+                    className="separacao-mobile-stats-carga"
+                    title={`Empresa: ${sessaoAtiva.codemp || ''} • Operador: ${sessaoAtiva.usuario || ''}`}
+                  >
+                    🚚 #{sessaoAtiva.ordemCarga}{sessaoAtiva.codemp ? ` • Emp ${sessaoAtiva.codemp}` : ''}
+                  </span>
+                  <span className="separacao-mobile-stats-sub">
+                    {progresso.itensSeparados}/{itensConsolidados.length} itens
+                  </span>
+                </div>
+
+                {/* Resumo Desktop */}
+                <div className="separacao-metrics-row separacao-desktop-stats">
+                  <div className="separacao-stat-box">
+                    <span className="separacao-stat-label">Progresso da Carga</span>
+                    <span className="separacao-stat-val">
+                      {progresso.percentual}% ({progresso.totalSeparado} / {progresso.totalEsperado} UN)
+                    </span>
+                  </div>
+                  <div className="separacao-stat-box">
+                    <span className="separacao-stat-label">Itens Separados</span>
+                    <span className="separacao-stat-val" style={{ color: '#16a34a' }}>
+                      {progresso.itensSeparados} concluídos
+                    </span>
+                  </div>
+                  <div className="separacao-stat-box">
+                    <span className="separacao-stat-label">Itens Pendentes</span>
+                    <span className="separacao-stat-val" style={{ color: '#d97706' }}>
+                      {progresso.itensPendentes} pendentes
+                    </span>
+                  </div>
+                </div>
+
+                {/* Alternância de Visão (Pílulas Deslizantes) */}
+                <div className="separacao-view-toggle">
+                  <button
+                    type="button"
+                    className={`separacao-toggle-btn ${modoVisao === 'ROTA_GUIADA' ? 'ativo' : ''}`}
+                    onClick={() => {
+                      setModoVisao('ROTA_GUIADA');
+                      setPedidoFiltro(null);
+                    }}
+                  >
+                    🧭 Rota Guiada
+                  </button>
+                  <button
+                    type="button"
+                    className={`separacao-toggle-btn ${modoVisao === 'CONSOLIDADO' ? 'ativo' : ''}`}
+                    onClick={() => {
+                      setModoVisao('CONSOLIDADO');
+                      setPedidoFiltro(null);
+                    }}
+                  >
+                    📦 Consolidado
+                  </button>
+                  <button
+                    type="button"
+                    className={`separacao-toggle-btn ${modoVisao === 'PEDIDO' ? 'ativo' : ''}`}
+                    onClick={() => {
+                      setModoVisao('PEDIDO');
+                      if (pedidosUnicos.length > 0 && !pedidoFiltro) {
+                        setPedidoFiltro(pedidosUnicos[0]);
+                      }
+                    }}
+                  >
+                    📄 Por Pedido
+                  </button>
+                  <button
+                    type="button"
+                    className={`separacao-toggle-btn ${modoVisao === 'FALTAS' ? 'ativo' : ''}`}
+                    style={
+                      itensComFalta.length > 0
+                        ? { color: modoVisao === 'FALTAS' ? '#ffffff' : '#e11d48', fontWeight: 700 }
+                        : {}
+                    }
+                    onClick={() => {
+                      setModoVisao('FALTAS');
+                      setPedidoFiltro(null);
+                    }}
+                  >
+                    ⚠️ Faltas {itensComFalta.length > 0 ? `(${itensComFalta.length})` : ''}
+                  </button>
+                </div>
+
+                <div className="separacao-progress-bar-bg" style={{ height: 4, margin: '2px 0 0 0' }}>
+                  <div
+                    className="separacao-progress-bar-fill"
+                    style={{ width: `${progresso.percentual}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="separacao-page-wrapper">
             {/* Card Extra de Cabeçalho Interno */}
-            <div className="separacao-page-header">
+            <div className={`separacao-page-header ${sessaoAtiva ? 'sessao-ativa' : ''}`}>
               <div className="separacao-header-title">
                 <span className="separacao-header-icon">🚚</span>
                 <div>
@@ -919,7 +1054,7 @@ export function SeparacaoPage() {
                 </div>
               </div>
 
-              <div className="separacao-header-actions">
+              <div className={`separacao-header-actions ${sessaoAtiva ? 'separacao-header-actions-sessao' : ''}`}>
                 {sessaoAtiva ? (
                   <>
                     <button
@@ -981,11 +1116,12 @@ export function SeparacaoPage() {
                 ) : (
                   <button
                     type="button"
-                    className="separacao-btn separacao-btn-primary"
+                    className="separacao-btn separacao-btn-primary separacao-btn-atualizar-cargas"
                     onClick={() => carregarCargas(filtroOrdemCarga ? Number(filtroOrdemCarga) : undefined)}
                     disabled={carregando}
+                    title="Atualizar listagem de ordens de carga do ERP"
                   >
-                    {carregando ? 'Buscando...' : 'Atualizar Cargas'}
+                    {carregando ? 'Buscando...' : '🔄 Atualizar Cargas'}
                   </button>
                 )}
               </div>
@@ -994,10 +1130,10 @@ export function SeparacaoPage() {
             {/* ═══ TELA 1: SELEÇÃO DE ORDEM DE CARGA ═══ */}
             {!sessaoAtiva && (
               <div>
-                {/* Campo Rápido de Busca de Carga */}
-                <div className="separacao-scanner-card">
+                {/* Campo Rápido de Busca de Carga (Inline no fluxo normal) */}
+                <div className="separacao-busca-carga-card">
                   <form
-                    className="separacao-scanner-form"
+                    className="separacao-busca-carga-form"
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (filtroOrdemCarga.trim()) {
@@ -1005,11 +1141,11 @@ export function SeparacaoPage() {
                       }
                     }}
                   >
-                    <div className="separacao-scanner-input-wrapper">
+                    <div className="separacao-busca-carga-input-wrapper">
                       <input
                         type="number"
-                        className="separacao-scanner-input"
-                        placeholder="Escanear ou digitar número da ORDEM DE CARGA (TGFCAB)..."
+                        className="separacao-busca-carga-input"
+                        placeholder="Nº da Ordem de Carga..."
                         value={filtroOrdemCarga}
                         onChange={(e) => setFiltroOrdemCarga(e.target.value)}
                         autoFocus
@@ -1017,10 +1153,10 @@ export function SeparacaoPage() {
                     </div>
                     <button
                       type="submit"
-                      className="separacao-btn-bipar"
+                      className="separacao-btn-iniciar-busca"
                       disabled={!filtroOrdemCarga.trim() || carregando}
                     >
-                      Iniciar Separação
+                      {carregando ? 'Iniciando...' : 'Iniciar Separação'}
                     </button>
                   </form>
                 </div>
@@ -1041,12 +1177,33 @@ export function SeparacaoPage() {
                   </div>
                 )}
 
-                {/* Grade de Cargas Pendentes */}
-                <h2 style={{ fontSize: 15, fontWeight: 700, margin: '18px 0 10px 0', color: '#334155' }}>
-                  Ordens de Carga Pendentes de Venda ({cargas.length})
-                </h2>
+                {/* Grade de Cargas Pendentes com Ordenador */}
+                <div className="separacao-cargas-topo-lista">
+                  <h2 className="separacao-cargas-titulo">
+                    Ordens de Carga Pendentes ({cargasOrdenadas.length})
+                  </h2>
 
-                {cargas.length === 0 ? (
+                  <div className="separacao-cargas-sort-wrapper">
+                    <label htmlFor="select-ordenar-cargas" className="separacao-cargas-sort-label">
+                      Ordenar:
+                    </label>
+                    <select
+                      id="select-ordenar-cargas"
+                      className="separacao-cargas-sort-select"
+                      value={tipoOrdenacao}
+                      onChange={(e) => setTipoOrdenacao(e.target.value as any)}
+                    >
+                      <option value="PRIORIDADE">⚡ Prioridade (Reabastecidas / Em Andamento)</option>
+                      <option value="CARGA_DESC">🔢 Carga # (Mais recente)</option>
+                      <option value="CARGA_ASC">🔢 Carga # (Menor número)</option>
+                      <option value="VOLUME_DESC">📦 Volume Total (Maior primeiro)</option>
+                      <option value="VOLUME_ASC">📦 Volume Total (Menor primeiro)</option>
+                      <option value="ITENS_DESC">🏷️ Mais Itens Distintos</option>
+                    </select>
+                  </div>
+                </div>
+
+                {cargasOrdenadas.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: 36, background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0' }}>
                     <p style={{ color: '#64748b', fontSize: 14 }}>
                       {carregando ? 'Buscando cargas no Sankhya...' : 'Nenhuma ordem de carga de venda pendente encontrada.'}
@@ -1054,7 +1211,7 @@ export function SeparacaoPage() {
                   </div>
                 ) : (
                   <div className="separacao-cargas-grid">
-                    {cargas.map((c) => (
+                    {cargasOrdenadas.map((c) => (
                       <div key={c.ordemCarga} className="separacao-carga-card">
                         <div>
                           <div className="separacao-carga-card-header">
@@ -1172,153 +1329,219 @@ export function SeparacaoPage() {
                   </div>
                 )}
 
-                {/* Painel de Métricas e Progresso */}
-                <div className="separacao-metrics-card">
-                  <div className="separacao-metrics-row">
-                    <div className="separacao-stat-box">
-                      <span className="separacao-stat-label">Progresso da Carga</span>
-                      <span className="separacao-stat-val">
-                        {progresso.percentual}% ({progresso.totalSeparado} / {progresso.totalEsperado} UN)
-                      </span>
-                    </div>
-                    <div className="separacao-stat-box">
-                      <span className="separacao-stat-label">Itens Separados</span>
-                      <span className="separacao-stat-val" style={{ color: '#16a34a' }}>
-                        {progresso.itensSeparados} concluídos
-                      </span>
-                    </div>
-                    <div className="separacao-stat-box">
-                      <span className="separacao-stat-label">Itens Pendentes</span>
-                      <span className="separacao-stat-val" style={{ color: '#d97706' }}>
-                        {progresso.itensPendentes} pendentes
-                      </span>
-                    </div>
-
-                    {/* Alternância de Visão */}
-                    <div className="separacao-view-toggle">
-                      <button
-                        type="button"
-                        className={`separacao-toggle-btn ${modoVisao === 'ROTA_GUIADA' ? 'ativo' : ''}`}
-                        onClick={() => {
-                          setModoVisao('ROTA_GUIADA');
-                          setPedidoFiltro(null);
-                        }}
-                      >
-                        🧭 Rota Guiada
-                      </button>
-                      <button
-                        type="button"
-                        className={`separacao-toggle-btn ${modoVisao === 'CONSOLIDADO' ? 'ativo' : ''}`}
-                        onClick={() => {
-                          setModoVisao('CONSOLIDADO');
-                          setPedidoFiltro(null);
-                        }}
-                      >
-                        📦 Consolidado
-                      </button>
-                      <button
-                        type="button"
-                        className={`separacao-toggle-btn ${modoVisao === 'PEDIDO' ? 'ativo' : ''}`}
-                        onClick={() => {
-                          setModoVisao('PEDIDO');
-                          if (pedidosUnicos.length > 0 && !pedidoFiltro) {
-                            setPedidoFiltro(pedidosUnicos[0]);
-                          }
-                        }}
-                      >
-                        📄 Por Pedido
-                      </button>
-                      <button
-                        type="button"
-                        className={`separacao-toggle-btn ${modoVisao === 'FALTAS' ? 'ativo' : ''}`}
-                        style={itensComFalta.length > 0 ? { color: modoVisao === 'FALTAS' ? '#ffffff' : '#e11d48', fontWeight: 700 } : {}}
-                        onClick={() => {
-                          setModoVisao('FALTAS');
-                          setPedidoFiltro(null);
-                        }}
-                      >
-                        ⚠️ Faltas {itensComFalta.length > 0 ? `(${itensComFalta.length})` : ''}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="separacao-progress-bar-bg">
-                    <div
-                      className="separacao-progress-bar-fill"
-                      style={{ width: `${progresso.percentual}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Barra de Bipagem */}
-                <div className="separacao-scanner-card">
-                  <form className="separacao-scanner-form" onSubmit={handleBipar}>
-                    <div className="separacao-scanner-input-wrapper">
-                      <input
-                        ref={inputCodigoRef}
-                        type="text"
-                        className="separacao-scanner-input"
-                        placeholder={
-                          podeBipar
-                            ? 'Bipar ou digitar Código de Barras / Ref / Código...'
-                            : 'Apenas visualização: sem permissão para bipar'
-                        }
-                        value={codigoBarras}
-                        onChange={(e) => setCodigoBarras(e.target.value)}
-                        disabled={bipando || !podeBipar}
-                        autoFocus={podeBipar}
-                      />
-                    </div>
-
-                    <div className="separacao-scanner-qtd-wrapper">
-                      <input
-                        type="number"
-                        min="1"
-                        className="separacao-scanner-qtd-input"
-                        value={quantidade}
-                        onChange={(e) => setQuantidade(Math.max(1, Number(e.target.value)))}
-                        disabled={bipando || !podeBipar}
-                        title="Quantidade a bipar"
-                      />
-                    </div>
-
-                    <div className="separacao-scanner-lote-wrapper">
-                      <input
-                        type="text"
-                        className="separacao-scanner-lote-input"
-                        placeholder="Lote (opcional)"
-                        value={lote}
-                        onChange={(e) => setLote(e.target.value)}
-                        disabled={bipando || !podeBipar}
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="separacao-btn-bipar"
-                      disabled={!codigoBarras.trim() || bipando || !podeBipar}
-                      title={!podeBipar ? 'Sem permissão para bipar' : undefined}
-                    >
-                      {bipando ? 'Gravando...' : 'Conferir Bip'}
-                    </button>
-                  </form>
-                </div>
-
                 {/* Mensagem de Feedback de Bipagem */}
                 {mensagemStatus && (
                   <div
+                    className="separacao-mensagem-feedback-status"
                     style={{
-                      padding: '12px 16px',
+                      padding: '10px 14px',
                       borderRadius: 10,
-                      marginBottom: 16,
+                      marginBottom: 12,
                       fontWeight: 600,
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
                       background: mensagemStatus.tipo === 'erro' ? '#fee2e2' : '#dcfce7',
                       color: mensagemStatus.tipo === 'erro' ? '#991b1b' : '#166534',
+                      border: mensagemStatus.tipo === 'erro' ? '1px solid #fca5a5' : '1px solid #86efac',
                     }}
                   >
-                    {mensagemStatus.texto}
+                    <span>{mensagemStatus.tipo === 'erro' ? '⚠️' : '✓'}</span>
+                    <span>{mensagemStatus.texto}</span>
                   </div>
                 )}
+
+                {/* ═══ Barra de Bipagem Fixa no Rodapé (Mobile) com Aba de Ações Retrátil ═══ */}
+                <div className="separacao-docked-container">
+                  {/* Backdrop para fechar a gaveta ao tocar fora */}
+                  {painelAcoesAberto && (
+                    <div
+                      className="separacao-actions-backdrop"
+                      onClick={() => setPainelAcoesAberto(false)}
+                    />
+                  )}
+
+                  {/* Gaveta Retrátil (Bottom Sheet) de Ações Sobrepondo a Tela */}
+                  <div className={`separacao-actions-sheet ${painelAcoesAberto ? 'aberto' : ''}`}>
+                    <div className="separacao-actions-sheet-header">
+                      <div className="separacao-actions-sheet-title">
+                        <span style={{ fontSize: 18 }}>🚚</span>
+                        <div>
+                          <strong>Ações da Carga #{sessaoAtiva.ordemCarga}</strong>
+                          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>
+                            Operador: {sessaoAtiva.usuario}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="separacao-actions-sheet-close"
+                        onClick={() => setPainelAcoesAberto(false)}
+                        title="Fechar painel de ações"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="separacao-actions-sheet-body">
+                      <button
+                        type="button"
+                        className="separacao-sheet-btn"
+                        style={{ background: '#f59e0b', color: '#ffffff' }}
+                        onClick={() => {
+                          setPainelAcoesAberto(false);
+                          handleSolicitarReabastecimento();
+                        }}
+                        disabled={solicitandoReabastecimento || progresso.itensPendentes === 0}
+                      >
+                        <span className="separacao-sheet-btn-icon">🚜</span>
+                        <div className="separacao-sheet-btn-info">
+                          <strong>{solicitandoReabastecimento ? 'Solicitando...' : 'Solicitar Reabastecimento'}</strong>
+                          <small>Acionar equipe de empilhadeira para buscar produtos no pulmão</small>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="separacao-sheet-btn separacao-sheet-btn-secondary"
+                        onClick={() => {
+                          setPainelAcoesAberto(false);
+                          executarSincronizacao(sessaoAtiva.id, true);
+                        }}
+                        disabled={sincronizando}
+                      >
+                        <span className="separacao-sheet-btn-icon">🔄</span>
+                        <div className="separacao-sheet-btn-info">
+                          <strong>{sincronizando ? 'Sincronizando...' : 'Sincronizar ERP'}</strong>
+                          <small>Última verificação: {ultimoSyncEm || 'Agora'}</small>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="separacao-sheet-btn separacao-sheet-btn-secondary"
+                        onClick={() => {
+                          setPainelAcoesAberto(false);
+                          abrirModalBipagens();
+                        }}
+                      >
+                        <span className="separacao-sheet-btn-icon">📋</span>
+                        <div className="separacao-sheet-btn-info">
+                          <strong>Histórico de Bipagens</strong>
+                          <small>{bipagens.length || 0} bip(es) registrados nesta carga</small>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="separacao-sheet-btn separacao-sheet-btn-success"
+                        onClick={() => {
+                          setPainelAcoesAberto(false);
+                          setModalFinalizarAberto(true);
+                        }}
+                        disabled={!podeFinalizar}
+                        style={{ opacity: podeFinalizar ? 1 : 0.6 }}
+                      >
+                        <span className="separacao-sheet-btn-icon">✓</span>
+                        <div className="separacao-sheet-btn-info">
+                          <strong>Concluir Carga</strong>
+                          <small>Finalizar conferência da ordem de carga</small>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="separacao-sheet-btn separacao-sheet-btn-outline"
+                        onClick={() => {
+                          setPainelAcoesAberto(false);
+                          if (confirm('Deseja retornar à listagem de cargas?')) {
+                            setSessaoAtiva(null);
+                            carregarCargas();
+                          }
+                        }}
+                      >
+                        <span className="separacao-sheet-btn-icon">←</span>
+                        <div className="separacao-sheet-btn-info">
+                          <strong>Voltar às Cargas</strong>
+                          <small>Retornar à lista de ordens pendentes</small>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Alça / Aba retrátil com ícone '^' acima do código de barras */}
+                  <div className="separacao-sheet-handle-wrapper">
+                    <button
+                      type="button"
+                      className="separacao-sheet-handle-btn"
+                      onClick={() => setPainelAcoesAberto((prev) => !prev)}
+                      title={painelAcoesAberto ? 'Fechar ações' : 'Abrir ações da carga'}
+                      aria-label="Ações da carga"
+                    >
+                      <span className="separacao-sheet-handle-icon">
+                        {painelAcoesAberto ? '▼' : '▲'}
+                      </span>
+                      <span className="separacao-sheet-handle-text">
+                        {painelAcoesAberto ? 'Fechar Ações' : 'Ações da Carga'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Barra de Bipagem */}
+                  <div className="separacao-scanner-card separacao-scanner-docked">
+                    <form className="separacao-scanner-form" onSubmit={handleBipar}>
+                      <div className="separacao-scanner-input-wrapper">
+                        <input
+                          ref={inputCodigoRef}
+                          type="text"
+                          className="separacao-scanner-input"
+                          placeholder={
+                            podeBipar
+                              ? 'Bipar ou digitar Código / Ref...'
+                              : 'Sem permissão para bipar'
+                          }
+                          value={codigoBarras}
+                          onChange={(e) => setCodigoBarras(e.target.value)}
+                          disabled={bipando || !podeBipar}
+                          autoFocus={podeBipar}
+                        />
+                      </div>
+
+                      <div className="separacao-scanner-qtd-wrapper">
+                        <input
+                          type="number"
+                          min="1"
+                          className="separacao-scanner-qtd-input"
+                          value={quantidade}
+                          onChange={(e) => setQuantidade(Math.max(1, Number(e.target.value)))}
+                          disabled={bipando || !podeBipar}
+                          title="Quantidade a bipar"
+                        />
+                      </div>
+
+                      <div className="separacao-scanner-lote-wrapper">
+                        <input
+                          type="text"
+                          className="separacao-scanner-lote-input"
+                          placeholder="Lote (opcional)"
+                          value={lote}
+                          onChange={(e) => setLote(e.target.value)}
+                          disabled={bipando || !podeBipar}
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="separacao-btn-bipar"
+                        disabled={!codigoBarras.trim() || bipando || !podeBipar}
+                        title={!podeBipar ? 'Sem permissão para bipar' : undefined}
+                      >
+                        {bipando ? 'Gravando...' : 'Conferir Bip'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
 
                 {/* Seletor de Pedido caso modo 'Por Pedido' esteja ativo */}
                 {modoVisao === 'PEDIDO' && (

@@ -529,7 +529,7 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                   <div className="gestao-rec-card-info">
                     <div className="gestao-rec-card-notas" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span>📄 NF(s): {grupo.numerosNotas}</span>
-                      {jaEnviado && conf?.enviadoSankhyaEm && (
+                      {jaEnviado && conf?.enviadoSankhyaEm ? (
                         <span
                           style={{
                             display: 'inline-flex',
@@ -555,7 +555,37 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                             {conf.aprovadoPor ? ` por ${conf.aprovadoPor}` : ''}
                           </span>
                         </span>
-                      )}
+                      ) : conf?.aprovadoPor ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#ecfdf5',
+                            color: '#065f46',
+                            border: '1px solid #a7f3d0',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                          }}
+                          title={`Divergências liberadas por ${conf.aprovadoPor}${
+                            conf.aprovadoEm
+                              ? ` em ${new Date(conf.aprovadoEm).toLocaleDateString('pt-BR')} às ${new Date(conf.aprovadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                              : ''
+                          }`}
+                        >
+                          <span>✓</span>
+                          <span>
+                            Liberado por <strong>{conf.aprovadoPor}</strong>
+                            {conf.aprovadoEm && (
+                              <span style={{ opacity: 0.85, fontWeight: 400, marginLeft: '4px' }}>
+                                ({new Date(conf.aprovadoEm).toLocaleDateString('pt-BR')} {new Date(conf.aprovadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      ) : null}
                     </div>
                     <span className="gestao-rec-card-fornecedor">
                       Fornecedor: {grupo.fornecedor}
@@ -898,8 +928,8 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                   <th>Diferença</th>
                                   <th>Local</th>
                                   <th>Lote</th>
-                                  <th>Validade</th>
                                   <th>Fabricação</th>
+                                  <th>Validade</th>
                                   <th>Conferentes</th>
                                 </tr>
                               </thead>
@@ -914,18 +944,27 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                   : (item.qtdConferidaN2 || 0) > 0
                                   ? item.qtdConferidaN2 || 0
                                   : item.qtdConferidaN1 || 0;
-                              const diferenca =
-                                item.diferenca !== undefined
-                                  ? item.diferenca
-                                  : qtdNivel - (item.qtdneg || 0);
-                              const classeDif =
-                                diferenca < 0
-                                  ? 'falta'
-                                  : diferenca > 0
-                                  ? 'sobra'
-                                  : 'ok';
-
-                              const isFaltaIsolada = qtdNivel === 0 && (item.qtdneg || 0) > 0;
+                              const isFaltaIsolada = Boolean(
+                                item.isFaltaIsolada ||
+                                (qtdNivel === 0 && (item.qtdneg || 0) > 0) ||
+                                (item.controle && (
+                                  String(item.controle).trim() === String(item.numnota || '') ||
+                                  String(item.controle).trim() === (item.numnota ? String(item.numnota) : '') ||
+                                  String(item.controle).trim() === String(item.nunota || '')
+                                ))
+                              );
+                              const diferenca = isFaltaIsolada
+                                ? 0
+                                : item.diferenca !== undefined
+                                ? item.diferenca
+                                : qtdNivel - (item.qtdneg || 0);
+                              const classeDif = isFaltaIsolada
+                                ? 'ok'
+                                : diferenca < 0
+                                ? 'falta'
+                                : diferenca > 0
+                                ? 'sobra'
+                                : 'ok';
                               const lotesDoItem = isFaltaIsolada
                                 ? []
                                 : obterLotesItem(
@@ -985,15 +1024,37 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                     {exibirN2Envio && <td>{item.qtdConferidaN2 || 0}</td>}
                                     {temN3 && <td>{item.qtdConferidaN3 || 0}</td>}
                                     <td>
-                                      <span
-                                        className={`pill-contagem-status ${classeDif}`}
-                                      >
-                                        {diferenca === 0
-                                          ? '✓ OK'
-                                          : diferenca < 0
-                                          ? `⚠️ ${diferenca}`
-                                          : `+${diferenca}`}
-                                      </span>
+                                      {isFaltaIsolada ? (
+                                        <span
+                                          className="pill-contagem-status ok"
+                                          style={{
+                                            background: '#ecfdf5',
+                                            color: '#047857',
+                                            border: '1px solid #a7f3d0',
+                                            display: 'inline-flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            padding: '2px 8px',
+                                            lineHeight: 1.2,
+                                          }}
+                                          title="Item desmembrado como Falta no ERP (contagem física 0)"
+                                        >
+                                          <span>✓ OK</span>
+                                          <span style={{ fontSize: '0.66rem', fontWeight: 600, opacity: 0.9 }}>
+                                            Falta Isolada ERP
+                                          </span>
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className={`pill-contagem-status ${classeDif}`}
+                                        >
+                                          {diferenca === 0
+                                            ? '✓ OK'
+                                            : diferenca < 0
+                                            ? `⚠️ ${diferenca}`
+                                            : `+${diferenca}`}
+                                        </span>
+                                      )}
                                     </td>
                                     <td>
                                       {!jaEnviado ? (
@@ -1331,19 +1392,19 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                             fontWeight: 600,
                                           }}
                                           onClick={() => toggleLotesItemEnvio(itemKey)}
-                                          title="Clique para ver os lotes e validades linha a linha"
+                                          title="Clique para ver os lotes e fabricações linha a linha"
                                         >
                                           {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                         </span>
                                       ) : lotesDoItem.length === 1 ? (
                                         <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
                                           {formatarDataSimples(
-                                            lotesDoItem[0].validade
+                                            lotesDoItem[0].fabricacao
                                           )}
                                         </span>
-                                      ) : item.validade ? (
+                                      ) : item.fabricacao ? (
                                         <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                          {formatarDataSimples(item.validade)}
+                                          {formatarDataSimples(item.fabricacao)}
                                         </span>
                                       ) : (
                                         <span style={{ color: 'var(--slate-400)' }}>
@@ -1362,19 +1423,19 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                             fontWeight: 600,
                                           }}
                                           onClick={() => toggleLotesItemEnvio(itemKey)}
-                                          title="Clique para ver os lotes e fabricações linha a linha"
+                                          title="Clique para ver os lotes e validades linha a linha"
                                         >
                                           {isLotesAberto ? 'Linhas abaixo ▲' : 'Ver datas ▼'}
                                         </span>
                                       ) : lotesDoItem.length === 1 ? (
                                         <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
                                           {formatarDataSimples(
-                                            lotesDoItem[0].fabricacao
+                                            lotesDoItem[0].validade
                                           )}
                                         </span>
-                                      ) : item.fabricacao ? (
+                                      ) : item.validade ? (
                                         <span style={{ fontSize: '0.78rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                                          {formatarDataSimples(item.fabricacao)}
+                                          {formatarDataSimples(item.validade)}
                                         </span>
                                       ) : (
                                         <span style={{ color: 'var(--slate-400)' }}>
@@ -1437,8 +1498,8 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                               <tr>
                                                 <th>Lote</th>
                                                 <th style={{ textAlign: 'center' }}>Quantidade</th>
-                                                <th>Data de Validade</th>
                                                 <th>Data de Fabricação</th>
+                                                <th>Data de Validade</th>
                                                 <th>Origem</th>
                                                 <th style={{ textAlign: 'right' }}>Ação</th>
                                               </tr>
@@ -1454,11 +1515,11 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                                   <td style={{ textAlign: 'center' }}>
                                                     <strong>{fracao.qtd}</strong> {item.codvol || 'UN'}
                                                   </td>
-                                                  <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
-                                                    {formatarDataSimples(fracao.validade)}
-                                                  </td>
                                                   <td style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--slate-600)' }}>
                                                     {formatarDataSimples(fracao.fabricacao)}
+                                                  </td>
+                                                  <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: 'var(--slate-800)' }}>
+                                                    {formatarDataSimples(fracao.validade)}
                                                   </td>
                                                   <td>
                                                     <span className="gestao-mini-chip" style={{ fontSize: '0.70rem', padding: '1px 6px' }}>
@@ -1520,18 +1581,27 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                               : (item.qtdConferidaN2 || 0) > 0
                               ? item.qtdConferidaN2 || 0
                               : item.qtdConferidaN1 || 0;
-                          const diferenca =
-                            item.diferenca !== undefined
-                              ? item.diferenca
-                              : qtdNivel - (item.qtdneg || 0);
-                          const classeDif =
-                            diferenca < 0
-                              ? 'falta'
-                              : diferenca > 0
-                              ? 'sobra'
-                              : 'ok';
-
-                          const isFaltaIsolada = qtdNivel === 0 && (item.qtdneg || 0) > 0;
+                          const isFaltaIsolada = Boolean(
+                            item.isFaltaIsolada ||
+                            (qtdNivel === 0 && (item.qtdneg || 0) > 0) ||
+                            (item.controle && (
+                              String(item.controle).trim() === String(item.numnota || '') ||
+                              String(item.controle).trim() === (item.numnota ? String(item.numnota) : '') ||
+                              String(item.controle).trim() === String(item.nunota || '')
+                            ))
+                          );
+                          const diferenca = isFaltaIsolada
+                            ? 0
+                            : item.diferenca !== undefined
+                            ? item.diferenca
+                            : qtdNivel - (item.qtdneg || 0);
+                          const classeDif = isFaltaIsolada
+                            ? 'ok'
+                            : diferenca < 0
+                            ? 'falta'
+                            : diferenca > 0
+                            ? 'sobra'
+                            : 'ok';
                           const lotesDoItem = isFaltaIsolada
                             ? []
                             : obterLotesItem(
@@ -1574,15 +1644,37 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                       : ''}
                                   </div>
                                 </div>
-                                <span
-                                  className={`pill-contagem-status ${classeDif}`}
-                                >
-                                  {diferenca === 0
-                                    ? '✓ OK'
-                                    : diferenca < 0
-                                    ? `⚠️ ${diferenca}`
-                                    : `+${diferenca}`}
-                                </span>
+                                {isFaltaIsolada ? (
+                                  <span
+                                    className="pill-contagem-status ok"
+                                    style={{
+                                      background: '#ecfdf5',
+                                      color: '#047857',
+                                      border: '1px solid #a7f3d0',
+                                      display: 'inline-flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      padding: '2px 6px',
+                                      lineHeight: 1.2,
+                                    }}
+                                    title="Item desmembrado como Falta no ERP (contagem física 0)"
+                                  >
+                                    <span>✓ OK</span>
+                                    <span style={{ fontSize: '0.64rem', fontWeight: 600, opacity: 0.9 }}>
+                                      Falta Isolada ERP
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`pill-contagem-status ${classeDif}`}
+                                  >
+                                    {diferenca === 0
+                                      ? '✓ OK'
+                                      : diferenca < 0
+                                      ? `⚠️ ${diferenca}`
+                                      : `+${diferenca}`}
+                                  </span>
+                                )}
                               </div>
 
                               <div className="gestao-item-mobile-grid">
@@ -1758,8 +1850,8 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                               </span>
                                             </div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
-                                              <span>Val: {formatarDataSimples(fracao.validade)}</span>
                                               <span>Fab: {formatarDataSimples(fracao.fabricacao)}</span>
+                                              <span>Val: {formatarDataSimples(fracao.validade)}</span>
                                             </div>
                                           </div>
                                         ))}
@@ -1781,28 +1873,28 @@ export const AbaEnvioSankhyaView: React.FC<AbaEnvioSankhyaViewProps> = ({
                                       {lotesDoItem.length === 1 ? (
                                         <span>
                                           Lote: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{lotesDoItem[0].lote}</strong> ({lotesDoItem[0].qtd} un)
-                                          {lotesDoItem[0].validade
-                                            ? ` • Val: ${formatarDataSimples(
-                                                lotesDoItem[0].validade
-                                              )}`
-                                            : ''}
                                           {lotesDoItem[0].fabricacao
                                             ? ` • Fab: ${formatarDataSimples(
                                                 lotesDoItem[0].fabricacao
+                                              )}`
+                                            : ''}
+                                          {lotesDoItem[0].validade
+                                            ? ` • Val: ${formatarDataSimples(
+                                                lotesDoItem[0].validade
                                               )}`
                                             : ''}
                                         </span>
                                       ) : item.lote ? (
                                         <span>
                                           Lote: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{item.lote}</strong>
-                                          {item.validade
-                                            ? ` • Val: ${formatarDataSimples(
-                                                item.validade
-                                              )}`
-                                            : ''}
                                           {item.fabricacao
                                             ? ` • Fab: ${formatarDataSimples(
                                                 item.fabricacao
+                                              )}`
+                                            : ''}
+                                          {item.validade
+                                            ? ` • Val: ${formatarDataSimples(
+                                                item.validade
                                               )}`
                                             : ''}
                                         </span>

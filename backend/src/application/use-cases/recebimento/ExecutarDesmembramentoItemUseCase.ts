@@ -38,6 +38,25 @@ function formatarDataSankhya(dataStr?: string): string | undefined {
   return s;
 }
 
+function normalizarDataComp(dataStr?: string): string {
+  if (!dataStr) return '';
+  const s = dataStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [ano, mes, dia] = s.substring(0, 10).split('-');
+    return `${dia}/${mes}/${ano}`;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+    return s.substring(0, 10);
+  }
+  if (/^\d{8}/.test(s)) {
+    const dia = s.substring(0, 2);
+    const mes = s.substring(2, 4);
+    const ano = s.substring(4, 8);
+    return `${dia}/${mes}/${ano}`;
+  }
+  return s.split(' ')[0] || s;
+}
+
 export class ExecutarDesmembramentoItemUseCase {
   private static readonly processandoPorItem = new Set<string>();
 
@@ -230,23 +249,124 @@ WHERE (VOA.ATIVO IS NULL OR VOA.ATIVO = 'S')
       },
     };
 
-    console.log(
-      `[ExecutarDesmembramentoItemUseCase] Invocando CACSP.desmembrarItem no Sankhya (NUNOTA=${nunota}, SEQ=${sequencia}, FATOR=${fatorVolume})...`
-    );
+    // 3.1 Pré-verificação de Idempotência: Checar se o desmembramento já existe na TGFITE do Sankhya
+    let jaDesmembradoNoSankhya = false;
+    let itensTGFITE: Array<{
+      sequencia: number;
+      controle?: string;
+      qtdneg: number;
+    }> = [];
 
-    // Invocação do serviço Sankhya via módulo mgecom
-    const resp = await this.gateway.serviceCall<any>(
-      'CACSP.desmembrarItem',
-      payloadSankhya,
-      correlationId,
-      'mgecom'
-    );
-
-    console.log(`[ExecutarDesmembramentoItemUseCase] Resposta do Sankhya: status=${resp?.status}`);
-
-    // 4. Reatribuir sequências nas bipagens locais com base nas novas sequências criadas no Sankhya
     if (codprod) {
-      const sqlItensAtualizados = `
+      const sqlChecagemPrevia = `
+SELECT
+    ITE.SEQUENCIA,
+    ITE.CODPROD,
+    NVL(ITE.QTDNEG, 0) AS QTDNEG,
+    ITE.CONTROLE,
+    ITE.DTVAL,
+    ITE.DTFABRICACAO
+FROM TGFITE ITE
+WHERE ITE.NUNOTA = ${nunota} AND ITE.CODPROD = ${codprod}
+ORDER BY ITE.SEQUENCIA
+      `.trim();
+
+      const respChecagem = await this.gateway.serviceCall<any>(
+        'DbExplorerSP.executeQuery',
+        { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlChecagemPrevia } },
+        correlationId
+      );
+
+      const rowsPre: any[] = respChecagem?.responseBody?.rows || [];
+      const fieldsPre: any[] = respChecagem?.responseBody?.fieldsMetadata || [];
+      const fieldIndexPre: Record<string, number> = {};
+      fieldsPre.forEach((f: any, idx: number) => {
+        fieldIndexPre[f.name.toUpperCase()] = idx;
+      });
+
+      const itensPreExistentes = rowsPre.map((r) => ({
+        sequencia: Number(r[fieldIndexPre['SEQUENCIA']]),
+        controle: r[fieldIndexPre['CONTROLE']] ? String(r[fieldIndexPre['CONTROLE']]).trim() : undefined,
+        qtdneg: Number(r[fieldIndexPre['QTDNEG']] || 0),
+        dtval: r[fieldIndexPre['DTVAL']] ? String(r[fieldIndexPre['DTVAL']]).trim() : undefined,
+        dtfabricacao: r[fieldIndexPre['DTFABRICACAO']] ? String(r[fieldIndexPre['DTFABRICACAO']]).trim() : undefined,
+      }));
+
+      // Se a nota já possuir linhas suficientes para comportar as frações solicitadas:
+      if (itensPreExistentes.length >= input.lotes.length && input.lotes.length > 1) {
+        const indicesUsados = new Set<number>();
+        let todasBateram = true;
+
+        for (const fracao of input.lotes) {
+          let qtdSankhyaEsperada = Number(fracao.qtd);
+          if (fatorVolume > 1) {
+            if (operacaoVolume === 'M') {
+              qtdSankhyaEsperada = Number((Number(fracao.qtd) / fatorVolume).toFixed(6));
+            } else if (operacaoVolume === 'D') {
+              qtdSankhyaEsperada = Number((Number(fracao.qtd) * fatorVolume).toFixed(6));
+            }
+          }
+
+          const loteEsperado = (fracao.lote || '').trim().toUpperCase();
+          const valEsperada = normalizarDataComp(fracao.dtval);
+          const fabEsperada = normalizarDataComp(fracao.dtfab);
+
+          // Procura linha correspondente com os 4 campos idênticos (Lote, Qtd, Validade e Fabricação)
+          const idxMatch = itensPreExistentes.findIndex((it, idx) => {
+            if (indicesUsados.has(idx)) return false;
+            const loteRow = (it.controle || '').trim().toUpperCase();
+            const valRow = normalizarDataComp(it.dtval);
+            const fabRow = normalizarDataComp(it.dtfabricacao);
+            const diffQtd = Math.abs(it.qtdneg - qtdSankhyaEsperada);
+
+            const loteOk = loteRow === loteEsperado;
+            const qtdOk = diffQtd < 0.0001;
+            const valOk = valRow === valEsperada;
+            const fabOk = fabRow === fabEsperada;
+
+            return loteOk && qtdOk && valOk && fabOk;
+          });
+
+          if (idxMatch !== -1) {
+            indicesUsados.add(idxMatch);
+          } else {
+            todasBateram = false;
+            break;
+          }
+        }
+
+        if (todasBateram && indicesUsados.size === input.lotes.length) {
+          jaDesmembradoNoSankhya = true;
+          itensTGFITE = itensPreExistentes.map((it) => ({
+            sequencia: it.sequencia,
+            controle: it.controle,
+            qtdneg: it.qtdneg,
+          }));
+          console.log(
+            `[ExecutarDesmembramentoItemUseCase] ✓ Desmembramento já existente no Sankhya detectado via TGFITE (NUNOTA=${nunota}, CODPROD=${codprod}, ${input.lotes.length} frações). Pulando CACSP.desmembrarItem.`
+          );
+        }
+      }
+    }
+
+    if (!jaDesmembradoNoSankhya) {
+      console.log(
+        `[ExecutarDesmembramentoItemUseCase] Invocando CACSP.desmembrarItem no Sankhya (NUNOTA=${nunota}, SEQ=${sequencia}, FATOR=${fatorVolume})...`
+      );
+
+      // Invocação do serviço Sankhya via módulo mgecom
+      const resp = await this.gateway.serviceCall<any>(
+        'CACSP.desmembrarItem',
+        payloadSankhya,
+        correlationId,
+        'mgecom'
+      );
+
+      console.log(`[ExecutarDesmembramentoItemUseCase] Resposta do Sankhya: status=${resp?.status}`);
+
+      // 4. Reatribuir sequências nas bipagens locais com base nas novas sequências criadas no Sankhya
+      if (codprod) {
+        const sqlItensAtualizados = `
 SELECT
     ITE.SEQUENCIA,
     ITE.CODPROD,
@@ -255,26 +375,30 @@ SELECT
 FROM TGFITE ITE
 WHERE ITE.NUNOTA = ${nunota} AND ITE.CODPROD = ${codprod}
 ORDER BY ITE.SEQUENCIA
-      `.trim();
+        `.trim();
 
-      const respNovosItens = await this.gateway.serviceCall<any>(
-        'DbExplorerSP.executeQuery',
-        { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlItensAtualizados } },
-        correlationId
-      );
+        const respNovosItens = await this.gateway.serviceCall<any>(
+          'DbExplorerSP.executeQuery',
+          { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql: sqlItensAtualizados } },
+          correlationId
+        );
 
-      const rowsNovos: any[] = respNovosItens?.responseBody?.rows || [];
-      const fieldsNovos: any[] = respNovosItens?.responseBody?.fieldsMetadata || [];
-      const fieldIndexNovos: Record<string, number> = {};
-      fieldsNovos.forEach((f: any, idx: number) => {
-        fieldIndexNovos[f.name.toUpperCase()] = idx;
-      });
+        const rowsNovos: any[] = respNovosItens?.responseBody?.rows || [];
+        const fieldsNovos: any[] = respNovosItens?.responseBody?.fieldsMetadata || [];
+        const fieldIndexNovos: Record<string, number> = {};
+        fieldsNovos.forEach((f: any, idx: number) => {
+          fieldIndexNovos[f.name.toUpperCase()] = idx;
+        });
 
-      const itensTGFITE = rowsNovos.map((r) => ({
-        sequencia: Number(r[fieldIndexNovos['SEQUENCIA']]),
-        controle: r[fieldIndexNovos['CONTROLE']] ? String(r[fieldIndexNovos['CONTROLE']]).trim() : undefined,
-        qtdneg: Number(r[fieldIndexNovos['QTDNEG']] || 0),
-      }));
+        itensTGFITE = rowsNovos.map((r) => ({
+          sequencia: Number(r[fieldIndexNovos['SEQUENCIA']]),
+          controle: r[fieldIndexNovos['CONTROLE']] ? String(r[fieldIndexNovos['CONTROLE']]).trim() : undefined,
+          qtdneg: Number(r[fieldIndexNovos['QTDNEG']] || 0),
+        }));
+      }
+    }
+
+    if (codprod && itensTGFITE.length > 0) {
 
       await this.conferenciaRepo.reatribuirSequenciasBipagens(rawId, nunota, codprod, itensTGFITE);
 
@@ -384,7 +508,9 @@ ORDER BY ITE.SEQUENCIA
 
       return {
         sucesso: true,
-        mensagem: `Item da Nota ${nunota} desmembrado com sucesso no Sankhya!`,
+        mensagem: jaDesmembradoNoSankhya
+          ? `Item da Nota ${nunota} já se encontrava desmembrado no Sankhya (validado na TGFITE)!`
+          : `Item da Nota ${nunota} desmembrado com sucesso no Sankhya!`,
         divergencias: divergenciasAtualizadas,
       };
     } finally {

@@ -1,0 +1,145 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   DESIGN DE ENDEREÇO EM CHIPS / PÍLULAS WMS (RUA, TORRE, NÍVEL, POS)
+   Padrão visual aprovado pelo operador humano
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.endereco-chips-container {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+/* Pílula Coordenada (Rua, Torre, Nível) */
+.endereco-chip-coord {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.endereco-chip-coord .endereco-chip-rotulo {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0284c7; /* Azul sutil elegante */
+  letter-spacing: 0.4px;
+}
+
+.endereco-chip-coord .endereco-chip-valor {
+  font-size: 13px;
+  font-weight: 900;
+  color: #0f172a;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Posição Física em Destaque (POS XX) com borda azul e fundo suave */
+.endereco-chip-coord.destacada {
+  border: 1.5px solid #3b82f6;
+  background: #f0fdf4; /* Fundo esverdeado suave */
+  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
+}
+
+.endereco-chip-coord.destacada .endereco-chip-rotulo {
+  color: #16a34a; /* Verde */
+}
+
+.endereco-chip-coord.destacada .endereco-chip-valor {
+  color: #0f172a;
+}
+
+/* Variação de Tamanho: Compacto */
+.endereco-chips-container.compacto .endereco-chip-coord {
+  padding: 1px 5px;
+  gap: 3px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.endereco-chips-container.compacto .endereco-chip-rotulo {
+  font-size: 9px;
+}
+
+.endereco-chips-container.compacto .endereco-chip-valor {
+  font-size: 11px;
+}
+
+/* Variação de Tamanho: Destaque */
+.endereco-chips-container.destaque .endereco-chip-coord {
+  padding: 6px 12px;
+  gap: 6px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.endereco-chips-container.destaque .endereco-chip-rotulo {
+  font-size: 11px;
+}
+
+.endereco-chips-container.destaque .endereco-chip-valor {
+  font-size: 16px;
+}
+
+/* Sem endereço cadastrado */
+.endereco-chip-sem-endereco {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #fff7ed;
+  border: 1.5px dashed #fdba74;
+  padding: 3px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+/* Fallback simples */
+.endereco-chips-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.endereco-chip-coord.fallback {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+  font-weight: 700;
+}
+
+/* Lado (Esquerda / Direita) */
+.endereco-chip-lado {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.endereco-chip-lado.lado-esq {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.endereco-chip-lado.lado-dir {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
